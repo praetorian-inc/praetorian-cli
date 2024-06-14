@@ -84,14 +84,13 @@ def paginate(controller, key, item_type="", filter="", offset="", details=False,
         result = handle_results(result, item_type)
         display_list(result, details)
 
-        if page == 'interactive' and 'offset' in result:
-            if 'offset' in result:
-                print("Press any key to view next or 'q' to quit")
-                if click.getchar() == 'q':
-                    break
-                offset = result['offset']
-        else:
+        if 'offset' not in result or page == 'all' or page == 'no':
             break
+
+        print("Press any key to view next or 'q' to quit")
+        if click.getchar() == 'q':
+            break
+        offset = result['offset']
 
     if 'offset' in result and not details:
         print(f'There are more results. Add the following argument to the command to view them:')
