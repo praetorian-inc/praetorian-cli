@@ -123,7 +123,7 @@ For more examples and API documentation, visit [our documentation](https://docs.
 
 ## Extending the CLI with script plugins
 
-The CLI has a plugin system for you to extend the CLI without changing its internals. Your script
+The CLI has a plugin engine for you to extend the CLI without changing its internals. Your script
 is imported to the CLI context so it has full and authenticated access to the SDK.
 
 To write a script, clone this repoository and install the CLI locally:
@@ -137,10 +137,10 @@ $ pip install -e .
 Place your scripts in the `praetorian-cli/scripts/` directory in the cloned repository. There are also example
 scripts in the directory.
 
-Your script need to implement a `process` function that takes 4 arguments. They are:
+Your script needs to implement a `process` function that takes 4 arguments. They are:
    - `controller`: This object holds the authentication context and provide functions for accessing the
       Chariot backend API
-   - `cmd`: This dictionary holds the information of what CLI command is executed. It tells you the product,
+   - `cmd`: This dictionary holds the information of which CLI command is executed. It tells you the product,
      action, and type of the CLI command. For example, you can use this to find out whether it is a `list` command
      on `assets`.
    - `cli_kwargs`: This dictionary contains the additional options the user provided to the CLI, such
@@ -155,7 +155,7 @@ of your cloned repository:
 praetorian chariot list seeds --details --script hello-world
 ```
 
-A typical script use the arguments in the following manners:
+A typical script uses the arguments in the following manners:
 - Check for input correctness using information in `cmd` and `cli_kwargs`.
 - Parse the CLI `output` to extract relevant data.
 - Use the authenticated session in `controller` to further issue API calls to operate
