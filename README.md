@@ -130,6 +130,7 @@ To write a script, clone this repoository and install the CLI locally:
 
 ```zsh
 $ git clone git@github.com:praetorian-inc/praetorian-cli.git
+$ cd praetorian-cli
 $ pip install -e .
 ```
 
