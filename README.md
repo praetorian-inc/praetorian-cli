@@ -126,7 +126,7 @@ For more examples and API documentation, visit [our documentation](https://docs.
 The CLI has a plugin engine for you to extend the CLI without changing its internals. Your script
 is imported to the CLI context so it has full and authenticated access to the SDK.
 
-To write a script, clone this repoository and install the CLI locally:
+To write a script, clone this repository and install the CLI locally:
 
 ```zsh
 $ git clone git@github.com:praetorian-inc/praetorian-cli.git
