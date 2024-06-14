@@ -3,7 +3,7 @@
 # Praetorian CLI and SDK
 
 [![Python Version](https://img.shields.io/badge/Python-v3.8+-blue)](https://www.python.org/)
-[![pip Version](https://img.shields.io/badge/pip-v23.0+-blue)]([https://www.python.org/](https://pypi.org/project/praetorian-cli/))
+[![pip Version](https://img.shields.io/badge/pip-v23.0+-blue)](https://pypi.org/project/praetorian-cli/)
 [![License](https://img.shields.io/badge/License-MIT-007EC6.svg)](LICENSE)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20covenant-2.1-007EC6.svg)](CODE_OF_CONDUCT.md)
 [![Open Source Libraries](https://img.shields.io/badge/Open--source-%F0%9F%92%9A-28a745)](https://opensource.org/)
