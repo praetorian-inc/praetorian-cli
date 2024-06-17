@@ -71,9 +71,7 @@ class Chariot:
         return resp.text
 
     @verify_credentials
-    def link_account(self, username: str, config: dict, id: str = None):
-        if not id:
-            id = username
+    def link_account(self, username: str, config: dict, id: str = ""):
         resp = requests.post(f"{self.keychain.api}/account/{username}", json={'config': config, 'value': id},
                              headers=self.keychain.headers)
         if not resp.ok:
