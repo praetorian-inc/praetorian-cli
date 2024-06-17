@@ -61,8 +61,8 @@ def link_amazon(controller, account):
 @click.argument('subscription')
 def link_azure(controller, appid, secret, tenant, subscription):
     """ Enumerate Azure for Assets """
-    config = {'name': appid, 'secret': secret, 'tenant': tenant, 'subscription': subscription}
-    controller.link_account('azure', config)
+    config = {'name': appid, 'secret': secret, 'tenant': tenant}
+    controller.link_account('azure', config, subscription)
 
 
 @link.command('gcp')
@@ -78,9 +78,10 @@ def link_gcp(controller, keyfile, project_id):
 @link.command('github')
 @cli_handler
 @click.argument('pat')
-def link_github(controller, pat):
+@click.argument('organization')
+def link_github(controller, pat, organization):
     """ Allow Chariot to scan your private repos """
-    controller.link_account('github', {'pat': pat})
+    controller.link_account('github', {'pat': pat}, organization)
 
 
 @link.command('ns1')
@@ -88,7 +89,7 @@ def link_github(controller, pat):
 @click.argument('ns1_api_key')
 def link_ns1(controller, ns1_api_key):
     """ Allow Chariot to retrieve zone information from NS1 """
-    controller.link_account('ns1', {'ns1_api_key': ns1_api_key})
+    controller.link_account('ns1', {'ns1_api_key': ns1_api_key}, 'ns1')
 
 
 @link.command('crowdstrike')
@@ -98,5 +99,5 @@ def link_ns1(controller, ns1_api_key):
 @click.argument('url')
 def link_crowdstrike(controller, client, secret, url):
     """ Enumerate Crowdstrike for Assets and Risks """
-    config = {'clientID': client, 'secret': secret, 'baseURL': url}
-    controller.link_account('crowdstrike', config)
+    config = {'clientID': client, 'secret': secret}
+    controller.link_account('crowdstrike', config, url)
