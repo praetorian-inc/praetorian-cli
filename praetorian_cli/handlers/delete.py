@@ -20,7 +20,6 @@ def delete_command(item):
             resp = controller.delete('asset/attribute', key)
         else:
             resp = controller.delete(item, key)
-        print(resp)
         print(f"Key: {key} \nDeleted successfully")
 
 
