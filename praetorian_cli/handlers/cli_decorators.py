@@ -1,6 +1,6 @@
 import importlib
 import sys
-import types
+from types import ModuleType
 from functools import wraps
 from inspect import signature
 from io import StringIO
@@ -112,7 +112,7 @@ def process_with_script(script_name, output, cli_kwargs):
 
 
 def load_raw_script(path):
-    module = types.ModuleType('cli-plugin-script')
+    module = ModuleType('cli-plugin-script')
     module.__file__ = path
     with open(path, 'r') as code_file:
         source = code_file.read()
