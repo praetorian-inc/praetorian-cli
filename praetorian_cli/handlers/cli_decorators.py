@@ -1,5 +1,6 @@
 import importlib
 import sys
+import types
 from functools import wraps
 from inspect import signature
 from io import StringIO
@@ -86,18 +87,37 @@ def scripts(f):
 
 def process_with_script(script_name, output, cli_kwargs):
     try:
+        # attempt to import it as a script that is shipped with the CLI package
         script_module = importlib.import_module(f'.scripts.{script_name}', 'praetorian_cli')
-        if hasattr(script_module, 'process') and len(signature(script_module.__dict__['process']).parameters) == 4:
-            ctx = click.get_current_context()
-            controller = ctx.obj
-            if ctx.command.name == 'search':
-                cmd = dict(product=ctx.parent.command.name, action=ctx.command.name, type=None)
-            else:
-                cmd = dict(product=ctx.parent.parent.command.name, action=ctx.parent.command.name,
-                           type=ctx.command.name)
-
-            script_module.process(controller, cmd, cli_kwargs, output)
-        else:
-            click.echo(f"The script {script_name} does not have a 'process' function that takes 4 arguments.")
     except ImportError as e:
-        click.echo(f'Error importing script {script_name}: {e}')
+        try:
+            # in this case, script_name is used as a full path, such as ~/code/my_script.py
+            script_module = load_raw_script(script_name)
+        except Exception as e:
+            click.echo(f'Error importing script {script_name}: {e}')
+            return
+
+    if hasattr(script_module, 'process') and len(signature(script_module.__dict__['process']).parameters) == 4:
+        ctx = click.get_current_context()
+        controller = ctx.obj
+        if ctx.command.name == 'search':
+            cmd = dict(product=ctx.parent.command.name, action=ctx.command.name, type=None)
+        else:
+            cmd = dict(product=ctx.parent.parent.command.name, action=ctx.parent.command.name,
+                       type=ctx.command.name)
+
+        script_module.process(controller, cmd, cli_kwargs, output)
+    else:
+        click.echo(f"The script {script_name} does not have a 'process' function that takes 4 arguments.")
+
+
+def load_raw_script(path):
+    module = types.ModuleType('cli-plugin-script')
+    module.__file__ = path
+    with open(path, 'r') as code_file:
+        source = code_file.read()
+
+    code = compile(source, path, 'exec')
+    exec(code, module.__dict__)
+    sys.modules['cli-plugin-script"'] = module
+    return module
