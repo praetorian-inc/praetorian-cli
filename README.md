@@ -134,7 +134,7 @@ For built in [scripts](https://github.com/praetorian-inc/praetorian-cli/tree/mai
 ```zsh
 $ praetorian chariot get seed 'SEED_KEY' --script list-assets
 
-To work with the plugin engine, the script needs to implement a `process` function that takes 4 arguments. They are:
+To work with the plugin engine, the script needs to implement a `process` function that takes 4 arguments:
    - `controller`: This object holds the authentication context and provide functions for accessing the
       Chariot backend API
    - `cmd`: This dictionary holds the information of which CLI command is executed. It tells you the product,
