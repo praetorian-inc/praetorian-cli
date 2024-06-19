@@ -1,5 +1,3 @@
-<img src="https://github.com/praetorian-inc/chariot-ui/blob/main/public/icons/logo.png" alt="Praetorian Logo" width="200" height="200">
-
 # Praetorian CLI and SDK
 
 [![Python Version](https://img.shields.io/badge/Python-v3.8+-blue)](https://www.python.org/)
@@ -91,7 +89,7 @@ praetorian chariot get seed <SEED_KEY>
 To try one of our plugin scripts, run:
 
 ```zsh
-praetorian chariot get assets --script example
+praetorian chariot get seed <SEED_KEY> --script list-assets
 ````
 
 See the [Contributing](#contributing) section for more information on how to add your own plugin scripts.
@@ -126,18 +124,19 @@ For more examples and API documentation, visit [our documentation](https://docs.
 The CLI has a plugin engine for you to extend the CLI without changing its internals. Your script
 is imported to the CLI context so it has full and authenticated access to the SDK.
 
-To write a script, clone this repository and install the CLI locally:
+To run a script, add the `--script` option after the CLI command, for example:
 
 ```zsh
-$ git clone git@github.com:praetorian-inc/praetorian-cli.git
-$ cd praetorian-cli
-$ pip install -e .
+$ praetorian chariot list seeds --script ~/code/my-process-seeds.py
 ```
 
-Place your scripts in the `praetorian-cli/scripts/` directory in the cloned repository. There are also example
-scripts in the directory.
+For built in [scripts](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts) you only need the script name:
 
-Your script needs to implement a `process` function that takes 4 arguments. They are:
+```zsh
+$ praetorian chariot get seed 'SEED_KEY' --script list-assets
+```
+
+To work with the plugin engine, the script needs to implement a `process` function that takes 4 arguments:
    - `controller`: This object holds the authentication context and provide functions for accessing the
       Chariot backend API
    - `cmd`: This dictionary holds the information of which CLI command is executed. It tells you the product,
@@ -148,8 +147,7 @@ Your script needs to implement a `process` function that takes 4 arguments. They
    - `output`: This is the raw output of the CLI.
 
 Try out the [`hello-world`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/scripts/hello-world.py)
-script to have a concrete look at the content of those arguments, using the following command at the root directory
-of your cloned repository:
+script to have a concrete look at the content of those arguments, using the following command:
 
  ```zsh
 praetorian chariot list seeds --details --script hello-world
@@ -166,6 +164,7 @@ See this in action in the
 [`validate-secrets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/scripts/validate-secrets.py)
 scripts.
 
+If you think your script will be useful for the offensive security community, contribute it!
 
 ## Contributing
 

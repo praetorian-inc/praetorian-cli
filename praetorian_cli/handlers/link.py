@@ -58,11 +58,10 @@ def link_amazon(controller, account):
 @click.argument('appid')
 @click.argument('secret')
 @click.argument('tenant')
-@click.argument('subscription')
-def link_azure(controller, appid, secret, tenant, subscription):
+def link_azure(controller, appid, secret, tenant):
     """ Enumerate Azure for Assets """
-    config = {'name': appid, 'secret': secret, 'tenant': tenant}
-    controller.link_account('azure', config, subscription)
+    config = {'name': appid, 'secret': secret}
+    controller.link_account('azure', config, tenant)
 
 
 @link.command('gcp')
