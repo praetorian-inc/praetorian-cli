@@ -105,9 +105,11 @@ def process_with_script(script_name, output, cli_kwargs):
 
 
 def import_script(script_name):
+    # try importing from the praetorian_cli/scripts package
     try:
         return importlib.import_module(f'.scripts.{script_name}', 'praetorian_cli')
     except ImportError:
+        # try importing from the current directory as a raw script
         try:
             return load_raw_script(script_name)
         except Exception as e:
