@@ -131,8 +131,10 @@ $ praetorian chariot list seeds --script ~/code/my-process-seeds.py
 ```
 
 For built in [scripts](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts) you only need the script name:
+
 ```zsh
 $ praetorian chariot get seed 'SEED_KEY' --script list-assets
+```
 
 To work with the plugin engine, the script needs to implement a `process` function that takes 4 arguments:
    - `controller`: This object holds the authentication context and provide functions for accessing the
