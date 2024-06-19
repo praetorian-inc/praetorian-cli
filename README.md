@@ -89,7 +89,7 @@ praetorian chariot get seed <SEED_KEY>
 To try one of our plugin scripts, run:
 
 ```zsh
-praetorian chariot get assets --script hello-world
+praetorian chariot get seed <SEED_KEY> --script list-assets
 ````
 
 See the [Contributing](#contributing) section for more information on how to add your own plugin scripts.
