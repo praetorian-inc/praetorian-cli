@@ -39,8 +39,8 @@ def list_options(filter_name):
 def status_options(status_choices):
     def decorator(func):
         func = cli_handler(func)
-        func = click.option('-status', '--status', type=click.Choice([s.value for s in status_choices]), required=False,
-                            help="Status of the object")(func)
+        func = click.option('-status', '--status', type=click.Choice([s.value for s in status_choices]),
+                            required=False, help="Status of the object")(func)
         func = click.option('-comment', '--comment', default="", help="Add a comment")(func)
         return func
 
@@ -63,7 +63,7 @@ def scripts(f):
             return f(*args, **kwargs)
 
         if 'page' in kwargs and kwargs['page'] == 'interactive':
-            print("Scripts can only be used with 'no' or 'all' pagination mode.")
+            click.echo("Scripts can only be used with 'no' or 'all' pagination mode.", err=True)
             exit(1)
 
         old_stdout = sys.stdout
@@ -94,7 +94,7 @@ def process_with_script(script_name, output, cli_kwargs):
             # in this case, script_name is used as a full path, such as ~/code/my_script.py
             script_module = load_raw_script(script_name)
         except Exception as e:
-            click.echo(f'Error importing script {script_name}: {e}')
+            click.echo(f'Error importing script {script_name}: {e}', err=True)
             return
 
     if hasattr(script_module, 'process') and len(signature(script_module.__dict__['process']).parameters) == 4:
@@ -108,7 +108,7 @@ def process_with_script(script_name, output, cli_kwargs):
 
         script_module.process(controller, cmd, cli_kwargs, output)
     else:
-        click.echo(f"The script {script_name} does not have a 'process' function that takes 4 arguments.")
+        click.echo(f"The script {script_name} does not have a 'process' function that takes 4 arguments.", err=True)
 
 
 def load_raw_script(path):
