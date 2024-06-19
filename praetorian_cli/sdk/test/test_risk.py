@@ -31,7 +31,7 @@ class TestRisk(BaseTest):
             "None of the risks matched self.risk_payload['name']"
 
     def test_update_risk(self):
-        response = self.chariot.update('risk', dict(key=f'#risk#{TestRisk.key}', status='CI'))
+        response = self.chariot.update('risk', dict(key=f'#risk#{TestRisk.key}', status='C_'))
         for risk in response['risks']:
             assert risk['status'] == 'CI'
             assert risk['name'] == TestRisk.risk_payload['name']
