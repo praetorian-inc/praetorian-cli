@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3
+
+[Bug Fix] Fixed `chariot test` command
+[New Feature] Added Azure org-level integration
+[New Feature] Now run scripts from any directory as plugins with --script flag
+
 ## 1.0.2
 
 - [Bug Fix] Delete command was not making correct API calls.
