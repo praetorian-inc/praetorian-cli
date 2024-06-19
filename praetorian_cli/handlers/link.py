@@ -100,3 +100,12 @@ def link_crowdstrike(controller, client, secret, url):
     """ Enumerate Crowdstrike for Assets and Risks """
     config = {'clientID': client, 'secret': secret}
     controller.link_account('crowdstrike', config, url)
+
+
+@link.command('gitlab')
+@cli_handler
+@click.argument('pat')
+@click.argument('group')
+def link_gitlab(controller, pat, group):
+    """ Allow Chariot to scan private repos in your GitLab Group"""
+    controller.link_account('gitlab', {'pat': pat}, group)
