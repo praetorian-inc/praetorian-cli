@@ -86,16 +86,9 @@ def scripts(f):
 
 
 def process_with_script(script_name, output, cli_kwargs):
-    try:
-        # attempt to import it as a script that is shipped with the CLI package
-        script_module = importlib.import_module(f'.scripts.{script_name}', 'praetorian_cli')
-    except ImportError as e:
-        try:
-            # in this case, script_name is used as a full path, such as ~/code/my_script.py
-            script_module = load_raw_script(script_name)
-        except Exception as e:
-            click.echo(f'Error importing script {script_name}: {e}', err=True)
-            return
+    script_module = import_script(script_name)
+    if not script_module:
+        return
 
     if hasattr(script_module, 'process') and len(signature(script_module.__dict__['process']).parameters) == 4:
         ctx = click.get_current_context()
@@ -111,13 +104,21 @@ def process_with_script(script_name, output, cli_kwargs):
         click.echo(f"The script {script_name} does not have a 'process' function that takes 4 arguments.", err=True)
 
 
+def import_script(script_name):
+    try:
+        return importlib.import_module(f'.scripts.{script_name}', 'praetorian_cli')
+    except ImportError:
+        try:
+            return load_raw_script(script_name)
+        except Exception as e:
+            click.echo(f'Error importing script {script_name}: {e}', err=True)
+            return None
+
+
 def load_raw_script(path):
     module = ModuleType('cli-plugin-script')
     module.__file__ = path
     with open(path, 'r') as code_file:
-        source = code_file.read()
-
-    code = compile(source, path, 'exec')
-    exec(code, module.__dict__)
+        exec(compile(code_file.read(), path, 'exec'), module.__dict__)
     sys.modules['cli-plugin-script"'] = module
     return module
