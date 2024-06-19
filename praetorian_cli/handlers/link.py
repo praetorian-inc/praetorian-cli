@@ -107,5 +107,5 @@ def link_crowdstrike(controller, client, secret, url):
 @click.argument('pat')
 @click.argument('group')
 def link_gitlab(controller, pat, group):
-    """ Allow Chariot to scan private repos in your Gitlab Group"""
+    """ Allow Chariot to scan private repos in your GitLab Group"""
     controller.link_account('gitlab', {'pat': pat}, group)
