@@ -130,12 +130,9 @@ To run a script, add the `--script` option after the CLI command, for example:
 $ praetorian chariot list seeds --script ~/code/my-process-seeds.py
 ```
 
-The CLI [ships with scripts](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts) for
-common tasks. For those, you only need the script name to invoke them:
-
+For built in [scripts](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts) you only need the script name:
 ```zsh
 $ praetorian chariot get seed 'SEED_KEY' --script list-assets
-```
 
 To work with the plugin engine, the script needs to implement a `process` function that takes 4 arguments. They are:
    - `controller`: This object holds the authentication context and provide functions for accessing the
