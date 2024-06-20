@@ -12,12 +12,21 @@ def add(ctx):
     pass
 
 
+@add.command('asset')
+@click.argument('dns', required=True)
+@click.argument('name', required=True)
+@status_options(Status['asset'])
+def assets(controller, dns, name, status, comment):
+    """ Add an asset"""
+    print(controller.add('asset', dict(dns=dns, name=name, status=status, comment=comment)))
+
+
 @add.command('seed')
 @click.argument('seed', required=True)
 @status_options(Status['seed'])
-def assets(controller, seed, status, comment):
+def seeds(controller, seed, status, comment):
     """ Add a seed"""
-    controller.add('seed', dict(dns=seed, status=status, comment=comment))
+    print(controller.add('seed', dict(dns=seed, status=status, comment=comment)))
 
 
 @add.command('file')
@@ -53,7 +62,7 @@ def webhook(controller):
 @status_options(Status['risk'])
 def risks(controller, name, key, status, comment):
     """ Add a risk"""
-    controller.add('risk', dict(key=key, name=name, status=status, comment=comment))
+    print(controller.add('risk', dict(key=key, name=name, status=status, comment=comment)))
 
 
 @add.command('job')
@@ -69,7 +78,7 @@ def jobs(controller, capability, key, status, comment):
 @cli_handler
 @click.argument('name', required=True)
 @click.option('-key', '--key', required=True, help='Key of an existing asset')
-@click.option('-class', '--class', 'clss', default="", help='Class of the attribute')
+@click.option('-class', '--class', 'clss', required=True, help='Class of the attribute')
 def attributes(controller, name, key, clss):
     """ Add an attribute"""
     params = {
