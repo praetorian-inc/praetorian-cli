@@ -1,5 +1,6 @@
 """
-This script is used to ...
+This script is used to help engineers quickly create and update findings in 
+Chariot seamlessly.
 
 Example usage:
 
@@ -8,6 +9,7 @@ Example usage:
 Prerequisites:
 
   fzf
+  git
 
 """
 import glob
@@ -59,28 +61,25 @@ def process(controller: Chariot, cmd: dict, cli_kwargs: dict, _):
 
 
 def create_asset(controller: Chariot) -> tuple[str, str, str, str]:
-    previous_dns = EnvManager().get('DNS', None)
-    previous_name = EnvManager().get('NAME', None)
+    previous_name = EnvManager().get('ASSET_NAME', None)
     key = EnvManager().get('ASSET_KEY', None)
-    skip = False
 
     sow = prompt_and_set_env('SOW Number', '2024-02-1234')
-    dns = prompt_and_set_env('DNS', 'praetorian.com')
-    name = prompt_and_set_env('NAME', 'www.praetorian.com')
+    name = prompt_and_set_env('Asset Name', 'www.praetorian.com')
 
-    if previous_dns == dns and previous_name == name and key:
+    if previous_name == name and key:
         click.echo(f'Asset already exists in the environment. {key}')
         if click.prompt(
                 'Would you like to skip asset creation in Chariot (recommended)', type=bool, default=True):
             return (sow, key)
 
     click.echo('Creating asset...')
-    asset = controller.add('asset', dict(dns=dns, name=name, status='F'))
+    asset = controller.add('asset', dict(dns=name, name=name, status='F'))
     key = asset[0]['key']
     EnvManager().set('ASSET_KEY', key)
     controller.add('asset/attribute',
                    {'key': key, 'name': sow, 'class': 'SOW'})
-
+    click.echo(f'Asset created in Chariot - {key}')
     return (sow, key)
 
 
@@ -114,8 +113,8 @@ def create_findings(controller: Chariot) -> str:
 def create_risk(controller: Chariot, asset_key: str, finding: str) -> tuple[str, str]:
     key = EnvManager().get('RISK_KEY', None)
     name = EnvManager().get('RISK_NAME', None)
-    dns = key.split('#')[2]
-    if key and dns == EnvManager().get('DNS', None):
+    dns = key.split('#')[2] if key else None
+    if key and dns == EnvManager().get('ASSET_NAME', None):
         click.echo(f'Risk {name} already exists in the environment for {dns}')
         if click.prompt(
                 'Would you like to skip risk creation in Chariot (recommended)', type=bool, default=True):
@@ -125,6 +124,7 @@ def create_risk(controller: Chariot, asset_key: str, finding: str) -> tuple[str,
     name = prompt_and_set_env('Risk Name', finding).replace(' ', '-')
     risk = controller.add('risk', dict(
         key=asset_key, name=name, status='TI', comment=''))
+    click.echo(f'Risk created in Chariot - {name}')
 
     EnvManager().set('RISK_KEY', risk['risks'][0]['key'])
     EnvManager().set('RISK_NAME', name)
