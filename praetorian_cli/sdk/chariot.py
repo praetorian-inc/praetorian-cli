@@ -79,6 +79,13 @@ class Chariot:
         return resp.json()
 
     @verify_credentials
+    def upgrade(self):
+        resp = requests.post(f"{self.keychain.api}/upgrade", headers=self.keychain.headers)
+        if not resp.ok:
+            raise Exception(f'[{resp.status_code}] Request failed')
+        return resp.json()
+
+    @verify_credentials
     def unlink(self, username: str, id: str = ""):
         resp = requests.delete(f"{self.keychain.api}/account/{username}", headers=self.keychain.headers,
                                json={'value': id})
