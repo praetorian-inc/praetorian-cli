@@ -1,5 +1,7 @@
+import os
 import click
 
+from praetorian_cli.handlers.cli_decorators import load_raw_script
 from praetorian_cli.sdk.chariot import Chariot
 
 
@@ -8,3 +10,13 @@ from praetorian_cli.sdk.chariot import Chariot
 def chariot(ctx):
     """ Chariot API access in the new and different file """
     ctx.obj = Chariot(keychain=ctx.obj)
+
+
+def load_cli_scripts():
+    plugins = [load_raw_script(os.path.join('scripts/', filename))
+               for filename in os.listdir('scripts/') if filename.endswith('.py')]
+    for plugin in filter(lambda p: hasattr(p, 'register') and callable(p.register), plugins):
+        plugin.register(chariot)
+
+
+load_cli_scripts()
