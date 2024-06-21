@@ -38,26 +38,23 @@ def process(controller: Chariot, cmd: dict, cli_kwargs: dict, _):
     click.echo(f'Using risk - {risk_name}.')
 
     if click.prompt('Would you like to update the risk status?', type=bool, default=False):
-        statuses = [status.name for status in Status['risk']]
-        status = Status['risk'][fzf_generic(statuses)].value
+        status = Status['risk'][fzf_generic(
+            [status.name for status in Status['risk']])].value
         controller.update('risk', dict(
             key=risk_key, status=status, comment=''))
 
-    upload = click.prompt(f'Upload {path} finding to Chariot?',
-                          type=bool, default=True)
-    if upload:
+
+    if click.prompt(f'Upload {path} finding to Chariot?',
+                          type=bool, default=True):
         controller.upload(path, f"definitions/{sow}/{risk_name}")
 
-    upload = True
-    while upload:
-        upload = click.prompt(
-            'Upload any additional engagement files to Chariot', type=bool, default=False)
-        if upload:
-            path = fzf_file(click.prompt('Enter glob pattern to search for files',
+    while click.prompt(
+            'Upload any additional engagement files to Chariot', type=bool, default=False):
+        path = fzf_file(click.prompt('Enter glob pattern to search for files',
                                          type=str, default='./**/*'))
-            if click.prompt(f'Upload {path}', type=bool, default=True):
-                controller.upload(
-                    path, f"files/{sow}/{os.path.basename(path)}")
+        if click.prompt(f'Upload {path}', type=bool, default=True):
+            controller.upload(
+                path, f"files/{sow}/{os.path.basename(path)}")
 
 
 def create_asset(controller: Chariot) -> tuple[str, str, str, str]:
@@ -83,7 +80,7 @@ def create_asset(controller: Chariot) -> tuple[str, str, str, str]:
     return (sow, key)
 
 
-def create_findings(controller: Chariot) -> str:
+def create_findings(_: Chariot) -> str:
     path = EnvManager().get('FINDING_TEMPLATE', '')
     if os.path.exists(path) and click.prompt(f'Local finding found. Reuse - {path}', type=bool, default=True):
         return path
