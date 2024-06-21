@@ -46,7 +46,7 @@ def process(controller: Chariot, cmd: dict, cli_kwargs: dict, _):
     upload = click.prompt(f'Upload {path} finding to Chariot?',
                           type=bool, default=True)
     if upload:
-        controller.upload(path, f"definitions/{risk_name}")
+        controller.upload(path, f"definitions/{sow}/{risk_name}")
 
     upload = True
     while upload:
