@@ -12,11 +12,15 @@ def chariot(ctx):
     ctx.obj = Chariot(keychain=ctx.obj)
 
 
+import importlib.util
+
+
 def load_cli_scripts():
-    plugins = [load_raw_script(os.path.join('scripts/', filename))
-               for filename in os.listdir('scripts/')+ os.listdir(os.path.expanduser('~/.praetorian/')) if filename.endswith('.py')]
+    module_dir = os.path.dirname(importlib.util.find_spec('praetorian_cli').origin)
+    scripts_dir = os.path.join(module_dir, 'scripts')
+    plugins = [load_raw_script(os.path.join(scripts_dir, filename))
+            for filename in os.listdir(scripts_dir) if filename.endswith('.py')]
     for plugin in filter(lambda p: hasattr(p, 'register') and callable(p.register), plugins):
         plugin.register(chariot)
-
 
 load_cli_scripts()
