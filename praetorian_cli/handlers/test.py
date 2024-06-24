@@ -4,6 +4,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+import praetorian_cli.sdk.test as test_module
 
 
 @chariot.command('test')
@@ -15,10 +16,11 @@ def trigger_all_tests(controller, key, suite):
     try:
         import pytest
     except ModuleNotFoundError:
-        print("Install pytest using 'pip install pytest' to run this command")
-    test_directory = os.path.relpath("praetorian_cli/sdk/test", os.getcwd())
+        click.echo("Install pytest using 'pip install pytest' to run this command", err=True)
+        return
+
     os.environ['CHARIOT_PROFILE'] = controller.keychain.profile
-    command = [test_directory]
+    command = [test_module.__path__[0]]
     if key:
         command.extend(['-k', key])
     if suite:

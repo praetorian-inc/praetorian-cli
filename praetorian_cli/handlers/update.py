@@ -38,6 +38,5 @@ def create_update_command(item_type, status_choices):
     def command(controller, key, status, comment):
         controller.update(item_type, dict(key=key, status=status, comment=comment))
 
-
 create_update_command('asset', Status['asset'])
 create_update_command('job', Status['job'])

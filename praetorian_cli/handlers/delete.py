@@ -11,9 +11,7 @@ def delete(ctx):
     pass
 
 
-delete_list = ['seed', 'attribute']
-
-for item in delete_list:
+def delete_command(item):
     @delete.command(item, help=f"Delete {item}")
     @click.argument('key', required=True)
     @cli_handler
@@ -22,4 +20,8 @@ for item in delete_list:
             resp = controller.delete('asset/attribute', key)
         else:
             resp = controller.delete(item, key)
-        print(f"Key: {resp['key']} \nDeleted successfully")
+        print(f"Key: {key} \nDeleted successfully")
+
+
+for item in ['seed', 'attribute']:
+    delete_command(item)

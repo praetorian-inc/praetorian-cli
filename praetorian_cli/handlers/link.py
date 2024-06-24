@@ -58,11 +58,10 @@ def link_amazon(controller, account):
 @click.argument('appid')
 @click.argument('secret')
 @click.argument('tenant')
-@click.argument('subscription')
-def link_azure(controller, appid, secret, tenant, subscription):
+def link_azure(controller, appid, secret, tenant):
     """ Enumerate Azure for Assets """
-    config = {'name': appid, 'secret': secret, 'tenant': tenant}
-    controller.link_account('azure', config, subscription)
+    config = {'name': appid, 'secret': secret}
+    controller.link_account('azure', config, tenant)
 
 
 @link.command('gcp')
@@ -101,3 +100,12 @@ def link_crowdstrike(controller, client, secret, url):
     """ Enumerate Crowdstrike for Assets and Risks """
     config = {'clientID': client, 'secret': secret}
     controller.link_account('crowdstrike', config, url)
+
+
+@link.command('gitlab')
+@cli_handler
+@click.argument('pat')
+@click.argument('group')
+def link_gitlab(controller, pat, group):
+    """ Allow Chariot to scan private repos in your GitLab Group"""
+    controller.link_account('gitlab', {'pat': pat}, group)

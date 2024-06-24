@@ -1,5 +1,6 @@
 import importlib
 import sys
+from types import ModuleType
 from functools import wraps
 from inspect import signature
 from io import StringIO
@@ -38,8 +39,8 @@ def list_options(filter_name):
 def status_options(status_choices):
     def decorator(func):
         func = cli_handler(func)
-        func = click.option('-status', '--status', type=click.Choice([s.value for s in status_choices]), required=False,
-                            help="Status of the object")(func)
+        func = click.option('-status', '--status', type=click.Choice([s.value for s in status_choices]),
+                            required=False, help="Status of the object")(func)
         func = click.option('-comment', '--comment', default="", help="Add a comment")(func)
         return func
 
@@ -62,7 +63,7 @@ def scripts(f):
             return f(*args, **kwargs)
 
         if 'page' in kwargs and kwargs['page'] == 'interactive':
-            print("Scripts can only be used with 'no' or 'all' pagination mode.")
+            click.echo("Scripts can only be used with 'no' or 'all' pagination mode.", err=True)
             exit(1)
 
         old_stdout = sys.stdout
@@ -85,19 +86,41 @@ def scripts(f):
 
 
 def process_with_script(script_name, output, cli_kwargs):
-    try:
-        script_module = importlib.import_module(f'.scripts.{script_name}', 'praetorian_cli')
-        if hasattr(script_module, 'process') and len(signature(script_module.__dict__['process']).parameters) == 4:
-            ctx = click.get_current_context()
-            controller = ctx.obj
-            if ctx.command.name == 'search':
-                cmd = dict(product=ctx.parent.command.name, action=ctx.command.name, type=None)
-            else:
-                cmd = dict(product=ctx.parent.parent.command.name, action=ctx.parent.command.name,
-                           type=ctx.command.name)
+    script_module = import_script(script_name)
+    if not script_module:
+        return
 
-            script_module.process(controller, cmd, cli_kwargs, output)
+    if hasattr(script_module, 'process') and len(signature(script_module.__dict__['process']).parameters) == 4:
+        ctx = click.get_current_context()
+        controller = ctx.obj
+        if ctx.command.name == 'search':
+            cmd = dict(product=ctx.parent.command.name, action=ctx.command.name, type=None)
         else:
-            click.echo(f"The script {script_name} does not have a 'process' function that takes 4 arguments.")
-    except ImportError as e:
-        click.echo(f'Error importing script {script_name}: {e}')
+            cmd = dict(product=ctx.parent.parent.command.name, action=ctx.parent.command.name,
+                       type=ctx.command.name)
+
+        script_module.process(controller, cmd, cli_kwargs, output)
+    else:
+        click.echo(f"The script {script_name} does not have a 'process' function that takes 4 arguments.", err=True)
+
+
+def import_script(script_name):
+    # try importing from the praetorian_cli/scripts package
+    try:
+        return importlib.import_module(f'.scripts.{script_name}', 'praetorian_cli')
+    except ImportError:
+        # try importing from the current directory as a raw script
+        try:
+            return load_raw_script(script_name)
+        except Exception as e:
+            click.echo(f'Error importing script {script_name}: {e}', err=True)
+            return None
+
+
+def load_raw_script(path):
+    module = ModuleType('cli-plugin-script')
+    module.__file__ = path
+    with open(path, 'r') as code_file:
+        exec(compile(code_file.read(), path, 'exec'), module.__dict__)
+    sys.modules['cli-plugin-script"'] = module
+    return module
