@@ -1,8 +1,8 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.utils import Status, Risk
 from praetorian_cli.handlers.cli_decorators import cli_handler, status_options
+from praetorian_cli.handlers.utils import Status, Risk
 
 
 @chariot.group()
@@ -14,9 +14,10 @@ def update(ctx):
 
 @update.command('risk')
 @click.argument('key', required=True)
-@click.option('-state', '--state', required=False)
-@click.option('-severity', '--severity', required=False)
-@click.option('-reason', '--reason', required=False)
+@click.option('-state', '--state', type=click.Choice(["Triage", "Open", "Closed"]), required=False)
+@click.option('-severity', '--severity', type=click.Choice(["Info", "Low", "Medium", "High", "Critical"]),
+              required=False)
+@click.option('-reason', '--reason', type=click.Choice(["Accepted", "Rejected"]), required=False)
 @click.option('-status', '--status', default="", help="Complete status of the object")
 @click.option('-comment', '--comment', default="")
 @cli_handler
