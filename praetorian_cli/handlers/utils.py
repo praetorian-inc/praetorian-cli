@@ -20,6 +20,9 @@ class Job(Enum):
 
 
 class Risk(Enum):
+    CLOSED = "C"
+    OPEN = "O"
+    TRIAGE = "T"
     TRIAGE_INFO = "TI"
     TRIAGE_LOW = "TL"
     TRIAGE_MEDIUM = "TM"
