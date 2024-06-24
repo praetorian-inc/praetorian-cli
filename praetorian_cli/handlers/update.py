@@ -17,10 +17,16 @@ def update(ctx):
 @click.option('-state', '--state', required=False)
 @click.option('-severity', '--severity', required=False)
 @click.option('-reason', '--reason', required=False)
+@click.option('-status', '--status', default="", help="Complete status of the object")
 @click.option('-comment', '--comment', default="")
 @cli_handler
-def risks(controller, key, state, severity, reason, comment):
+def risks(controller, key, state, severity, reason, status, comment):
     """ Update a risk"""
+    state, severity, reason, status = [x.upper() if x else None for x in [state, severity, reason, status]]
+    if status:
+        controller.update('risk', dict(key=key, status=status, comment=comment))
+        return
+
     status = ""
     risk_details = controller.my(dict(key=key))
     for risk in risk_details['risks']:
@@ -28,7 +34,7 @@ def risks(controller, key, state, severity, reason, comment):
         status += Risk[severity].value if severity else risk['status'][1]
         if state == "CLOSED":
             status += Risk[reason].value if reason else ""
-        controller.update('risk', dict(key=risk_details[key], status=status, comment=comment))
+        controller.update('risk', dict(key=risk[key], status=status, comment=comment))
 
 
 def create_update_command(item_type, status_choices):
@@ -37,6 +43,7 @@ def create_update_command(item_type, status_choices):
     @status_options(status_choices)
     def command(controller, key, status, comment):
         controller.update(item_type, dict(key=key, status=status, comment=comment))
+
 
 create_update_command('asset', Status['asset'])
 create_update_command('job', Status['job'])

@@ -20,9 +20,20 @@ class Job(Enum):
 
 
 class Risk(Enum):
+    # State
     CLOSED = "C"
     OPEN = "O"
     TRIAGE = "T"
+    # Severity
+    INFO = "I"
+    LOW = "L"
+    MEDIUM = "M"
+    HIGH = "H"
+    CRITICAL = "C"
+    # Substates
+    ACCEPTED = "A"
+    REJECTED = "R"
+    # Status
     TRIAGE_INFO = "TI"
     TRIAGE_LOW = "TL"
     TRIAGE_MEDIUM = "TM"
