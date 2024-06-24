@@ -14,10 +14,12 @@ def update(ctx):
 
 @update.command('risk')
 @click.argument('key', required=True)
-@click.option('-state', '--state', type=click.Choice(["Triage", "Open", "Closed"]), required=False)
-@click.option('-severity', '--severity', type=click.Choice(["Info", "Low", "Medium", "High", "Critical"]),
+@click.option('-state', '--state', type=click.Choice(["TRIAGE", "OPEN", "CLOSED"], case_sensitive=False),
               required=False)
-@click.option('-reason', '--reason', type=click.Choice(["Accepted", "Rejected"]), required=False)
+@click.option('-severity', '--severity',
+              type=click.Choice(["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"], case_sensitive=False),
+              required=False)
+@click.option('-reason', '--reason', type=click.Choice(["ACCEPTED", "REJECTED"], case_sensitive=False), required=False)
 @click.option('-status', '--status', default="", help="Complete status of the object")
 @click.option('-comment', '--comment', default="")
 @cli_handler
@@ -35,7 +37,7 @@ def risks(controller, key, state, severity, reason, status, comment):
         status += Risk[severity].value if severity else risk['status'][1]
         if state == "CLOSED":
             status += Risk[reason].value if reason else ""
-        controller.update('risk', dict(key=risk[key], status=status, comment=comment))
+        controller.update('risk', dict(key=risk['key'], status=status, comment=comment))
 
 
 def create_update_command(item_type, status_choices):
