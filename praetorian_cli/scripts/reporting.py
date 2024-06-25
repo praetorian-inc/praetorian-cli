@@ -18,16 +18,15 @@ import pty
 import shutil
 import click
 import subprocess
-from shutil import which
+from praetorian_cli.scripts.utils import requires
 from praetorian_cli.handlers.utils import Status
 from praetorian_cli.sdk.chariot import Chariot
 
 
+@requires('fzf',
+          'This script requires fzf. See instructions at https://github.com/junegunn/fzf?tab=readme-ov-file#installation.')
+@requires('git', 'This script requires git. See instructions at https://git-scm.com/downloads.')
 def process(controller: Chariot, cmd: dict, cli_kwargs: dict, _):
-    if which('fzf') is None:
-        print("This script requires fzf. See instructions at https://github.com/junegunn/fzf?tab=readme-ov-file#installation.")
-        return
-
     sow, asset_key = create_asset(controller)
     click.echo(f'Using asset - {asset_key}.')
 
