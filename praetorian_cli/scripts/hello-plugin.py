@@ -1,12 +1,13 @@
 """
-This is an example of a CLI script. It demonstrates what is passed to the script in the
-4 positional arguments of the process() function.
+This is an example of a CLI script. It runs as an extension to existing chariot commands.
+It demonstrates the contents of the 4 arguments of the process() function.
 
 Example usage:
 
   praetorian chariot list seeds --script hello-world
 
 """
+
 
 def process(controller, cmd, cli_kwargs, output):
     print('Entering the process() function. It received 4 positional arguments. Inspecting them:\n')

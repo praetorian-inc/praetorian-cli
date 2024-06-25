@@ -55,11 +55,11 @@ def page_options(func):
     return func
 
 
-def scripts(f):
-    @click.option('--script', help="Specify a script to process the output")
+def plugins(f):
+    @click.option('--plugin', help="Specify a plugin to process the output")
     @wraps(f)
-    def decorated_function(*args, script=None, **kwargs):
-        if script is None:
+    def decorated_function(*args, plugin=None, **kwargs):
+        if plugin is None:
             return f(*args, **kwargs)
 
         if 'page' in kwargs and kwargs['page'] == 'interactive':
@@ -75,8 +75,8 @@ def scripts(f):
         finally:
             sys.stdout = old_stdout
 
-        if script:
-            process_with_script(script, output, kwargs)
+        if plugin:
+            process_with_plugin(plugin, output, kwargs)
         else:
             click.echo(output)
 
@@ -85,12 +85,12 @@ def scripts(f):
     return decorated_function
 
 
-def process_with_script(script_name, output, cli_kwargs):
-    script_module = import_script(script_name)
-    if not script_module:
+def process_with_plugin(plugin_name, output, cli_kwargs):
+    plugin_module = import_plugin(plugin_name)
+    if not plugin_module:
         return
 
-    if hasattr(script_module, 'process') and len(signature(script_module.__dict__['process']).parameters) == 4:
+    if hasattr(plugin_module, 'process') and len(signature(plugin_module.__dict__['process']).parameters) == 4:
         ctx = click.get_current_context()
         controller = ctx.obj
         if ctx.command.name == 'search':
@@ -99,21 +99,21 @@ def process_with_script(script_name, output, cli_kwargs):
             cmd = dict(product=ctx.parent.parent.command.name, action=ctx.parent.command.name,
                        type=ctx.command.name)
 
-        script_module.process(controller, cmd, cli_kwargs, output)
+        plugin_module.process(controller, cmd, cli_kwargs, output)
     else:
-        click.echo(f"The script {script_name} does not have a 'process' function that takes 4 arguments.", err=True)
+        click.echo(f"The plugin {plugin_name} does not have a 'process' function that takes 4 arguments.", err=True)
 
 
-def import_script(script_name):
+def import_plugin(plugin_name):
     # try importing from the praetorian_cli/scripts package
     try:
-        return importlib.import_module(f'.scripts.{script_name}', 'praetorian_cli')
+        return importlib.import_module(f'.scripts.{plugin_name}', 'praetorian_cli')
     except ImportError:
         # try importing from the current directory as a raw script
         try:
-            return load_raw_script(script_name)
+            return load_raw_script(plugin_name)
         except Exception as e:
-            click.echo(f'Error importing script {script_name}: {e}', err=True)
+            click.echo(f'Error importing plugin {plugin_name}: {e}', err=True)
             return None
 
 
