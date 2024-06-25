@@ -119,52 +119,43 @@ in [the handlers of the CLI](https://github.com/praetorian-inc/praetorian-cli/tr
 
 For more examples and API documentation, visit [our documentation](https://docs.praetorian.com).
 
-## Extending the CLI with script plugins
+## Extending the CLI with scripts and plugins
 
 The CLI has a plugin engine for you to extend the CLI without changing its internals. Your script
 is imported to the CLI context so it has full and authenticated access to the SDK.
 
-To run a script, add the `--script` option after the CLI command, for example:
+### Using plugins
+
+To use a plugin with an existing command, add the `--plugin` option, for example:
 
 ```zsh
-praetorian chariot list seeds --script ~/code/my-process-seeds.py
+praetorian chariot list seeds --plugin ~/code/my-process-seeds.py
 ```
 
-For built in [scripts](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts) you only need the script name:
+For built in [plugins](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts) you only need
+to specify the name:
 
 ```zsh
 praetorian chariot get seed <SEED_KEY> --script list-assets
 ```
 
-To work with the plugin engine, the script needs to implement a `process` function that takes 4 arguments:
-   - `controller`: This object holds the authentication context and provide functions for accessing the
-      Chariot backend API
-   - `cmd`: This dictionary holds the information of which CLI command is executed. It tells you the product,
-     action, and type of the CLI command. For example, you can use this to find out whether it is a `list` command
-     on `assets`.
-   - `cli_kwargs`: This dictionary contains the additional options the user provided to the CLI, such
-     as `--details`, `--term`, `--page`, `ASSET_KEY`, etc.
-   - `output`: This is the raw output of the CLI.
+### Using scripts
 
-Try out the [`hello-world`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/scripts/hello-world.py)
-script to have a concrete look at the content of those arguments, using the following command:
+You can add standalone scripts as CLI commands to run complex workflows with ease.
+Register them
+in [handlers/run.py]((https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/handlers/run.py).
+) to add your scripts to the CLI.
 
- ```zsh
-praetorian chariot list seeds --details --script hello-world
+To run a script use :
+
+```zsh
+praetorian chariot run hello
 ```
 
-A typical script uses the arguments in the following manners:
-- Check for input correctness using information in `cmd` and `cli_kwargs`.
-- Parse the CLI `output` to extract relevant data.
-- Use the authenticated session in `controller` to further issue API calls to operate
-  on the data.
-
-See this in action in the 
-[`list-assets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/scripts/list-assets.py) and 
-[`validate-secrets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/scripts/validate-secrets.py)
-scripts.
-
 If you think your script will be useful for the offensive security community, contribute it!
+
+Read more about contributing scripts and plugins
+here - [scripts/README](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts/README.md).
 
 ## Contributing
 
