@@ -13,14 +13,11 @@ Prerequisites:
 """
 import json
 import subprocess
-from shutil import which
+from praetorian_cli.scripts.utils import requires
 
+
+@requires('trufflehog', 'This script requires TruffleHog. See instructions at https://github.com/trufflesecurity/trufflehog.')
 def process(controller, cmd, cli_kwargs, output):
-    # Verify that trufflehog is available on the system
-    if which('trufflehog') is None:
-        print("This script requires TruffleHog. See instructions at https://github.com/trufflesecurity/trufflehog.")
-        return
-
     # Verify the upstream CLI command is compatible with the script
     if cmd['action'] != 'list' and cmd['type'] != 'risks':
         print("This script only works with the 'list risks' command.")
