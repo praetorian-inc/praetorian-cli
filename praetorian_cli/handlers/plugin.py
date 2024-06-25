@@ -14,7 +14,9 @@ def plugin(controller):
 
 @plugin.command('hello')
 @click.argument('args', nargs=-1)
+@click.option('--kwargs', '-k', multiple=True, type=(str, str), help="Key-value pairs for the plugin")
+@click.option('--strings', '-s', multiple=True, help="Multiple strings")
 @cli_handler
-def hello(controller, args):
+def hello(controller, args, kwargs, strings):
     """Run the hello plugin"""
-    hello_plugin.hello_function(controller, args)
+    hello_plugin.hello_function(controller, args, kwargs, strings)
