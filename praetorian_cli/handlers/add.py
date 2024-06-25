@@ -78,3 +78,17 @@ def attributes(controller, name, key, clss):
         'class': clss
     }
     print(controller.add('asset/attribute', params))
+
+@add.command('reference')
+@cli_handler
+@click.argument('name', required=True)
+@click.option('-key', '--key', required=True, help='Key of an existing risk')
+@click.option('-class', '--class', 'clss', default="", help='Class of the reference')
+def attributes(controller, name, key, clss):
+    """ Add a reference"""
+    params = {
+        'key': key,
+        'name': name,
+        'class': clss
+    }
+    print(controller.add('risk/reference', params))
