@@ -1,6 +1,6 @@
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.utils import key_set, paginate
-from praetorian_cli.handlers.cli_decorators import cli_handler, list_options, page_options, scripts
+from praetorian_cli.handlers.cli_decorators import cli_handler, list_options, page_options, plugins
 
 
 @chariot.group()
@@ -19,7 +19,7 @@ def create_list_command(item_type, item_filter):
     @list.command(item_type, help=f"List {item_type}")
     @list_options(item_filter)
     @page_options
-    @scripts
+    @plugins
     def command(controller, filter, offset, details, page):
         if item_type == 'accounts' or item_type == 'integrations':
             paginate(controller, f'{key_set[item_type]}', item_type, filter, offset, details, page)

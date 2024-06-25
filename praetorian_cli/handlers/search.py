@@ -1,7 +1,7 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler, page_options, scripts
+from praetorian_cli.handlers.cli_decorators import cli_handler, page_options, plugins
 from praetorian_cli.handlers.utils import paginate
 
 
@@ -11,7 +11,7 @@ from praetorian_cli.handlers.utils import paginate
 @click.option('-count', '--count', is_flag=True, help="Return statistics on search")
 @click.option('-details', '--details', is_flag=True, help="Return detailed search results")
 @page_options
-@scripts
+@plugins
 def search(controller, term="", count=False, details=False, offset="", page="interactive"):
     """ Query the Chariot data store for arbitrary matches """
     if count:
