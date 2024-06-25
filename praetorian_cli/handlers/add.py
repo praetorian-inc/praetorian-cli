@@ -8,15 +8,15 @@ from praetorian_cli.handlers.utils import Status
 @chariot.group()
 @cli_handler
 def add(ctx):
-    """Add a resource to Chariot"""
+    """ Add a resource to Chariot """
     pass
 
 
 @add.command('seed')
 @click.argument('seed', required=True)
 @status_options(Status['seed'])
-def assets(controller, seed, status, comment):
-    """ Add a seed"""
+def seed(controller, seed, status, comment):
+    """ Add a seed """
     controller.add('seed', dict(dns=seed, status=status, comment=comment))
 
 
@@ -33,7 +33,7 @@ def upload(controller, name):
 @click.option('-name', '--name', required=False, help='The risk name definition. Default: the filename used')
 @cli_handler
 def definition(controller, path, name):
-    """ Upload a definition to use for a risk"""
+    """ Upload a definition to use for a risk """
     if name is None:
         name = path.split('/')[-1]
     controller.upload(path, f"definitions/{name}")
@@ -42,7 +42,7 @@ def definition(controller, path, name):
 @add.command('webhook')
 @cli_handler
 def webhook(controller):
-    """Add an authenticated URL for posting assets and risks"""
+    """ Add an authenticated URL for posting assets and risks """
     response = controller.add_webhook()
     print(response)
 
@@ -51,8 +51,8 @@ def webhook(controller):
 @click.argument('name', required=True)
 @click.option('-key', '--key', required=True, help='Key of an existing asset')
 @status_options(Status['risk'])
-def risks(controller, name, key, status, comment):
-    """ Add a risk"""
+def risk(controller, name, key, status, comment):
+    """ Add a risk """
     controller.add('risk', dict(key=key, name=name, status=status, comment=comment))
 
 
@@ -60,8 +60,8 @@ def risks(controller, name, key, status, comment):
 @click.argument('capability', required=True)
 @click.option('-key', '--key', required=True, help='Key of an existing asset')
 @status_options(Status['job'])
-def jobs(controller, capability, key, status, comment):
-    """ Add a job"""
+def job(controller, capability, key, status, comment):
+    """ Add a job """
     controller.add('job', dict(key=key, name=capability, status=status, comment=comment))
 
 
@@ -69,12 +69,26 @@ def jobs(controller, capability, key, status, comment):
 @cli_handler
 @click.argument('name', required=True)
 @click.option('-key', '--key', required=True, help='Key of an existing asset')
-@click.option('-class', '--class', 'clss', default="", help='Class of the attribute')
-def attributes(controller, name, key, clss):
-    """ Add an attribute"""
+@click.option('-class', '--class', 'clss', required=True, help='Class of the attribute')
+def attribute(controller, name, key, clss):
+    """ Add an attribute """
     params = {
         'key': key,
         'name': name,
         'class': clss
     }
     print(controller.add('asset/attribute', params))
+
+@add.command('reference')
+@cli_handler
+@click.argument('name', required=True)
+@click.option('-key', '--key', required=True, help='Key of an existing risk')
+@click.option('-class', '--class', 'clss', required=True, help='Class of the reference')
+def reference(controller, name, key, clss):
+    """ Add a reference """
+    params = {
+        'key': key,
+        'name': name,
+        'class': clss
+    }
+    print(controller.add('risk/reference', params))
