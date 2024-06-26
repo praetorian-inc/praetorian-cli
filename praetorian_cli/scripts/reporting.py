@@ -22,6 +22,7 @@ import subprocess
 from praetorian_cli.handlers.utils import Status
 from praetorian_cli.sdk.chariot import Chariot
 
+
 class ReportingPlugin():
     def __init__(self, controller: Chariot, env_file: str):
         self.controller = controller
@@ -35,7 +36,7 @@ class ReportingPlugin():
         path = self.create_findings()
         click.echo(f'Using finding - {path}.')
 
-        risk_name, risk_key = self.create_risk( asset_key, path)
+        risk_name, risk_key = self.create_risk(asset_key, path)
         click.echo(f'Using risk - {risk_name}.')
 
         if click.prompt('Would you like to update the risk status?', type=bool, default=False):
@@ -43,19 +44,18 @@ class ReportingPlugin():
                 [status.name for status in Status['risk']])].value
             self.controller.update('risk', dict(
                 key=risk_key, status=status, comment=''))
-        
+
         if click.prompt(f'Upload {path} finding to Chariot? (RECOMMENDED)',
-                            type=bool, default=True):
+                        type=bool, default=True):
             self.controller.upload(path, f"definitions/{sow}/{risk_name}")
 
         while click.prompt(
                 'Upload any additional engagement files to Chariot', type=bool, default=False):
             path = fzf_file(click.prompt('Enter glob pattern to search for files',
-                                            type=str, default='./**/*'))
+                                         type=str, default='./**/*'))
             if click.prompt(f'Upload {path}', type=bool, default=True):
                 self.controller.upload(
                     path, f"files/{sow}/{os.path.basename(path)}")
-
 
     def create_asset(self) -> tuple[str, str, str, str]:
         previous_name = self.env_manager.get('ASSET_NAME', None)
@@ -71,14 +71,14 @@ class ReportingPlugin():
                 return (sow, key)
 
         click.echo('Creating asset...')
-        asset = self.controller.add('asset', dict(dns=name, name=name, status='F'))
+        asset = self.controller.add(
+            'asset', dict(dns=name, name=name, status='F'))
         key = asset[0]['key']
         self.env_manager.set('ASSET_KEY', key)
         self.controller.add('asset/attribute',
-                    {'key': key, 'name': sow, 'class': 'SOW'})
+                            {'key': key, 'name': sow, 'class': 'SOW'})
         click.echo(f'Asset created in Chariot - {key}')
         return (sow, key)
-
 
     def create_findings(self) -> str:
         path = self.env_manager.get('FINDING_TEMPLATE', '')
@@ -101,23 +101,24 @@ class ReportingPlugin():
             shutil.copyfile(template, path)
         else:
             path = fzf_file(click.prompt('Enter glob pattern to search for your finding',
-                                        type=str, default='./**/*.md'))
+                                         type=str, default='./**/*.md'))
 
         self.env_manager.set('FINDING_TEMPLATE', path)
         return path
-
 
     def create_risk(self, asset_key: str, finding: str) -> tuple[str, str]:
         key = self.env_manager.get('RISK_KEY', None)
         name = self.env_manager.get('RISK_NAME', None)
         dns = key.split('#')[2] if key else None
         if key and dns == self.env_manager.get('ASSET_NAME', None):
-            click.echo(f'Risk {name} already exists in the environment for {dns}')
+            click.echo(
+                f'Risk {name} already exists in the environment for {dns}')
             if click.prompt(
                     'Would you like to skip risk creation in Chariot (recommended)', type=bool, default=True):
                 return (name, key)
 
-        finding = os.path.basename(finding).replace('.md', '').replace('_', '-')
+        finding = os.path.basename(finding).replace(
+            '.md', '').replace('_', '-')
         name = self.prompt_and_set_env('Risk Name', finding).replace(' ', '-')
         risk = self.controller.add('risk', dict(
             key=asset_key, name=name, status='TI', comment=''))
@@ -131,9 +132,10 @@ class ReportingPlugin():
     def prompt_and_set_env(self, message, default_value):
         var_name = message.upper().replace(' ', '_')
         value = click.prompt('Enter the ' + message, type=str,
-                            default=self.env_manager.get(var_name, default_value))
+                             default=self.env_manager.get(var_name, default_value))
         self.env_manager.set(var_name, value)
         return value
+
 
 @click.command(hidden=True)
 @click.argument('env_file', type=click.Path(exists=False), default='.env')
@@ -141,6 +143,7 @@ class ReportingPlugin():
 def report(ctx: click.Context, env_file: str):
     """ Praetorian Reporting Command """
     ReportingPlugin(ctx.obj, env_file).workflow()
+
 
 def register(chariot: click.MultiCommand):
     chariot.add_command(report)
@@ -176,8 +179,6 @@ class EnvManager:
         with open(self.env_file, 'w') as file:
             for k, v in self.env_vars.items():
                 file.write(f'{k}={v}\n')
-
-
 
 
 def fzf_file(glob_path) -> str:
