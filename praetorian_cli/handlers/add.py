@@ -44,7 +44,7 @@ def definition(controller, path, name):
 def webhook(controller):
     """Add an authenticated URL for posting assets and risks"""
     response = controller.add_webhook()
-    print(response)
+    int(response)
 
 
 @add.command('risk')

@@ -2,7 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.scripts import hello_run
+from praetorian_cli.scripts import hello_run, nessus_run
 
 
 @chariot.group()
@@ -20,3 +20,12 @@ def run(controller):
 def hello(controller, args, kwargs, strings):
     """Run the hello plugin"""
     hello_run.hello_function(controller, args, kwargs, strings)
+
+@run.command('nessus')
+@click.argument('args', nargs=-1)
+@click.option('--kwargs', '-k', multiple=True, type=(str, str), help="Key-value pairs for the plugin")
+@click.option('--strings', '-s', multiple=True, help="Multiple strings")
+@cli_handler
+def nessus(controller, args, kwargs, strings):
+    """Run the nessus plugin"""
+    nessus_run.report_vulns(controller, args, kwargs, strings)
