@@ -1,10 +1,11 @@
 """
 This script is used to help engineers quickly create and update findings in 
-Chariot seamlessly.
+Chariot seamlessly. The recommended workflow for working locally is to have
+one folder per risk to allow for caching of .env variables.
 
 Example usage:
 
-  praetorian chariot list accounts --script reporting
+  praetorian chariot report
 
 Prerequisites:
 
@@ -18,15 +19,16 @@ import pty
 import shutil
 import click
 import subprocess
-from praetorian_cli.scripts.utils import requires
 from praetorian_cli.handlers.utils import Status
 from praetorian_cli.sdk.chariot import Chariot
 
 
-@requires('fzf',
-          'This script requires fzf. See instructions at https://github.com/junegunn/fzf?tab=readme-ov-file#installation.')
-@requires('git', 'This script requires git. See instructions at https://git-scm.com/downloads.')
-def process(controller: Chariot, cmd: dict, cli_kwargs: dict, _):
+@click.command(hidden=True)
+@click.pass_context
+def report(ctx: click.Context):
+    """ Praetorian Reporting Command """
+    controller = ctx.obj
+
     sow, asset_key = create_asset(controller)
     click.echo(f'Using asset - {asset_key}.')
 
@@ -41,19 +43,18 @@ def process(controller: Chariot, cmd: dict, cli_kwargs: dict, _):
             [status.name for status in Status['risk']])].value
         controller.update('risk', dict(
             key=risk_key, status=status, comment=''))
+        
+        if click.prompt(f'Upload {path} finding to Chariot?',
+                            type=bool, default=True):
+            controller.upload(path, f"definitions/{sow}/{risk_name}")
 
-
-    if click.prompt(f'Upload {path} finding to Chariot?',
-                          type=bool, default=True):
-        controller.upload(path, f"definitions/{sow}/{risk_name}")
-
-    while click.prompt(
+        while click.prompt(
             'Upload any additional engagement files to Chariot', type=bool, default=False):
-        path = fzf_file(click.prompt('Enter glob pattern to search for files',
-                                         type=str, default='./**/*'))
-        if click.prompt(f'Upload {path}', type=bool, default=True):
-            controller.upload(
-                path, f"files/{sow}/{os.path.basename(path)}")
+            path = fzf_file(click.prompt('Enter glob pattern to search for files',
+                                            type=str, default='./**/*'))
+
+def register(chariot: click.MultiCommand):
+    chariot.add_command(report)
 
 
 def create_asset(controller: Chariot) -> tuple[str, str, str, str]:
@@ -126,7 +127,6 @@ def create_risk(controller: Chariot, asset_key: str, finding: str) -> tuple[str,
     EnvManager().set('RISK_NAME', name)
 
     return (name, risk['risks'][0]['key'])
-
 
 class EnvManager:
     _instance = None
