@@ -1,7 +1,7 @@
 """
 This script is used to help engineers quickly create and update findings in 
-Chariot seamlessly. The recommended workflow for working locally is to have
-one folder per risk.
+Chariot seamlessly. The recommended workflow for working locally is to create a 
+new folder per risk and change directories to this risk folder.
 
 Example usage:
 
