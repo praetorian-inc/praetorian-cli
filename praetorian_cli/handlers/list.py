@@ -11,7 +11,7 @@ def list(ctx):
 
 
 list_filter = {'seeds': 'seed', 'assets': 'DNS', 'risks': 'seed', 'references': 'seed', 'attributes': 'seed',
-               'jobs': 'updated', 'threats': 'source', 'files': 'name', 'accounts': 'name', 'integrations': 'name',
+               'jobs': 'updated', 'files': 'name', 'accounts': 'name', 'integrations': 'name',
                'definitions': 'name'}
 
 

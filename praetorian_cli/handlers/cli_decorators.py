@@ -90,7 +90,8 @@ def process_with_plugin(plugin_name, output, cli_kwargs):
     if not plugin_module:
         return
 
-    if hasattr(plugin_module, 'process') and len(signature(plugin_module.__dict__['process']).parameters) == 4:
+    if (hasattr(plugin_module, 'process') and callable(plugin_module.process)
+            and len(signature(plugin_module.__dict__['process']).parameters) == 4):
         ctx = click.get_current_context()
         controller = ctx.obj
         if ctx.command.name == 'search':
