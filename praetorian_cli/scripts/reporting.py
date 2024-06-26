@@ -5,7 +5,7 @@ new folder per risk and change directories to this risk folder.
 
 Example usage:
 
-  praetorian chariot report
+  praetorian chariot report [.env.cached-risk-name]
 
 Prerequisites:
 
@@ -22,111 +22,122 @@ import subprocess
 from praetorian_cli.handlers.utils import Status
 from praetorian_cli.sdk.chariot import Chariot
 
+class ReportingPlugin():
+    def __init__(self, controller: Chariot, env_file: str):
+        self.controller = controller
+        self.env_file = env_file
 
-@click.command(hidden=True)
-@click.pass_context
-def report(ctx: click.Context):
-    """ Praetorian Reporting Command """
-    controller = ctx.obj
+    def workflow(self):
+        sow, asset_key = self.create_asset()
+        click.echo(f'Using asset - {asset_key}.')
 
-    sow, asset_key = create_asset(controller)
-    click.echo(f'Using asset - {asset_key}.')
+        path = self.create_findings()
+        click.echo(f'Using finding - {path}.')
 
-    path = create_findings(controller)
-    click.echo(f'Using finding - {path}.')
+        risk_name, risk_key = self.create_risk( asset_key, path)
+        click.echo(f'Using risk - {risk_name}.')
 
-    risk_name, risk_key = create_risk(controller, asset_key, path)
-    click.echo(f'Using risk - {risk_name}.')
-
-    if click.prompt('Would you like to update the risk status?', type=bool, default=False):
-        status = Status['risk'][fzf_generic(
-            [status.name for status in Status['risk']])].value
-        controller.update('risk', dict(
-            key=risk_key, status=status, comment=''))
+        if click.prompt('Would you like to update the risk status?', type=bool, default=False):
+            status = Status['risk'][fzf_generic(
+                [status.name for status in Status['risk']])].value
+            self.controller.update('risk', dict(
+                key=risk_key, status=status, comment=''))
         
         if click.prompt(f'Upload {path} finding to Chariot? (RECOMMENDED)',
                             type=bool, default=True):
-            controller.upload(path, f"definitions/{sow}/{risk_name}")
+            self.controller.upload(path, f"definitions/{sow}/{risk_name}")
 
         while click.prompt(
-            'Upload any additional engagement files to Chariot', type=bool, default=False):
+                'Upload any additional engagement files to Chariot', type=bool, default=False):
             path = fzf_file(click.prompt('Enter glob pattern to search for files',
                                             type=str, default='./**/*'))
+            if click.prompt(f'Upload {path}', type=bool, default=True):
+                self.controller.upload(
+                    path, f"files/{sow}/{os.path.basename(path)}")
+
+
+    def create_asset(self) -> tuple[str, str, str, str]:
+        previous_name = EnvManager().get('ASSET_NAME', None)
+        key = EnvManager().get('ASSET_KEY', None)
+
+        sow = prompt_and_set_env('SOW Number', '2024-02-1234')
+        name = prompt_and_set_env('Asset Name', 'www.praetorian.com')
+
+        if previous_name == name and key:
+            click.echo(f'Asset already exists in the environment. {key}')
+            if click.prompt(
+                    'Would you like to skip asset creation in Chariot (recommended)', type=bool, default=True):
+                return (sow, key)
+
+        click.echo('Creating asset...')
+        asset = self.controller.add('asset', dict(dns=name, name=name, status='F'))
+        key = asset[0]['key']
+        EnvManager().set('ASSET_KEY', key)
+        self.controller.add('asset/attribute',
+                    {'key': key, 'name': sow, 'class': 'SOW'})
+        click.echo(f'Asset created in Chariot - {key}')
+        return (sow, key)
+
+
+    def create_findings(self) -> str:
+        path = EnvManager().get('FINDING_TEMPLATE', '')
+        if os.path.exists(path) and click.prompt(f'Local finding found. Reuse - {path}', type=bool, default=True):
+            return path
+
+        if click.prompt(
+                'Would you like to use a VKB template?', type=bool, default=True):
+            click.echo('Pulling the latest version of the vkb-templates...')
+            if os.path.isdir(os.path.expanduser('~/.vkb-templates')):
+                subprocess.run(
+                    ['git', '-C', os.path.expanduser('~/.vkb-templates'), 'pull'], check=True)
+            else:
+                subprocess.run(['git', 'clone', 'git@github.com:praetorian-inc/vkb-templates.git',
+                                os.path.expanduser('~/.vkb-templates')], check=True)
+
+            template = fzf_file('~/.vkb-templates/**/*.md')
+            path = click.prompt('Enter the local path to copy the finding',
+                                type=str, default=os.path.basename(template))
+            shutil.copyfile(template, path)
+        else:
+            path = fzf_file(click.prompt('Enter glob pattern to search for your finding',
+                                        type=str, default='./**/*.md'))
+
+        EnvManager().set('FINDING_TEMPLATE', path)
+        return path
+
+
+    def create_risk(self, asset_key: str, finding: str) -> tuple[str, str]:
+        key = EnvManager().get('RISK_KEY', None)
+        name = EnvManager().get('RISK_NAME', None)
+        dns = key.split('#')[2] if key else None
+        if key and dns == EnvManager().get('ASSET_NAME', None):
+            click.echo(f'Risk {name} already exists in the environment for {dns}')
+            if click.prompt(
+                    'Would you like to skip risk creation in Chariot (recommended)', type=bool, default=True):
+                return (name, key)
+
+        finding = os.path.basename(finding).replace('.md', '').replace('_', '-')
+        name = prompt_and_set_env('Risk Name', finding).replace(' ', '-')
+        risk = self.controller.add('risk', dict(
+            key=asset_key, name=name, status='TI', comment=''))
+        click.echo(f'Risk created in Chariot - {name}')
+
+        EnvManager().set('RISK_KEY', risk['risks'][0]['key'])
+        EnvManager().set('RISK_NAME', name)
+
+        return (name, risk['risks'][0]['key'])
+
+
+@click.command(hidden=True)
+@click.argument('env_file', type=click.Path(exists=False), default='.env')
+@click.pass_context
+def report(ctx: click.Context, env_file: str):
+    """ Praetorian Reporting Command """
+    ReportingPlugin(ctx.obj, env_file).workflow()
 
 def register(chariot: click.MultiCommand):
     chariot.add_command(report)
 
-
-def create_asset(controller: Chariot) -> tuple[str, str, str, str]:
-    previous_name = EnvManager().get('ASSET_NAME', None)
-    key = EnvManager().get('ASSET_KEY', None)
-
-    sow = prompt_and_set_env('SOW Number', '2024-02-1234')
-    name = prompt_and_set_env('Asset Name', 'www.praetorian.com')
-
-    if previous_name == name and key:
-        click.echo(f'Asset already exists in the environment. {key}')
-        if click.prompt(
-                'Would you like to skip asset creation in Chariot (recommended)', type=bool, default=True):
-            return (sow, key)
-
-    click.echo('Creating asset...')
-    asset = controller.add('asset', dict(dns=name, name=name, status='F'))
-    key = asset[0]['key']
-    EnvManager().set('ASSET_KEY', key)
-    controller.add('asset/attribute',
-                   {'key': key, 'name': sow, 'class': 'SOW'})
-    click.echo(f'Asset created in Chariot - {key}')
-    return (sow, key)
-
-
-def create_findings(_: Chariot) -> str:
-    path = EnvManager().get('FINDING_TEMPLATE', '')
-    if os.path.exists(path) and click.prompt(f'Local finding found. Reuse - {path}', type=bool, default=True):
-        return path
-
-    if click.prompt(
-            'Would you like to use a VKB template?', type=bool, default=True):
-        click.echo('Pulling the latest version of the vkb-templates...')
-        if os.path.isdir(os.path.expanduser('~/.vkb-templates')):
-            subprocess.run(
-                ['git', '-C', os.path.expanduser('~/.vkb-templates'), 'pull'], check=True)
-        else:
-            subprocess.run(['git', 'clone', 'git@github.com:praetorian-inc/vkb-templates.git',
-                            os.path.expanduser('~/.vkb-templates')], check=True)
-
-        template = fzf_file('~/.vkb-templates/**/*.md')
-        path = click.prompt('Enter the local path to copy the finding',
-                            type=str, default=os.path.basename(template))
-        shutil.copyfile(template, path)
-    else:
-        path = fzf_file(click.prompt('Enter glob pattern to search for your finding',
-                                     type=str, default='./**/*.md'))
-
-    EnvManager().set('FINDING_TEMPLATE', path)
-    return path
-
-
-def create_risk(controller: Chariot, asset_key: str, finding: str) -> tuple[str, str]:
-    key = EnvManager().get('RISK_KEY', None)
-    name = EnvManager().get('RISK_NAME', None)
-    dns = key.split('#')[2] if key else None
-    if key and dns == EnvManager().get('ASSET_NAME', None):
-        click.echo(f'Risk {name} already exists in the environment for {dns}')
-        if click.prompt(
-                'Would you like to skip risk creation in Chariot (recommended)', type=bool, default=True):
-            return (name, key)
-
-    finding = os.path.basename(finding).replace('.md', '').replace('_', '-')
-    name = prompt_and_set_env('Risk Name', finding).replace(' ', '-')
-    risk = controller.add('risk', dict(
-        key=asset_key, name=name, status='TI', comment=''))
-    click.echo(f'Risk created in Chariot - {name}')
-
-    EnvManager().set('RISK_KEY', risk['risks'][0]['key'])
-    EnvManager().set('RISK_NAME', name)
-
-    return (name, risk['risks'][0]['key'])
 
 class EnvManager:
     _instance = None
