@@ -156,7 +156,6 @@ class EnvManager:
 
     def __init__(self, env_file):
         self.env_file = env_file
-        print(self.env_file)
         self.env_vars = self._load_env_vars()
 
     def _load_env_vars(self):
