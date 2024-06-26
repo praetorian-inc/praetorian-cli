@@ -1,7 +1,9 @@
-import os
+from importlib.util import find_spec
+from os.path import join, dirname
+from os import environ, listdir
+
 import click
 
-import importlib.util
 from praetorian_cli.handlers.cli_decorators import load_raw_script
 from praetorian_cli.sdk.chariot import Chariot
 
@@ -12,15 +14,25 @@ def chariot(ctx):
     """ Chariot API access in the new and different file """
     ctx.obj = Chariot(keychain=ctx.obj)
 
-
-def load_cli_scripts():
-    module_dir = os.path.dirname(
-        importlib.util.find_spec('praetorian_cli').origin)
-    scripts_dir = os.path.join(module_dir, 'scripts')
-    plugins = [load_raw_script(os.path.join(scripts_dir, filename))
-               for filename in os.listdir(scripts_dir) if filename.endswith('.py')]
-    for plugin in filter(lambda p: hasattr(p, 'register') and callable(p.register), plugins):
-        plugin.register(chariot)
+@chariot.group()
+@click.pass_context
+def plugin(ctx):
+    """ Plugin commands """
+    pass
 
 
-load_cli_scripts()
+def load_plugin_commands():
+    load_directory(join(dirname(find_spec('praetorian_cli').origin), 'scripts'))
+    if 'PRAETORIAN_SCRIPTS_PATH' in environ:
+        load_directory(environ['PRAETORIAN_SCRIPT_PATH'])
+
+
+def load_directory(path):
+    for file in listdir(path):
+        if file.endswith('.py'):
+            plugin = load_raw_script(join(path, file))
+            if hasattr(plugin, 'register') and callable(plugin.register):
+                plugin.register(chariot)
+
+
+load_plugin_commands()
