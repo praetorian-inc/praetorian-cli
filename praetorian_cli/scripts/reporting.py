@@ -1,7 +1,7 @@
 """
 This script is used to help engineers quickly create and update findings in 
 Chariot seamlessly. The recommended workflow for working locally is to have
-one folder per risk to allow for caching of .env variables.
+one folder per risk.
 
 Example usage:
 
@@ -44,7 +44,7 @@ def report(ctx: click.Context):
         controller.update('risk', dict(
             key=risk_key, status=status, comment=''))
         
-        if click.prompt(f'Upload {path} finding to Chariot?',
+        if click.prompt(f'Upload {path} finding to Chariot? (RECOMMENDED)',
                             type=bool, default=True):
             controller.upload(path, f"definitions/{sow}/{risk_name}")
 
