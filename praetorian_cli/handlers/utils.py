@@ -51,7 +51,7 @@ Status = {'asset': Asset, 'seed': Asset, 'job': Job, 'risk': Risk}
 
 key_set = {'assets': '#asset#', 'seeds': '#seed#', 'jobs': '#job#', 'risks': '#risk#', 'accounts': '#account#',
            'definitions': '#file#definitions/', 'integrations': '#account#', 'attributes': '#attribute#',
-           'references': '#ref#', 'files': '#file#', 'threats': '#threat#'}
+           'references': '#ref#', 'files': '#file#'}
 
 
 def my_result(controller, key, filter="", offset="", pages=1):
