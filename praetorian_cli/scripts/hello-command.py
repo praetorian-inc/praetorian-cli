@@ -5,7 +5,9 @@ For developers:
 You can use this as a template for testing new commands/scripts.
 It is hidden from the help menu, but can still be called from the command line. 
 Usage : 
-    praetorian chariot hello <name>
+    praetorian chariot hello 'this is arg1' 888 --opt1 'this is opt1' --sow 111-1111-1111
+    
+    praetorian chariot hello 'this is arg1' 888 --opt1 'this is opt1'  # this will prompt for SOW number 
 """
 
 
