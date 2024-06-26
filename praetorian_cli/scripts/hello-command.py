@@ -1,5 +1,5 @@
 import click
-
+from praetorian_cli.handlers.chariot import plugin
 """ 
 For developers: 
 You can use this as a template for testing new commands/scripts.
@@ -9,7 +9,7 @@ Usage :
 """
 
 
-@click.command(hidden=True)
+@plugin.command('hello')
 @click.pass_context
 @click.argument('arg1', type=str, required=True, help="arg1 of hello command")
 @click.argument('arg2', type=int, required=True, help="arg2 of hello command")
@@ -17,7 +17,7 @@ Usage :
 @click.option('--sow', required=True,  help="sow option of hello command; will prompt if not supplied",
               prompt='What is the SOW number?')
 def hello_command(ctx: click.Context, arg1: str, arg2: int, opt1, sow):
-    """ This is a simple hello command echoing the arguments """
+    """ This is an example command showcasing some Click argument functionality """
     click.echo(f'Hello World!')
     click.echo(f'arg1 = {arg1}')
     click.echo(f'arg2 = {arg2}')
