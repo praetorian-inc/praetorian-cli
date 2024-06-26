@@ -26,11 +26,9 @@ def create_nessus_client(api_url, api_key, secret_key):
     return nessus_api_req
 
 
-def report_vulns(controller: Chariot, args, kwargs: tuple, strings):
-    # """Run the Nessus integrations plugin"""
-    kwargs = dict(kwargs)
-    nessus_api_req = create_nessus_client(
-        kwargs['url'], kwargs['api'], kwargs['secret'])
+def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
+    """ Run the Nessus integrations plugin """
+    nessus_api_req = create_nessus_client(url, api_key, secret_key)
 
     url = f'/scans'
     response = nessus_api_req(url)

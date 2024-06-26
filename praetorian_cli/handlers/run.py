@@ -13,24 +13,28 @@ def run(controller):
 
 
 @run.command('hello')
+@cli_handler
 @click.argument('arg1', type=str)
 @click.argument('arg2', type=int)
-@click.option('--opt1', default=None, help="A string option")
+@click.option('--opt1', default=None, help='A string option')
 @click.option('--sow', required=True,
-              help="A mandatory option to provide the SOW number; will prompt if not supplied",
+              help='A mandatory option to provide the SOW number; will prompt if not supplied',
               prompt='SOW number is required. What is the SOW number?')
 @click.option('--flag-opt', is_flag=True, help='A flag option')
-@cli_handler
 def hello(controller, arg1, arg2, opt1, sow, flag_opt):
-    """ Example plugin command, extending the core CLI repertoire """
+    """ Example plugin command, extending the core list of commands """
     hello_command.hello_function(controller, arg1, arg2, opt1, sow, flag_opt)
 
 
 @run.command('nessus')
-@click.argument('args', nargs=-1)
-@click.option('--kwargs', '-k', multiple=True, type=(str, str), help="Key-value pairs for the plugin")
-@click.option('--strings', '-s', multiple=True, help="Multiple strings")
 @cli_handler
-def nessus(controller, args, kwargs, strings):
-    """ Run the nessus plugin """
-    nessus_run.report_vulns(controller, args, kwargs, strings)
+@click.argument('args', nargs=-1)
+@click.option('--url', required=True, help='URL of the Nessus server',
+              prompt='What is the URL of the Nessus server?')
+@click.option('--api-key', required=True, help='Nessus API key',
+              prompt='What is the API key?')
+@click.option('--secret-key', required=True, help='Nessus secret key',
+              prompt='What is the secret key?')
+def nessus(controller, url, api_key, secret_key):
+    """ Run a Nessus scan """
+    nessus_run.report_vulns(controller, url, api_key, secret_key)
