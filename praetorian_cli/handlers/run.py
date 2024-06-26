@@ -34,7 +34,7 @@ def hello(controller, arg1, arg2, opt1, sow, flag_opt):
 @click.option('--api-key', required=True, help='Nessus API key',
               prompt='What is the API key?')
 @click.option('--secret-key', required=True, help='Nessus secret key',
-              prompt='What is the secret key?')
+              prompt='What is the secret key?', hide_input=True)
 def nessus(controller, url, api_key, secret_key):
     """ Run a Nessus scan """
     nessus_run.report_vulns(controller, url, api_key, secret_key)
