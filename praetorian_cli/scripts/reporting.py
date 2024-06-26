@@ -1,11 +1,11 @@
 """
 This script is used to help engineers quickly create and update findings in 
-Chariot seamlessly. The recommended workflow for working locally is to create a 
-new folder per risk and change directories to this risk folder.
+Chariot seamlessly. The recommended workflow is to create an .env.[risk] per
+risk to cache the risk information created in Chariot.
 
 Example usage:
 
-  praetorian chariot report [.env.cached-risk-name]
+  praetorian chariot report [.env.risk-name]
 
 Prerequisites:
 
@@ -26,6 +26,7 @@ class ReportingPlugin():
     def __init__(self, controller: Chariot, env_file: str):
         self.controller = controller
         self.env_file = env_file
+        self.env_manager = EnvManager(env_file)
 
     def workflow(self):
         sow, asset_key = self.create_asset()
@@ -57,11 +58,11 @@ class ReportingPlugin():
 
 
     def create_asset(self) -> tuple[str, str, str, str]:
-        previous_name = EnvManager().get('ASSET_NAME', None)
-        key = EnvManager().get('ASSET_KEY', None)
+        previous_name = self.env_manager.get('ASSET_NAME', None)
+        key = self.env_manager.get('ASSET_KEY', None)
 
-        sow = prompt_and_set_env('SOW Number', '2024-02-1234')
-        name = prompt_and_set_env('Asset Name', 'www.praetorian.com')
+        sow = self.prompt_and_set_env('SOW Number', '2024-02-1234')
+        name = self.prompt_and_set_env('Asset Name', 'www.praetorian.com')
 
         if previous_name == name and key:
             click.echo(f'Asset already exists in the environment. {key}')
@@ -72,7 +73,7 @@ class ReportingPlugin():
         click.echo('Creating asset...')
         asset = self.controller.add('asset', dict(dns=name, name=name, status='F'))
         key = asset[0]['key']
-        EnvManager().set('ASSET_KEY', key)
+        self.env_manager.set('ASSET_KEY', key)
         self.controller.add('asset/attribute',
                     {'key': key, 'name': sow, 'class': 'SOW'})
         click.echo(f'Asset created in Chariot - {key}')
@@ -80,7 +81,7 @@ class ReportingPlugin():
 
 
     def create_findings(self) -> str:
-        path = EnvManager().get('FINDING_TEMPLATE', '')
+        path = self.env_manager.get('FINDING_TEMPLATE', '')
         if os.path.exists(path) and click.prompt(f'Local finding found. Reuse - {path}', type=bool, default=True):
             return path
 
@@ -102,31 +103,37 @@ class ReportingPlugin():
             path = fzf_file(click.prompt('Enter glob pattern to search for your finding',
                                         type=str, default='./**/*.md'))
 
-        EnvManager().set('FINDING_TEMPLATE', path)
+        self.env_manager.set('FINDING_TEMPLATE', path)
         return path
 
 
     def create_risk(self, asset_key: str, finding: str) -> tuple[str, str]:
-        key = EnvManager().get('RISK_KEY', None)
-        name = EnvManager().get('RISK_NAME', None)
+        key = self.env_manager.get('RISK_KEY', None)
+        name = self.env_manager.get('RISK_NAME', None)
         dns = key.split('#')[2] if key else None
-        if key and dns == EnvManager().get('ASSET_NAME', None):
+        if key and dns == self.env_manager.get('ASSET_NAME', None):
             click.echo(f'Risk {name} already exists in the environment for {dns}')
             if click.prompt(
                     'Would you like to skip risk creation in Chariot (recommended)', type=bool, default=True):
                 return (name, key)
 
         finding = os.path.basename(finding).replace('.md', '').replace('_', '-')
-        name = prompt_and_set_env('Risk Name', finding).replace(' ', '-')
+        name = self.prompt_and_set_env('Risk Name', finding).replace(' ', '-')
         risk = self.controller.add('risk', dict(
             key=asset_key, name=name, status='TI', comment=''))
         click.echo(f'Risk created in Chariot - {name}')
 
-        EnvManager().set('RISK_KEY', risk['risks'][0]['key'])
-        EnvManager().set('RISK_NAME', name)
+        self.env_manager.set('RISK_KEY', risk['risks'][0]['key'])
+        self.env_manager.set('RISK_NAME', name)
 
         return (name, risk['risks'][0]['key'])
 
+    def prompt_and_set_env(self, message, default_value):
+        var_name = message.upper().replace(' ', '_')
+        value = click.prompt('Enter the ' + message, type=str,
+                            default=self.env_manager.get(var_name, default_value))
+        self.env_manager.set(var_name, value)
+        return value
 
 @click.command(hidden=True)
 @click.argument('env_file', type=click.Path(exists=False), default='.env')
@@ -147,8 +154,9 @@ class EnvManager:
             cls._instance = super(EnvManager, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, env_file='.env'):
+    def __init__(self, env_file):
         self.env_file = env_file
+        print(self.env_file)
         self.env_vars = self._load_env_vars()
 
     def _load_env_vars(self):
@@ -170,12 +178,6 @@ class EnvManager:
                 file.write(f'{k}={v}\n')
 
 
-def prompt_and_set_env(message, default_value):
-    var_name = message.upper().replace(' ', '_')
-    value = click.prompt('Enter the ' + message, type=str,
-                         default=EnvManager().get(var_name, default_value))
-    EnvManager().set(var_name, value)
-    return value
 
 
 def fzf_file(glob_path) -> str:
