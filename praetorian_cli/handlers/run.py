@@ -2,7 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.scripts import hello_command, nessus_run
+from praetorian_cli.scripts import hello_command, nessus_command
 
 
 @chariot.group()
@@ -37,4 +37,4 @@ def hello(controller, arg1, arg2, opt1, sow, flag_opt):
               prompt='What is the secret key?', hide_input=True)
 def nessus(controller, url, api_key, secret_key):
     """ Run a Nessus scan """
-    nessus_run.report_vulns(controller, url, api_key, secret_key)
+    nessus_command.report_vulns(controller, url, api_key, secret_key)
