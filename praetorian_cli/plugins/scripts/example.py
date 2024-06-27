@@ -1,10 +1,12 @@
 """
-This is an example of a CLI script. It runs as an extension to existing chariot commands.
-It demonstrates the contents of the 4 arguments of the process() function.
+This is an example of a plugin script. It runs as an extension to the CLI to
+process the output of a command.
+
+This example demonstrates the contents of the 4 arguments of the process() function.
 
 Example usage:
 
-  praetorian chariot list seeds --script hello-world
+  praetorian chariot list seeds --plugin example
 
 """
 

@@ -8,7 +8,7 @@ import click
 from praetorian_cli.handlers.cli_decorators import load_raw_script
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.scripts import hello_command, report_command
+from praetorian_cli.plugins.commands import example, report
 
 
 @chariot.group()
@@ -18,7 +18,7 @@ def plugin(controller):
     pass
 
 
-@plugin.command('hello')
+@plugin.command('example')
 @cli_handler
 @click.argument('arg1', type=str)
 @click.argument('arg2', type=int)
@@ -27,17 +27,17 @@ def plugin(controller):
               help='A mandatory option to provide the SOW number; will prompt if not supplied',
               prompt='SOW number is required. What is the SOW number?')
 @click.option('--flag-opt', is_flag=True, help='A flag option')
-def hello(controller, arg1, arg2, opt1, sow, flag_opt):
+def example_command(controller, arg1, arg2, opt1, sow, flag_opt):
     """ Example plugin command, extending the core list of commands """
-    hello_command.hello_function(controller, arg1, arg2, opt1, sow, flag_opt)
+    example.run(controller, arg1, arg2, opt1, sow, flag_opt)
 
 
 @plugin.command('report')
 @cli_handler
 @click.argument('env_file', type=click.Path(exists=False), default='.env')
-def report(controller, env_file):
+def report_command(controller, env_file):
     """ Praetorian reporting workflow """
-    report_command.run(controller, env_file)
+    report.run(controller, env_file)
 
 
 def load_dynamic_commands():

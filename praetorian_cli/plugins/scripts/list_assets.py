@@ -7,7 +7,7 @@ the assets under the seed.
 
 Example usage:
 
-  praetorian chariot get seed '#seed#praetorian.com' --script list-assets
+  praetorian chariot get seed '#seed#praetorian.com' --plugin list_assets
 
 """
 import json

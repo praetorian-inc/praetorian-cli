@@ -4,7 +4,7 @@ It is used with the 'list risks --details' command.
 
 Example usage:
 
-  praetorian chariot list risks --details --script validate-secrets
+  praetorian chariot list risks --details --plugin validate_secrets
 
 Prerequisites:
 
@@ -13,7 +13,7 @@ Prerequisites:
 """
 import json
 import subprocess
-from praetorian_cli.scripts.utils import requires
+from praetorian_cli.plugins.utils import requires
 
 
 @requires('trufflehog', 'This script requires TruffleHog. See instructions at https://github.com/trufflesecurity/trufflehog.')
