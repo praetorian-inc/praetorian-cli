@@ -116,7 +116,7 @@ A plugin script is invoked by the `--plugin` option, for example:
 praetorian chariot get seed <SEED_KEY> --plugin ~/code/my-process-seed.py
 ```
 
-The CLI comes with built-in scripts in
+The CLI comes with plugin scripts in
 [this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/scripts).
 For those, you only need to specify the name:
 
@@ -125,7 +125,7 @@ praetorian chariot get seed <SEED_KEY> --plugin list_assets
 ```
 
 ### Using a plugin command
-Plugin commands add end-to-end functions to the CLI as commands grouped under `plugin`. See a listing
+Plugin commands add end-to-end functions as commands grouped under `plugin`. See a listing
 of all the plugin commands by running:
 
 ```zsh
