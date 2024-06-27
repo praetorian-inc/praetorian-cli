@@ -1,26 +1,28 @@
 ## Developing plugin commands and scripts
 
-The CLI has a plugin engine for you to extend the CLI without changing its internals. Your scripts
-and commands are imported to the CLI context so it has full and authenticated access to the SDK.
+The CLI has a plugin engine for you to easily extend the CLI in a few steps. Your plugins can have full and
+authenticated access to CHariot platform using the SDK.
 
-There are two types plugins. Which one to use depends on the functionality you are adding:
-- **Scripts**: a script that carries out additional processing of the output of an existing CLI
-  command. An example is a script that invokes TruffleHog to further validate the secrets in exposure risks.
-- **Commands**: a command that executes an end-to-end function. An example is a command that
+You can choose from two types plugins depending on your use-case:
+
+- **Scripts**: To perform additional processing on the output of an existing CLI command. <br>For eg. A script that
+  invokes TruffleHog to filter and validate secrets from a list of risks.
+- **Commands**: To execute a workflow not supported by traditional CLI commands. <br>For eg. A command that
   runs a Nessus scan and injects the scan results into Chariot.
 
-  
 ### Plugin scripts
-A plugin script does additional processing of the output of a CLI command.  It is invoked using
-the `--plugin` option of a `list`, `search`, or `get` command. To get imported to the CLI
-context and be invoked, the script needs to implement a `process` function that takes 4 arguments:
+
+A plugin script does additional processing of the output of a CLI command. It is invoked using
+the `--plugin` option of a `list`, `search`, or `get` command.
+<br>The script needs to implement a `process` function to be invoked. It needs to accept 4 arguments:
+
 - `controller`: An authenticated session of the Praetorian API.
 - `cmd`: This dictionary contains information about the executed CLI command, including the product, action, and
   type.
 - `cli_kwargs`: This dictionary contains the additional options the user provided to the CLI.
 - `output`: This is the raw output of the CLI.
 
-Try the 
+Try the
 [`example.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/example.py)
 plugin script:
 
@@ -28,7 +30,7 @@ plugin script:
 praetorian chariot list seeds --plugin example
 ```
 
-Here is a sample output of the example plugin script:
+Here is a sample output from the command:
 
 ```
 Entering the process() function. It received 4 positional arguments. Inspecting them:
@@ -50,19 +52,17 @@ A typical script uses the arguments in the following manners:
 
 - Check for input correctness using information in `cmd` and `cli_kwargs`.
 - Parse the CLI `output` to extract relevant data.
-- Use the authenticated session in `controller` to further issue API calls to operate
-  on the data.
+- Use the authenticated session in `controller` to issue API calls for further operations.
 
-Explore scripts that are shipped with the CLI for real-world usage, such as
+Explore scripts that are shipped with the CLI, such as
 [`list_assets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plguins/scripts/list_assets.py)
 and
 [`validate_secrets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/validate_secrets.py)
 
-
-
 ### Plugin commands
-You can add full end-to-end functionality as CLI commands to run complex workflows with ease.
-Register them
+
+You can add end-to-end functionalities as CLI commands to run complex workflows with ease.
+<br>Register them
 in [handlers/run.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/run.py) as a new
 command.
 
