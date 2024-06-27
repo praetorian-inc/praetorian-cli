@@ -135,15 +135,9 @@ class ReportingPlugin():
         self.env_manager.set(var_name, value)
         return value
 
-@click.command(hidden=True)
-@click.argument('env_file', type=click.Path(exists=False), default='.env')
-@click.pass_context
-def report(ctx: click.Context, env_file: str):
-    """ Praetorian Reporting Command """
-    ReportingPlugin(ctx.obj, env_file).workflow()
-
-def register(chariot: click.MultiCommand):
-    chariot.add_command(report)
+def run(controller, env_file: str):
+    """ Execute the reporting workflow """
+    ReportingPlugin(controller, env_file).workflow()
 
 
 class EnvManager:
