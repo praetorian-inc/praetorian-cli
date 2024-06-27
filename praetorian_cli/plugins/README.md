@@ -7,7 +7,7 @@ There are two types plugins. Which one to use depends on the functionality you a
 - **Scripts**: a script that carries out additional processing of the output of an existing CLI
   command. An example is a script that invokes TruffleHog to further validate the secrets in exposure risks.
 - **Commands**: a command that executes an end-to-end function. An example is a command that
-  runs a Nessus scan and injects the scan results into Chariot.
+  connects to a Nessus server and injects the scan results into Chariot.
 
   
 ### Plugin scripts
