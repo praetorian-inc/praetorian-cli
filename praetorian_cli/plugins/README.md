@@ -21,7 +21,7 @@ context and be invoked, the script needs to implement a `process` function that 
 - `output`: This is the raw output of the CLI.
 
 Try the 
-[`example.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/example.py)
+[`scripts/example.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/example.py)
 plugin script:
 
  ```zsh
@@ -54,7 +54,7 @@ A typical script uses the arguments in the following manners:
   on the data.
 
 Explore scripts that are shipped with the CLI for real-world usage, such as
-[`list_assets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plguins/scripts/list_assets.py)
+[`list_assets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/list_assets.py)
 and
 [`validate_secrets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/validate_secrets.py)
 
@@ -62,20 +62,23 @@ and
 
 ### Plugin commands
 You can add full end-to-end functionality as CLI commands to run complex workflows with ease.
-Register them
-in [handlers/run.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/run.py) as a new
-command.
 
-Snippet to register a new command called `hello` which runs
-the [`hello_run`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/run.py) script:
+To add a plugin command, add the core logic at the
+[`plugins/commands`](https://github.com/praetorian-inc/praetorian-cli/tree/peter/typos/praetorian_cli/plugins/commands) directory.
+See [`commands/example.py`](https://github.com/praetorian-inc/praetorian-cli/blob/peter/typos/praetorian_cli/plugins/commands/example.py)
+for an Hello-world style example. This command simply reflects back the user arguments and accesses the SDK.
+
+Once you have the command logic ready, register it
+in [`handlers/plugin.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/plugin.py) as a new
+command. Just like any Click command, you can make full use of Click's support for arguments and options. Here is a sample snippet:
 
 ```python
-@run.command('hello')
-@click.argument('args', nargs=-1)
-@click.option('--kwargs', '-k', multiple=True, type=(str, str), help="Key-value pairs for the plugin")
-@click.option('--strings', '-s', multiple=True, help="Multiple strings")
+@plugin.command('example')
 @cli_handler
-def hello(controller, args, kwargs, strings):
-    """Run the hello plugin"""
-    hello_run.hello_function(controller, args, kwargs, strings)
+@click.argument('arg1', type=str)
+@click.option('--opt1', default=None, help='A string option')
+@click.option('--flag-opt', is_flag=True, help='A flag option')
+def example_command(controller, arg1, opt1, flag_opt):
+    """ An example plugin command, extending the CLI """
+    example.run(controller, arg1, opt1, flag_opt)
 ```
