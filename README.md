@@ -29,16 +29,17 @@
 # Description
 
 Praetorian CLI and SDK are open-source tools for interacting with our products and services. Currently, they support
-command line and developer access to [Chariot](https://www.praetorian.com/proactive-cybersecurity-technology/), our
-offensive security platform. The SDK exposes the full set of API that the Chariot UI uses. The CLI is a fully-featured
-companion to the Chariot UI.
+access to [Chariot](https://www.praetorian.com/proactive-cybersecurity-technology/), our
+offensive security platform.
+<br> The SDK exposes the full set of APIs that the Chariot UI uses.
+<br> The CLI is a fully-featured companion to the Chariot UI.
 
 # Getting Started
 
 ## Prerequisites
 
 - Python v3.8 or above
-- `pip` v23.0 or above
+- pip v23.0 or above
 
 ## Installation
 
@@ -67,8 +68,8 @@ password = 8epu9bQ2kqb8qwd.GR
 
 ## Using the CLI
 
-The CLI is a command and option utility for access to the full suite of Chariot API. Get quick help
-with the `help` command:
+The CLI is a command and option utility for access to the full suite of Chariot API. See documentation for commands
+using the `help` option:
 
 ```zsh
 praetorian chariot --help
@@ -94,58 +95,55 @@ praetorian chariot get seed <SEED_KEY> --plugin list_assets
 
 For more examples, visit [our documentation](https://docs.praetorian.com).
 
-
 ## Using plugins
 
-The CLI has a plugin engine for extending the functionality of it without having to change the core internals. In
-the section here, we illustrate how to use those. For developing plugins, see the
-[readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/README.md) in the
-plugins directory.
+The CLI has a plugin engine for implementing more complex workflows.
 
 There are two types of plugins:
-- **Scripts**: a script that carries out additional processing of the output of an existing CLI
-  command. An example is a script that invokes TruffleHog to further validate the secrets in exposure risks.
-- **Commands**: a command that executes an end-to-end function. An example is a command that
-  run a Nessus scan and inject the scan results into Chariot.
 
+- **Scripts**: Invoked using `--plugin` option, they perform additional processing on the data returned by the
+  CLI command.
+- **Commands**: Invoked using the `plugin <plugin_name>` command, they are standalone commands that extend the CLI with
+  a relatively
+  complex workflow.
 
-### Using a plugin script
-A plugin script is invoked by the `--plugin` option, for example: 
+### Using plugin scripts
 
 ```zsh
 praetorian chariot get seed <SEED_KEY> --plugin ~/code/my-process-seed.py
 ```
 
-The CLI ships with built-in scripts in
-[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/scripts).
-For those, you only need to specify the name:
+The CLI ships with some built-in scripts in
+[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/scripts) which can be
+invoked by name:
 
 ```zsh
 praetorian chariot get seed <SEED_KEY> --plugin list_assets
 ```
 
-### Using a plugin command
-Plugin commands add end-to-end function to the CLI as commands grouped under `plugin`. See a listing
-of all the plugin commands by running:
+### Using plugin commands
+
+Plugin commands add end-to-end function to the CLI as commands grouped under `plugin`. To see a list
+of all the plugins:
 
 ```zsh
 praetorian chariot plugin --help
 ```
 
-Different Praetorian teams extend the CLI using plugin commands. Here is an example to streamline our team
-in the creation of client reports:
+Different Praetorian teams extend the CLI using plugin commands. For example this command is used by our team
+in the creation of client reports using internal templates:
 
 ```zsh
 praetorian chariot plugin report
 ```
+
 You can find the list of plugin commands that comes with the CLI in
-[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/commands) 
+[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/commands)
 
 If you have ideas on new plugin commands and scripts, contribute them!
 
-Read more about developing scripts and commands in
-[this readme file](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/README.md).
-
+For developing plugins, you can refer to
+this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/README.md).
 
 ## Developer SDK
 
@@ -165,9 +163,8 @@ chariot = Chariot(Keychain())
 chariot.add('seed', dict(name='example.com', dns='example.com'))
 ```
 
-The best place to explore the SDK is 
+The best place to explore the SDK is
 [the handlers of the CLI](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/handlers)
-
 
 ## Contributing
 
