@@ -31,6 +31,6 @@ def register(plugin_group: click.MultiCommand):
     """ This function has to be defined for this file to be dynamically loaded
         to the CLI as a command. This function has a single argument that is a
         Click command group. It is called by the load_directory function in
-        praetorian_cli.handlers.plugin. Once loaded, this command show up
+        praetorian_cli.handlers.plugin. Once registered, this command shows up
         in the 'plugin' group """
     plugin_group.add_command(dynamic_command)
