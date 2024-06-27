@@ -17,7 +17,7 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 # praetorian_cli.sdk.Chariot. It give you authenticated access to all
 # API functions in the Chariot class, such as my(), add(), etc.
 #
-# Furthermore, you can utilize Click decorators to define user friend
+# Furthermore, you can utilize Click decorators to define user-friendly
 # command line arguments and options.
 @click.command('dynamic-command')
 @cli_handler
@@ -31,5 +31,6 @@ def register(plugin_group: click.MultiCommand):
     """ This function has to be defined for this file to be dynamically loaded
         to the CLI as a command. This function has a single argument that is a
         Click command group. It is called by the load_directory function in
-        praetorian_cli.handlers.plugin """
+        praetorian_cli.handlers.plugin. Once loaded, this command show up
+        in the 'plugin' group """
     plugin_group.add_command(dynamic_command)
