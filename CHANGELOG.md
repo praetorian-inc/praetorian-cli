@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 (2024-06-27)
+
+- [Bug Fix] Fixed module loading for plugins/scripts and plugins/commands
+
 ## 1.1.0 (2024-06-27)
 
 - [New Feature] Renamed `--scripts` to `--plugin` flag to run scripts as plugins.
