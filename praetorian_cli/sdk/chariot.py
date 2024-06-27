@@ -87,13 +87,13 @@ class Chariot:
         return resp.json()
 
     @verify_credentials
-    def upload(self, name: str, upload_path: str = ""):
+    def upload(self, name: str, clss: str, upload_path: str = ""):
         with open(name, 'rb') as file:
             path = name
             if upload_path != "":
                 path = upload_path
 
-            resp = requests.put(f"{self.keychain.api}/file", params={"name": path}, data=file, allow_redirects=True,
+            resp = requests.put(f"{self.keychain.api}/file", params={"name": path, "class": clss}, data=file, allow_redirects=True,
                                 headers=self.keychain.headers)
             if not resp.ok:
                 raise Exception(f'[{resp.status_code}] Request failed')
