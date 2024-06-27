@@ -97,7 +97,7 @@ For more examples, visit [our documentation](https://docs.praetorian.com).
 
 ## Using plugins
 
-The CLI has a plugin engine for extending the functionality of it without having to change the core internals. In
+The CLI has a plugin engine for extending functionality without updating the core internals. In
 the section here, we illustrate how to use those. For developing plugins, see the
 [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/README.md) in the
 plugins directory.
@@ -106,7 +106,7 @@ There are two types of plugins:
 - **Scripts**: a script that carries out additional processing of the output of an existing CLI
   command. An example is a script that invokes TruffleHog to further validate the secrets in exposure risks.
 - **Commands**: a command that executes an end-to-end function. An example is a command that
-  run a Nessus scan and inject the scan results into Chariot.
+  connects to a Nessus server and injects the scan results into Chariot.
 
 
 ### Using a plugin script
@@ -116,7 +116,7 @@ A plugin script is invoked by the `--plugin` option, for example:
 praetorian chariot get seed <SEED_KEY> --plugin ~/code/my-process-seed.py
 ```
 
-The CLI ships with built-in scripts in
+The CLI comes with built-in scripts in
 [this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/scripts).
 For those, you only need to specify the name:
 
@@ -125,15 +125,15 @@ praetorian chariot get seed <SEED_KEY> --plugin list_assets
 ```
 
 ### Using a plugin command
-Plugin commands add end-to-end function to the CLI as commands grouped under `plugin`. See a listing
+Plugin commands add end-to-end functions to the CLI as commands grouped under `plugin`. See a listing
 of all the plugin commands by running:
 
 ```zsh
 praetorian chariot plugin --help
 ```
 
-Different Praetorian teams extend the CLI using plugin commands. Here is an example to streamline our team
-in the creation of client reports:
+Different Praetorian teams extend the CLI using plugin commands. Here is an example that streamlines client
+reporting:
 
 ```zsh
 praetorian chariot plugin report
@@ -141,9 +141,7 @@ praetorian chariot plugin report
 You can find the list of plugin commands that comes with the CLI in
 [this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/commands) 
 
-If you have ideas on new plugin commands and scripts, contribute them!
-
-Read more about developing scripts and commands in
+If you have ideas on new plugins, contribute them! Read more about developing plugins in
 [this readme file](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/README.md).
 
 
