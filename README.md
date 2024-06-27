@@ -138,7 +138,7 @@ in the creation of client reports:
 ```zsh
 praetorian chariot plugin report
 ```
-You can find the list of OOB plugin commands in
+You can find the list of plugin commands that comes with the CLI in
 [this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/commands) 
 
 If you have ideas on new plugin commands and scripts, contribute them!
