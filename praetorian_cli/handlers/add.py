@@ -23,9 +23,9 @@ def seed(controller, seed, status, comment):
 @add.command('file')
 @click.argument('name')
 @cli_handler
-def upload(controller, name):
+def upload(controller, name, clss):
     """ Upload a file """
-    controller.upload(name)
+    controller.upload(name, "manual", clss)
 
 
 @add.command('definition')
@@ -36,7 +36,7 @@ def definition(controller, path, name):
     """ Upload a definition to use for a risk """
     if name is None:
         name = path.split('/')[-1]
-    controller.upload(path, f"definitions/{name}")
+    controller.upload(path, "definition", f"definitions/{name}")
 
 
 @add.command('webhook')
