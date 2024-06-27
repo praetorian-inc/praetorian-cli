@@ -28,7 +28,10 @@ def plugin(controller):
               prompt='SOW number is required. What is the SOW number?')
 @click.option('--flag-opt', is_flag=True, help='A flag option')
 def example_command(controller, arg1, arg2, opt1, sow, flag_opt):
-    """ An example plugin command, extending the CLI """
+    """ An example plugin command, extending the CLI
+
+        ARG1 is a string argument; ARG2 is an integer argument
+    """
     example.run(controller, arg1, arg2, opt1, sow, flag_opt)
 
 
