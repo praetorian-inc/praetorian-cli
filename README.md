@@ -89,12 +89,63 @@ praetorian chariot get seed <SEED_KEY>
 To try one of our plugin scripts, run:
 
 ```zsh
-praetorian chariot get seed <SEED_KEY> --script list-assets
+praetorian chariot get seed <SEED_KEY> --plugin list_assets
 ````
 
-See the [Contributing](#contributing) section for more information on how to add your own plugin scripts.
-
 For more examples, visit [our documentation](https://docs.praetorian.com).
+
+
+## Using plugins
+
+The CLI has a plugin engine for extending the functionality of it without having to change the core internals. In
+the section here, we illustrate how to use those. For developing plugins, see the
+[readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/README.md) in the
+plugins directory.
+
+There are two types of plugins:
+- **Scripts**: a script that carries out additional processing of the output of an existing CLI
+  command. An example is a script that invokes TruffleHog to further validate the secrets in exposure risks.
+- **Commands**: a command that executes an end-to-end function. An example is a command that
+  run a Nessus scan and inject the scan results into Chariot.
+
+
+### Using a plugin script
+A plugin script is invoked by the `--plugin` option, for example: 
+
+```zsh
+praetorian chariot get seed <SEED_KEY> --plugin ~/code/my-process-seed.py
+```
+
+The CLI ships with built-in scripts in
+[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/scripts).
+For those, you only need to specify the name:
+
+```zsh
+praetorian chariot get seed <SEED_KEY> --plugin list_assets
+```
+
+### Using a plugin command
+Plugin commands add end-to-end function to the CLI as commands grouped under `plugin`. See a listing
+of all the plugin commands by running:
+
+```zsh
+praetorian chariot plugin --help
+```
+
+Different Praetorian teams extend the CLI using plugin commands. Here is an example to streamline our team
+in the creation of client reports:
+
+```zsh
+praetorian chariot plugin report
+```
+You can find the list of OOB plugin commands in
+[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/commands) 
+
+If you have ideas on new plugin commands and scripts, contribute them!
+
+Read more about developing scripts and commands in
+[this readme file](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/README.md).
+
 
 ## Developer SDK
 
@@ -111,55 +162,16 @@ from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
 
 chariot = Chariot(Keychain())
-chariot.add('seed', dict(dns='example.com', status='AS'))
+chariot.add('seed', dict(name='example.com', dns='example.com'))
 ```
 
-You can see example usages of the SDK
-in [the handlers of the CLI](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/handlers)
+The best place to explore the SDK is 
+[the handlers of the CLI](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/handlers)
 
-For more examples and API documentation, visit [our documentation](https://docs.praetorian.com).
-
-## Extending the CLI with scripts and plugins
-
-The CLI has a plugin engine for you to extend the CLI without changing its internals. Your script
-is imported to the CLI context so it has full and authenticated access to the SDK.
-
-### Using plugins
-
-To use a plugin with an existing command, add the `--plugin` option, for example:
-
-```zsh
-praetorian chariot list seeds --plugin ~/code/my-process-seeds.py
-```
-
-For built in [plugins](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts) you only need
-to specify the name:
-
-```zsh
-praetorian chariot get seed <SEED_KEY> --script list-assets
-```
-
-### Using scripts
-
-You can add standalone scripts as CLI commands to run complex workflows with ease.
-Register them
-in [handlers/run.py]((https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/handlers/run.py).
-) to add your scripts to the CLI.
-
-To run a script use :
-
-```zsh
-praetorian chariot run hello
-```
-
-If you think your script will be useful for the offensive security community, contribute it!
-
-Read more about contributing scripts and plugins
-here - [scripts/README](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts/README.md).
 
 ## Contributing
 
-We welcome contributions from the community, from plugin scripts, to the core CLI and SDK. To contribute, fork this
+We welcome contributions from the community, from plugins, to the core CLI and SDK. To contribute, fork this
 repository and following the
 [GitHub instructions](https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project)
 to create pull requests.
