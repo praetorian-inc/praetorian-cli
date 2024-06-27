@@ -5,7 +5,7 @@ risk to cache the risk information created in Chariot.
 
 Example usage:
 
-  praetorian chariot report [.env.risk-name]
+  praetorian chariot plugin report [.env.risk-name]
 
 Prerequisites:
 
@@ -17,8 +17,9 @@ import glob
 import os
 import pty
 import shutil
-import click
 import subprocess
+
+import click
 
 from praetorian_cli.handlers.utils import Status
 from praetorian_cli.sdk.chariot import Chariot
