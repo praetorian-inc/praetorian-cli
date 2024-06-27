@@ -57,7 +57,6 @@ def nessus_command(controller, url, api_key, secret_key):
     nessus.report_vulns(controller, url, api_key, secret_key)
 
 
-
 def load_dynamic_commands():
     """ If the PRAETORIAN_SCRIPTS_PATH env variable is defined,
         load all the plugin commands defined there in those paths. """

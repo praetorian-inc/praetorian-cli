@@ -1,9 +1,9 @@
 """
-This script pulls data from Nessus and creates assets and risks in the
+This plugin command pulls data from Nessus and creates assets and risks in the
 Chariot platform.
 
 Example usage:
-    praetorian chariot run nessus -k url https://localhost:8834 -k api '' -k secret ''
+    praetorian chariot plugin nessus --url https://localhost:8834 --api-key <API_KEY> --secret-key <SECRET_KEY>
 """
 import json
 import threading
