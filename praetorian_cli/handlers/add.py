@@ -23,9 +23,9 @@ def seed(controller, seed, status, comment):
 @add.command('file')
 @click.argument('name')
 @cli_handler
-def upload(controller, name, clss):
+def upload(controller, name):
     """ Upload a file """
-    controller.upload(name, "manual", clss)
+    controller.upload(name, "manual")
 
 
 @add.command('definition')
