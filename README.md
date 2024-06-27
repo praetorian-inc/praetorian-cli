@@ -106,7 +106,7 @@ There are two types of plugins:
   a relatively
   complex workflow.
 
-### Example of plugin scripts
+### Examples of plugin scripts
 
 For example, this command uses `my-process-domain.py` to further process the data from `praetorian chariot get seed`:
 ```zsh
@@ -121,7 +121,7 @@ are invoked by name:
 praetorian chariot get seed <SEED_KEY> --plugin list_assets
 ```
 
-### Example of plugin commands
+### Examples of plugin commands
 Plugin commands add end-to-end functions as commands grouped under `plugin`. To see a list
 of them:
 
