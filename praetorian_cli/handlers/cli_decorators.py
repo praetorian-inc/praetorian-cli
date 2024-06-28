@@ -36,7 +36,7 @@ def list_options(filter_name):
     return decorator
 
 
-def status_options(status_choices, type="object"):
+def status_options(status_choices, type='object'):
     def decorator(func):
         func = cli_handler(func)
         func = click.option('-status', '--status', type=click.Choice([s.value for s in status_choices]),
