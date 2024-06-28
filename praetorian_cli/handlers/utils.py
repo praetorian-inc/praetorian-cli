@@ -47,7 +47,16 @@ class Risk(Enum):
     CLOSED_CRITICAL_REJECTED = "CCR"
 
 
-Status = {'asset': Asset, 'seed': Asset, 'job': Job, 'risk': Risk}
+class AddRisk(Enum):
+    """ AddRisk is a subset of Risk. These are the only valid statuses when creating manual risks """
+    TRIAGE_INFO = "TI"
+    TRIAGE_LOW = "TL"
+    TRIAGE_MEDIUM = "TM"
+    TRIAGE_HIGH = "TH"
+    TRIAGE_CRITICAL = "TC"
+
+
+Status = {'asset': Asset, 'seed': Asset, 'job': Job, 'risk': Risk, 'add-risk': AddRisk}
 
 key_set = {'assets': '#asset#', 'seeds': '#seed#', 'jobs': '#job#', 'risks': '#risk#', 'accounts': '#account#',
            'definitions': '#file#definitions/', 'integrations': '#account#', 'attributes': '#attribute#',

@@ -12,14 +12,14 @@ def update(ctx):
     pass
 
 
-def create_update_command(item_type, status_choices):
-    @update.command(item_type, help=f"Update {item_type} using object key")
+def create_update_command(item_type):
+    @update.command(item_type, help=f'Update a {item_type}\n\nKEY is the key of the {item_type}')
     @click.argument('key', required=True)
-    @status_options(status_choices)
+    @status_options(Status[item_type], item_type)
     def command(controller, key, status, comment):
         controller.update(item_type, dict(key=key, status=status, comment=comment))
 
 
-create_update_command('asset', Status['asset'])
-create_update_command('risk', Status['risk'])
-create_update_command('job', Status['job'])
+create_update_command('asset')
+create_update_command('risk')
+create_update_command('job')
