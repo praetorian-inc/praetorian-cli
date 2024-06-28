@@ -14,10 +14,19 @@ def add(ctx):
 
 @add.command('seed')
 @click.argument('seed', required=True)
-@status_options(Status['seed'])
+@status_options(Status['seed'], 'seed')
 def seed(controller, seed, status, comment):
     """ Add a seed """
     controller.add('seed', dict(dns=seed, status=status, comment=comment))
+
+
+@add.command('asset')
+@cli_handler
+@click.option('-name', '--name', required=True, help='The name of the asset, e.g, IP address, GitHub repo URL')
+@click.option('-dns', '--dns', required=True, help='The DNS of the asset')
+def asset(controller, name, dns):
+    """ Add an asset """
+    controller.add('asset', dict(name=name, dns=dns))
 
 
 @add.command('file')
@@ -50,7 +59,7 @@ def webhook(controller):
 @add.command('risk')
 @click.argument('name', required=True)
 @click.option('-key', '--key', required=True, help='Key of an existing asset')
-@status_options(Status['risk'])
+@status_options(Status['risk'], 'risk')
 def risk(controller, name, key, status, comment):
     """ Add a risk """
     controller.add('risk', dict(key=key, name=name, status=status, comment=comment))
@@ -59,10 +68,9 @@ def risk(controller, name, key, status, comment):
 @add.command('job')
 @click.argument('capability', required=True)
 @click.option('-key', '--key', required=True, help='Key of an existing asset')
-@status_options(Status['job'])
-def job(controller, capability, key, status, comment):
+def job(controller, capability, key):
     """ Add a job """
-    controller.add('job', dict(key=key, name=capability, status=status, comment=comment))
+    controller.add('job', dict(key=key, name=capability))
 
 
 @add.command('attribute')
