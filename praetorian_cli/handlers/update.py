@@ -22,4 +22,3 @@ def create_update_command(item_type):
 
 create_update_command('asset')
 create_update_command('risk')
-create_update_command('job')
