@@ -16,9 +16,10 @@ def add(ctx):
 @cli_handler
 @click.option('-name', '--name', required=True, help='The name of the asset, e.g, IP address, GitHub repo URL')
 @click.option('-dns', '--dns', required=True, help='The DNS of the asset')
-def asset(controller, name, dns):
+@click.option('-seed', '--seed', is_flag=True, default=False, help='Enumerate for other assets from this asset')
+def asset(controller, name, dns, seed):
     """ Add an asset """
-    controller.add('asset', dict(name=name, dns=dns))
+    controller.add('asset', dict(name=name, dns=dns, seed=seed))
 
 
 @add.command('file')
