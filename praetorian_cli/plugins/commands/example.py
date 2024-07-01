@@ -8,6 +8,7 @@ import json
 
 import click
 
+
 def run(controller, arg1, arg2, opt1, sow, flag_opt):
     """ Print the arguments and options provided to the hello command
         and call the SDK to demonstrate that this function scope has
@@ -20,9 +21,8 @@ def run(controller, arg1, arg2, opt1, sow, flag_opt):
     click.echo(f'sow = {sow}')
     click.echo(f'flag_opt = {flag_opt}\n')
 
-    seeds_response = controller.my(dict(key='#seed#'))
-    click.echo('Listing of seeds:\n')
-    click.echo(json.dumps(seeds_response, indent=4))
+    assets_response = controller.my(dict(key='#asset#'))
+    click.echo('Listing of assets:\n')
+    click.echo(json.dumps(assets_response, indent=4))
 
     click.echo('\nExiting the example command.')
-    

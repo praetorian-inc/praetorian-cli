@@ -6,7 +6,7 @@ This example demonstrates the contents of the 4 arguments of the process() funct
 
 Example usage:
 
-  praetorian chariot list seeds --plugin example
+  praetorian chariot list assets --plugin example
 
 """
 

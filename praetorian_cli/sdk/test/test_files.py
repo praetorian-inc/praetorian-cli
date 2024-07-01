@@ -13,16 +13,16 @@ class TestFile(BaseTest):
 
     def setup_class(self):
         self.chariot, self.username = BaseTest.setup_chariot(self)
-        self.file_name = "resources_seed_file.txt"
-        self.upload_file = "resources/seed_file.txt"
+        self.file_name = "resources_asset_file.txt"
+        self.upload_file = "resources/asset_file.txt"
         self.download_dir = "resources/downloads/"
-        self.seed = f"contoso-{int(time.time())}.com"
+        self.asset = f"contoso-{int(time.time())}.com"
 
         directory = os.path.dirname(self.upload_file)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
         with open(self.upload_file, 'w') as file:
-            file.write(self.seed)
+            file.write(self.asset)
 
     def test_upload_file(self):
         self.chariot.upload(self.upload_file)

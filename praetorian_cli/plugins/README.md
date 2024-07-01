@@ -4,6 +4,7 @@ The CLI has a plugin engine for you to easily extend the CLI in a few steps. You
 authenticated access to Chariot platform using the SDK.
 
 You can choose from two types plugins depending on your use-case:
+
 - **Scripts**: To perform additional processing on the output of an existing CLI command. <br>For eg. A script that
   invokes TruffleHog to filter and validate secrets from a list of risks.
 - **Commands**: To execute a workflow not supported by traditional CLI commands. <br>For eg. A command that
@@ -26,7 +27,7 @@ Try the
 plugin script:
 
  ```zsh
-praetorian chariot list seeds --plugin example
+praetorian chariot list assets --plugin example
 ```
 
 Here is a sample output from the command:
@@ -36,12 +37,12 @@ Entering the process() function. It received 4 positional arguments. Inspecting 
 
 username = test_user@praetorian.com.
 
-cmd = {'product': 'chariot', 'action': 'list', 'type': 'seeds'}.
+cmd = {'product': 'chariot', 'action': 'list', 'type': 'assets'}.
 
 cli_kwargs = {'details': False, 'filter': '', 'page': 'no', 'offset': ''}.
 
 output =
-#seed#example.com#example.com
+#asset#example.com#example.com
 ...
 
 Exiting the process() function
@@ -59,19 +60,23 @@ and
 [`validate_secrets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/validate_secrets.py)
 
 ### Plugin commands
+
 You can add end-to-end functionalities as CLI commands to run complex workflows with ease.
 <br>Register them
 in [handlers/run.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/run.py) as a new
 command.
 
 To add a plugin command, add the core logic at the
-[`plugins/commands`](https://github.com/praetorian-inc/praetorian-cli/tree/peter/typos/praetorian_cli/plugins/commands) directory.
+[`plugins/commands`](https://github.com/praetorian-inc/praetorian-cli/tree/peter/typos/praetorian_cli/plugins/commands)
+directory.
 See [`commands/example.py`](https://github.com/praetorian-inc/praetorian-cli/blob/peter/typos/praetorian_cli/plugins/commands/example.py)
 for an Hello-world style example. This command simply reflects back the user arguments and accesses the SDK.
 
 Once you have the command logic ready, register it
-in [`handlers/plugin.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/plugin.py) as a new
-command. Just like any Click command, you can make full use of Click's support for arguments and options. Here is a sample snippet:
+in [`handlers/plugin.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/plugin.py)
+as a new
+command. Just like any Click command, you can make full use of Click's support for arguments and options. Here is a
+sample snippet:
 
 ```python
 @plugin.command('example')

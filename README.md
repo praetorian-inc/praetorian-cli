@@ -75,22 +75,22 @@ using the `help` option:
 praetorian chariot --help
 ```
 
-As an example, run the following command to retrieve the list of all seeds in your account:
+As an example, run the following command to retrieve the list of all assets in your account:
 
 ```zsh
-praetorian chariot list seeds
+praetorian chariot list assets
 ```
 
-To get detailed information about a specific seed, run:
+To get detailed information about a specific asset, run:
 
 ```zsh
-praetorian chariot get seed <SEED_KEY>
+praetorian chariot get asset <ASSET_KEY>
 ```
 
 To try one of our plugin scripts, run:
 
 ```zsh
-praetorian chariot get seed <SEED_KEY> --plugin list_assets
+praetorian chariot get asset <ASSET_KEY> --plugin list_assets
 ````
 
 For more examples, visit [our documentation](https://docs.praetorian.com).
@@ -100,6 +100,7 @@ For more examples, visit [our documentation](https://docs.praetorian.com).
 The CLI has a plugin engine for implementing more complex workflows.
 
 There are two types of plugins:
+
 - **Scripts**: Invoked using the `--plugin` option, they perform additional processing on the data returned by the
   CLI command.
 - **Commands**: Invoked using the `plugin <plugin_name>` command, they are standalone commands that extend the CLI with
@@ -108,9 +109,10 @@ There are two types of plugins:
 
 ### Examples of plugin scripts
 
-For example, this command uses `my-process-domain.py` to further process the data from `praetorian chariot get seed`:
+For example, this command uses `my-process-domain.py` to further process the data from `praetorian chariot get asset`:
+
 ```zsh
-praetorian chariot get seed <SEED_KEY> --plugin ~/code/my-process-domain.py
+praetorian chariot get asset <ASSET_KEY> --plugin ~/code/my-process-domain.py
 ```
 
 The CLI also comes with some built-in scripts in
@@ -118,10 +120,11 @@ The CLI also comes with some built-in scripts in
 are invoked by name:
 
 ```zsh
-praetorian chariot get seed <SEED_KEY> --plugin list_assets
+praetorian chariot get asset <ASSET_KEY> --plugin list_assets
 ```
 
 ### Examples of plugin commands
+
 Plugin commands add end-to-end functions as commands grouped under `plugin`. To see a list
 of them:
 
@@ -144,7 +147,6 @@ If you have ideas on new plugin commands and scripts, contribute them!
 For developing plugins, you can refer to
 this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/README.md).
 
-
 ## Developer SDK
 
 The Praetorian SDK is installed along with the `praetorian-cli` package. Integrate the SDK into your
@@ -160,7 +162,7 @@ from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
 
 chariot = Chariot(Keychain())
-chariot.add('seed', dict(name='example.com', dns='example.com'))
+chariot.add('asset', dict(name='example.com', dns='example.com'))
 ```
 
 The best place to explore the SDK is
