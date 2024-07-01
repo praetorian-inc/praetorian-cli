@@ -49,7 +49,7 @@ class AddRisk(Enum):
     TRIAGE_CRITICAL = "TC"
 
 
-Status = {'asset': Asset, 'job': Job, 'risk': Risk, 'add-risk': AddRisk}
+Status = {'asset': Asset, 'risk': Risk, 'add-risk': AddRisk}
 
 
 key_set = {'assets': '#asset#', 'jobs': '#job#', 'risks': '#risk#', 'accounts': '#account#',
