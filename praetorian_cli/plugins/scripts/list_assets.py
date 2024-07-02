@@ -1,9 +1,9 @@
 """
-This script retrieves the assets discovered by a given asset. It retrieves
+This script retrieves the assets originating from a given asset. It retrieves
 the asset from the CLI. In turn, it execute a search using the my() function
 of the Chariot SDK to find all entities related to the asset. Finally, it
-filters for the attributes entities, which store the information of
-the assets under the asset.
+filters for the attributes entities of the 'seed' class, which store the
+information of the assets originating from the given asset.
 
 Example usage:
 
