@@ -25,7 +25,7 @@ class TestFile(BaseTest):
             file.write(self.asset)
 
     def test_upload_file(self):
-        self.chariot.upload(self.upload_file)
+        self.chariot.upload(self.upload_file, 'manual')
 
     def test_my_file(self):
         response = self.chariot.my(dict(key=f'#file#{self.upload_file}'))

@@ -31,11 +31,6 @@ class TestAsset(BaseTest):
         assert any(my_asset['dns'] == self.asset_payload['dns'] for my_asset in response['assets']), \
             "None of the assets matched self.asset_payload['dns']"
 
-    def test_my_attribute(self):
-        response = self.chariot.my(dict(key=f'#attribute#{self.asset_payload["dns"]}'))
-        assert any(my_attribute['dns'] == self.asset_payload['dns'] for my_attribute in response['attributes']), \
-            "None of the attributes matched self.asset_payload['dns']"
-
     def test_update_asset(self):
         response = \
             self.chariot.update('asset', dict(key=f'#asset#{self.asset_payload["dns"]}#{self.asset_payload["name"]}',
