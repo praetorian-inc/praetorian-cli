@@ -56,11 +56,12 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                         dns=dns, name=name, status='F'))
                     asset_key = asset[0]['key']
 
-                url = f"/scans/{scan_id}/hosts/{host['host_id']}/plugins/{vuln['plugin_id']}"
+                url = f"/scans/{scan_id}/hosts/{
+                    host['host_id']}/plugins/{vuln['plugin_id']}"
                 plugin_details = nessus_api_req(url)
-                # proof_of_exploit = ''
-                # for output in plugin_details['outputs']:
-                #     proof_of_exploit += output['plugin_output']
+                proof_of_exploit = ''
+                for output in plugin_details['outputs']:
+                    proof_of_exploit += output['plugin_output']
 
                 risk = plugin_details['info']['plugindescription']['pluginattributes']['risk_information'][
                     'risk_factor']
@@ -68,9 +69,11 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                 vuln = (''.join({vuln['plugin_name']})
                         ).replace(' ', '-').lower()
                 status = 'T' + risk[0].upper()
-                risk_resp = controller.add('risk', dict(
+                controller.add('risk', dict(
                     key=asset_key, name=vuln, status=status, comment=comment))
-                # Todo: add proof of exploit
+                if proof_of_exploit != '':
+                    controller._upload(
+                        f'{dns}/{vuln}', 'proof', proof_of_exploit)
 
         for host in scan_details['hosts']:
             threading.Thread(target=get_host_scan,
