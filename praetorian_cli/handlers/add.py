@@ -54,9 +54,9 @@ def webhook(controller):
 @click.argument('name', required=True)
 @click.option('-asset', '--asset', required=True, help='Key of an existing asset')
 @status_options(Status['add-risk'], 'risk')
-def risk(controller, name, key, status, comment):
+def risk(controller, name, asset, status, comment):
     """ Add a risk """
-    controller.add('risk', dict(key=key, name=name, status=status, comment=comment))
+    controller.add('risk', dict(key=asset, name=name, status=status, comment=comment))
 
 
 @add.command('job')
