@@ -10,7 +10,7 @@ def list(ctx):
     pass
 
 
-list_filter = {'assets': 'DNS', 'risks': 'asset', 'references': 'asset', 'attributes': 'asset',
+list_filter = {'assets': 'DNS', 'risks': 'asset', 'attributes': 'asset',
                'jobs': 'updated', 'files': 'name', 'accounts': 'name', 'integrations': 'name',
                'definitions': 'name'}
 
