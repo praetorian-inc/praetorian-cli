@@ -21,7 +21,7 @@ class TestAsset(BaseTest):
         self.utils = Utils(self.chariot)
 
     def test_add_asset(self):
-        response = self.chariot.add('asset', dict(dns=self.asset))[0]
+        response = self.chariot.add('asset', dict(dns=self.asset, name=self.asset))[0]
         assert response['dns'] == self.asset, "Response does not have correct asset"
         assert response['status'] == Asset.ACTIVE.value, "Response does not have correct status"
 
