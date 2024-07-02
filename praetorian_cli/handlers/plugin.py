@@ -8,7 +8,7 @@ import click
 from praetorian_cli.handlers.cli_decorators import load_raw_script
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.plugins.commands import example, report
+from praetorian_cli.plugins.commands import example, report, nessus
 
 
 @chariot.group()
@@ -43,6 +43,19 @@ def report_command(controller, env_file):
     report.run(controller, env_file)
 
 
+@plugin.command('nessus')
+@cli_handler
+@click.option('--url', required=True, help='URL of the Nessus server',
+              prompt='What is the URL of the Nessus server?')
+@click.option('--api-key', required=True, help='Nessus API key',
+              prompt='What is the API key?')
+@click.option('--secret-key', required=True, help='Nessus secret key',
+              prompt='What is the secret key?', hide_input=True)
+def nessus_command(controller, url, api_key, secret_key):
+    """ Run a Nessus scan """
+    nessus.report_vulns(controller, url, api_key, secret_key)
+
+
 def load_dynamic_commands():
     """ If the PRAETORIAN_SCRIPTS_PATH env variable is defined,
         load all the plugin commands defined there in those paths. """
@@ -64,7 +77,7 @@ def load_directory(path):
                 pass
             else:
                 if (hasattr(plugin_module, 'register') and callable(plugin_module.register)
-                    and len(signature(plugin_module.__dict__['register']).parameters) == 1):
+                        and len(signature(plugin_module.__dict__['register']).parameters) == 1):
                     plugin_module.register(plugin)
 
 

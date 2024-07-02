@@ -51,10 +51,9 @@ class AddRisk(Enum):
 
 Status = {'asset': Asset, 'risk': Risk, 'add-risk': AddRisk}
 
-
 key_set = {'assets': '#asset#', 'jobs': '#job#', 'risks': '#risk#', 'accounts': '#account#',
            'definitions': '#file#definitions/', 'integrations': '#account#', 'attributes': '#attribute#',
-           'references': '#ref#', 'files': '#file#'}
+           'files': '#file#'}
 
 
 def my_result(controller, key, filter="", offset="", pages=1):

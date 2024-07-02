@@ -8,6 +8,7 @@ Usage:
 """
 
 import click
+
 from praetorian_cli.handlers.cli_decorators import cli_handler
 
 

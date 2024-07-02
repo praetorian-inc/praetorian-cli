@@ -15,11 +15,12 @@ def add(ctx):
 @add.command('asset')
 @cli_handler
 @click.option('-name', '--name', required=True, help='The name of the asset, e.g, IP address, GitHub repo URL')
-@click.option('-dns', '--dns', required=True, help='The DNS of the asset')
-@click.option('-seed', '--seed', is_flag=True, default=False, help='Enumerate for other assets from this asset')
-def asset(controller, name, dns, seed):
+@click.option('-dns', '--dns', required=False, help='The DNS of the asset')
+def asset(controller, name, dns):
     """ Add an asset """
-    controller.add('asset', dict(name=name, dns=dns, seed=seed))
+    if dns is None:
+        dns = name
+    controller.add('asset', dict(name=name, dns=dns))
 
 
 @add.command('file')
@@ -69,28 +70,13 @@ def job(controller, capability, key):
 @add.command('attribute')
 @cli_handler
 @click.argument('name', required=True)
-@click.option('-asset', '--asset', required=True, help='Key of an existing asset')
+@click.option('-key', '--key', required=True, help='Key of an existing asset or risk')
 @click.option('-class', '--class', 'clss', required=True, help='Class of the attribute')
 def attribute(controller, name, key, clss):
-    """ Add an attribute for an asset """
+    """ Add an attribute for an asset or risk"""
     params = {
         'key': key,
         'name': name,
         'class': clss
     }
-    print(controller.add('asset/attribute', params))
-
-
-@add.command('reference')
-@cli_handler
-@click.argument('name', required=True)
-@click.option('-risk', '--risk', required=True, help='Key of an existing risk')
-@click.option('-class', '--class', 'clss', required=True, help='Class of the reference')
-def reference(controller, name, key, clss):
-    """ Add a reference for a risk """
-    params = {
-        'key': key,
-        'name': name,
-        'class': clss
-    }
-    print(controller.add('risk/reference', params))
+    print(controller.add('attribute', params))

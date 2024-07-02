@@ -2,9 +2,9 @@ import os
 
 import click
 
+import praetorian_cli.sdk.test as test_module
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-import praetorian_cli.sdk.test as test_module
 
 
 @chariot.command('test')

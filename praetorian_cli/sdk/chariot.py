@@ -18,7 +18,8 @@ class Chariot:
     def my(self, params: dict, pages=1) -> {}:
         my_resp = dict()
         for _ in range(pages):
-            resp = requests.get(f"{self.keychain.api}/my", params=params, headers=self.keychain.headers)
+            resp = requests.get(f"{self.keychain.api}/my",
+                                params=params, headers=self.keychain.headers)
             process_failure(resp)
             resp = resp.json()
             for key, value in resp.items():
@@ -35,13 +36,15 @@ class Chariot:
 
     @verify_credentials
     def count(self, params: dict) -> {}:
-        resp = requests.get(f"{self.keychain.api}/my/count", params=params, headers=self.keychain.headers)
+        resp = requests.get(f"{self.keychain.api}/my/count",
+                            params=params, headers=self.keychain.headers)
         process_failure(resp)
         return resp.json()
 
     @verify_credentials
     def add(self, type, payload: dict) -> {}:
-        resp = requests.post(f"{self.keychain.api}/{type}", json=payload, headers=self.keychain.headers)
+        resp = requests.post(f"{self.keychain.api}/{type}",
+                             json=payload, headers=self.keychain.headers)
         process_failure(resp)
         return resp.json()
 
@@ -54,13 +57,15 @@ class Chariot:
 
     @verify_credentials
     def update(self, resource: str, data: dict) -> {}:
-        resp = requests.put(f"{self.keychain.api}/{resource}", json=data, headers=self.keychain.headers)
+        resp = requests.put(f"{self.keychain.api}/{resource}",
+                            json=data, headers=self.keychain.headers)
         process_failure(resp)
         return resp.json()
 
     @verify_credentials
     def report(self, name: str) -> {}:
-        resp = requests.get(f"{self.keychain.api}/report/risk", {'name': name}, headers=self.keychain.headers)
+        resp = requests.get(f"{self.keychain.api}/report/risk",
+                            {'name': name}, headers=self.keychain.headers)
         process_failure(resp)
         return resp.text
 
@@ -85,9 +90,13 @@ class Chariot:
             if upload_path != "":
                 path = upload_path
 
-            resp = requests.put(f"{self.keychain.api}/file", params={"name": path, "class": clss}, data=file, allow_redirects=True,
-                                headers=self.keychain.headers)
-            process_failure(resp)
+            self._upload(path, clss, file)
+
+    @verify_credentials
+    def _upload(self, name: str, clss: str, content: str):
+        resp = requests.put(f"{self.keychain.api}/file", params={"name": name, "class": clss}, data=content, allow_redirects=True,
+                            headers=self.keychain.headers)
+        process_failure(resp)
 
     def sanitize_filename(self, filename: str) -> str:
         invalid_chars = '<>:"/\\|?*'
@@ -121,7 +130,6 @@ class Chariot:
         encoded_string = username.decode('utf8')
         encoded_username = encoded_string.rstrip('=')
         return f'{self.keychain.api}/hook/{encoded_username}/{pin}'
-
 
     def get_risk_details(self, key: str):
         resp = self.my(dict(key=key))['risks'][0]

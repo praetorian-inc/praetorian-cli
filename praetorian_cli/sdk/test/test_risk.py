@@ -1,4 +1,5 @@
 import time
+
 import pytest
 
 from praetorian_cli.sdk.test import BaseTest, utils

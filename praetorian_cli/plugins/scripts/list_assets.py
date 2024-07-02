@@ -28,10 +28,10 @@ def process(controller, cmd, cli_kwargs, output):
 
     if not asset_details['seed']:
         print("The asset is not a root asset; the seed field is False.")
+        return
 
     # Extract the asset name
     asset = asset_details['name']
-
 
     # Search for asset name
     result = controller.my(dict(key=asset), pages=100)
