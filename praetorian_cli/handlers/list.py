@@ -1,6 +1,6 @@
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.utils import key_set, paginate
 from praetorian_cli.handlers.cli_decorators import cli_handler, list_options, page_options, plugins
+from praetorian_cli.handlers.utils import key_set, paginate
 
 
 @chariot.group()
@@ -10,7 +10,7 @@ def list(ctx):
     pass
 
 
-list_filter = {'assets': 'DNS', 'risks': 'asset', 'references': 'asset', 'attributes': 'asset',
+list_filter = {'assets': 'DNS', 'risks': 'asset', 'attributes': 'asset',
                'jobs': 'updated', 'files': 'name', 'accounts': 'name', 'integrations': 'name',
                'definitions': 'name'}
 

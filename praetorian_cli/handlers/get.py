@@ -60,7 +60,7 @@ def risk(controller, key, details):
     print(json.dumps(resp, indent=4))
 
 
-get_list = ['assets', 'references', 'attributes', 'jobs', 'accounts', 'integrations']
+get_list = ['assets', 'attributes', 'jobs', 'accounts', 'integrations']
 
 
 def create_get_command(item):

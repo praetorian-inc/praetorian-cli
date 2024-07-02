@@ -8,7 +8,7 @@ import click
 from praetorian_cli.handlers.cli_decorators import load_raw_script
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.plugins.commands import example, report
+from praetorian_cli.plugins.commands import example, report, nessus
 
 
 @chariot.group()
@@ -41,6 +41,19 @@ def example_command(controller, arg1, arg2, opt1, sow, flag_opt):
 def report_command(controller, env_file):
     """ Praetorian reporting workflow """
     report.run(controller, env_file)
+
+
+@plugin.command('nessus')
+@cli_handler
+@click.option('--url', required=True, help='URL of the Nessus server',
+              prompt='What is the URL of the Nessus server?')
+@click.option('--api-key', required=True, help='Nessus API key',
+              prompt='What is the API key?')
+@click.option('--secret-key', required=True, help='Nessus secret key',
+              prompt='What is the secret key?', hide_input=True)
+def nessus_command(controller, url, api_key, secret_key):
+    """ Run a Nessus scan """
+    nessus.report_vulns(controller, url, api_key, secret_key)
 
 
 def load_dynamic_commands():

@@ -16,14 +16,9 @@ def delete_command(item):
     @click.argument('key', required=True)
     @cli_handler
     def command(controller, key):
-        if item == 'attribute':
-            resp = controller.delete('asset/attribute', key)
-        elif item == 'reference':
-            resp = controller.delete('risk/reference', key)
-        else:
-            resp = controller.delete(item, key)
+        controller.delete(item, key)
         print(f"Key: {key} \nDeleted successfully")
 
 
-for item in ['asset', 'attribute', 'reference']:
+for item in ['asset', 'attribute']:
     delete_command(item)
