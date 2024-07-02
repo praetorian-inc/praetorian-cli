@@ -27,14 +27,12 @@ def process(controller, cmd, cli_kwargs, output):
     asset_details = json.loads(output)
 
     if not asset_details['seed']:
-        print("The asset is not a root asset")
-
-
+        print("The asset is not a root asset; the seed field is False.")
 
     # Extract the asset name
     asset = asset_details['name']
 
-    print(f"Root asset '{asset}' has the following related assets:")
+    print(f"The following assets originate from {asset}:")
 
     # Search for asset name
     result = controller.my(dict(key=asset), pages=100)
