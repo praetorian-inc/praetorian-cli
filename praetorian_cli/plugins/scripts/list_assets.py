@@ -32,13 +32,16 @@ def process(controller, cmd, cli_kwargs, output):
     # Extract the asset name
     asset = asset_details['name']
 
-    print(f"The following assets originate from {asset}:")
 
     # Search for asset name
     result = controller.my(dict(key=asset), pages=100)
 
     # Filter out attributes of the class 'seed'. Then, we compose asset keys from the attribute keys
-    for hit in result['attributes']:
-        if hit['name'] == asset and hit['class'] == 'seed':
-            fragments = hit['key'].split("#")
-            print(f'#asset#{fragments[2]}#{fragments[3]}')
+    if 'attributes' in result:
+        print(f"The following assets originate from {asset}:")
+        for hit in result['attributes']:
+            if hit['name'] == asset and hit['class'] == 'seed':
+                fragments = hit['key'].split("#")
+                print(f'#asset#{fragments[2]}#{fragments[3]}')
+    else:
+        print(f'No asset originate from {asset}')
