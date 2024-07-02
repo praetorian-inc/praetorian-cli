@@ -45,7 +45,6 @@ def report_command(controller, env_file):
 
 @plugin.command('nessus')
 @cli_handler
-@click.argument('args', nargs=-1)
 @click.option('--url', required=True, help='URL of the Nessus server',
               prompt='What is the URL of the Nessus server?')
 @click.option('--api-key', required=True, help='Nessus API key',
