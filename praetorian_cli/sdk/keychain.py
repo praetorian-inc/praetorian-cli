@@ -1,10 +1,10 @@
 import configparser
 import os
-import boto3
-
 from functools import wraps
 from os.path import exists
 from pathlib import Path
+
+import boto3
 
 
 def verify_credentials(func):
@@ -62,7 +62,9 @@ class Keychain:
             cfg.read(self.location)
 
         if not cfg.sections():
-            exit('[!] Follow instructions at at https://docs.praetorian.com/hc/en-us/articles/25815154096667-The-Praetorian-CLI to obtain a keychain.')
+            exit(
+                '[!] Follow instructions at at https://docs.praetorian.com/hc/en-us/articles/25815154096667-The'
+                '-Praetorian-CLI to obtain a keychain.')
         return cfg
 
     def write_credentials(self):

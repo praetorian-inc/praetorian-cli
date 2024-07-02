@@ -93,7 +93,8 @@ class Chariot:
             if upload_path != "":
                 path = upload_path
 
-            resp = requests.put(f"{self.keychain.api}/file", params={"name": path, "class": clss}, data=file, allow_redirects=True,
+            resp = requests.put(f"{self.keychain.api}/file", params={"name": path, "class": clss}, data=file,
+                                allow_redirects=True,
                                 headers=self.keychain.headers)
             if not resp.ok:
                 raise Exception(f'[{resp.status_code}] Request failed')
@@ -131,7 +132,6 @@ class Chariot:
         encoded_string = username.decode('utf8')
         encoded_username = encoded_string.rstrip('=')
         return f'{self.keychain.api}/hook/{encoded_username}/{pin}'
-
 
     def get_risk_details(self, key: str):
         resp = self.my(dict(key=key))['risks'][0]

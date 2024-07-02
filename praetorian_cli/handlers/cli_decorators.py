@@ -1,9 +1,9 @@
 import importlib
 import sys
-from types import ModuleType
 from functools import wraps
 from inspect import signature
 from io import StringIO
+from types import ModuleType
 
 import click
 

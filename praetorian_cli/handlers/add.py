@@ -20,7 +20,7 @@ def asset(controller, name, dns):
     """ Add an asset """
     if dns is None:
         dns = name
-    controller.add('asset', dict(name=name, dns=dns, seed=seed))
+    controller.add('asset', dict(name=name, dns=dns))
 
 
 @add.command('file')

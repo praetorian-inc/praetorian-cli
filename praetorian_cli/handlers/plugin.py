@@ -77,7 +77,7 @@ def load_directory(path):
                 pass
             else:
                 if (hasattr(plugin_module, 'register') and callable(plugin_module.register)
-                    and len(signature(plugin_module.__dict__['register']).parameters) == 1):
+                        and len(signature(plugin_module.__dict__['register']).parameters) == 1):
                     plugin_module.register(plugin)
 
 

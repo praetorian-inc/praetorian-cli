@@ -1,9 +1,9 @@
 import configparser
 import os
-
 from pathlib import Path
-from praetorian_cli.sdk.keychain import Keychain
+
 from praetorian_cli.sdk.chariot import Chariot
+from praetorian_cli.sdk.keychain import Keychain
 
 
 class BaseTest:

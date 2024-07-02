@@ -7,6 +7,7 @@ Example usage:
 """
 import json
 import threading
+
 import requests
 import urllib3
 
@@ -61,7 +62,8 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                 # for output in plugin_details['outputs']:
                 #     proof_of_exploit += output['plugin_output']
 
-                risk = plugin_details['info']['plugindescription']['pluginattributes']['risk_information']['risk_factor']
+                risk = plugin_details['info']['plugindescription']['pluginattributes']['risk_information'][
+                    'risk_factor']
                 comment = plugin_details['info']['plugindescription']['pluginattributes']['description']
                 vuln = (''.join({vuln['plugin_name']})
                         ).replace(' ', '-').lower()

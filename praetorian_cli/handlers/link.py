@@ -1,5 +1,3 @@
-import json
-
 import click
 
 from praetorian_cli.handlers.chariot import chariot
