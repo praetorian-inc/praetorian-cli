@@ -56,8 +56,7 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                         dns=dns, name=name, status='F'))
                     asset_key = asset[0]['key']
 
-                url = f"/scans/{scan_id}/hosts/{
-                    host['host_id']}/plugins/{vuln['plugin_id']}"
+                url = f"/scans/{scan_id}/hosts/{host['host_id']}/plugins/{vuln['plugin_id']}"
                 plugin_details = nessus_api_req(url)
                 proof_of_exploit = ''
                 for output in plugin_details['outputs']:
