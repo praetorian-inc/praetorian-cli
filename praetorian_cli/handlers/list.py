@@ -1,6 +1,6 @@
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.utils import key_set, paginate
 from praetorian_cli.handlers.cli_decorators import cli_handler, list_options, page_options, plugins
+from praetorian_cli.handlers.utils import key_set, paginate
 
 
 @chariot.group()
