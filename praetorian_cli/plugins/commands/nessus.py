@@ -65,8 +65,9 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                 comment = plugin_details['info']['plugindescription']['pluginattributes']['description']
                 vuln = (''.join({vuln['plugin_name']})
                         ).replace(' ', '-').lower()
+                status = 'T' + risk[0].upper()
                 risk_resp = controller.add('risk', dict(
-                    key=asset_key, name=vuln, status='TI', comment=comment))
+                    key=asset_key, name=vuln, status=status, comment=comment))
                 # Todo: add proof of exploit
 
         for host in scan_details['hosts']:
