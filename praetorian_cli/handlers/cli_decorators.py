@@ -108,7 +108,6 @@ def process_with_plugin(plugin_name, output, cli_kwargs):
 def import_plugin(plugin_name):
     # try importing from the praetorian_cli/scripts package
     try:
-        print(f'.plugins.scripts.{plugin_name}')
         return importlib.import_module(f'.plugins.scripts.{plugin_name}', 'praetorian_cli')
     except ImportError:
         # try importing from the current directory as a raw script
