@@ -72,10 +72,10 @@ def job(controller, capability, key):
 @click.option('-key', '--key', required=True, help='Key of an existing asset or risk')
 @click.option('-class', '--class', 'clss', required=True, help='Class of the attribute')
 def attribute(controller, name, key, clss):
-    """ Add an attribute for an asset """
+    """ Add an attribute for an asset or risk"""
     params = {
         'key': key,
         'name': name,
         'class': clss
     }
-    print(controller.add('asset/attribute', params))
+    print(controller.add('attribute', params))
