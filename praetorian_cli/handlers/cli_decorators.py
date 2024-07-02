@@ -36,11 +36,11 @@ def list_options(filter_name):
     return decorator
 
 
-def status_options(status_choices, item_type='object'):
+def status_options(status_choices, item_type='object', required=False):
     def decorator(func):
         func = cli_handler(func)
         func = click.option('-status', '--status', type=click.Choice([s.value for s in status_choices]),
-                            required=False, help=f'Status of the {item_type}')(func)
+                            required=required, help=f'Status of the {item_type}')(func)
         func = click.option('-comment', '--comment', default="", help="Add a comment")(func)
         return func
 
