@@ -11,9 +11,16 @@ Example usage:
 
 """
 import json
+from praetorian_cli.plugins.utils import requires_package
 
 
+@requires_package('numpy', '2.0.0')
 def process(controller, cmd, cli_kwargs, output):
+
+    from numpy.random import default_rng
+
+    print(f'Using numpy here: {default_rng().random()}')
+
     # Verify the upstream CLI command is compatible with the script
     if cmd['product'] != 'chariot' or cmd['action'] != 'get' or cmd['type'] != 'asset':
         print("This script works with the 'get asset' command only.")
