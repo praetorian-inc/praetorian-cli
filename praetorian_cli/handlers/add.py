@@ -53,10 +53,13 @@ def webhook(controller):
 @add.command('risk')
 @click.argument('name', required=True)
 @click.option('-asset', '--asset', required=True, help='Key of an existing asset')
-@status_options(Status['add-risk'], 'risk')
-def risk(controller, name, key, status, comment):
+@click.option('-class', '--class', 'clss', default='weakness',
+              type=click.Choice(['weakness', 'exposure', 'misconfiguration']),
+              help='Class of the risk. Default is weakness')
+@status_options(Status['add-risk'], 'risk', True)
+def risk(controller, name, asset, clss, status, comment):
     """ Add a risk """
-    controller.add('risk', dict(key=key, name=name, status=status, comment=comment))
+    controller.add('risk', {'key': asset, 'name': name, 'status': status, 'comment': comment, 'class': clss})
 
 
 @add.command('job')

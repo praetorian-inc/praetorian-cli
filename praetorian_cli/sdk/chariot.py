@@ -20,8 +20,7 @@ class Chariot:
         for _ in range(pages):
             resp = requests.get(f"{self.keychain.api}/my",
                                 params=params, headers=self.keychain.headers)
-            if not resp.ok:
-                raise Exception(f'[{resp.status_code}] Request failed')
+            process_failure(resp)
             resp = resp.json()
             for key, value in resp.items():
                 if key in my_resp and isinstance(value, list):
@@ -39,56 +38,49 @@ class Chariot:
     def count(self, params: dict) -> {}:
         resp = requests.get(f"{self.keychain.api}/my/count",
                             params=params, headers=self.keychain.headers)
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
         return resp.json()
 
     @verify_credentials
     def add(self, type, payload: dict) -> {}:
         resp = requests.post(f"{self.keychain.api}/{type}",
                              json=payload, headers=self.keychain.headers)
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
         return resp.json()
 
     @verify_credentials
     def delete(self, type, key: str) -> {}:
         resp = requests.delete(f"{self.keychain.api}/{type}", json={'key': key},
                                headers=self.keychain.headers)
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
         return resp.json()
 
     @verify_credentials
     def update(self, resource: str, data: dict) -> {}:
         resp = requests.put(f"{self.keychain.api}/{resource}",
                             json=data, headers=self.keychain.headers)
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
         return resp.json()
 
     @verify_credentials
     def report(self, name: str) -> {}:
         resp = requests.get(f"{self.keychain.api}/report/risk",
                             {'name': name}, headers=self.keychain.headers)
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
         return resp.text
 
     @verify_credentials
     def link_account(self, username: str, config: dict, id: str = ""):
         resp = requests.post(f"{self.keychain.api}/account/{username}", json={'config': config, 'value': id},
                              headers=self.keychain.headers)
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
         return resp.json()
 
     @verify_credentials
     def unlink(self, username: str, id: str = ""):
         resp = requests.delete(f"{self.keychain.api}/account/{username}", headers=self.keychain.headers,
                                json={'value': id})
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
         return resp.json()
 
     @verify_credentials
@@ -104,8 +96,7 @@ class Chariot:
     def _upload(self, name: str, clss: str, content: str):
         resp = requests.put(f"{self.keychain.api}/file", params={"name": name, "class": clss}, data=content, allow_redirects=True,
                             headers=self.keychain.headers)
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
 
     def sanitize_filename(self, filename: str) -> str:
         invalid_chars = '<>:"/\\|?*'
@@ -117,8 +108,7 @@ class Chariot:
     def download(self, name: str, download_path: str) -> bool:
         resp = requests.get(f"{self.keychain.api}/file", params={"name": name}, allow_redirects=True,
                             headers=self.keychain.headers)
-        if not resp.ok:
-            raise Exception(f'[{resp.status_code}] Request failed')
+        process_failure(resp)
 
         name = self.sanitize_filename(name)
         directory = os.path.expanduser(download_path)
@@ -160,3 +150,9 @@ class Chariot:
             "proof of exploit": base64.b64encode(poe_content.encode('utf-8')).decode('utf-8') if poe_json else ""
         })
         return resp
+
+
+def process_failure(response):
+    if not response.ok:
+        message = f'[{response.status_code}] Request failed' + (f'\nError: {response.text}' if response.text else '')
+        raise Exception(message)
