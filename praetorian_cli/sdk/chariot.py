@@ -154,8 +154,5 @@ class Chariot:
 
 def process_failure(response):
     if not response.ok:
-        if response.text:
-            message = f'[{response.status_code}] Request failed\nError: {response.text}'
-        else:
-            message = f'[{response.status_code}] Request failed'
+        message = f'[{response.status_code}] Request failed' + (f'\nError: {response.text}' if response.text else '')
         raise Exception(message)
