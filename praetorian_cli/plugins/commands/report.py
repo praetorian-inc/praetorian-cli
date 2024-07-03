@@ -22,7 +22,7 @@ import subprocess
 import click
 
 from praetorian_cli.handlers.utils import Status
-from praetorian_cli.plugins.utils import requires_command
+from praetorian_cli.plugins.utils import requires
 from praetorian_cli.sdk.chariot import Chariot
 
 
@@ -137,9 +137,9 @@ class ReportingPlugin():
         return value
 
 
-@requires_command('fzf',
+@requires('fzf',
           'This script requires fzf. See instructions at https://github.com/junegunn/fzf?tab=readme-ov-file#installation.')
-@requires_command('git')
+@requires('git', 'This script requires git. See instructions at https://git-scm.com/downloads.')
 def run(controller, env_file: str):
     """ Execute the reporting workflow """
     ReportingPlugin(controller, env_file).workflow()

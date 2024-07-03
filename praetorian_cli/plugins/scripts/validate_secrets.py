@@ -14,10 +14,10 @@ Prerequisites:
 import json
 import subprocess
 
-from praetorian_cli.plugins.utils import requires_command
+from praetorian_cli.plugins.utils import requires
 
 
-@requires_command('trufflehog',
+@requires('trufflehog',
           'This script requires TruffleHog. See instructions at https://github.com/trufflesecurity/trufflehog.')
 def process(controller, cmd, cli_kwargs, output):
     # Verify the upstream CLI command is compatible with the script
