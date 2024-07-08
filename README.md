@@ -179,7 +179,8 @@ By contributing, you agree to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Support
 
-If you have any questions or need support, please open an issue or reach out via
+If you have any questions or need support, please open an
+issue [here](https://github.com/praetorian-inc/chariot-ui/issues) or reach out via
 [support@praetorian.com](mailto:support@praetorian.com).
 
 ## License
