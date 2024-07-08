@@ -42,6 +42,6 @@ def process(controller, cmd, cli_kwargs, output):
         for hit in result['attributes']:
             if hit['name'] == asset and hit['class'] == 'seed':
                 fragments = hit['key'].split("#")
-                print(f'#asset#{fragments[2]}#{fragments[3]}')
+                print(f'#asset#{fragments[3]}#{fragments[4]}')
     else:
         print(f'No asset originate from {asset}')
