@@ -63,11 +63,12 @@ def risk(controller, name, asset, clss, status, comment):
 
 
 @add.command('job')
+@cli_handler
 @click.argument('capability', required=True)
 @click.option('-asset', '--asset', required=True, help='Key of an existing asset')
-def job(controller, capability, key):
+def job(controller, capability, asset):
     """ Add a job for an asset """
-    controller.add('job', dict(key=key, name=capability))
+    controller.add('job', dict(key=asset, name=capability))
 
 
 @add.command('attribute')
