@@ -2,7 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, status_options
-from praetorian_cli.handlers.utils import Status
+from praetorian_cli.handlers.utils import Status, AssetPriorities
 
 
 @chariot.group()
@@ -16,11 +16,13 @@ def add(ctx):
 @cli_handler
 @click.option('-name', '--name', required=True, help='The name of the asset, e.g, IP address, GitHub repo URL')
 @click.option('-dns', '--dns', required=False, help='The DNS of the asset')
-def asset(controller, name, dns):
+@click.option('-priority', '--priority', type=click.Choice(AssetPriorities.keys()),
+              default='standard', help='The priority of the asset. Default: standard')
+def asset(controller, name, dns, priority):
     """ Add an asset """
     if dns is None:
         dns = name
-    controller.add('asset', dict(name=name, dns=dns))
+    controller.add('asset', dict(name=name, dns=dns, status=AssetPriorities[priority]))
 
 
 @add.command('file')

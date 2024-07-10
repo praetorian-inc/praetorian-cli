@@ -7,9 +7,8 @@ import click
 class Asset(Enum):
     ACTIVE = "A"
     ACTIVE_HIGH = "AH"
+    ACTIVE_LOW = "AL"
     FROZEN = "F"
-    FROZEN_HIGH = "FH"
-    UNKNOWN = "U"
 
 
 class Risk(Enum):
@@ -54,6 +53,9 @@ Status = {'asset': Asset, 'risk': Risk, 'add-risk': AddRisk}
 key_set = {'assets': '#asset#', 'jobs': '#job#', 'risks': '#risk#', 'accounts': '#account#',
            'definitions': '#file#definitions/', 'integrations': '#account#', 'attributes': '#attribute#',
            'files': '#file#'}
+
+AssetPriorities = {'comprehensive': Asset.ACTIVE_HIGH.value, 'standard': Asset.ACTIVE.value,
+                   'discovery-only': Asset.ACTIVE_LOW.value, 'frozen': Asset.FROZEN.value}
 
 
 def my_result(controller, key, filter="", offset="", pages=1):
