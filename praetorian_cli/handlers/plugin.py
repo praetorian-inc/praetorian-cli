@@ -55,11 +55,11 @@ def nessus_command(controller, url, api_key, secret_key):
     """Report Nessus vulnerabilities to Chariot"""
     nessus.report_vulns(controller, url, api_key, secret_key)
 
-@plugin.command('nessusdb')
+@plugin.command('nessus-import')
 @cli_handler
 @click.option('--file', required=True, help='Path to the Nessus DB file',)
 def nessus_command(controller, file):
-    """Report Nessus vulnerabilities to Chariot"""
+    """Import Nessus XML export into Chariot"""
     nessusdb.report_vulns(controller, file) 
 
 def load_dynamic_commands():
