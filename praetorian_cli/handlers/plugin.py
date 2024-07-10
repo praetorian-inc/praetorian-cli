@@ -58,7 +58,8 @@ def nessue_api_command(controller, url, api_key, secret_key):
 
 @plugin.command('nessus-xml')
 @cli_handler
-@click.option('--file', required=True, help='Path to the Nessus DB file', )
+@click.option('--file', required=True, help='Path to the Nessus XML export file (.nessus)',
+              prompt='What is the path to the Nessus XML export file (.nessus)?')
 def nessus_xml_command(controller, file):
     """ Import Nessus results via XML export file (.nessus) """
     nessus_xml.report_vulns(controller, file)
