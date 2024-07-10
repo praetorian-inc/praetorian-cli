@@ -12,13 +12,16 @@ def update(ctx):
     pass
 
 
-def create_update_command(item_type):
-    @update.command(item_type, help=f'Update a {item_type}\n\nKEY is the key of the {item_type}')
-    @click.argument('key', required=True)
-    @status_options(Status[item_type], item_type)
-    def command(controller, key, status, comment):
-        controller.update(item_type, dict(key=key, status=status, comment=comment))
+@update.command('asset', help='Update an asset\n\nKEY is the key of the asset')
+@click.argument('key', required=True)
+@status_options(Status['asset'], 'asset')
+def asset(controller, key, status):
+    controller.update('asset', dict(key=key, status=status))
 
 
-create_update_command('asset')
-create_update_command('risk')
+@update.command('risk', help='Update a risk\n\nKEY is the key of the risk')
+@click.argument('key', required=True)
+@status_options(Status['risk'], 'risk')
+@click.option('-comment', '--comment', default='', help='Comment for the risk')
+def risk(controller, key, status, comment):
+    controller.update('risk', dict(key=key, status=status, comment=comment))

@@ -41,7 +41,6 @@ def status_options(status_choices, item_type='object', required=False):
         func = cli_handler(func)
         func = click.option('-status', '--status', type=click.Choice([s.value for s in status_choices]),
                             required=required, help=f'Status of the {item_type}')(func)
-        func = click.option('-comment', '--comment', default="", help="Add a comment")(func)
         return func
 
     return decorator
