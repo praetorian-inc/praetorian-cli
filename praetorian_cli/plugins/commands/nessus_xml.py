@@ -8,11 +8,14 @@ Example usage:
 import threading
 import xml.etree.ElementTree as ET
 
+import click
+
 from praetorian_cli.sdk.chariot import Chariot
 
 
 def report_vulns(controller: Chariot, file: str):
     """ Run the Nessus DB integrations plugin """
+
     def parse_host_scan(reportHost):
         name = reportHost.find('HostProperties/tag[@name="host-ip"]').text
         dns = reportHost.find('HostProperties/tag[@name="host-fqdn"]')
@@ -42,7 +45,12 @@ def report_vulns(controller: Chariot, file: str):
                 controller._upload(
                     f'{dns}/{vuln}', 'proof', proof_of_exploit.text)
 
-    main = ET.parse(file)
+    try:
+        main = ET.parse(file)
+    except Exception as e:
+        click.echo(f'Unable to import file {file}. Error: {e}.', err=True)
+        exit(1)
+
     root = main.getroot()
     for reportHost in root.iter('ReportHost'):
         threading.Thread(target=parse_host_scan, args=(reportHost,)).start()
