@@ -1,6 +1,6 @@
 """
-This plugin command pulls data from Nessus and creates assets and risks in the
-Chariot platform.
+This plugin command pulls data from the Nessus API server and creates assets and
+risks in the Chariot platform.
 
 Example usage:
     praetorian chariot plugin nessus --url https://localhost:8834 --api-key <API_KEY> --secret-key <SECRET_KEY>

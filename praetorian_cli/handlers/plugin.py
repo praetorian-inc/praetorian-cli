@@ -8,7 +8,7 @@ import click
 from praetorian_cli.handlers.cli_decorators import load_raw_script
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.plugins.commands import example, report, nessus
+from praetorian_cli.plugins.commands import example, nessusdb, report, nessus
 
 
 @chariot.group()
@@ -52,9 +52,15 @@ def report_command(controller, env_file):
 @click.option('--secret-key', required=True, help='Nessus secret key',
               prompt='What is the secret key?', hide_input=True)
 def nessus_command(controller, url, api_key, secret_key):
-    """ Run a Nessus scan """
+    """Report Nessus vulnerabilities to Chariot"""
     nessus.report_vulns(controller, url, api_key, secret_key)
 
+@plugin.command('nessusdb')
+@cli_handler
+@click.option('--file', required=True, help='Path to the Nessus DB file',)
+def nessus_command(controller, file):
+    """Report Nessus vulnerabilities to Chariot"""
+    nessusdb.report_vulns(controller, file) 
 
 def load_dynamic_commands():
     """ If the PRAETORIAN_SCRIPTS_PATH env variable is defined,
@@ -77,7 +83,7 @@ def load_directory(path):
                 pass
             else:
                 if (hasattr(plugin_module, 'register') and callable(plugin_module.register)
-                        and len(signature(plugin_module.__dict__['register']).parameters) == 1):
+                    and len(signature(plugin_module.__dict__['register']).parameters) == 1):
                     plugin_module.register(plugin)
 
 
