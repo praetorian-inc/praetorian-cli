@@ -95,8 +95,7 @@ class Chariot:
     @verify_credentials
     def _upload(self, name: str, clss: str, content: str):
         resp = requests.put(f"{self.keychain.api}/file", params={"name": name, "class": clss}, data=content,
-                            allow_redirects=True,
-                            headers=self.keychain.headers)
+                            allow_redirects=True, headers=self.keychain.headers)
         process_failure(resp)
 
     def sanitize_filename(self, filename: str) -> str:
