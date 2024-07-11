@@ -14,7 +14,7 @@ def update(ctx):
 
 @update.command('asset', help='Update an asset\n\nKEY is the key of the asset')
 @click.argument('key', required=True)
-@click.option('-priority', '--priority', type=click.Choice(AssetPriorities.keys()),
+@click.option('-p', '--priority', type=click.Choice(AssetPriorities.keys()),
               required=True, help='The priority of the asset')
 @cli_handler
 def update_asset_command(controller, key, priority):
