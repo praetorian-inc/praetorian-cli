@@ -20,5 +20,5 @@ def delete_command(item):
         print(f"Key: {key} \nDeleted successfully")
 
 
-for item in ['asset', 'attribute']:
+for item in ['asset', 'attribute', 'file']:
     delete_command(item)
