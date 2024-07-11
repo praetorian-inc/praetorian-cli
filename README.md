@@ -71,8 +71,7 @@ password = 8epu9bQ2kqb8qwd.GR
 SSO-enabled accounts can use CLI by inviting password-based accounts as collaborators.
 These collaborator accounts can assume into the main account using the `--account` option
 in the CLI, or including that information in the keychain file. For example, you can assume
-into the security.team@acme.com main account using the account entry. Substitute the email
-address of your main account:
+into the `security.team@acme.com` main account using the **account** entry:
 ```
 [United States]
 name = chariot
