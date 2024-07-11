@@ -13,14 +13,7 @@ def verify_credentials(func):
     def handler(*args, **kwargs):
         try:
             keychain = args[0].keychain
-            secrets = keychain.get()
-
-            keychain.api = secrets.get(keychain.profile, 'api')
-            keychain.client_id = secrets.get(keychain.profile, 'client_id')
-            keychain.username = secrets.get(keychain.profile, 'username', fallback=None)
-            keychain.password = secrets.get(keychain.profile, 'password', fallback=None)
-            if keychain.account is None:
-                keychain.account = secrets.get(keychain.profile, 'account', fallback=None)
+            keychain.set_config()
 
             if not (keychain.username and keychain.password):
                 new_credentials = keychain.write_credentials()
@@ -55,6 +48,16 @@ class Keychain:
         self.data = data
         self.token_cache = None
         self.token_expiry = None
+        self.set_config()
+
+    def set_config(self):
+        cfg = self.get()
+        self.username = cfg[self.profile]['username']
+        self.password = cfg[self.profile]['password']
+        self.api = cfg[self.profile]['api']
+        self.client_id = cfg[self.profile]['client_id']
+        if self.account is None:
+            self.account = cfg.get(self.profile, 'account', fallback=None)
 
     def get(self):
         cfg = configparser.ConfigParser()
