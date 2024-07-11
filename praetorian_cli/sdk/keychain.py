@@ -1,5 +1,6 @@
 import configparser
 import os
+import time
 from functools import wraps
 from os.path import exists
 from pathlib import Path
@@ -52,6 +53,8 @@ class Keychain:
         self.account = account
         self.location = location
         self.data = data
+        self.token_cache = None
+        self.token_expiry = None
 
     def get(self):
         cfg = configparser.ConfigParser()
@@ -99,6 +102,7 @@ class Keychain:
             },
             ClientId=self.client_id
         )
+        self.token_expiry = time.time() + response['AuthenticationResult']['ExpiresIn']
         return response['AuthenticationResult']['IdToken']
 
     @staticmethod
