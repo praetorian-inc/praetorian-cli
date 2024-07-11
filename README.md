@@ -69,7 +69,7 @@ password = 8epu9bQ2kqb8qwd.GR
 ### Authentication in organizations that use SSO
 
 In organizations that use SSO, access to CLI is supported by inviting
-password-based account as collaborators. CLI users use the credentials of their password-based
+password-based accounts as collaborators. CLI users use the credentials of their password-based
 account in the keychain file to authenticate and operate on behalf of the master account, the account
 that have SSO configured. This is accomplished by the **account** variable in the profile. As an example, 
 for a master account with the email address security.team@acme.com, add 
@@ -87,11 +87,11 @@ account = security.team@acme.com
 
 There are two common approaches to manage CLI access in SSO organizations:
 
-1. Sign up a service account using a password-based account with a service email address, such as
+1. Sign up a service account using a password and a service email address, such as
    security.team+cli@acme.com. In the master account, invite security-team+cli@acme.com as a
    collaborator. All CLI users share the password for the service account.
-2. Every CLI user signs up using password-based authentication, using email address such as
-   lara.lynch+cli@acme.com. In the master account, invite each CLI user as collaborator.
+2. Every CLI user additionally signs up using password-based authentication. In the master
+   account, invite each CLI user as collaborator.
 
 We recommend the first approach.
 
