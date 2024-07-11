@@ -83,11 +83,11 @@ account = security.team@acme.com
 
 There are two common approaches to manage CLI access in SSO organizations:
 
-1. Sign up a service account using a password and a service email address, such as
-   security.team+cli@acme.com. In the master account, invite security-team+cli@acme.com as a
-   collaborator. All CLI users share the password for the service account.
-2. Every CLI user additionally signs up using password-based authentication. In the master
-   account, invite each CLI user as collaborator.
+1. Sign up a service account for CLI access, e.g. security.team+cli@acme.com. 
+In the master account, invite security-team+cli@acme.com as a collaborator. 
+ℹ️ All CLI users share the keychain for the service account.
+2. Add each CLI user as a collaborator in the master account. 
+ℹ️ Every CLI user signs up using password-based authentication.
 
 We recommend the first approach.
 
