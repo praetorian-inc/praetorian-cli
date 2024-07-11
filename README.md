@@ -70,7 +70,7 @@ password = 8epu9bQ2kqb8qwd.GR
 
 SSO enabled accounts can use CLI by inviting password-based accounts as collaborators.
 These collaborator accounts can assume into the main account using the `--account` option
-in the CLI, or including that information in the keychain file itself:
+in the CLI, or including that information in the keychain file itself with an **account** entry:
 
 ```
 [United States]
@@ -84,11 +84,11 @@ account = security.team@acme.com
 
 There are two common approaches to manage CLI access in SSO organizations:
 
-1. Sign up a service account for CLI access, e.g. security.team+cli@acme.com.
-   In the master account, invite security-team+cli@acme.com as a collaborator.<br>
-   ℹ️ All CLI users share the keychain for the service account.
-2. Add each CLI user as a collaborator in the master account.<br>
-   ℹ️ Every CLI user signs up using password-based authentication.
+1. Sign up a service account for CLI access, e.g. security.team+cli@acme.com. In the master
+   account, invite security-team+cli@acme.com as a collaborator. All CLI users share the
+   keychain for the service account.
+3. Add each CLI user as a collaborator in the master account. Every CLI user signs up using
+   password-based authentication.
 
 We recommend the first approach.
 
