@@ -39,3 +39,9 @@ class ChariotClient:
                 my_resp.pop('offset', None)
                 break
         return my_resp
+
+    def add(self, type, payload: dict) -> {}:
+        resp = requests.post(f"{self.keychain.api}/{type}",
+                             json=payload, headers=self.keychain.headers)
+        process_failure(resp)
+        return resp.json()
