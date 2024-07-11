@@ -29,7 +29,7 @@ for item in ['asset', 'attribute', 'file']:
 @cli_handler
 def purge(controller):
     """Delete account and all related information"""
-    if click.confirm("Are you sure, this will delete all your data and revoke access?", default=False):
+    if click.confirm("This will delete all your data and revoke access, are you sure?", default=False):
         controller.purge()
     else:
         click.echo("Operation cancelled")
