@@ -94,8 +94,8 @@ class Chariot:
 
     @verify_credentials
     def _upload(self, name: str, clss: str, content: str):
-        resp = requests.put(f"{self.keychain.api}/file", params={"name": name, "class": clss}, data=content, allow_redirects=True,
-                            headers=self.keychain.headers)
+        resp = requests.put(f"{self.keychain.api}/file", params={"name": name, "class": clss}, data=content,
+                            allow_redirects=True, headers=self.keychain.headers)
         process_failure(resp)
 
     def sanitize_filename(self, filename: str) -> str:
@@ -130,6 +130,10 @@ class Chariot:
         encoded_string = username.decode('utf8')
         encoded_username = encoded_string.rstrip('=')
         return f'{self.keychain.api}/hook/{encoded_username}/{pin}'
+
+    @verify_credentials
+    def purge(self):
+        requests.delete(f"{self.keychain.api}/account/purge", headers=self.keychain.headers)
 
     def get_risk_details(self, key: str):
         resp = self.my(dict(key=key))['risks'][0]

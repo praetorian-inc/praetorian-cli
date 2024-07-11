@@ -22,3 +22,16 @@ def delete_command(item):
 
 for item in ['asset', 'attribute', 'file']:
     delete_command(item)
+
+
+# Special command for deleting your account and all related information.
+@chariot.command('purge')
+@cli_handler
+def purge(controller):
+    """Delete account and all related information"""
+    if click.confirm("This will delete all your data and revoke access, are you sure?", default=False):
+        controller.purge()
+    else:
+        click.echo("Operation cancelled")
+        return
+    print("Account deleted successfully")
