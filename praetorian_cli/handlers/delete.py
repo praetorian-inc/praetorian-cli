@@ -24,12 +24,11 @@ for item in ['asset', 'attribute', 'file']:
     delete_command(item)
 
 
-# Special command for cascading delete of an account information.
-
+# Special command for deleting your account and all related information.
 @chariot.command('purge')
 @cli_handler
 def purge(controller):
-    """Delete all account information"""
+    """Delete account and all related information"""
     if click.confirm("Are you sure, this will delete all your data and revoke access?", default=False):
         controller.purge()
     else:
