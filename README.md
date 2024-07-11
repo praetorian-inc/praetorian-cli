@@ -68,12 +68,8 @@ password = 8epu9bQ2kqb8qwd.GR
 
 ### Authentication in organizations that use SSO
 
-In organizations that use SSO, access to CLI is supported by inviting
-password-based accounts as collaborators. CLI users use the credentials of their password-based
-account in the keychain file to authenticate and operate on behalf of the master account, the account
-that have SSO configured. This is accomplished by the **account** variable in the profile. As an example, 
-for a master account with the email address security.team@acme.com, add 
-`account = security.team@acme.com` to the keychain file:
+SSO enabled accounts can use CLI by inviting password-based accounts as collaborators. 
+These collaborator accounts can assume into the main account using the "account" option in the CLI, or including that information in the keychain file itself : 
 
 ```
 [United States]
