@@ -55,7 +55,7 @@ key_set = {'assets': '#asset#', 'jobs': '#job#', 'risks': '#risk#', 'accounts': 
            'files': '#file#'}
 
 AssetPriorities = {'comprehensive': Asset.ACTIVE_HIGH.value, 'standard': Asset.ACTIVE.value,
-                   'discovery-only': Asset.ACTIVE_LOW.value, 'frozen': Asset.FROZEN.value}
+                   'discover': Asset.ACTIVE_LOW.value, 'frozen': Asset.FROZEN.value}
 
 
 def my_result(controller, key, filter="", offset="", pages=1):
