@@ -42,8 +42,7 @@ def report_vulns(controller: Chariot, file: str):
             controller.add('risk', dict(
                 key=asset_key, name=vuln, status=status, comment=description))
             if proof_of_exploit is not None:
-                controller._upload(
-                    f'{dns}/{vuln}', 'proof', proof_of_exploit.text)
+                controller._upload(f'{dns}/{vuln}', proof_of_exploit.text)
 
     try:
         main = ET.parse(file)

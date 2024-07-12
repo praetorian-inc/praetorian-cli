@@ -71,8 +71,7 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                 controller.add('risk', dict(
                     key=asset_key, name=vuln, status=status, comment=comment))
                 if proof_of_exploit != '':
-                    controller._upload(
-                        f'{dns}/{vuln}', 'proof', proof_of_exploit)
+                    controller._upload(f'{dns}/{vuln}', proof_of_exploit)
 
         for host in scan_details['hosts']:
             threading.Thread(target=get_host_scan,

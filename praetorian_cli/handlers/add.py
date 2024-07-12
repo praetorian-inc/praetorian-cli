@@ -36,7 +36,7 @@ def upload(controller, path, name):
     PATH : File path in the local system
     """
     try:
-        controller.upload(path, "manual", name)
+        controller.upload(path)
     except Exception as e:
         click.echo(f'Unable to upload file {path}. Error: {e}', err=True)
 
@@ -54,7 +54,7 @@ def definition(controller, path, name):
     if name is None:
         name = path.split('/')[-1]
     try:
-        controller.upload(path, "definition", f"definitions/{name}")
+        controller.upload(path)
     except Exception as e:
         click.echo(f'Unable to upload definition file {path}. Error: {e}', err=True)
 
@@ -70,20 +70,17 @@ def webhook(controller):
 @add.command('risk')
 @click.argument('name', required=True)
 @click.option('-asset', '--asset', required=True, help='Key of an existing asset')
-@click.option('-class', '--class', 'clss', default='weakness',
-              type=click.Choice(['weakness', 'exposure', 'misconfiguration']),
-              help='Class of the risk. Default is weakness')
 @click.option('-status', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
               help=f'Status of the risk')
 @click.option('-comment', '--comment', default='', help='Comment for the risk')
 @cli_handler
-def risk(controller, name, asset, clss, status, comment):
+def risk(controller, name, asset, status, comment):
     """
     Add a risk
 
     NAME is the name of the risk
     """
-    controller.add('risk', {'key': asset, 'name': name, 'status': status, 'comment': comment, 'class': clss})
+    controller.add('risk', {'key': asset, 'name': name, 'status': status, 'comment': comment})
 
 
 @add.command('job')
@@ -99,12 +96,10 @@ def job(controller, capability, asset):
 @cli_handler
 @click.argument('name', required=True)
 @click.option('-key', '--key', required=True, help='Key of an existing asset or risk')
-@click.option('-class', '--class', 'clss', required=True, help='Class of the attribute')
-def attribute(controller, name, key, clss):
+def attribute(controller, name, key):
     """ Add an attribute for an asset or risk"""
     params = {
         'key': key,
         'name': name,
-        'class': clss
     }
     print(controller.add('attribute', params))

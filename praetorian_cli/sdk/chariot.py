@@ -84,16 +84,16 @@ class Chariot:
         return resp.json()
 
     @verify_credentials
-    def upload(self, name: str, clss: str, upload_path: str = ""):
+    def upload(self, name: str, upload_path: str = ""):
         path = upload_path if upload_path else name
         with open(name, 'rb') as content:
-            self._upload(path, clss, content)
+            self._upload(path, )
 
     @verify_credentials
-    def _upload(self, name: str, clss: str, content: str):
+    def _upload(self, name: str, content: str):
         # It is a two-step upload. The PUT request to the /file endpoint is to get a presigned URL for S3.
         # There is no data transfer.
-        presigned_url = requests.put(f"{self.keychain.api}/file", params={"name": name, "class": clss},
+        presigned_url = requests.put(f"{self.keychain.api}/file", params={"name": name},
                                      headers=self.keychain.headers)
         process_failure(presigned_url)
         requests.put(presigned_url.json()["url"], data=content)
