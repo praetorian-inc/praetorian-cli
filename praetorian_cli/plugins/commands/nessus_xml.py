@@ -5,7 +5,7 @@ and risks in the Chariot platform.
 Example usage:
     praetorian chariot plugin nessus --file <PATH_TO_SCAN.nessus>
 """
-import threading
+from concurrent.futures import ThreadPoolExecutor
 import xml.etree.ElementTree as ET
 
 import click
@@ -39,6 +39,7 @@ def report_vulns(controller: Chariot, file: str):
             description = item.find('description').text
 
             proof_of_exploit = item.find('plugin_output')
+            print(f'Adding {status} risk: "{vuln}" for "{dns}"')
             controller.add('risk', dict(
                 key=asset_key, name=vuln, status=status, comment=description))
             if proof_of_exploit is not None:
@@ -52,5 +53,6 @@ def report_vulns(controller: Chariot, file: str):
         exit(1)
 
     root = main.getroot()
-    for reportHost in root.iter('ReportHost'):
-        threading.Thread(target=parse_host_scan, args=(reportHost,)).start()
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        for reportHost in root.iter('ReportHost'):
+            executor.submit(parse_host_scan, reportHost)
