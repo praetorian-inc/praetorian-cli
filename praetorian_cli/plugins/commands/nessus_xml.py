@@ -5,8 +5,8 @@ and risks in the Chariot platform.
 Example usage:
     praetorian chariot plugin nessus --file <PATH_TO_SCAN.nessus>
 """
-from concurrent.futures import ThreadPoolExecutor
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 
 import click
 
