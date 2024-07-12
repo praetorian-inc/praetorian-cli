@@ -87,7 +87,7 @@ class Chariot:
     def upload(self, name: str, upload_path: str = ""):
         path = upload_path if upload_path else name
         with open(name, 'rb') as content:
-            self._upload(path, )
+            self._upload(path, content)
 
     @verify_credentials
     def _upload(self, name: str, content: str):
