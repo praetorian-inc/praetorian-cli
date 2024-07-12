@@ -99,19 +99,14 @@ class Keychain:
         }
 
     def token(self):
-        if (not self.token_cache) or time.time() >= self.token_expiry:
-            cognito_client = boto3.client('cognito-idp', region_name='us-east-2')
-            response = cognito_client.initiate_auth(
+        if not self.token_cache or time.time() >= self.token_expiry:
+            response = boto3.client('cognito-idp', region_name='us-east-2').initiate_auth(
                 AuthFlow='USER_PASSWORD_AUTH',
-                AuthParameters={
-                    'USERNAME': self.username,
-                    'PASSWORD': self.password
-                },
+                AuthParameters={'USERNAME': self.username, 'PASSWORD': self.password},
                 ClientId=self.client_id
             )
             self.token_expiry = time.time() + response['AuthenticationResult']['ExpiresIn']
             self.token_cache = response['AuthenticationResult']['IdToken']
-
         return self.token_cache
 
     @staticmethod
