@@ -138,14 +138,20 @@ class Chariot:
     def get_risk_details(self, key: str):
         resp = self.my(dict(key=key))['risks'][0]
         poe = f"{resp['dns']}/{resp['name']}"
+        definition = f"definitions/{resp['name']}"
         poe_content = ""
+        risk_definition = ""
         try:
-            downloaded_path = self.download(poe, "")
-            with open(downloaded_path, 'r') as file:
-                poe_content = file.read()
-            os.remove(downloaded_path)
+            for item in [poe, definition]:
+                downloaded_path = self.download(item, "")
+                with open(downloaded_path, 'r') as file:
+                    if item == poe:
+                        poe_content = file.read()
+                    else:
+                        risk_definition = file.read()
+                os.remove(downloaded_path)
         except Exception as e:
-            print(f"Failed to download proof of exploit: {e}. Skipping.")
+            print(f"Failed to download file: {e}. Skipping.")
         try:
             poe_json = json.loads(poe_content) if poe_content else {}
         except json.JSONDecodeError:
@@ -154,7 +160,8 @@ class Chariot:
             "url": poe_json.get("url", ""),
             "ip": poe_json.get("ip", ""),
             "port": poe_json.get("port", ""),
-            "proof of exploit": base64.b64encode(poe_content.encode('utf-8')).decode('utf-8') if poe_content else ""
+            "proof of exploit": base64.b64encode(poe_content.encode('utf-8')).decode('utf-8') if poe_content else "",
+            "description": risk_definition
         })
         return resp
 
