@@ -1,5 +1,6 @@
 import configparser
 import os
+import time
 from functools import wraps
 from os.path import exists
 from pathlib import Path
@@ -12,24 +13,14 @@ def verify_credentials(func):
     def handler(*args, **kwargs):
         try:
             keychain = args[0].keychain
-            secrets = keychain.get()
-
-            keychain.api = secrets.get(keychain.profile, 'api')
-            keychain.client_id = secrets.get(keychain.profile, 'client_id')
-            keychain.username = secrets.get(keychain.profile, 'username', fallback=None)
-            keychain.password = secrets.get(keychain.profile, 'password', fallback=None)
-            if keychain.account is None:
-                keychain.account = secrets.get(keychain.profile, 'account', fallback=None)
+            keychain.set_config()
 
             if not (keychain.username and keychain.password):
                 new_credentials = keychain.write_credentials()
                 keychain.username = new_credentials['username']
                 keychain.password = new_credentials['password']
 
-            keychain.headers = {
-                'Authorization': f'Bearer {keychain.token()}',
-                'Content-Type': 'application/json'
-            }
+            keychain.set_headers()
             if keychain.account:
                 keychain.headers['account'] = keychain.account
 
@@ -52,6 +43,18 @@ class Keychain:
         self.account = account
         self.location = location
         self.data = data
+        self.token_cache = None
+        self.token_expiry = 0
+        self.set_config()
+
+    def set_config(self):
+        cfg = self.get()
+        self.username = cfg[self.profile]['username']
+        self.password = cfg[self.profile]['password']
+        self.api = cfg[self.profile]['api']
+        self.client_id = cfg[self.profile]['client_id']
+        if self.account is None:
+            self.account = cfg.get(self.profile, 'account', fallback=None)
 
     def get(self):
         cfg = configparser.ConfigParser()
@@ -89,17 +92,27 @@ class Keychain:
             'password': password
         }
 
+    def set_headers(self):
+        self.headers = {
+            'Authorization': f'Bearer {self.token()}',
+            'Content-Type': 'application/json'
+        }
+
     def token(self):
-        cognito_client = boto3.client('cognito-idp', region_name='us-east-2')
-        response = cognito_client.initiate_auth(
-            AuthFlow='USER_PASSWORD_AUTH',
-            AuthParameters={
-                'USERNAME': self.username,
-                'PASSWORD': self.password
-            },
-            ClientId=self.client_id
-        )
-        return response['AuthenticationResult']['IdToken']
+        if (not self.token_cache) or time.time() >= self.token_expiry:
+            cognito_client = boto3.client('cognito-idp', region_name='us-east-2')
+            response = cognito_client.initiate_auth(
+                AuthFlow='USER_PASSWORD_AUTH',
+                AuthParameters={
+                    'USERNAME': self.username,
+                    'PASSWORD': self.password
+                },
+                ClientId=self.client_id
+            )
+            self.token_expiry = time.time() + response['AuthenticationResult']['ExpiresIn']
+            self.token_cache = response['AuthenticationResult']['IdToken']
+
+        return self.token_cache
 
     @staticmethod
     def _merge_configs(cfg_from, cfg_to):
