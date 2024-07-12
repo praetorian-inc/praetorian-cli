@@ -1,8 +1,8 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler, status_options
-from praetorian_cli.handlers.utils import Status, AssetPriorities
+from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.utils import AssetPriorities, AddRisk
 
 
 @chariot.group()
@@ -13,11 +13,11 @@ def add(ctx):
 
 
 @add.command('asset')
-@cli_handler
 @click.option('-name', '--name', required=True, help='The name of the asset, e.g, IP address, GitHub repo URL')
 @click.option('-dns', '--dns', required=False, help='The DNS of the asset')
-@click.option('-priority', '--priority', type=click.Choice(AssetPriorities.keys()),
+@click.option('--priority', type=click.Choice(AssetPriorities.keys()),
               default='standard', help='The priority of the asset. Default: standard')
+@cli_handler
 def asset(controller, name, dns, priority):
     """ Add an asset """
     if dns is None:
@@ -58,10 +58,16 @@ def webhook(controller):
 @click.option('-class', '--class', 'clss', default='weakness',
               type=click.Choice(['weakness', 'exposure', 'misconfiguration']),
               help='Class of the risk. Default is weakness')
+@click.option('-status', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
+              help=f'Status of the risk')
 @click.option('-comment', '--comment', default='', help='Comment for the risk')
-@status_options(Status['add-risk'], 'risk', True)
+@cli_handler
 def risk(controller, name, asset, clss, status, comment):
-    """ Add a risk """
+    """
+    Add a risk
+
+    NAME is the name of the risk
+    """
     controller.add('risk', {'key': asset, 'name': name, 'status': status, 'comment': comment, 'class': clss})
 
 

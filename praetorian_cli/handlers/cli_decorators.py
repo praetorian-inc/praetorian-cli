@@ -36,16 +36,6 @@ def list_options(filter_name):
     return decorator
 
 
-def status_options(status_choices, item_type='object', required=False):
-    def decorator(func):
-        func = cli_handler(func)
-        func = click.option('-status', '--status', type=click.Choice([s.value for s in status_choices]),
-                            required=required, help=f'Status of the {item_type}')(func)
-        return func
-
-    return decorator
-
-
 def page_options(func):
     func = click.option('-offset', '--offset', default='', help='List results from an offset')(func)
     func = click.option('-page', '--page', type=click.Choice(('no', 'interactive', 'all')), default='no',
