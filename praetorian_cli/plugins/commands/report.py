@@ -50,14 +50,15 @@ class ReportingPlugin():
 
         if click.prompt(f'Upload {path} finding to Chariot? (RECOMMENDED)',
                         type=bool, default=True):
-            self.controller.upload(path)
+            self.controller.upload(path, f"definitions/{sow}/{risk_name}")
 
         while click.prompt(
                 'Upload any additional engagement files to Chariot', type=bool, default=False):
             path = fzf_file(click.prompt('Enter glob pattern to search for files',
                                          type=str, default='./**/*'))
             if click.prompt(f'Upload {path}', type=bool, default=True):
-                self.controller.upload(path)
+                self.controller.upload(
+                    path, f"files/{sow}/{os.path.basename(path)}")
 
     def create_asset(self) -> tuple[str, str, str, str]:
         previous_name = self.env_manager.get('ASSET_NAME', None)

@@ -36,7 +36,7 @@ def upload(controller, path, name):
     PATH : File path in the local system
     """
     try:
-        controller.upload(path)
+        controller.upload(path, name)
     except Exception as e:
         click.echo(f'Unable to upload file {path}. Error: {e}', err=True)
 
@@ -54,7 +54,7 @@ def definition(controller, path, name):
     if name is None:
         name = path.split('/')[-1]
     try:
-        controller.upload(path)
+        controller.upload(path, f"definitions/{name}")
     except Exception as e:
         click.echo(f'Unable to upload definition file {path}. Error: {e}', err=True)
 
