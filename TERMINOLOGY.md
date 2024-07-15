@@ -10,12 +10,12 @@ For assets, the `status` field has the following shorthands. These shorthands ar
 of the `get asset` and `list assets --details` commands:
 
 
-| Asset status | Meaning                                                  |
-| ------------ | -------------------------------------------------------- |
-| A            | Active assets with standard scanning                     |
-| AH           | Active assets with comprehensive scanning                |
-| AL           | Active assets that are only scanned for asset discovery  |
-| F            | Frozen assets. They are not scanned                      |
+| Asset status | Meaning                                                         |
+| ------------ | --------------------------------------------------------------- |
+| A            | An active asset. Standard asset and risk discovery scans        |
+| AH           | An active asset. Comprehensive asset and risk discovery scans   |
+| AL           | An active asset. Only asset discovery scans                     |
+| F            | A frozen asset. No scans on this asset                          |
 
 
 
