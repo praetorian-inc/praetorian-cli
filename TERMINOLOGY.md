@@ -1,7 +1,7 @@
 # Terminology and Definitions
 
-The backend API uses a number of shorthands and mnemonics. In several CLI commands, you need to provide
-them. This file documents their semantics.
+The backend API uses a number of shorthands and mnemonics. They are used in several CLI commands and in the global
+search bar with the `status:` prefix. This document explains their semantics.
 
 # Asset statuses
 
