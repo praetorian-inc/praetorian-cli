@@ -60,4 +60,12 @@ of the `get risk` and `list risk --details` commands:
 # Job statuses
 
 For jobs, the `status` field has the following shorthands. They are used in the JSON 
-output of the `list jobs --details` command
+output of the `list jobs --details` command:
+
+| Job status | Meaning                         |
+| ---------- | ------------------------------- |
+| JQ         | The job is queued for execution |
+| JR         | The job is running              |
+| JF         | The job failed                  |
+| JP         | The job passed                  |
+
