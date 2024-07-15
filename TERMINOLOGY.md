@@ -60,7 +60,7 @@ of the `get risk` and `list risk --details` commands:
 # Job statuses
 
 For jobs, the `status` field has the following shorthands. They are used in the JSON 
-output of the `list jobs --details` command:
+output of the `get job` and `list jobs --details` commands:
 
 | Job status | Meaning                         |
 | ---------- | ------------------------------- |
