@@ -13,7 +13,7 @@
 - [Bug Fix] Fix the `add job` command.
 - [Bug Fix] Handle plain text proof of exploit content.
 
-## 1.1.3 (2024-07-03)
+## 1.2.0 (2024-07-03)
 
 - [Breaking Change] Allow `list attributes` command to filter by risk/asset key only
 - [Bug Fix] Limit the number of options available to `add risk` command
