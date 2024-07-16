@@ -34,7 +34,7 @@ def attribute_filter(controller, key, offset, details, page):
 
 
 @list.command('assets')
-@click.option('-attr', '-attribute', nargs=2, help='Filter by attribute name and value')
+@click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
 @list_options('DNS')
 @page_options
 def assets(controller, filter, offset, details, page, attr):
@@ -49,7 +49,7 @@ def assets(controller, filter, offset, details, page, attr):
 @list.command('risks')
 @list_options('name')
 @page_options
-@click.option('-attr', '-attribute', nargs=2, help='Filter by attribute name and value')
+@click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
 def risks(controller, filter, offset, details, page, attr):
     """List risks"""
     if attr:
