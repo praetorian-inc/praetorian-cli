@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.1 (2024-07-15)
+
+- [Breaking Change] Removed the concept of class for assets, risks, and attributes.
+- [Breaking Change] Comments are removed from assets. The `--comment` option is removed
+  from the `add asset` and `update asset` commands.
+- [New Feature] The risk definition is now included in the `get risk --details` command.
+- [New Feature] Performance improvement with session-based authentication.
+- [New Feature] Nessus XML plugin now limits concurrency to lower the rate it calls
+  the backend API.
+- [New Feature] File upload file size limit is increased to 100MB, from 6MB.
+- [Bug Fix] Fix the `add job` command.
+- [Bug Fix] Handle plain text proof of exploit content.
+
 ## 1.1.3 (2024-07-03)
 
 - [Breaking Change] Allow `list attributes` command to filter by risk/asset key only
