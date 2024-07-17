@@ -171,7 +171,7 @@ You can find the list of plugin commands that comes with the CLI in
 If you have ideas on new plugin commands and scripts, contribute them!
 
 For developing plugins, you can refer to
-this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/README.md).
+this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
 
 ## Developer SDK
 
