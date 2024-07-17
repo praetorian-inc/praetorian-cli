@@ -75,6 +75,6 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                     controller._upload(f'{dns}/{vuln}', proof_of_exploit)
 
 
-    with ThreadPoolExecutor(max_workers=20) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         for host in scan_details['hosts']:
             executor.submit(get_host_scan, scan_id, host)
