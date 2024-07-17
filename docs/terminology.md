@@ -12,10 +12,10 @@ of the `get asset` and `list assets --details` commands:
 
 | Asset status | Meaning                                                         |
 | ------------ | --------------------------------------------------------------- |
-| A            | An active asset. Standard asset and risk discovery scans        |
-| AH           | An active asset. Comprehensive asset and risk discovery scans   |
-| AL           | An active asset. Only asset discovery scans                     |
-| F            | A frozen asset. No scans on this asset                          |
+| AH           | An active asset. Comprehensive asset and risk discovery scans, including more intensive testing that may generate significant load. Suitable for highly resilient and business critical assets |
+| A            | An active asset. Standard asset and risk discovery scans |
+| AL           | An active asset. Asset discovery scans only with no risk scanning |
+| F            | A frozen asset. No scans on this asset |
 
 
 
