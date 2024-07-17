@@ -5,9 +5,8 @@ risks in the Chariot platform.
 Example usage:
     praetorian chariot plugin nessus --url https://localhost:8834 --api-key <API_KEY> --secret-key <SECRET_KEY>
 """
-from concurrent.futures import ThreadPoolExecutor
 import json
-import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 import urllib3
@@ -73,7 +72,6 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                     key=asset_key, name=vuln, status=status, comment=comment))
                 if proof_of_exploit != '':
                     controller._upload(f'{dns}/{vuln}', proof_of_exploit)
-
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         for host in scan_details['hosts']:
