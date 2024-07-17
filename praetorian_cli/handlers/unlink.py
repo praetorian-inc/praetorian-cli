@@ -25,7 +25,7 @@ def unlink_account(controller, account_id):
 def unlink_integration(i):
     @unlink.command(i, help=f"Unlink {i} integration")
     @cli_handler
-    @click.option('-id', '--id', default="", help="Provide an id if there are multiple instances")
+    @click.option('-i', '--id', default="", help="Provide an id if there are multiple instances")
     def command(controller, id):
         """ Unlink an integration """
         controller.unlink(i, id)

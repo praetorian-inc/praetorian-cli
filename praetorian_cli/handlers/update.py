@@ -14,7 +14,8 @@ def update(ctx):
 
 @update.command('asset')
 @click.argument('key', required=True)
-@click.option('--priority', type=click.Choice(AssetPriorities.keys()), required=True, help='The priority of the asset')
+@click.option('-p', '--priority', type=click.Choice(AssetPriorities.keys()), required=True,
+              help='The priority of the asset')
 @cli_handler
 def asset(controller, key, priority):
     """
@@ -27,8 +28,8 @@ def asset(controller, key, priority):
 
 @update.command('risk')
 @click.argument('key', required=True)
-@click.option('-status', '--status', type=click.Choice([s.value for s in Risk]), help=f'Status of the risk')
-@click.option('-comment', '--comment', default='', help='Comment for the risk')
+@click.option('-s', '--status', type=click.Choice([s.value for s in Risk]), help=f'Status of the risk')
+@click.option('-c', '--comment', default='', help='Comment for the risk')
 @cli_handler
 def risk(controller, key, status, comment):
     """

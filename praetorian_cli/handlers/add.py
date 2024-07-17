@@ -13,9 +13,9 @@ def add(ctx):
 
 
 @add.command('asset')
-@click.option('-name', '--name', required=True, help='The name of the asset, e.g, IP address, GitHub repo URL')
-@click.option('-dns', '--dns', required=False, help='The DNS of the asset')
-@click.option('--priority', type=click.Choice(AssetPriorities.keys()),
+@click.option('-n', '--name', required=True, help='The name of the asset, e.g, IP address, GitHub repo URL')
+@click.option('-d', '--dns', required=False, help='The DNS of the asset')
+@click.option('-p', '--priority', type=click.Choice(AssetPriorities.keys()),
               default='standard', help='The priority of the asset. Default: standard')
 @cli_handler
 def asset(controller, name, dns, priority):
@@ -27,7 +27,7 @@ def asset(controller, name, dns, priority):
 
 @add.command('file')
 @click.argument('path')
-@click.option('-name', '--name', help='The file name in Chariot. Default: the full path of the uploaded file')
+@click.option('-n', '--name', help='The file name in Chariot. Default: the full path of the uploaded file')
 @cli_handler
 def upload(controller, path, name):
     """
@@ -43,7 +43,7 @@ def upload(controller, path, name):
 
 @add.command('definition')
 @click.argument('path')
-@click.option('-name', '--name', help='The risk name definition. Default: the filename used')
+@click.option('-n', '--name', help='The risk name definition. Default: the filename used')
 @cli_handler
 def definition(controller, path, name):
     """
@@ -69,10 +69,10 @@ def webhook(controller):
 
 @add.command('risk')
 @click.argument('name', required=True)
-@click.option('-asset', '--asset', required=True, help='Key of an existing asset')
-@click.option('-status', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
+@click.option('-a', '--asset', required=True, help='Key of an existing asset')
+@click.option('-s', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
               help=f'Status of the risk')
-@click.option('-comment', '--comment', default='', help='Comment for the risk')
+@click.option('-c', '--comment', default='', help='Comment for the risk')
 @cli_handler
 def risk(controller, name, asset, status, comment):
     """
@@ -86,7 +86,7 @@ def risk(controller, name, asset, status, comment):
 @add.command('job')
 @cli_handler
 @click.argument('capability', required=True)
-@click.option('-asset', '--asset', required=True, help='Key of an existing asset')
+@click.option('-a', '--asset', required=True, help='Key of an existing asset')
 def job(controller, capability, asset):
     """ Add a job for an asset """
     controller.add('job', dict(key=asset, name=capability))

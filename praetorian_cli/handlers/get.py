@@ -17,7 +17,7 @@ def get(ctx):
 @get.command('file')
 @cli_handler
 @click.argument('name')
-@click.option('-path', '--path', default="", help="Download path. Default: save to current directory")
+@click.option('-p', '--path', default="", help="Download path. Default: save to current directory")
 def download_file(controller, name, path):
     """ Download a file using key or name."""
     if name.startswith('#'):
@@ -30,7 +30,7 @@ def download_file(controller, name, path):
 @get.command('definition')
 @cli_handler
 @click.argument('name')
-@click.option('-path', '--path', default="", help="Download path. Default: save to current directory")
+@click.option('-p', '--path', default="", help="Download path. Default: save to current directory")
 def download_definition(controller, name, path):
     """ Download a definition using the risk name. """
     downloaded_path = controller.download(f"definitions/{name}", path)
@@ -39,7 +39,7 @@ def download_definition(controller, name, path):
 
 @get.command('report')
 @cli_handler
-@click.option('-name', '--name', help="Enter a risk name", required=True)
+@click.option('-n', '--name', help="Enter a risk name", required=True)
 def report(controller, name):
     """ Generate definition for an existing risk """
     resp = controller.report(name=name)
@@ -50,7 +50,7 @@ def report(controller, name):
 @get.command('risk')
 @cli_handler
 @click.argument('key', required=True)
-@click.option('-details', '--details', is_flag=True, help='Get additional details')
+@click.option('-d', '--details', is_flag=True, help='Get additional details')
 def risk(controller, key, details):
     """ Get risk details """
     if details:
