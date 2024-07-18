@@ -1,8 +1,12 @@
+import io
+import json
+from contextlib import redirect_stdout
+
 import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, list_options, page_options, plugins
-from praetorian_cli.handlers.utils import key_set, paginate
+from praetorian_cli.handlers.utils import key_set, paginate, display_list
 
 
 @chariot.group()
@@ -12,18 +16,47 @@ def list(ctx):
     pass
 
 
-list_filter = {'assets': 'DNS', 'risks': 'asset', 'jobs': 'updated', 'files': 'name', 'accounts': 'name',
-               'integrations': 'name', 'definitions': 'name'}
+list_filter = {'jobs': 'updated', 'files': 'name', 'accounts': 'name', 'integrations': 'name', 'definitions': 'name',
+               'attributes': 'name'}
 
 
-@list.command('attributes')
-@click.option('-filter', '--filter', default='', help='Filter by risk/asset key')
-@click.option('-details', '--details', is_flag=True, default=False, help="Show detailed information")
+def attribute_filter(controller, key, offset, details, page):
+    f = io.StringIO()
+    with redirect_stdout(f):
+        paginate(controller, key, 'attributes', "", offset, True, page)
+    attr_output = json.loads(f.getvalue())
+    output = {"data": [controller.my(dict(key=hit["source"])) for hit in attr_output["data"]]} if details else None
+    if details:
+        display_list(output, details)
+    else:
+        for hit in attr_output["data"]:
+            click.echo(hit["source"])
+
+
+@list.command('assets')
+@click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
+@list_options('DNS')
 @page_options
-@cli_handler
-def attributes(controller, filter, offset, details, page):
-    """List attributes """
-    paginate(controller, f'#attribute{filter}', 'attributes', "", offset, details, page)
+def assets(controller, filter, offset, details, page, attr):
+    """List assets"""
+    if attr:
+        attribute_filter(controller, f'#attribute#{attr[0]}#{attr[1]}#asset#{filter}', offset, details, page)
+        return
+
+    paginate(controller, f'#asset#{filter}', 'assets', "", offset, details, page)
+
+
+@list.command('risks')
+@list_options('name')
+@page_options
+@click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
+def risks(controller, filter, offset, details, page, attr):
+    """List risks"""
+    if attr:
+        attribute_filter(controller, f'#attribute#{attr[0]}#{attr[1]}#risk#{filter}', details)
+        return
+
+    paginate(controller, f'#risk#{filter}', 'risks', "", offset, details, page)
 
 
 def create_list_command(item_type, item_filter):
