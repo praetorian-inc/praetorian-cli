@@ -1,7 +1,6 @@
 from praetorian_cli.handlers.utils import AssetPriorities
 from praetorian_cli.sdk.attribute import Attribute
 from praetorian_cli.sdk.chariot import Chariot
-from praetorian_cli.sdk.risk import Risk
 
 
 class Asset:
