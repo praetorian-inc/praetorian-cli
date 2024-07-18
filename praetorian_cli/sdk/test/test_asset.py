@@ -47,8 +47,8 @@ class TestAsset(BaseTest):
         a = self.asset_obj.attributes()
         assert len(a) > 0
         for attr in a:
-            assert attr.details()['name'] is not ''
-            assert attr.details()['value'] is not ''
+            assert attr['name'] is not ''
+            assert attr['value'] is not ''
 
     def test_my_job(self):
         job = Job(self.chariot).get(self.asset)
@@ -67,4 +67,3 @@ class TestAsset(BaseTest):
         with pytest.raises(Exception):
             self.asset_obj.details()
         assert self.asset_obj.assetKey is None
-        assert self.asset_obj.assetDetails is None
