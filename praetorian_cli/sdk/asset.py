@@ -4,17 +4,17 @@ from praetorian_cli.sdk.chariot import Chariot
 
 
 class Asset:
-    def __init__(self, client: Chariot, assetKey: str = None):
+    def __init__(self, client: Chariot, asset_key: str = None):
         super().__init__()
         self.client = client
-        self.assetKey = assetKey
+        self.assetKey = asset_key
 
     def add(self, name, dns, priority) -> dict:
         if priority not in AssetPriorities.keys():
             raise ValueError(f'Invalid priority {priority}. Must be one of {AssetPriorities.keys()}')
-        assetDetails = self.client.add('asset', dict(name=name, dns=dns, status=AssetPriorities[priority]))[0]
-        self.assetKey = assetDetails['key']
-        return assetDetails
+        asset_details = self.client.add('asset', dict(name=name, dns=dns, status=AssetPriorities[priority]))[0]
+        self.assetKey = asset_details['key']
+        return asset_details
 
     def details(self) -> dict:
         return self.client.my(dict(key=self.assetKey))['assets'][0]
