@@ -9,7 +9,6 @@ class Asset:
         super().__init__()
         self.client = client
         self.assetKey = assetKey
-        self.assetDetails = None
 
     def add(self, name, dns, priority) -> dict:
         if priority not in AssetPriorities.keys():
@@ -24,9 +23,9 @@ class Asset:
     def attributes(self) -> list:
         return self.client.my(dict(key=f'source:{self.assetKey}'))['attributes']
 
-    def add_risk(self, new_risk: Risk) -> Risk:
-        return self.client.add('risk', dict(key=self.assetKey, name=new_risk.name, status=new_risk.status,
-                                            comment=new_risk.comment))[0]
+    def add_risk(self, name, status, comment) -> dict:
+        risk_payload = dict(key=self.assetKey, name=name, status=status, comment=comment)
+        return self.client.add('risk', risk_payload)['risks'][0]
 
     def add_attribute(self, name, value) -> list[dict]:
         attr = Attribute(self.client)

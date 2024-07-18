@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from praetorian_cli.handlers.utils import AssetPriorities
+from praetorian_cli.handlers.utils import AssetPriorities, Risk
 from praetorian_cli.sdk.asset import Asset
 from praetorian_cli.sdk.job import Job
 from praetorian_cli.sdk.test import BaseTest
@@ -57,6 +57,12 @@ class TestAsset(BaseTest):
             assert j['source'] is not ''
             assert j['status'] is not None
             assert j['dns'] == self.asset
+
+    def test_add_risk(self):
+        risk = self.asset_obj.add_risk('test', Risk.TRIAGE_LOW.value, 'test')
+        print(risk)
+        assert risk['status'] == Risk.TRIAGE_LOW.value
+        assert risk['comment'] == 'test'
 
     def test_freeze_asset(self):
         self.asset_obj.update('frozen')
