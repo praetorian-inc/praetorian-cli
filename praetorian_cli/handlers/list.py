@@ -37,10 +37,10 @@ def attribute_filter(controller, key, offset, details, page):
 @click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
 @list_options('DNS')
 @page_options
-def assets(controller, filter, offset, details, page, attr):
+def assets(controller, filter, offset, details, page, attribute):
     """List assets"""
-    if attr:
-        attribute_filter(controller, f'#attribute#{attr[0]}#{attr[1]}#asset#{filter}', offset, details, page)
+    if attribute:
+        attribute_filter(controller, f'#attribute#{attribute[0]}#{attribute[1]}#asset#{filter}', offset, details, page)
         return
 
     paginate(controller, f'#asset#{filter}', 'assets', "", offset, details, page)

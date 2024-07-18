@@ -25,7 +25,7 @@ def process(controller, cmd, cli_kwargs, output):
         return
 
     asset_details = json.loads(output)
-
+    print(asset_details)
     if not asset_details['seed']:
         print("The asset is not a root asset; the seed field is False.")
         return
@@ -34,14 +34,12 @@ def process(controller, cmd, cli_kwargs, output):
     asset = asset_details['name']
 
     # Search for asset name
-    result = controller.my(dict(key=asset), pages=100)
+    result = controller.my(dict(key=f'#attribute#source#{asset}'), pages=100)
 
     # Filter out attributes of the class 'seed'. Then, we compose asset keys from the attribute keys
     if 'attributes' in result:
         print(f"The following assets originate from {asset}:")
         for hit in result['attributes']:
-            if hit['name'] == asset and hit['class'] == 'seed':
-                fragments = hit['key'].split("#")
-                print(f'#asset#{fragments[3]}#{fragments[4]}')
+            print(hit['source'])
     else:
         print(f'No asset originate from {asset}')
