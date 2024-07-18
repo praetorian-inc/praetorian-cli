@@ -16,8 +16,7 @@ def list(ctx):
     pass
 
 
-list_filter = {'jobs': 'updated', 'files': 'name', 'accounts': 'name', 'integrations': 'name', 'definitions': 'name',
-               'attributes': 'name'}
+list_filter = {'jobs': 'updated', 'files': 'name', 'accounts': 'name', 'integrations': 'name', 'definitions': 'name'}
 
 
 def attribute_filter(controller, key, offset, details, page):
@@ -57,6 +56,22 @@ def risks(controller, filter, offset, details, page, attr):
         return
 
     paginate(controller, f'#risk#{filter}', 'risks', "", offset, details, page)
+
+
+@list.command('attributes')
+@list_options('name')
+@page_options
+@click.option('-a', '--asset', help='Filter by asset key')
+@click.option('-r', '--risk', help='Filter by risk key')
+def attributes(controller, filter, offset, details, page, asset, risk):
+    """List attributes\n
+    You can only filter by one of the following : attribute name, asset or risk"""
+    key = f'#attribute#{filter}'
+    if asset:
+        key = f'source:{asset}'
+    elif risk:
+        key = f'source:{risk}'
+    paginate(controller, key, 'attributes', "", offset, details, page)
 
 
 def create_list_command(item_type, item_filter):
