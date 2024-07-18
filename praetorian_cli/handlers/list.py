@@ -50,10 +50,10 @@ def assets(controller, filter, offset, details, page, attribute):
 @list_options('name')
 @page_options
 @click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
-def risks(controller, filter, offset, details, page, attr):
+def risks(controller, filter, offset, details, page, attribute):
     """List risks"""
-    if attr:
-        attribute_filter(controller, f'#attribute#{attr[0]}#{attr[1]}#risk#{filter}', details)
+    if attribute:
+        attribute_filter(controller, f'#attribute#{attribute[0]}#{attribute[1]}#risk#{filter}', details)
         return
 
     paginate(controller, f'#risk#{filter}', 'risks', "", offset, details, page)
