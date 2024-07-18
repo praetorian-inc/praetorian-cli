@@ -1,13 +1,14 @@
 """
 This script retrieves the assets originating from a given asset. It retrieves
 the asset from the CLI. In turn, it execute a search using the my() function
-of the Chariot SDK to find all entities related to the asset. Finally, it
-filters for the attributes entities of the 'seed' class, which store the
-information of the assets originating from the given asset.
+of the Chariot SDK to find all entities related to the asset. It is done by
+querying for attributes where the name is "source" and "value" is the
+name of the originating asset. Finally, the script filters the attributes
+that belong to assets (as opposed to risks).
 
 Example usage:
 
-  praetorian chariot get asset '#asset#praetorian.com' --plugin list_assets
+  praetorian chariot get asset '#asset#praetorian.com#praetorian.com' --plugin list_assets
 
 """
 import json
@@ -25,10 +26,6 @@ def process(controller, cmd, cli_kwargs, output):
         return
 
     asset_details = json.loads(output)
-    print(asset_details)
-    if not asset_details['seed']:
-        print("The asset is not a root asset; the seed field is False.")
-        return
 
     # Extract the asset name
     asset = asset_details['name']
@@ -40,6 +37,7 @@ def process(controller, cmd, cli_kwargs, output):
     if 'attributes' in result:
         print(f"The following assets originate from {asset}:")
         for hit in result['attributes']:
-            print(hit['source'])
+            if hit['source'].startswith('#asset'):
+                print(hit['source'])
     else:
-        print(f'No asset originate from {asset}')
+        print(f'No assets originate from {asset}.')
