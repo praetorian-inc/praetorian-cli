@@ -13,13 +13,12 @@ class Asset(ChariotResponse):
             for key, value in asset_details.items():
                 setattr(self, key, value)
 
-    def add(self, name, dns, priority) -> dict:
+    def add(self, name, dns, priority):
         if priority not in AssetPriorities.keys():
             raise ValueError(f'Invalid priority {priority}. Must be one of {AssetPriorities.keys()}')
         asset_details = self.client.add('asset', dict(name=name, dns=dns, status=AssetPriorities[priority]))[0]
         for key, value in asset_details.items():
             setattr(self, key, value)
-        return asset_details
 
     def details(self) -> dict:
         return self.response()

@@ -24,10 +24,10 @@ class TestAsset(BaseTest):
         self.asset_obj = Asset(self.chariot)
 
     def test_add_asset(self):
-        a = self.asset_obj.add(self.asset, self.asset, 'standard')
-        assert a['name'] == self.asset
-        assert a['dns'] == self.asset
-        assert a['status'] == AssetPriorities['standard']
+        self.asset_obj.add(self.asset, self.asset, 'standard')
+        assert self.asset_obj.name == self.asset
+        assert self.asset_obj.dns == self.asset
+        assert self.asset_obj.status == AssetPriorities['standard']
 
     def test_details(self):
         a2 = Asset(self.chariot, self.asset_obj.details()['key'])
