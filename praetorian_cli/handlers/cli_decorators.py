@@ -28,8 +28,8 @@ def cli_handler(func):
 def list_options(filter_name):
     def decorator(func):
         func = cli_handler(func)
-        func = click.option('-filter', '--filter', default="", help=f"Filter by {filter_name}")(func)
-        func = click.option('-details', '--details', is_flag=True, default=False, help="Show detailed information")(
+        func = click.option('-f', '--filter', default="", help=f"Filter by {filter_name}")(func)
+        func = click.option('-d', '--details', is_flag=True, default=False, help="Show detailed information")(
             func)
         return func
 
@@ -37,8 +37,8 @@ def list_options(filter_name):
 
 
 def page_options(func):
-    func = click.option('-offset', '--offset', default='', help='List results from an offset')(func)
-    func = click.option('-page', '--page', type=click.Choice(('no', 'interactive', 'all')), default='no',
+    func = click.option('-o', '--offset', default='', help='List results from an offset')(func)
+    func = click.option('-p', '--page', type=click.Choice(('no', 'interactive', 'all')), default='no',
                         help="Pagination mode. 'all' pages up to 100 pages. Default: 'no'")(func)
 
     return func

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2 (2024-07-19)
+
+* [Breaking Change] Removed support for linking integrations using CLI
+* [New Feature] Filter assets by attributes using `list assets -attr <Attribute_Name> <Attribute_Value>`
+* [New Feature] Allow users to filter attributes by a specific asset or risk key. `list attributes -a <ASSET_KEY>`
+* [Bug fix] Add attribute command to use key-value input
+* [Bug fix] Updates in list_asset plugin to match the latest attribute modifications.
+* [Doc Updates] For various statuses allowed for assets and risks
+
 ## 1.2.1 (2024-07-15)
 
 - [Breaking Change] Removed the concept of class for assets, risks, and attributes.
