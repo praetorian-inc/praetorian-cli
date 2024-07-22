@@ -15,7 +15,6 @@ Prerequisites:
 """
 import glob
 import os
-import pty
 import shutil
 import subprocess
 
@@ -183,16 +182,7 @@ def fzf_file(glob_path) -> str:
 
 
 def fzf_generic(items) -> str:
-    master, slave = pty.openpty()
-
-    with subprocess.Popen(['fzf'], stdin=subprocess.PIPE, stdout=slave) as process:
-        process.stdin.write('\n'.join(items).encode())
-        process.stdin.close()
-        process.wait()
-
-    selected = os.read(master, 1024).decode().strip()
-
-    os.close(master)
-    os.close(slave)
-
+    input_items = '\n'.join(items).encode('utf-8')
+    result = subprocess.run(['fzf'], input=input_items, capture_output=True, text=True)
+    selected = result.stdout.strip()
     return selected
