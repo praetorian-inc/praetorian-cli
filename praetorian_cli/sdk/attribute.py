@@ -1,21 +1,22 @@
 from praetorian_cli.sdk.chariot import Chariot
+from praetorian_cli.sdk.chariot_response import ChariotResponse
 
 
-class Attribute:
-    def __init__(self, client: Chariot, attributeKey: str = None):
+class Attribute(ChariotResponse):
+    def __init__(self, client: Chariot, attribute_key: str = None):
         super().__init__()
         self.client = client
-        self.attributeKey = attributeKey
-        self.attributeDetails = None
-        self.sourceKey = None
-        self.details()
+        if attribute_key:
+            attribute_details = self.client.my(dict(key=attribute_key))['attributes'][0]
+            for key, value in attribute_details.items():
+                setattr(self, key, value)
 
     def details(self) -> dict:
-        if self.attributeKey is not None:
-            self.attributeDetails = self.client.my(dict(key=f'#attribute#{self.attributeKey}'))['attributes'][0]
-            self.sourceKey = self.attributeDetails['source']
+        return self.response()
 
-        return None if self.attributeKey is None else self.attributeDetails
-
-    def add(self, source, name, value) -> list[dict]:
-        return self.client.add('attribute', dict(key=source, name=name, value=value))['attributes']
+    def add(self, source, name, value):
+        attributes = self.client.add('attribute', dict(key=source, name=name, value=value))['attributes']
+        if len(attributes) > 1:
+            return [Attribute(self.client, attribute['key']) for attribute in attributes]
+        else:
+            return Attribute(self.client, attributes[0]['key'])

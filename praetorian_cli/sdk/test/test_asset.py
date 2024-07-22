@@ -38,10 +38,15 @@ class TestAsset(BaseTest):
 
     def test_add_attribute(self):
         a = self.asset_obj.add_attribute('test', 'test')
-        for attr in a:
-            assert attr['name'] == 'test'
-            assert attr['value'] == 'test'
-            assert attr['source'] == self.asset_obj.assetKey
+        if isinstance(a, list):
+            for attr in a:
+                assert attr.name == 'test'
+                assert attr.value == 'test'
+                assert attr.source == self.asset_obj.key
+        else:
+            assert a.name == 'test'
+            assert a.value == 'test'
+            assert a.source == self.asset_obj.key
 
     def test_attributes(self):
         a = self.asset_obj.attributes()
@@ -70,6 +75,4 @@ class TestAsset(BaseTest):
 
     def test_delete_asset(self):
         self.asset_obj.delete()
-        with pytest.raises(Exception):
-            self.asset_obj.details()
-        assert self.asset_obj.assetKey is None
+        assert self.asset_obj.key is None
