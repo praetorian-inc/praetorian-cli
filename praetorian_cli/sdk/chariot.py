@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import glob
 from base64 import b64encode
 from random import randint
 
@@ -86,8 +87,10 @@ class Chariot:
     @verify_credentials
     def upload(self, name: str, upload_path: str = ""):
         path = upload_path if upload_path else name
-        with open(name, 'rb') as content:
-            self._upload(path, content)
+        files = glob.glob(name)
+        for file in files:
+            with open(file, 'rb') as content:
+                self._upload(path, content)
 
     @verify_credentials
     def _upload(self, name: str, content: str):
