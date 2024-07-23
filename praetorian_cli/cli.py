@@ -30,7 +30,7 @@ def cli(ctx, profile, account):
 def configure(ctx):
     """ Configure the CLI """
     click.echo('Enter your Praetorian credentials to store in the keychain')
-    ctx.obj.write_credentials()
+    ctx.obj.configure()
 
 
 cli.add_command(chariot)
