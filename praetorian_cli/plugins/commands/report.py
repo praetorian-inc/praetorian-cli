@@ -184,5 +184,4 @@ def fzf_file(glob_path) -> str:
 def fzf_generic(items) -> str:
     input_items = '\n'.join(items).encode('utf-8')
     result = subprocess.run(['fzf'], input=input_items, capture_output=True, text=True)
-    selected = result.stdout.strip()
-    return selected
+    return result.stdout.strip()
