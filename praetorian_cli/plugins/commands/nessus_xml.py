@@ -41,7 +41,7 @@ def report_vulns(controller: Chariot, file: str):
             proof_of_exploit = item.find('plugin_output')
             print(f'Adding {status} risk: "{vuln}" for "{dns}"')
             controller.add('risk', dict(
-                key=asset_key, name=vuln, status=status, comment=description))
+                key=asset_key, name=vuln, source='nessus', status=status, comment=description))
             if proof_of_exploit is not None:
                 controller._upload(f'{dns}/{vuln}', proof_of_exploit.text)
 

@@ -69,7 +69,7 @@ def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
                         ).replace(' ', '-').lower()
                 status = 'T' + risk[0].upper()
                 controller.add('risk', dict(
-                    key=asset_key, name=vuln, status=status, comment=comment))
+                    key=asset_key, name=vuln, source='nessus', status=status, comment=comment))
                 if proof_of_exploit != '':
                     controller._upload(f'{dns}/{vuln}', proof_of_exploit)
 
