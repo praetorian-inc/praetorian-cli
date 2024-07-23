@@ -1,8 +1,7 @@
-import base64
 import json
 import os
 from base64 import b64encode
-from random import randint
+from uuid import uuid4
 
 import requests
 
@@ -124,7 +123,7 @@ class Chariot:
 
     @verify_credentials
     def add_webhook(self):
-        pin = str(randint(10000, 99999))
+        pin = str(uuid4())
         self.link_account(username="hook", config={'pin': pin})
         username = b64encode(self.keychain.username.encode('utf8'))
         encoded_string = username.decode('utf8')
@@ -160,7 +159,7 @@ class Chariot:
             "url": poe_json.get("url", ""),
             "ip": poe_json.get("ip", ""),
             "port": poe_json.get("port", ""),
-            "proof of exploit": base64.b64encode(poe_content.encode('utf-8')).decode('utf-8') if poe_content else "",
+            "proof of exploit": b64encode(poe_content.encode('utf-8')).decode('utf-8') if poe_content else "",
             "description": risk_definition
         })
         return resp
