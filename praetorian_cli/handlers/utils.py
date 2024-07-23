@@ -9,6 +9,7 @@ class Asset(Enum):
     ACTIVE_HIGH = "AH"
     ACTIVE_LOW = "AL"
     FROZEN = "F"
+    DELETED = "D"
 
 
 class Risk(Enum):

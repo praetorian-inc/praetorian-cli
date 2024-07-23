@@ -11,6 +11,18 @@ def delete(ctx):
     pass
 
 
+@delete.command('asset')
+@click.argument('key', required=True)
+@cli_handler
+def delete_asset(controller, key):
+    """
+    Delete asset
+
+    KEY is the key of an existing asset
+    """
+    controller.update('asset', dict(key=key, status='D'))
+
+
 def delete_command(item):
     @delete.command(item, help=f"Delete {item}")
     @click.argument('key', required=True)
@@ -20,7 +32,7 @@ def delete_command(item):
         print(f"Key: {key} \nDeleted successfully")
 
 
-for item in ['asset', 'attribute', 'file']:
+for item in ['attribute', 'file']:
     delete_command(item)
 
 

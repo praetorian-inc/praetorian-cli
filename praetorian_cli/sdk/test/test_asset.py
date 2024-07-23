@@ -42,6 +42,6 @@ class TestAsset(BaseTest):
         assert response['status'] == Asset.FROZEN.value, "Response does not have correct status"
 
     def test_delete_asset(self):
-        self.chariot.delete('asset', key=f'#asset#{self.asset}')
+        self.chariot.update('asset', dict(key=f'#asset#{self.asset}', status='D'))
         response = self.chariot.my(dict(key=f'#asset#{self.asset}'))
-        assert response == {}
+        assert response['assets'][0]['status'] == 'D'
