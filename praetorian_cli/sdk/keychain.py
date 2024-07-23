@@ -1,4 +1,5 @@
 import configparser
+import getpass
 import os
 import time
 from functools import wraps
@@ -45,10 +46,13 @@ class Keychain:
         self.data = data
         self.token_cache = None
         self.token_expiry = 0
-        self.set_config()
+        self.api = 'https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot'
+        self.client_id = '795dnnr45so7m17cppta0b295o'
 
     def set_config(self):
         cfg = self.get()
+        if not cfg.sections():
+            exit('Keychain is empty. Run "praetorian configure" to add credentials.')
         self.username = cfg[self.profile]['username']
         self.password = cfg[self.profile]['password']
         self.api = cfg[self.profile]['api']
@@ -64,20 +68,20 @@ class Keychain:
         else:
             cfg.read(self.location)
 
-        if not cfg.sections():
-            exit(
-                '[!] Follow instructions at at https://docs.praetorian.com/hc/en-us/articles/25815154096667-The'
-                '-Praetorian-CLI to obtain a keychain.')
         return cfg
 
     def write_credentials(self):
         username = input("Enter username: ")
-        password = input("Enter password: ")
-
+        password = getpass.getpass("Enter password: ")
         if not exists(self.location):
             head, _ = os.path.split(Path(self.location))
             Path(head).mkdir(parents=True, exist_ok=True)
-            open(self.location, 'x').close()
+            with open(self.location, 'w') as f:
+                f.write(f'[{self.profile}]\n')
+                f.write(f'name = chariot\n')
+                f.write(f'client_id = {self.client_id}\n')
+                f.write(f'api = {self.api}\n')
+            f.close()
 
         cfg = configparser.ConfigParser()
         cfg[self.profile] = {
