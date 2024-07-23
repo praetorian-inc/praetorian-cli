@@ -5,24 +5,30 @@ risks in the Chariot platform.
 Example usage:
     praetorian chariot plugin nessus --url https://localhost:8834 --api-key <API_KEY> --secret-key <SECRET_KEY>
 """
-import json
 from concurrent.futures import ThreadPoolExecutor
 
+import click
 import requests
-import urllib3
+from requests.packages.urllib3 import disable_warnings, exceptions
 
 from praetorian_cli.sdk.chariot import Chariot
 
 
 def create_nessus_client(api_url, api_key, secret_key):
+    disable_warnings(exceptions.InsecureRequestWarning)
+
     def nessus_api_req(api: str):
         headers = {
             'X-ApiKeys': f'accessKey={api_key}; secretKey={secret_key}'
         }
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         response = requests.get(
             f'{api_url}/{api}', headers=headers, verify=False)
-        return json.loads(response.text)
+        if not response.ok:
+            click.echo(
+                f'[{response.status_code}] Request failed' + (f'\nError: {response.text}' if response.text else ''),
+                err=True)
+            exit(1)
+        return response.json()
 
     return nessus_api_req
 
