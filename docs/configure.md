@@ -7,12 +7,12 @@ The `configure` command asks questions as follows:
 ```
 $ praetorian configure
 Enter your Praetorian credentials to store in the keychain
-Enter username/email: lara.lynch@acme.com
-Enter password:
-Enter profile name [United States]:
-Enter URL of backend API [https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot]:
-Enter client ID [795dnnr45so7m17cppta0b295o]:
-Enter assume-role account, if any []:
+Enter your email: lara.lynch@acme.com
+Enter your password:
+Enter the profile name [United States]:
+Enter the URL of backend API [https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot]:
+Enter the client ID [795dnnr45so7m17cppta0b295o]:
+Enter the assume-role account, if any []:
 ```
 
 They have the following meanings:
