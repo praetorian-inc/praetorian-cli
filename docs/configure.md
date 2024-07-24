@@ -26,9 +26,16 @@ They have the following meanings:
 - **Assume-role account**: This is used for assuming role into your organization's main
   account. This is the same as the `--account` option.
 
-Similar to the pattern used in AWS CLI configuration, the keychain file is 
-organized into sections of profiles (names in square brackets). You can use this to configure
+## Multiple profiles
+
+Similar to the pattern used in AWS CLI configuration files, the keychain file is 
+organized into sections of _profiles_ (names in square brackets). You can use this to configure
 multiple access credentials into a single keychain file.
+
+The `configure` command operates in an "upsert" manner with the profiles, including the
+default "United States" profile. So, when you run `configure` and provide a
+existing profile name, it will update the fields in that profile. When you provide
+a new profile name, it will add a new section for it.
 
 
 ## Authentication in organizations that use SSO
