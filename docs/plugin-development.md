@@ -63,7 +63,7 @@ and
 
 You can add end-to-end functionalities as CLI commands to run complex workflows with ease.
 <br>Register them
-in [handlers/run.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/run.py) as a new
+in [handlers/plugin.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/plugin.py) as a new
 command.
 
 To add a plugin command, add the core logic at the
