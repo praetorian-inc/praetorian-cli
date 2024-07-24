@@ -54,7 +54,7 @@ pip install praetorian-cli
 1. Register for an account for [Chariot](http://preview.chariot.praetorian.com) using the instructions
    in [our documentation](https://docs.praetorian.com/hc/en-us/articles/25784233986587-Account-Setup-and-Initial-Seeding).
 2. Run `praetorian configure` and follow the prompts.
-3. It generates `~/.praetorian/keychain.ini` that reads similarly as follows:
+3. It creates `~/.praetorian/keychain.ini`, which should read like this:
 
 ```
 [United States]
@@ -65,7 +65,7 @@ username = lara.lynch@acme.com
 password = 8epu9bQ2kqb8qwd.GR
 ```
 
-For more advanced configuration options, as well as authentication in organizations that use SSO. See [the documentation on
+For more advanced configuration options, as well as SSO. See [the documentation on
 the keychain file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
 
 
