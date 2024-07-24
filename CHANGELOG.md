@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 (2024-07-24)
+
+* [New Feature] `configure` command was added to handle the authentication setup. This removes the need for manually
+  download and editing the `keychain.ini` file.
+* [New Feature] The `delete asset` command was update to soft-delete the asset.
+* [New Feature] Risks added by the Nessus plugin commands now have source set to 'nessus'.
+
+## 1.2.3 (2024-07-22)
+
+* [Bug fix] Fixed a dependency issue on Windows system. This is done by removing the `report` plugin command.
+
 ## 1.2.2 (2024-07-19)
 
 * [Breaking Change] Removed support for linking integrations using CLI
