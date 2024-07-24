@@ -1,0 +1,71 @@
+# Deep dive into `praetorian configure` and the keychain file
+
+This page shows the advanced functions of the `configure` command. It is used to set
+user credentials and update the keychain file located at `~/.praetorian/keychain.ini`.
+The `configure` command asks questions as follows:
+
+```
+$ praetorian configure
+Enter your Praetorian credentials to store in the keychain
+Enter username/email: lara.lynch@acme.com
+Enter password:
+Enter profile name [United States]:
+Enter URL of backend API [https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot]:
+Enter client ID [795dnnr45so7m17cppta0b295o]:
+Enter assume-role account, if any []:
+```
+
+- **Username/email**: this is the email address you used to sign up for Chariot
+- **Password**: Your password
+- **profile name**: This is the name of a profile section in the keychain file. It is
+  useful when you have multiple accounts, or different assume-role settings (see below).
+- **URL of backend API**: The URL of the backend. In most cases, use the default value.
+- **Client ID**: The client ID of the backend. In most cases, use the default value.
+- **Assume-role account**: This is used 
+
+
+Similar to the pattern used in AWS CLI configuration, the keychain file is 
+organized into sections of profiles in square brackets. Use 
+
+
+
+
+
+
+It is especially useful for organizations that use
+SSO for their UI authentication.
+
+
+## Authentication in organizations that use SSO
+
+SSO-enabled accounts can use CLI by inviting password-based accounts as collaborators.
+These collaborator accounts can assume into the main account using the `--account` option
+in the CLI with the value of the email address of the main account.
+
+You can also set this in a profile in the keychain file. Run `praetorian configure` and
+answer the prompt `Enter assume-role account` with the email address of the main account.
+
+Your keychain file will then read like this:
+
+```
+[United States]
+name = chariot
+client_id = 795dnnr45so7m17cppta0b295o
+api = https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot
+username = lara.lynch@acme.com
+password = 8epu9bQ2kqb8qwd.GR
+account = security.team@acme.com
+```
+
+There are two common approaches to manage CLI access in SSO organizations:
+
+1. Sign up a service account for CLI access, e.g. security.team+cli@acme.com. In the master
+   account, invite security-team+cli@acme.com as a collaborator. All CLI users share the
+   keychain for the service account.
+3. Add each CLI user as a collaborator in the master account. Every CLI user signs up using
+   password-based authentication.
+
+We recommend the first approach.
+
+
+## Multiple profiles
