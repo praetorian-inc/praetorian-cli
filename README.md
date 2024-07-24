@@ -49,13 +49,12 @@ Install the Python package using this command:
 pip install praetorian-cli
 ```
 
-## Signing up
+## Signing up and configuration
 
 1. Register for an account for [Chariot](http://preview.chariot.praetorian.com) using the instructions
    in [our documentation](https://docs.praetorian.com/hc/en-us/articles/25784233986587-Account-Setup-and-Initial-Seeding).
-2. Download the keychain file using [this link](https://preview.chariot.praetorian.com/keychain.ini).
-3. Place the keychain file at ``~/.praetorian/keychain.ini``.
-4. Add your username and password to the keychain file. Your file should read like this:
+2. Run `praetorian configure` and follow the prompts.
+3. It generates `~/.praetorian/keychain.ini` that reads similarly as follows:
 
 ```
 [United States]
@@ -66,31 +65,9 @@ username = lara.lynch@acme.com
 password = 8epu9bQ2kqb8qwd.GR
 ```
 
-### Authentication in organizations that use SSO
+For more advanced configuration options, as well as authentication in organizations that use SSO. See [the documentation on
+the keychain file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
 
-SSO-enabled accounts can use CLI by inviting password-based accounts as collaborators.
-These collaborator accounts can assume into the main account using the `--account` option
-in the CLI, or including that information in the keychain file. For example, you can assume
-into the `security.team@acme.com` main account using the **account** entry:
-```
-[United States]
-name = chariot
-client_id = 795dnnr45so7m17cppta0b295o
-api = https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot
-username = lara.lynch@acme.com
-password = 8epu9bQ2kqb8qwd.GR
-account = security.team@acme.com
-```
-
-There are two common approaches to manage CLI access in SSO organizations:
-
-1. Sign up a service account for CLI access, e.g. security.team+cli@acme.com. In the master
-   account, invite security-team+cli@acme.com as a collaborator. All CLI users share the
-   keychain for the service account.
-3. Add each CLI user as a collaborator in the master account. Every CLI user signs up using
-   password-based authentication.
-
-We recommend the first approach.
 
 ## Using the CLI
 
