@@ -67,12 +67,12 @@ class Keychain:
         return cfg
 
     def configure(self):
-        username = click.prompt('Enter username')
-        password = click.prompt("Enter password", hide_input=True)
-        profile = click.prompt('Enter profile name', default=DEFAULT_PROFILE)
-        api = click.prompt('Enter URL of backend API', default=DEFAULT_API)
-        client_id = click.prompt('Enter client ID', default=DEFAULT_CLIENT_ID)
-        account = click.prompt('Enter assume-role account, if any', default='')
+        username = click.prompt('Enter your email')
+        password = click.prompt("Enter your password", hide_input=True)
+        profile = click.prompt('Enter the profile name', default=DEFAULT_PROFILE)
+        api = click.prompt('Enter the URL of backend API', default=DEFAULT_API)
+        client_id = click.prompt('Enter the client ID', default=DEFAULT_CLIENT_ID)
+        account = click.prompt('Enter the assume-role account, if any', default='')
 
         cfg = configparser.ConfigParser()
         cfg[profile] = {
