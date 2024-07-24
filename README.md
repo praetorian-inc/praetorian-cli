@@ -66,7 +66,7 @@ password = 8epu9bQ2kqb8qwd.GR
 ```
 
 For more advanced configuration options, as well as SSO. See [the documentation on
-the keychain file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
+the keychain file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
 
 ## Using the CLI
