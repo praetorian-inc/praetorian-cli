@@ -19,7 +19,7 @@ They have the following meanings:
 
 - **Email**: this is the email address you used to sign up.
 - **Password**: Your password.
-- **profile name**: The name of a profile section in the keychain file. It is
+- **Profile name**: The name of a profile section in the keychain file. It is
   useful when you have multiple accounts, or different assume-role settings (see below).
 - **URL of backend API**: The URL of the backend. In most cases, use the default value.
 - **Client ID**: The client ID of the backend. In most cases, use the default value.
