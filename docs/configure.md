@@ -1,6 +1,6 @@
-# Deep dive into `praetorian configure` and the keychain file
+# How to configure the keychain file
 
-This page shows the advanced functions of the `configure` command. It is used to set
+This page illustrates the advanced functions of the `configure` command. It is used to set
 user credentials and update the keychain file located at `~/.praetorian/keychain.ini`.
 The `configure` command asks questions as follows:
 
@@ -15,25 +15,20 @@ Enter client ID [795dnnr45so7m17cppta0b295o]:
 Enter assume-role account, if any []:
 ```
 
-- **Username/email**: this is the email address you used to sign up for Chariot
-- **Password**: Your password
-- **profile name**: This is the name of a profile section in the keychain file. It is
+They have the following meanings:
+
+- **Email**: this is the email address you used to sign up.
+- **Password**: Your password.
+- **profile name**: The name of a profile section in the keychain file. It is
   useful when you have multiple accounts, or different assume-role settings (see below).
 - **URL of backend API**: The URL of the backend. In most cases, use the default value.
 - **Client ID**: The client ID of the backend. In most cases, use the default value.
-- **Assume-role account**: This is used 
-
+- **Assume-role account**: This is used for assuming role into your organization's main
+  account. This is the same as the `--account` option.
 
 Similar to the pattern used in AWS CLI configuration, the keychain file is 
-organized into sections of profiles in square brackets. Use 
-
-
-
-
-
-
-It is especially useful for organizations that use
-SSO for their UI authentication.
+organized into sections of profiles (names in square brackets). You can use this to configure
+multiple access credentials into a single keychain file.
 
 
 ## Authentication in organizations that use SSO
@@ -66,6 +61,3 @@ There are two common approaches to manage CLI access in SSO organizations:
    password-based authentication.
 
 We recommend the first approach.
-
-
-## Multiple profiles
