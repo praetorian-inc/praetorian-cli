@@ -7,7 +7,7 @@ The `configure` command asks questions as follows:
 ```
 $ praetorian configure
 Enter your Praetorian credentials to store in the keychain
-Enter your email: lara.lynch@acme.com
+Enter your email:
 Enter your password:
 Enter the profile name [United States]:
 Enter the URL of backend API [https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot]:
