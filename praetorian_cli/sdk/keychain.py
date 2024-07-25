@@ -80,8 +80,6 @@ class Keychain:
             cfg[profile]['account'] = account
 
         combo = self._merge_configs(cfg, self.get())
-        if not account and 'account' in combo[profile]:
-            del combo[profile]['account']
 
         Path(os.path.split(Path(self.location))[0]).mkdir(parents=True, exist_ok=True)
         with open(self.location, 'w') as f:
@@ -111,8 +109,5 @@ class Keychain:
     @staticmethod
     def _merge_configs(cfg_from, cfg_to):
         for section in cfg_from.sections():
-            if section not in cfg_to:
-                cfg_to[section] = {}
-            for key, value in cfg_from[section].items():
-                cfg_to[section][key] = value
+            cfg_to[section] = cfg_from[section]
         return cfg_to
