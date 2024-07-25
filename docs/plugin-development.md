@@ -13,8 +13,8 @@ You can choose from two types plugins depending on your use-case:
 ### Plugin scripts
 
 A plugin script does additional processing of the output of a CLI command. It is invoked using
-the `--plugin` option of a `list`, `search`, or `get` command.
-<br>The script needs to implement a `process` function to be invoked. It needs to accept 4 arguments:
+the `--plugin` option of a `list`, `search`, or `get` command. **The script needs to implement
+a `process` function to be invoked**. It needs to accept 4 arguments:
 
 - `controller`: An authenticated session of the Praetorian API.
 - `cmd`: This dictionary contains information about the executed CLI command, including the product, action, and
@@ -72,47 +72,59 @@ plugin commands:
 #### Static plugin commands
 
 To add a static plugin command, add the core logic in a new file at the
-[`plugins/commands`](https://github.com/praetorian-inc/praetorian-cli/tree/peter/typos/praetorian_cli/plugins/commands)
-directory. See
-[`commands/example.py`](https://github.com/praetorian-inc/praetorian-cli/blob/peter/typos/praetorian_cli/plugins/commands/example.py)
-for an Hello-world style example. This command demonstrates the use of Click's argument options and the easy access of the 
-SDK by listing assets in your Chariot account. By writing your extension as a plugin command, you do not need to deal with
-instantiation of the keychain and SDK.
+[`plugins/commands/`](https://github.com/praetorian-inc/praetorian-cli/tree/peter/typos/praetorian_cli/plugins/commands)
+directory. By writing your extension as a plugin command, you do not need to deal with
+instantiation of the keychain and SDK, as well as using Click's excellent support on arguments and options.
 
 To make your command avaiable in the CLI, register it
-in [handlers/plugin.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/plugin.py) as a new
-command, as in the code snippet below. Just like any Click command, you
-can make full use of Click's support for arguments and options:
+in [plugin.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/plugin.py) as a new
+command, as in the code snippet below. See
+[example.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/commands/example.py)
+together with [plugin.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/handlers/plugin.py)
+for the full template for developing this type of plugin. Reach out to support@praetorian.com if you have
+any questions.
 
 ```python
 @plugin.command('example')
 @cli_handler
-@click.argument('arg1', type=str)
-@click.option('--opt1', default=None, help='A string option')
-def example_command(sdk, arg1, opt1):
-    """ An example plugin command, extending the CLI """
-    example.run(sdk, arg1, opt1)
+@click.argument('arg', required=False)
+@click.option('--opt', required=False, help='A string option')
+def example_command(sdk, arg, opt):
+    """ An example static plugin command (packaged with the CLI)
+
+        ARG is a string argument
+    """
+    example.run(sdk, arg, opt)
 ```
 
 #### Dynamic plugin commands
 
-Static plugin commands need to be merged into the open-source CLI for it to be available for others to use.
+Static plugin commands need to be merged into the open-source CLI for it to be distributed for others to use.
 However, you may not want to merge yours because it can be something specific to your organization. Yet you
 want to share with others in your organization.
 
 Dynamic plugin commands facilitate this scenario.
 
-Typically, an organzation maintains their own repository of internal plugins. The CLI has the 
-ability to load them at run time and expose them as a first-class command under the `plugin` group.
+Typically, an organzation maintains their own repository of internal plugins. The CLI can load them at run
+time and expose them as a first-class command under the `plugin` group.
 
 To do that, set the `PRAETORIAN_SCRIPTS_PATH` environment variable. The CLI inspects all Python programs
 in those directories and loads compatible plugins.
 
+In your Python file, **you have to implement the `register` function**. It needs to accept 1 argument of
+the type `click.MultiCommand`. This function calls `add_command` of this class to register itself
+as a command in the CLI (see the snippet below). See
+[example_dynamic_command.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/commands/example_dynamic_command.py)
+for the full template for developing this type of plugin. Reach out to support@praetorian.com if you have
+any questions.
+
+```
+def register(plugin_group: click.MultiCommand):
+    plugin_group.add_command(dynamic_command)
+```
 
 
-
-
-_Dynamic plugin commands_ are only supported in Linux and macOS systems.
+_Note: Dynamic plugin commands are only supported in Linux and macOS systems._
 
 
 
