@@ -11,6 +11,7 @@ import praetorian_cli.handlers.test  # noqa
 import praetorian_cli.handlers.unlink  # noqa
 import praetorian_cli.handlers.update  # noqa
 from praetorian_cli.handlers.chariot import chariot
+from praetorian_cli.handlers.configure import configure
 from praetorian_cli.sdk.keychain import Keychain
 
 
@@ -25,15 +26,8 @@ def cli(ctx, profile, account):
         click.echo(ctx.get_help())
 
 
-@cli.command('configure')
-@click.pass_context
-def configure(ctx):
-    """ Configure the CLI """
-    click.echo('Enter your Praetorian credentials to store in the keychain')
-    ctx.obj.configure()
-
-
 cli.add_command(chariot)
+cli.add_command(configure)
 
 if __name__ == '__main__':
     cli()

@@ -66,14 +66,8 @@ class Keychain:
 
         return cfg
 
-    def configure(self):
-        username = click.prompt('Enter your email')
-        password = click.prompt("Enter your password", hide_input=True)
-        profile = click.prompt('Enter the profile name', default=DEFAULT_PROFILE)
-        api = click.prompt('Enter the URL of backend API', default=DEFAULT_API)
-        client_id = click.prompt('Enter the client ID', default=DEFAULT_CLIENT_ID)
-        account = click.prompt('Enter the assume-role account, if any', default='')
-
+    def configure(self, username, password, profile=DEFAULT_PROFILE, api=DEFAULT_API, client_id=DEFAULT_CLIENT_ID,
+                  account=''):
         cfg = configparser.ConfigParser()
         cfg[profile] = {
             'name': 'chariot',
@@ -84,7 +78,10 @@ class Keychain:
         }
         if account:
             cfg[profile]['account'] = account
+
         combo = self._merge_configs(cfg, self.get())
+        if not account and 'account' in combo[profile]:
+            del combo[profile]['account']
 
         Path(os.path.split(Path(self.location))[0]).mkdir(parents=True, exist_ok=True)
         with open(self.location, 'w') as f:
