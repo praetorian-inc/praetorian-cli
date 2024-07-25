@@ -20,19 +20,14 @@ def plugin(controller):
 
 @plugin.command('example')
 @cli_handler
-@click.argument('arg1', type=str)
-@click.argument('arg2', type=int)
-@click.option('--opt1', default=None, help='A string option')
-@click.option('--sow', required=True,
-              help='A mandatory option to provide the SOW number; will prompt if not supplied',
-              prompt='SOW number is required. What is the SOW number?')
-@click.option('--flag-opt', is_flag=True, help='A flag option')
-def example_command(controller, arg1, arg2, opt1, sow, flag_opt):
-    """ An example plugin command, extending the CLI
+@click.argument('arg', required=False)
+@click.option('--opt', required=False, help='A string option')
+def example_command(sdk, arg, opt):
+    """ An example static plugin command (packaged with the CLI)
 
-        ARG1 is a string argument; ARG2 is an integer argument
+        ARG is a string argument
     """
-    example.run(controller, arg1, arg2, opt1, sow, flag_opt)
+    example.run(sdk, arg, opt)
 
 
 @plugin.command('nessus-api')

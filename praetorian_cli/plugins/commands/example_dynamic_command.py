@@ -7,6 +7,8 @@ Usage:
 
 """
 
+import json
+
 import click
 
 from praetorian_cli.handlers.cli_decorators import cli_handler
@@ -14,18 +16,33 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 
 # The dynamic_command() function is the entry point for the command.
 # In this example, it has a single argument on the command line, ie, name.
-# The first argument, controller, is the instance object of
+# The first argument, sdk, is the instance object of
 # praetorian_cli.sdk.Chariot. It give you authenticated access to all
 # API functions in the Chariot class, such as my(), add(), etc.
 #
 # Furthermore, you can utilize Click decorators to define user-friendly
 # command line arguments and options.
-@click.command('dynamic-command')
+@click.command('dynamic-example')
 @cli_handler
-@click.argument('name', type=str, required=True)
-def dynamic_command(controller, name):
-    """ An example of a dynamic plugin command """
-    click.echo(f'Hello {name}')
+@click.argument('arg', required=False)
+@click.option('--opt', required=False, help='A string option')
+def dynamic_command(sdk, arg, opt):
+    """ An example dynamic plugin command (linked at run time)
+
+        ARG is a string argument
+    """
+
+    # demonstrate access to the command line arguments and options
+    click.echo(f'Hello World! This is an example of a dynamic plugin command extending the core CLI functionality\n')
+    click.echo(f'arg = {arg}')
+    click.echo(f'opt = {opt}')
+
+    # demonstrate authenticated access to the Chariot SDK
+    assets_response = sdk.my(dict(key='#asset#'))
+    click.echo('Listing of assets:\n')
+    click.echo(json.dumps(assets_response, indent=4))
+
+    click.echo('\nExiting the dynamic-example command.')
 
 
 def register(plugin_group: click.MultiCommand):
