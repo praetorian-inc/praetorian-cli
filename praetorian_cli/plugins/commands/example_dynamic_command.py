@@ -1,10 +1,9 @@
 """
 For developers:
-You can use this as a template for testing new plugin commands.
+You can use this as a template for writing new dynamic plugin commands.
 
 Usage:
-    praetorian chariot plugin dynamic-command <YOUR_NAME>
-
+    praetorian chariot plugin dynamic-example AN_ARGUMENT --opt AN_OPTION
 """
 
 import json
@@ -15,13 +14,13 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 
 
 # The dynamic_command() function is the entry point for the command.
-# In this example, it has a single argument on the command line, ie, name.
-# The first argument, sdk, is the instance object of
+# In this example, it has an argument and an option on the command line.
+# The first argument to this function, sdk, is the instance object of
 # praetorian_cli.sdk.Chariot. It give you authenticated access to all
 # API functions in the Chariot class, such as my(), add(), etc.
 #
-# Furthermore, you can utilize Click decorators to define user-friendly
-# command line arguments and options.
+# Furthermore, you can utilize all Click decorators to define
+# user-friendly command line arguments and options.
 @click.command('dynamic-example')
 @cli_handler
 @click.argument('arg', required=False)
@@ -34,6 +33,7 @@ def dynamic_command(sdk, arg, opt):
 
     # demonstrate access to the command line arguments and options
     click.echo(f'Hello World! This is an example of a dynamic plugin command extending the core CLI functionality\n')
+    click.echo('You have supplied the following argument and option:')
     click.echo(f'arg = {arg}')
     click.echo(f'opt = {opt}')
 
