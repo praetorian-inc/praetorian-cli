@@ -6,4 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
-markers = ["coherence: mark a test as a coherence test."]
+markers = [
+    "cli: These are tests testing the CLI interface",
+    "coherence: mark a test as a coherence test"
+]
