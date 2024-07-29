@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2 (2024-07-29)
+
+* [Bug fix] Fixed the `--plugin` command option for a number of `list` and `get` commands.
+* [New Feature] Added CLI-level regression testing
+
 ## 1.3.0 (2024-07-24)
 
 * [New Feature] `configure` command was added to handle the authentication setup. This removes the need for manually
@@ -70,5 +75,5 @@
 
 ## 1.0.0
 
-Initial open-source release.
+- Initial open-source release.
 
