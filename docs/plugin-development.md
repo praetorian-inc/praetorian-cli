@@ -55,7 +55,7 @@ A typical script uses the arguments in the following manners:
 - Use the authenticated session in `controller` to issue API calls for further operations.
 
 Explore scripts that comes with the CLI, such as
-[`list_assets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plguins/scripts/list_assets.py)
+[`list_assets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/list_assets.py)
 and
 [`validate_secrets.py`](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/scripts/validate_secrets.py)
 
