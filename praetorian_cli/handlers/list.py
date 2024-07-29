@@ -5,7 +5,7 @@ from contextlib import redirect_stdout
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler, list_options, page_options, plugins
+from praetorian_cli.handlers.cli_decorators import cli_handler, list_options
 from praetorian_cli.handlers.utils import key_set, paginate, display_list
 
 
@@ -33,10 +33,9 @@ def attribute_filter(controller, key, offset, details, page):
 
 
 @list.command('assets')
-@click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
 @list_options('DNS')
-@page_options
-def assets(controller, filter, offset, details, page, attribute):
+@click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
+def assets(controller, offset, filter, details, page, attribute):
     """List assets"""
     if attribute:
         attribute_filter(controller, f'#attribute#{attribute[0]}#{attribute[1]}#asset#{filter}', offset, details, page)
@@ -47,7 +46,6 @@ def assets(controller, filter, offset, details, page, attribute):
 
 @list.command('risks')
 @list_options('name')
-@page_options
 @click.option('-attr', '--attribute', nargs=2, help='Filter by attribute name and value')
 def risks(controller, filter, offset, details, page, attribute):
     """List risks"""
@@ -60,7 +58,6 @@ def risks(controller, filter, offset, details, page, attribute):
 
 @list.command('attributes')
 @list_options('name')
-@page_options
 @click.option('-a', '--asset', help='Filter by asset key')
 @click.option('-r', '--risk', help='Filter by risk key')
 def attributes(controller, filter, offset, details, page, asset, risk):
@@ -77,8 +74,6 @@ def attributes(controller, filter, offset, details, page, asset, risk):
 def create_list_command(item_type, item_filter):
     @list.command(item_type, help=f"List {item_type}")
     @list_options(item_filter)
-    @page_options
-    @plugins
     def command(controller, filter, offset, details, page):
         if item_type == 'accounts' or item_type == 'integrations':
             paginate(controller, f'{key_set[item_type]}', item_type, filter, offset, details, page)

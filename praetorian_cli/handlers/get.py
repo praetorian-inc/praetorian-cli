@@ -16,6 +16,7 @@ def get(ctx):
 
 @get.command('file')
 @cli_handler
+@plugins
 @click.argument('name')
 @click.option('-path', '--path', default="", help="Download path. Default: save to current directory")
 def download_file(controller, name, path):
@@ -29,6 +30,7 @@ def download_file(controller, name, path):
 
 @get.command('definition')
 @cli_handler
+@plugins
 @click.argument('name')
 @click.option('-path', '--path', default="", help="Download path. Default: save to current directory")
 def download_definition(controller, name, path):
@@ -39,6 +41,7 @@ def download_definition(controller, name, path):
 
 @get.command('report')
 @cli_handler
+@plugins
 @click.option('-name', '--name', help="Enter a risk name", required=True)
 def report(controller, name):
     """ Generate definition for an existing risk """
@@ -49,6 +52,7 @@ def report(controller, name):
 
 @get.command('risk')
 @cli_handler
+@plugins
 @click.argument('key', required=True)
 @click.option('-details', '--details', is_flag=True, help='Get additional details')
 def risk(controller, key, details):

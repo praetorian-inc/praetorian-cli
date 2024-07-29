@@ -31,6 +31,8 @@ def list_options(filter_name):
         func = click.option('-f', '--filter', default="", help=f"Filter by {filter_name}")(func)
         func = click.option('-d', '--details', is_flag=True, default=False, help="Show detailed information")(
             func)
+        func = page_options(func)
+        func = plugins(func)
         return func
 
     return decorator
