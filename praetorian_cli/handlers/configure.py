@@ -6,7 +6,7 @@ from praetorian_cli.sdk.keychain import DEFAULT_API, DEFAULT_CLIENT_ID, DEFAULT_
 @click.command('configure')
 @click.option('--email', required=True, help='Email you used to register for Chariot',
               prompt='Enter your email')
-@click.option('--password', required=True, help='Your password',
+@click.option('--password', required=True, help='Password you used to register for Chariot', hide_input=True,
               prompt='Enter your password')
 @click.option('--profile-name', required=True, help='Profile name. Default provided.', default=DEFAULT_PROFILE,
               prompt='Enter the profile name')
