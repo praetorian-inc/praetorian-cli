@@ -2,6 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.utils import Asset
 
 
 @chariot.group()
@@ -20,7 +21,7 @@ def delete_asset(controller, key):
 
     KEY is the key of an existing asset
     """
-    controller.update('asset', dict(key=key, status='D'))
+    controller.update('asset', dict(key=key, status=Asset.DELETED))
 
 
 def delete_command(item):
