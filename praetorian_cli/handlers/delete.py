@@ -21,7 +21,7 @@ def delete_asset(controller, key):
 
     KEY is the key of an existing asset
     """
-    controller.update('asset', dict(key=key, status=Asset.DELETED))
+    controller.update('asset', dict(key=key, status=Asset.DELETED.value))
 
 
 def delete_command(item):
