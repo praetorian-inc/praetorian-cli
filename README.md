@@ -150,8 +150,6 @@ You can find the list of plugin commands that comes with the CLI in
 Both CLI and SDK is open-source in this repository. The SDK is installed along with the `praetorian-cli`
 package. You can extend Chariot by creating scripts and plugins using the SDK. 
 
-If you have ideas on new plugin commands and scripts, contribute them!
-
 ## SDK
 
 Integrate the SDK into your own Python application with the following steps:
@@ -181,7 +179,7 @@ If you want to take advantage of the scaffolding of the CLI, you can write fully
 the plugin engine. For developing plugins, you can refer to
 this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
 
-
+If you have ideas on new plugin commands and scripts, contribute them!
 
 ## Contributing
 
