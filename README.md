@@ -18,10 +18,10 @@
 - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
-    - [Signing up](#signing-up)
+    - [Signing up](#signing-up-and-configuration)
 - [Using the CLI](#using-the-cli)
-- [Developer SDK](#developer-sdk)
-- [Extending the CLI with script plugins](#extending-the-cli-with-script-plugins)
+- [Using plugins](#using-plugins)
+- [Developers](#developers)
 - [Contributing](#contributing)
 - [Support](#support)
 - [License](#license)
@@ -65,11 +65,11 @@ username = lara.lynch@acme.com
 password = 8epu9bQ2kqb8qwd.GR
 ```
 
-For more advanced configuration options, as well as SSO. See [the documentation on
-the keychain file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
+For more advanced configuration options, as well as SSO. See
+[the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
 
-## Using the CLI
+# Using the CLI
 
 The CLI is a command and option utility for access to the full suite of Chariot API. See documentation for commands
 using the `help` option:
@@ -98,7 +98,7 @@ praetorian chariot get asset <ASSET_KEY> --plugin list_assets
 
 For more examples, visit [our documentation](https://docs.praetorian.com).
 
-## Using plugins
+# Using plugins
 
 The CLI has a plugin engine for implementing more complex workflows.
 
@@ -106,19 +106,19 @@ There are two types of plugins:
 
 - **Scripts**: Invoked using the `--plugin` option, they perform additional processing on the data returned by the
   CLI command.
-- **Commands**: Invoked using the `plugin <plugin_name>` command, they are standalone commands that extend the CLI with
-  a relatively
-  complex workflow.
+- **Commands**: Invoked using the `plugin <plugin_name>` command, they are standalone commands that extend
+  The CLI with a relatively complex workflow.
 
-### Examples of plugin scripts
+## Invoking plugin scripts
 
-For example, this command uses `my-process-domain.py` to further process the data from `praetorian chariot get asset`:
+As a hypothetical example, this command uses `my-process-domain.py` to further process the data from
+`praetorian chariot get asset`:
 
 ```zsh
 praetorian chariot get asset <ASSET_KEY> --plugin ~/code/my-process-domain.py
 ```
 
-The CLI also comes with some built-in scripts in
+The CLI comes with some built-in scripts in
 [this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/scripts). They
 are invoked by name:
 
@@ -126,7 +126,7 @@ are invoked by name:
 praetorian chariot get asset <ASSET_KEY> --plugin list_assets
 ```
 
-### Examples of plugin commands
+## Invoking plugin commands
 
 Plugin commands add end-to-end functions as commands grouped under `plugin`. To see a list
 of them:
@@ -135,25 +135,26 @@ of them:
 praetorian chariot plugin --help
 ```
 
-Different Praetorian teams extend the CLI using plugin commands. For example this command is used by our team
-in the creation of client reports using internal templates:
+For example this command is used to ingest scan results from Nessus XML export files:
 
 ```zsh
-praetorian chariot plugin report
+praetorian chariot plugin nessus-xml
 ```
 
 You can find the list of plugin commands that comes with the CLI in
 [this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/commands)
 
+
+# Developers
+
+Both CLI and SDK is open-source in this repository. The SDK is installed along with the `praetorian-cli`
+package. You can extend Chariot by creating scripts and plugins using the SDK. 
+
 If you have ideas on new plugin commands and scripts, contribute them!
 
-For developing plugins, you can refer to
-this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
+## SDK
 
-## Developer SDK
-
-The Praetorian SDK is installed along with the `praetorian-cli` package. Integrate the SDK into your
-own Python application with the following steps:
+Integrate the SDK into your own Python application with the following steps:
 
 1. Include the dependency ``praetorian-cli`` in your project.
 2. Import the Chariot class ``from praetorian_cli.sdk.chariot import Chariot``.
@@ -168,8 +169,19 @@ chariot = Chariot(Keychain())
 chariot.add('asset', dict(name='example.com', dns='example.com', seed=True))
 ```
 
-The best place to explore the SDK is
+The best place to explore the SDK is the code of the CLI, especially
 [the handlers of the CLI](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/handlers)
+
+You can inspect the handler code to see how each CLI command is implemented with the SDK.
+
+
+## Developing plugins
+
+If you want to take advantage of the scaffolding of the CLI, you can write fully fledged function using
+the plugin engine. For developing plugins, you can refer to
+this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
+
+
 
 ## Contributing
 
@@ -182,8 +194,8 @@ By contributing, you agree to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Support
 
-If you have any questions or need support, please open an
-issue [here](https://github.com/praetorian-inc/chariot-ui/issues) or reach out via
+If you have any questions or need support, please open an issue
+[here](https://github.com/praetorian-inc/chariot-ui/issues) or reach out via
 [support@praetorian.com](mailto:support@praetorian.com).
 
 ## License
