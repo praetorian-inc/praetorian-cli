@@ -9,7 +9,8 @@ import click
 
 DEFAULT_API = 'https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot'
 DEFAULT_CLIENT_ID = '795dnnr45so7m17cppta0b295o'
-DEFAULT_PROFILE = "United States"
+DEFAULT_PROFILE = 'United States'
+DEFAULT_USER_POOL_ID = 'us-east-2_BJ6QHVG2L'
 
 
 def verify_credentials(func):
@@ -67,12 +68,13 @@ class Keychain:
         return cfg
 
     def configure(self, username, password, profile=DEFAULT_PROFILE, api=DEFAULT_API, client_id=DEFAULT_CLIENT_ID,
-                  account=''):
+                  user_pool_id=DEFAULT_USER_POOL_ID, account=''):
         cfg = configparser.ConfigParser()
         cfg[profile] = {
             'name': 'chariot',
             'client_id': client_id,
             'api': api,
+            'user_pool_id': user_pool_id,
             'username': username,
             'password': password
         }
