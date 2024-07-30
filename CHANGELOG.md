@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.3 (2024-08-01)
+
+* [Bug fix] Fixed asset delete command.
+* [New feature] Options to mark a risk as closed by automation using new `Machine...` states
+
 ## 1.3.2 (2024-07-29)
 
 * [Bug fix] Fixed the `--plugin` command option for a number of `list` and `get` commands.
