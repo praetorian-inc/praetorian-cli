@@ -13,7 +13,7 @@ praetorian chariot plugin --help
 ```
 
 Here is a concrete example that runs an nmap scan on a host and add the open ports
-to Chariot using the `add` function of the SDK.
+to Chariot using the SDK.
 
 The main logic is in `nmap_command`. This function uses Click decorators to register itself
 to the CLI and define command line arguments.
