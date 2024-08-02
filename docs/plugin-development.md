@@ -59,8 +59,7 @@ def register(plugin_group: click.MultiCommand):
 ## Go further
 
 - The full example script is available here: nmap-example.py
-- Click has an extremely well-designed and comprehensive treatment for command line arguments
-  and options. You can use all its functionality. See
+- Click has extensive support for command line arguments. You can use all of its functionality. See
   [Click's documentation](https://click.palletsprojects.com/en/8.1.x/parameters/) for full details.
 
 
