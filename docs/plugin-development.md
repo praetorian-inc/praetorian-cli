@@ -12,13 +12,13 @@ scripts will be added to the `plugin` group, which you can list by
 praetorian chariot plugin --help
 ```
 
-Here is a concrete example that runs an nmap scan on a host and add the open ports
+The code snippet below is a concrete example that runs an nmap scan on a host and add the open ports
 to Chariot using the SDK.
 
 The main logic is in `nmap_command`. This function uses Click decorators to register itself
 to the CLI and define command line arguments.
 
-Equally important is the `register` function. It has to take one argument `plugin_group` and 
+Equally important is the `register` function. It must take one argument `plugin_group` and 
 use the `add_command` function to register the `nmap_command` function with the CLI.
 
 
@@ -58,7 +58,8 @@ def register(plugin_group: click.MultiCommand):
 
 ## Go further
 
-- The full example script is available here: nmap-example.py
+- The full example script with comments and notes is available here:
+  [nmap-example.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/commands/nmap-example.py)
 - Click has extensive support for command line arguments. You can use all of its functionality. See
   [Click's documentation](https://click.palletsprojects.com/en/8.1.x/parameters/) for full details.
 
