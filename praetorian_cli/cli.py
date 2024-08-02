@@ -10,6 +10,7 @@ import praetorian_cli.handlers.search  # noqa
 import praetorian_cli.handlers.test  # noqa
 import praetorian_cli.handlers.unlink  # noqa
 import praetorian_cli.handlers.update  # noqa
+import praetorian_cli.handlers.version  # noqa
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.configure import configure
 from praetorian_cli.sdk.keychain import Keychain

@@ -134,6 +134,12 @@ class Chariot:
     def purge(self):
         requests.delete(f"{self.keychain.api}/account/purge", headers=self.keychain.headers)
 
+    @verify_credentials
+    def version(self):
+        resp = requests.get(f"{self.keychain.api}/version", headers=self.keychain.headers)
+        process_failure(resp)
+        return resp.json()
+
     def get_risk_details(self, key: str):
         resp = self.my(dict(key=key))['risks'][0]
         poe = f"{resp['dns']}/{resp['name']}"
