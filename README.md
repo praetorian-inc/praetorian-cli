@@ -128,7 +128,7 @@ from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
 
 chariot = Chariot(Keychain())
-chariot.add('asset', dict(name='example.com', dns='example.com', seed=True))
+chariot.add('asset', dict(name='example.com', dns='example.com'))
 ```
 
 The best place to explore the SDK is the code of the CLI, especially
