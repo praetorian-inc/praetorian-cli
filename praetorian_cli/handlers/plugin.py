@@ -60,7 +60,6 @@ def load_directory(path):
                 except Exception as err:
                     # This catches any compilation or execution errors of the py files that happen
                     # to be in the directory.
-                    raise err
                     pass
                 else:
                     if (hasattr(plugin_module, 'register') and callable(plugin_module.register)
