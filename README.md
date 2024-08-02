@@ -18,10 +18,10 @@
 - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
-    - [Signing up](#signing-up)
+    - [Signing up](#signing-up-and-configuration)
 - [Using the CLI](#using-the-cli)
-- [Developer SDK](#developer-sdk)
-- [Extending the CLI with script plugins](#extending-the-cli-with-script-plugins)
+- [Using plugins](#using-plugins)
+- [Developers](#developers)
 - [Contributing](#contributing)
 - [Support](#support)
 - [License](#license)
@@ -49,13 +49,12 @@ Install the Python package using this command:
 pip install praetorian-cli
 ```
 
-## Signing up
+## Signing up and configuration
 
 1. Register for an account for [Chariot](http://preview.chariot.praetorian.com) using the instructions
    in [our documentation](https://docs.praetorian.com/hc/en-us/articles/25784233986587-Account-Setup-and-Initial-Seeding).
-2. Download the keychain file using [this link](https://preview.chariot.praetorian.com/keychain.ini).
-3. Place the keychain file at ``~/.praetorian/keychain.ini``.
-4. Add your username and password to the keychain file. Your file should read like this:
+2. Run `praetorian configure` and follow the prompts.
+3. It creates `~/.praetorian/keychain.ini`, which should read like this:
 
 ```
 [United States]
@@ -66,33 +65,11 @@ username = lara.lynch@acme.com
 password = 8epu9bQ2kqb8qwd.GR
 ```
 
-### Authentication in organizations that use SSO
+For more advanced configuration options, as well as SSO. See
+[the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
-SSO-enabled accounts can use CLI by inviting password-based accounts as collaborators.
-These collaborator accounts can assume into the main account using the `--account` option
-in the CLI, or including that information in the keychain file. For example, you can assume
-into the `security.team@acme.com` main account using the **account** entry:
-```
-[United States]
-name = chariot
-client_id = 795dnnr45so7m17cppta0b295o
-api = https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot
-username = lara.lynch@acme.com
-password = 8epu9bQ2kqb8qwd.GR
-account = security.team@acme.com
-```
 
-There are two common approaches to manage CLI access in SSO organizations:
-
-1. Sign up a service account for CLI access, e.g. security.team+cli@acme.com. In the master
-   account, invite security-team+cli@acme.com as a collaborator. All CLI users share the
-   keychain for the service account.
-3. Add each CLI user as a collaborator in the master account. Every CLI user signs up using
-   password-based authentication.
-
-We recommend the first approach.
-
-## Using the CLI
+# Using the CLI
 
 The CLI is a command and option utility for access to the full suite of Chariot API. See documentation for commands
 using the `help` option:
@@ -113,70 +90,33 @@ To get detailed information about a specific asset, run:
 praetorian chariot get asset <ASSET_KEY>
 ```
 
-To try one of our plugin scripts, run:
+# Using plugins
 
-```zsh
-praetorian chariot get asset <ASSET_KEY> --plugin list_assets
-````
-
-For more examples, visit [our documentation](https://docs.praetorian.com).
-
-## Using plugins
-
-The CLI has a plugin engine for implementing more complex workflows.
-
-There are two types of plugins:
-
-- **Scripts**: Invoked using the `--plugin` option, they perform additional processing on the data returned by the
-  CLI command.
-- **Commands**: Invoked using the `plugin <plugin_name>` command, they are standalone commands that extend the CLI with
-  a relatively
-  complex workflow.
-
-### Examples of plugin scripts
-
-For example, this command uses `my-process-domain.py` to further process the data from `praetorian chariot get asset`:
-
-```zsh
-praetorian chariot get asset <ASSET_KEY> --plugin ~/code/my-process-domain.py
-```
-
-The CLI also comes with some built-in scripts in
-[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/scripts). They
-are invoked by name:
-
-```zsh
-praetorian chariot get asset <ASSET_KEY> --plugin list_assets
-```
-
-### Examples of plugin commands
-
-Plugin commands add end-to-end functions as commands grouped under `plugin`. To see a list
-of them:
+The CLI has a plugin engine for implementing more complex workflows. They add end-to-end functions as commands
+grouped under `plugin`. To see a list of them:
 
 ```zsh
 praetorian chariot plugin --help
 ```
 
-Different Praetorian teams extend the CLI using plugin commands. For example this command is used by our team
-in the creation of client reports using internal templates:
+For example the following command is used to ingest scan results from Nessus XML export files:
 
 ```zsh
-praetorian chariot plugin report
+praetorian chariot plugin nessus-xml
 ```
 
 You can find the list of plugin commands that comes with the CLI in
 [this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/commands)
 
-If you have ideas on new plugin commands and scripts, contribute them!
 
-For developing plugins, you can refer to
-this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
+# Developers
 
-## Developer SDK
+Both CLI and SDK is open-source in this repository. The SDK is installed along with the `praetorian-cli`
+package. You can extend Chariot by creating scripts and plugins using the SDK. 
 
-The Praetorian SDK is installed along with the `praetorian-cli` package. Integrate the SDK into your
-own Python application with the following steps:
+## SDK
+
+Integrate the SDK into your own Python application with the following steps:
 
 1. Include the dependency ``praetorian-cli`` in your project.
 2. Import the Chariot class ``from praetorian_cli.sdk.chariot import Chariot``.
@@ -188,11 +128,21 @@ from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
 
 chariot = Chariot(Keychain())
-chariot.add('asset', dict(name='example.com', dns='example.com', seed=True))
+chariot.add('asset', dict(name='example.com', dns='example.com'))
 ```
 
-The best place to explore the SDK is
+The best place to explore the SDK is the code of the CLI, especially
 [the handlers of the CLI](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/handlers)
+
+You can inspect the handler code to see how each CLI command is implemented with the SDK.
+
+
+## Developing plugins
+
+If you want to take advantage of the scaffolding of the CLI, you can write fully fledged functions using
+the plugin engine. For developing plugins, you can refer to
+this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
+
 
 ## Contributing
 
@@ -205,8 +155,8 @@ By contributing, you agree to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Support
 
-If you have any questions or need support, please open an
-issue [here](https://github.com/praetorian-inc/chariot-ui/issues) or reach out via
+If you have any questions or need support, please open an issue
+[here](https://github.com/praetorian-inc/chariot-ui/issues) or reach out via
 [support@praetorian.com](mailto:support@praetorian.com).
 
 ## License

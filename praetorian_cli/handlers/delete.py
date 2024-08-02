@@ -2,6 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.utils import Asset
 
 
 @chariot.group()
@@ -9,6 +10,18 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 def delete(ctx):
     """Delete a resource from Chariot"""
     pass
+
+
+@delete.command('asset')
+@click.argument('key', required=True)
+@cli_handler
+def delete_asset(controller, key):
+    """
+    Delete asset
+
+    KEY is the key of an existing asset
+    """
+    controller.update('asset', dict(key=key, status=Asset.DELETED.value))
 
 
 def delete_command(item):
@@ -20,7 +33,7 @@ def delete_command(item):
         print(f"Key: {key} \nDeleted successfully")
 
 
-for item in ['asset', 'attribute', 'file']:
+for item in ['attribute', 'file']:
     delete_command(item)
 
 

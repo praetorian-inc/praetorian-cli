@@ -9,6 +9,7 @@ class Asset(Enum):
     ACTIVE_HIGH = "AH"
     ACTIVE_LOW = "AL"
     FROZEN = "F"
+    DELETED = "D"
 
 
 class Risk(Enum):
@@ -37,6 +38,12 @@ class Risk(Enum):
     CLOSED_MEDIUM_REJECTED = "CMR"
     CLOSED_HIGH_REJECTED = "CHR"
     CLOSED_CRITICAL_REJECTED = "CCR"
+    CLOSED_MACHINE = "M"
+    CLOSED_MACHINE_INFO = "MI"
+    CLOSED_MACHINE_LOW = "ML"
+    CLOSED_MACHINE_MEDIUM = "MM"
+    CLOSED_MACHINE_HIGH = "MH"
+    CLOSED_MACHINE_CRITICAL = "MC"
 
 
 class AddRisk(Enum):

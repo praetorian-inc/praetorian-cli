@@ -1,4 +1,5 @@
 import time
+from subprocess import run
 
 import requests
 
@@ -16,6 +17,21 @@ def assert_files_equal(file1_path, file2_path):
 def add_asset_via_webhook(webhook, asset_payload):
     webhook_post = requests.post(url=webhook, json=asset_payload)
     assert webhook_post.status_code == 200, "Webhook POST request failed"
+
+
+def verify_cli(command, expected_stdout=[], expected_stderr=[]):
+    result = run(f'praetorian chariot {command}', capture_output=True, text=True, shell=True)
+    if expected_stdout:
+        for out in expected_stdout:
+            assert out in result.stdout, f'CLI "{command}" does not contain {out} in stdout'
+    else:
+        assert len(result.stdout) == 0, f'CLI "{command}" should not have content in stdout'
+
+    if expected_stderr:
+        for err in expected_stderr:
+            assert err in result.stderr, f'CLI "{command}" of CLI does not contain {out} in stderr'
+    else:
+        assert len(result.stderr) == 0, f'CLI "{command}" should not have content in stderr'
 
 
 class Utils:

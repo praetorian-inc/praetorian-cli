@@ -2,10 +2,15 @@ import configparser
 import os
 import time
 from functools import wraps
-from os.path import exists
 from pathlib import Path
 
 import boto3
+import click
+
+DEFAULT_API = 'https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot'
+DEFAULT_CLIENT_ID = '795dnnr45so7m17cppta0b295o'
+DEFAULT_PROFILE = 'United States'
+DEFAULT_USER_POOL_ID = 'us-east-2_BJ6QHVG2L'
 
 
 def verify_credentials(func):
@@ -14,16 +19,7 @@ def verify_credentials(func):
         try:
             keychain = args[0].keychain
             keychain.set_config()
-
-            if not (keychain.username and keychain.password):
-                new_credentials = keychain.write_credentials()
-                keychain.username = new_credentials['username']
-                keychain.password = new_credentials['password']
-
-            keychain.set_headers()
-            if keychain.account:
-                keychain.headers['account'] = keychain.account
-
+            keychain.set_headers(keychain.account)
             return func(*args, **kwargs)
 
         except KeyError as e:
@@ -37,7 +33,7 @@ def verify_credentials(func):
 
 class Keychain:
 
-    def __init__(self, profile='United States', account=None, data=None,
+    def __init__(self, profile=DEFAULT_PROFILE, account=None, data=None,
                  location=os.path.join(Path.home(), '.praetorian', 'keychain.ini')):
         self.profile = profile
         self.account = account
@@ -45,16 +41,21 @@ class Keychain:
         self.data = data
         self.token_cache = None
         self.token_expiry = 0
-        self.set_config()
 
     def set_config(self):
         cfg = self.get()
-        self.username = cfg[self.profile]['username']
-        self.password = cfg[self.profile]['password']
-        self.api = cfg[self.profile]['api']
-        self.client_id = cfg[self.profile]['client_id']
-        if self.account is None:
-            self.account = cfg.get(self.profile, 'account', fallback=None)
+        if not cfg.sections():
+            exit('Keychain file is empty. Run "praetorian configure" to configure your profile and credentials.')
+        try:
+            self.username = cfg[self.profile]['username']
+            self.password = cfg[self.profile]['password']
+            self.api = cfg[self.profile]['api']
+            self.client_id = cfg[self.profile]['client_id']
+            if self.account is None:
+                self.account = cfg.get(self.profile, 'account', fallback=None)
+        except Exception as e:
+            exit(
+                f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
 
     def get(self):
         cfg = configparser.ConfigParser()
@@ -64,39 +65,37 @@ class Keychain:
         else:
             cfg.read(self.location)
 
-        if not cfg.sections():
-            exit(
-                '[!] Follow instructions at at https://docs.praetorian.com/hc/en-us/articles/25815154096667-The'
-                '-Praetorian-CLI to obtain a keychain.')
         return cfg
 
-    def write_credentials(self):
-        username = input("Enter username: ")
-        password = input("Enter password: ")
-
-        if not exists(self.location):
-            head, _ = os.path.split(Path(self.location))
-            Path(head).mkdir(parents=True, exist_ok=True)
-            open(self.location, 'x').close()
-
+    def configure(self, username, password, profile=DEFAULT_PROFILE, api=DEFAULT_API, client_id=DEFAULT_CLIENT_ID,
+                  user_pool_id=DEFAULT_USER_POOL_ID, account=''):
         cfg = configparser.ConfigParser()
-        cfg[self.profile] = {
+        cfg[profile] = {
+            'name': 'chariot',
+            'client_id': client_id,
+            'api': api,
+            'user_pool_id': user_pool_id,
             'username': username,
             'password': password
         }
+        if account:
+            cfg[profile]['account'] = account
+
         combo = self._merge_configs(cfg, self.get())
+
+        Path(os.path.split(Path(self.location))[0]).mkdir(parents=True, exist_ok=True)
         with open(self.location, 'w') as f:
             combo.write(f)
-        return {
-            'username': username,
-            'password': password
-        }
 
-    def set_headers(self):
+        click.echo(f'\nKeychain data written to {self.location}')
+
+    def set_headers(self, account=None):
         self.headers = {
             'Authorization': f'Bearer {self.token()}',
             'Content-Type': 'application/json'
         }
+        if account:
+            self.headers['account'] = account
 
     def token(self):
         if not self.token_cache or time.time() >= self.token_expiry:
@@ -112,8 +111,5 @@ class Keychain:
     @staticmethod
     def _merge_configs(cfg_from, cfg_to):
         for section in cfg_from.sections():
-            if section not in cfg_to:
-                cfg_to[section] = {}
-            for key, value in cfg_from[section].items():
-                cfg_to[section][key] = value
+            cfg_to[section] = cfg_from[section]
         return cfg_to

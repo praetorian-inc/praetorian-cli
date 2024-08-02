@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.3.3 (2024-08-01)
+
+* [Bug fix] Fixed asset delete command.
+* [New feature] Options to mark a risk as closed by automation using new `Machine...` states
+
+## 1.3.2 (2024-07-29)
+
+* [Bug fix] Fixed the `--plugin` command option for a number of `list` and `get` commands.
+* [New Feature] Added CLI-level regression testing
+
+## 1.3.0 (2024-07-24)
+
+* [New Feature] `configure` command was added to handle the authentication setup. This removes the need for manually
+  download and editing the `keychain.ini` file.
+* [New Feature] The `delete asset` command was update to soft-delete the asset.
+* [New Feature] Risks added by the Nessus plugin commands now have source set to 'nessus'.
+
+## 1.2.3 (2024-07-22)
+
+* [Bug fix] Fixed a dependency issue on Windows system. This is done by removing the `report` plugin command.
+
 ## 1.2.2 (2024-07-19)
 
 * [Breaking Change] Removed support for linking integrations using CLI
@@ -59,5 +80,5 @@
 
 ## 1.0.0
 
-Initial open-source release.
+- Initial open-source release.
 

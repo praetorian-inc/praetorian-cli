@@ -5,12 +5,13 @@ import praetorian_cli.handlers.delete  # noqa
 import praetorian_cli.handlers.get  # noqa
 import praetorian_cli.handlers.link  # noqa
 import praetorian_cli.handlers.list  # noqa
+import praetorian_cli.handlers.plugin  # noqa
 import praetorian_cli.handlers.search  # noqa
 import praetorian_cli.handlers.test  # noqa
 import praetorian_cli.handlers.unlink  # noqa
 import praetorian_cli.handlers.update  # noqa
-import praetorian_cli.handlers.plugin  # noqa
 from praetorian_cli.handlers.chariot import chariot
+from praetorian_cli.handlers.configure import configure
 from praetorian_cli.sdk.keychain import Keychain
 
 
@@ -26,6 +27,7 @@ def cli(ctx, profile, account):
 
 
 cli.add_command(chariot)
+cli.add_command(configure)
 
 if __name__ == '__main__':
     cli()

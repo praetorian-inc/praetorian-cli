@@ -9,7 +9,7 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 
 @chariot.command('test')
 @cli_handler
-@click.option('-suite', '--suite', type=click.Choice(["coherence"]), help="Run a specific test suite")
+@click.option('-s', '--suite', type=click.Choice(['coherence', 'cli']), help='Run a specific test suite')
 @click.argument('key', required=False)
 def trigger_all_tests(controller, key, suite):
     """ Run integration test suite """
