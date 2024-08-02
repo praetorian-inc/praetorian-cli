@@ -4,7 +4,7 @@ import json
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler, plugins
+from praetorian_cli.handlers.cli_decorators import cli_handler
 
 
 @chariot.group()
@@ -49,7 +49,6 @@ def report(controller, name):
 
 @get.command('risk')
 @cli_handler
-@plugins
 @click.argument('key', required=True)
 @click.option('-details', '--details', is_flag=True, help='Get additional details')
 def risk(controller, key, details):
@@ -68,7 +67,6 @@ def create_get_command(item):
     @get.command(item[:-1], help=f"Get {item[:-1]} details")
     @click.argument('key', required=True)
     @cli_handler
-    @plugins
     def command(controller, key):
         resp = controller.my(dict(key=key))
         for key, value in resp.items():

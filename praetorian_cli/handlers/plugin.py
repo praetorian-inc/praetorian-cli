@@ -1,14 +1,15 @@
 import os
+import sys
 from inspect import signature
 from os import environ, listdir
 from os.path import join
+from types import ModuleType
 
 import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.cli_decorators import load_raw_script
-from praetorian_cli.plugins.commands import example, nessus_api, nessus_xml
+from praetorian_cli.plugins.commands import nessus_api, nessus_xml
 
 
 @chariot.group()
@@ -16,18 +17,6 @@ from praetorian_cli.plugins.commands import example, nessus_api, nessus_xml
 def plugin(controller):
     """ Run a plugin command """
     pass
-
-
-@plugin.command('example')
-@cli_handler
-@click.argument('arg', required=False)
-@click.option('--opt', required=False, help='A string option')
-def example_command(sdk, arg, opt):
-    """ An example static plugin command (packaged with the CLI)
-
-        ARG is a string argument
-    """
-    example.run(sdk, arg, opt)
 
 
 @plugin.command('nessus-api')
@@ -63,18 +52,32 @@ def load_dynamic_commands():
 def load_directory(path):
     """ Scan all the Python files in the directory for plugin commands.
         Files with a register() function will get called to add a command. """
-    for file in listdir(path):
-        if file.endswith('.py'):
-            try:
-                plugin_module = load_raw_script(join(path, file))
-            except Exception as err:
-                # This catches any compilation or execution errors of the py files that happen
-                # to be in the directory.
-                pass
-            else:
-                if (hasattr(plugin_module, 'register') and callable(plugin_module.register)
-                        and len(signature(plugin_module.__dict__['register']).parameters) == 1):
-                    plugin_module.register(plugin)
+    try:
+        for file in listdir(path):
+            if file.endswith('.py'):
+                try:
+                    plugin_module = load_raw_script(join(path, file))
+                except Exception as err:
+                    # This catches any compilation or execution errors of the py files that happen
+                    # to be in the directory.
+                    raise err
+                    pass
+                else:
+                    if (hasattr(plugin_module, 'register') and callable(plugin_module.register)
+                            and len(signature(plugin_module.__dict__['register']).parameters) == 1):
+                        plugin_module.register(plugin)
+    except FileNotFoundError as err:
+        click.echo(f'Directory {path} does not exist.', err=True)
+        exit(1)
+
+
+def load_raw_script(path):
+    module = ModuleType('cli-plugin-script')
+    module.__file__ = path
+    with open(path, 'r') as code_file:
+        exec(compile(code_file.read(), path, 'exec'), module.__dict__)
+    sys.modules['cli-plugin-script"'] = module
+    return module
 
 
 load_dynamic_commands()

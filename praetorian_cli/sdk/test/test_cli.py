@@ -37,9 +37,6 @@ class TestCli(BaseTest):
         verify_cli(f'list assets --details --filter "{self.asset_dns}"', [self.asset_key, '"key"'])
         verify_cli(f'list assets --filter "{int(time() * 1000000)}"')
 
-        verify_cli('list assets --plugin example', ['cli_kwargs'])
-        verify_cli('list assets --details --plugin example', ['cli_kwargs', '"key"'])
-
 
 def octet():
     return randint(1, 255)
