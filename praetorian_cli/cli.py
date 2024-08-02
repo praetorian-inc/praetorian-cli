@@ -20,10 +20,12 @@ from praetorian_cli.sdk.keychain import Keychain
 @click.pass_context
 @click.option('--profile', default='United States', help='The keychain profile to use', show_default=True)
 @click.option('--account', default=None, help='Run command as an account you belong to')
-def cli(ctx, profile, account):
+@click.option('--debug', is_flag=True, show_default=True, default=False, help='Run the CLI in debug mode')
+def cli(ctx, profile, account, debug):
     ctx.obj = Keychain(profile=profile, account=account)
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
+    praetorian_cli.handlers.plugin.load_dynamic_commands(debug)
 
 
 cli.add_command(chariot)

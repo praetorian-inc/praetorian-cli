@@ -41,15 +41,15 @@ def nessus_xml_command(controller, file):
     nessus_xml.report_vulns(controller, file)
 
 
-def load_dynamic_commands():
+def load_dynamic_commands(debug=False):
     """ If the PRAETORIAN_SCRIPTS_PATH env variable is defined,
         load all the plugin commands defined there in those paths. """
     if 'PRAETORIAN_SCRIPTS_PATH' in environ:
         for directory in environ['PRAETORIAN_SCRIPTS_PATH'].split(os.pathsep):
-            load_directory(directory)
+            load_directory(directory, debug)
 
 
-def load_directory(path):
+def load_directory(path, debug=False):
     """ Scan all the Python files in the directory for plugin commands.
         Files with a register() function will get called to add a command. """
     try:
@@ -58,8 +58,11 @@ def load_directory(path):
                 try:
                     plugin_module = load_raw_script(join(path, file))
                 except Exception as err:
-                    # This catches any compilation or execution errors of the py files that happen
-                    # to be in the directory.
+                    # This catches any compilation or execution error of the Python files that happen
+                    # to be in the directory. And skip them unless --debug is set.
+                    if debug:
+                        click.echo(f'Error loading {file} in {path}:')
+                        raise err
                     pass
                 else:
                     if (hasattr(plugin_module, 'register') and callable(plugin_module.register)
@@ -75,8 +78,5 @@ def load_raw_script(path):
     module.__file__ = path
     with open(path, 'r') as code_file:
         exec(compile(code_file.read(), path, 'exec'), module.__dict__)
-    sys.modules['cli-plugin-script"'] = module
+    sys.modules['cli-plugin-script'] = module
     return module
-
-
-load_dynamic_commands()
