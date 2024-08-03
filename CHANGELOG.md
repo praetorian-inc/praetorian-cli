@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.2 (2024-08-02)
+## 1.3.4 (2024-08-02)
 
 * [New Feature] Added debug mode for plugin development
 * [New Feature] Added out-of-scope and false-positive as reasons for closing a risk
