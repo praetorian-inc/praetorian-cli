@@ -116,7 +116,7 @@ environment to point to directories where you store additional extension scripts
 # Developers
 
 Both CLI and SDK is open-source in this repository. The SDK is installed along with the `praetorian-cli`
-package. You can extend Chariot by creating scripts and plugins using the SDK.
+package. You can extend Chariot by creating scripts using the SDK.
 
 ## SDK
 

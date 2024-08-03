@@ -26,7 +26,7 @@ use the `add_command` function to register the `nmap_command` function with the 
 @click.argument('host', required=True)
 @cli_handler
 def nmap_command(sdk, host):
-    """ An nmap plugin for scanning a host.
+    """ An nmap script for scanning a host.
 
         HOST is the host you want to scan. It can be a hostname or an IP address.
     """
@@ -49,8 +49,8 @@ def nmap_command(sdk, host):
         print("No live host found.")
 
 
-def register(plugin_group: click.MultiCommand):
-    plugin_group.add_command(nmap_command)
+def register(script_group: click.MultiCommand):
+    script_group.add_command(nmap_command)
 ```
 
 ## Debugging
