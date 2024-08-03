@@ -1,6 +1,13 @@
 # Changelog
 
-## 1.3.3 (2024-08-01)
+## 1.3.2 (2024-08-02)
+
+* [New Feature] Added debug mode for plugin development
+* [New Feature] Added out-of-scope and false-positive as reasons for closing a risk
+* [New Feature] Added support for setting user_pool_id in the `configure` command
+* [Breaking Change] Removed the support for plugin scripts
+
+## 1.3.3 (2024-07-30)
 
 * [Bug fix] Fixed asset delete command.
 * [New feature] Options to mark a risk as closed by automation using new `Machine...` states
