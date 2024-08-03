@@ -17,7 +17,7 @@ How to use:
 import re
 import subprocess
 
-# You have to have the following two import statements at the minimum.
+# You have to have the following two import statements at a minimum.
 import click
 
 from praetorian_cli.handlers.cli_decorators import cli_handler
@@ -28,16 +28,16 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 # In this example, the command takes one argument from the user, the hostname,
 # and runs nmap against it to check for open ports in 22, 80, and 443.
 #
-# The plugin engine passes the arguments and options from your users to this function.
+# The built-in praetorian-cli plugin engine passes the arguments and options from your users to this function.
 # The engine handles the plumbing of Click for you.
 #
 # Several things you need to follow for this to work:
 #   1. Use @click.command() to register the command name you want.
 #   2. You need to add the @cli_handler decorator.
 #   3. You can use any @click functions for managing the command line arguments and options.
-#   4. The first argument has to be`sdk`. This is the reference to the SDK with an
+#   4. The first argument has to be `sdk`. This is the reference to the SDK with an
 #      authenticated Chariot session.
-#   5. The rest of arguments are Click arguments, in order.
+#   5. The rest of the arguments are Click arguments, in order.
 @click.command('nmap-example')
 @click.argument('host', required=True)
 @cli_handler
