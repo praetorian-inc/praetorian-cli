@@ -1,9 +1,9 @@
 """
-This plugin command pulls data from a Nessus DB export and creates the assets 
+This script pulls data from a Nessus DB export and creates the assets
 and risks in the Chariot platform.
 
 Example usage:
-    praetorian chariot plugin nessus --file <PATH_TO_SCAN.nessus>
+    praetorian chariot script nessus --file <PATH_TO_SCAN.nessus>
 """
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
@@ -14,7 +14,7 @@ from praetorian_cli.sdk.chariot import Chariot
 
 
 def report_vulns(controller: Chariot, file: str):
-    """ Run the Nessus DB integrations plugin """
+    """ Ingest scan results from a Nessus XML export file """
 
     def parse_host_scan(reportHost):
         name = reportHost.find('HostProperties/tag[@name="host-ip"]').text

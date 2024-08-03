@@ -5,7 +5,7 @@ import praetorian_cli.handlers.delete  # noqa
 import praetorian_cli.handlers.get  # noqa
 import praetorian_cli.handlers.link  # noqa
 import praetorian_cli.handlers.list  # noqa
-import praetorian_cli.handlers.plugin  # noqa
+import praetorian_cli.handlers.script  # noqa
 import praetorian_cli.handlers.search  # noqa
 import praetorian_cli.handlers.test  # noqa
 import praetorian_cli.handlers.unlink  # noqa
@@ -25,7 +25,7 @@ def cli(ctx, profile, account, debug):
     ctx.obj = Keychain(profile=profile, account=account)
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
-    praetorian_cli.handlers.plugin.load_dynamic_commands(debug)
+    praetorian_cli.handlers.script.load_dynamic_commands(debug)
 
 
 cli.add_command(chariot)

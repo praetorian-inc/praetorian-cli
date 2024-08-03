@@ -9,17 +9,17 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.plugins.commands import nessus_api, nessus_xml
+from praetorian_cli.scripts.commands import nessus_api, nessus_xml
 
 
-@chariot.group()
+@chariot.group('script')
 @cli_handler
-def plugin(controller):
-    """ Run a plugin command """
+def script(controller):
+    """ Run a script """
     pass
 
 
-@plugin.command('nessus-api')
+@script.command('nessus-api')
 @cli_handler
 @click.option('--url', required=True, help='URL of the Nessus server',
               prompt='What is the URL of the Nessus server?')
@@ -32,7 +32,7 @@ def nessue_api_command(controller, url, api_key, secret_key):
     nessus_api.report_vulns(controller, url, api_key, secret_key)
 
 
-@plugin.command('nessus-xml')
+@script.command('nessus-xml')
 @cli_handler
 @click.option('--file', required=True, help='Path to the Nessus XML export file (.nessus)',
               prompt='What is the path to the Nessus XML export file (.nessus)?')
@@ -43,20 +43,21 @@ def nessus_xml_command(controller, file):
 
 def load_dynamic_commands(debug=False):
     """ If the PRAETORIAN_SCRIPTS_PATH env variable is defined,
-        load all the plugin commands defined there in those paths. """
+        load all the script defined there in those paths. """
     if 'PRAETORIAN_SCRIPTS_PATH' in environ:
         for directory in environ['PRAETORIAN_SCRIPTS_PATH'].split(os.pathsep):
             load_directory(directory, debug)
 
 
 def load_directory(path, debug=False):
-    """ Scan all the Python files in the directory for plugin commands.
-        Files with a register() function will get called to add a command. """
+    """ Scan all the Python files in the directory for scripts that are
+        compatible with the CLI. Files with a register() function will
+        get called to add a command under the 'script' group. """
     try:
         for file in listdir(path):
             if file.endswith('.py'):
                 try:
-                    plugin_module = load_raw_script(join(path, file))
+                    cli_script = load_script(join(path, file))
                 except Exception as err:
                     # This catches any compilation or execution error of the Python files that happen
                     # to be in the directory. And skip them unless --debug is set.
@@ -65,18 +66,18 @@ def load_directory(path, debug=False):
                         raise err
                     pass
                 else:
-                    if (hasattr(plugin_module, 'register') and callable(plugin_module.register)
-                            and len(signature(plugin_module.__dict__['register']).parameters) == 1):
-                        plugin_module.register(plugin)
+                    if (hasattr(cli_script, 'register') and callable(cli_script.register)
+                            and len(signature(cli_script.__dict__['register']).parameters) == 1):
+                        cli_script.register(script)
     except FileNotFoundError as err:
         click.echo(f'Directory {path} does not exist.', err=True)
         exit(1)
 
 
-def load_raw_script(path):
-    module = ModuleType('cli-plugin-script')
+def load_script(path):
+    module = ModuleType('cli-script')
     module.__file__ = path
     with open(path, 'r') as code_file:
         exec(compile(code_file.read(), path, 'exec'), module.__dict__)
-    sys.modules['cli-plugin-script'] = module
+    sys.modules['cli-script'] = module
     return module

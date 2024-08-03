@@ -1,26 +1,25 @@
-# Plugin development
+# Scripting the CLI
 
-The CLI has a plugin engine for you to easily extend the CLI in a few steps. 
-
-To add your own command to the CLI, set `PRAETORIAN_SCRIPTS_PATH` environment variable to point to
-directories where you store your scripts.
-
-The CLI attempts to load every script that has the `register` function defined. All compatible
-scripts will be added to the `plugin` group, which you can list by 
+The CLI has a scripting engine for you to extend the CLI in a few steps without updating
+the CLI codebase. The scripting engine works by loading scripts from any directories where
+you store your scripts. It makes them available as commands under the `script` group. You
+can list all the script commands by:
 
 ```zsh
-praetorian chariot plugin --help
+praetorian chariot script --help
 ```
 
-The code snippet below is a concrete example that runs an nmap scan on a host and add the open ports
-to Chariot using the SDK.
+To add your own extensions to the CLI, set `PRAETORIAN_SCRIPTS_PATH` environment variable
+to point to directories where you store your scripts.
+
+The code snippet below is an example that runs an nmap scan on a host. It further adds
+the open ports to your account on Chariot using the SDK.
 
 The main logic is in `nmap_command`. This function uses Click decorators to register itself
 to the CLI and define command line arguments.
 
-Equally important is the `register` function. It must take one argument `plugin_group` and 
+Equally important is the `register` function. It must take one argument `script_group` and
 use the `add_command` function to register the `nmap_command` function with the CLI.
-
 
 ```python
 @click.command('nmap')
@@ -52,14 +51,18 @@ def nmap_command(sdk, host):
 
 def register(plugin_group: click.MultiCommand):
     plugin_group.add_command(nmap_command)
-
 ```
 
+## Debugging
+
+The CLI skips loading scripts that have compilation errors. If you script does not
+appear in `praetorian chariot script --help`, run the CLI with the `--debug` flag to
+see the compilation errors.
 
 ## Go further
 
 - The full example script with comments and notes is available here:
-  [nmap-example.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/plugins/commands/nmap-example.py)
+  [nmap-example.py](https://github.com/praetorian-inc/praetorian-cli/blob/main/praetorian_cli/scripts/commands/nmap-example.py)
 - Click has extensive support for command line arguments. You can use all of its functionality. See
   [Click's documentation](https://click.palletsprojects.com/en/8.1.x/parameters/) for full details.
 

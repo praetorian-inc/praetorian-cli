@@ -15,12 +15,12 @@
 # Table of Contents
 
 - [Description](#description)
-- [Getting Started](#getting-started)
+- [Getting started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
     - [Signing up](#signing-up-and-configuration)
 - [Using the CLI](#using-the-cli)
-- [Using plugins](#using-plugins)
+- [Using scripts](#using-scripts)
 - [Developers](#developers)
 - [Contributing](#contributing)
 - [Support](#support)
@@ -68,7 +68,6 @@ password = 8epu9bQ2kqb8qwd.GR
 For more advanced configuration options, as well as SSO. See
 [the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
-
 # Using the CLI
 
 The CLI is a command and option utility for access to the full suite of Chariot API. See documentation for commands
@@ -90,29 +89,34 @@ To get detailed information about a specific asset, run:
 praetorian chariot get asset <ASSET_KEY>
 ```
 
-# Using plugins
+# Using scripts
 
-The CLI has a plugin engine for implementing more complex workflows. They add end-to-end functions as commands
-grouped under `plugin`. To see a list of them:
+The CLI has a scripting engine for implementing more complex workflows. They add end-to-end
+functions as commands grouped under `script`. To see a list of them:
 
 ```zsh
-praetorian chariot plugin --help
+praetorian chariot script --help
 ```
 
 For example the following command is used to ingest scan results from Nessus XML export files:
 
 ```zsh
-praetorian chariot plugin nessus-xml
+praetorian chariot script nessus-xml
 ```
 
-You can find the list of plugin commands that comes with the CLI in
-[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/plugins/commands)
+You can find the list of scripts that comes with the CLI in
+[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts/commands)
 
+## Loading more extension scripts
+
+In addition to scripts that are packaged with the CLI, you can point CLI to directories
+with scripts to further extend the CLI with those scripts. Set the `PRAETORIAN_SCRIPTS_PATH`
+environment to point to directories where you store additional extension scripts.
 
 # Developers
 
 Both CLI and SDK is open-source in this repository. The SDK is installed along with the `praetorian-cli`
-package. You can extend Chariot by creating scripts and plugins using the SDK. 
+package. You can extend Chariot by creating scripts and plugins using the SDK.
 
 ## SDK
 
@@ -136,17 +140,15 @@ The best place to explore the SDK is the code of the CLI, especially
 
 You can inspect the handler code to see how each CLI command is implemented with the SDK.
 
-
-## Developing plugins
+## Developing scripts
 
 If you want to take advantage of the scaffolding of the CLI, you can write fully fledged functions using
-the plugin engine. For developing plugins, you can refer to
-this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/plugin-development.md).
-
+the scripting engine. For developing scripts, you can refer to
+this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/script-development.md).
 
 ## Contributing
 
-We welcome contributions from the community, from plugins, to the core CLI and SDK. To contribute, fork this
+We welcome contributions from the community, from scripts, to the core CLI and SDK. To contribute, fork this
 repository and following the
 [GitHub instructions](https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project)
 to create pull requests.

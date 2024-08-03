@@ -1,17 +1,18 @@
 """
 For developers:
-You can use this as a template for writing new CLI commands.
+You can use this as a template for writing new CLI scripts.
 
 How to use:
 
   1. Install the latest version of praetorian-cli
 
-  2. Set PRAETORIAN_SCRIPTS_PATH to point to the directory where this script is located
+  2. Set PRAETORIAN_SCRIPTS_PATH environment variable to point to the directory
+     where this script is located
 
   3. Run it:
-     `praetorian chariot plugin --help`
-     `praetorian chariot plugin nmap-example --help`
-     `praetorian chariot plugin nmap-example scanme.nmap.org`
+     `praetorian chariot script --help`
+     `praetorian chariot script nmap-example --help`
+     `praetorian chariot script nmap-example scanme.nmap.org`
 
 """
 import re
@@ -28,7 +29,7 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 # In this example, the command takes one argument from the user, the hostname,
 # and runs nmap against it to check for open ports in 22, 80, and 443.
 #
-# The plugin engine passes the arguments and options from your users to this function.
+# The scripting engine passes the arguments and options from your users to this function.
 # The engine handles the plumbing of Click for you.
 #
 # Several things you need to follow for this to work:
@@ -42,7 +43,7 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 @click.argument('host', required=True)
 @cli_handler
 def nmap_command(sdk, host):
-    """ An nmap plugin for scanning a host
+    """ An nmap script for scanning a host
 
         HOST is the host you want to scan. It can be a hostname or an IP address.
     """
@@ -68,6 +69,6 @@ def nmap_command(sdk, host):
 
 
 # The register() function has to be defined in this file. It is called by the CLI
-# to register your command under the plugin group.
-def register(plugin_group: click.MultiCommand):
-    plugin_group.add_command(nmap_command)
+# to register your command under the script group.
+def register(script_group: click.MultiCommand):
+    script_group.add_command(nmap_command)

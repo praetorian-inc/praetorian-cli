@@ -1,9 +1,9 @@
 """
-This plugin command pulls data from the Nessus API server and creates assets and
+This script pulls data from the Nessus API server and creates assets and
 risks in the Chariot platform.
 
 Example usage:
-    praetorian chariot plugin nessus --url https://localhost:8834 --api-key <API_KEY> --secret-key <SECRET_KEY>
+    praetorian chariot script nessus --url https://localhost:8834 --api-key <API_KEY> --secret-key <SECRET_KEY>
 """
 from concurrent.futures import ThreadPoolExecutor
 
@@ -34,7 +34,7 @@ def create_nessus_client(api_url, api_key, secret_key):
 
 
 def report_vulns(controller: Chariot, url: str, api_key: str, secret_key: str):
-    """ Run the Nessus integrations plugin """
+    """ Ingest scan results from a Nessus server """
     nessus_api_req = create_nessus_client(url, api_key, secret_key)
 
     url = f'/scans'
