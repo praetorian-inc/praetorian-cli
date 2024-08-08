@@ -21,6 +21,8 @@ class Chariot:
                                 params=params, headers=self.keychain.headers)
             process_failure(resp)
             resp = resp.json()
+            if not resp:
+                return resp
             for key, value in resp.items():
                 if key in my_resp and isinstance(value, list):
                     my_resp[key].extend(value)
