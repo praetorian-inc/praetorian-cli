@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.5 (2024-08-05)
+
+* [Breaking Change] Renamed `plugin` to `script`
+
 ## 1.3.4 (2024-08-02)
 
 * [New Feature] Added debug mode for plugin development
