@@ -10,7 +10,6 @@
 :link: [Chariot Platform](https://chariot.praetorian.com)
 :book: [Documentation](https://docs.praetorian.com)
 :bookmark: [PyPI](https://pypi.org/project/praetorian-cli/)
-:computer: [Chariot UI](https://github.com/praetorian-inc/chariot-ui)
 
 # Table of Contents
 
