@@ -38,7 +38,7 @@ offensive security platform.
 
 ## Prerequisites
 
-- Python v3.8 or above
+- Python v3.9 or above
 - pip v23.0 or above
 
 ## Installation
