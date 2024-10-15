@@ -1,0 +1,12 @@
+[build-system]
+requires = [
+    "setuptools>=54",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+markers = [
+    "coherence: these are tests on product workflows via the backend API",
+    "cli: these are tests on the CLI interface",
+]
