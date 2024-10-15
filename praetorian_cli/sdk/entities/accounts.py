@@ -56,9 +56,9 @@ class Accounts:
 
     def current_principal(self):
         """ Tell you which account the current session is operating on """
-        return self.api.keychain.account if self.api.keychain.account else self.api.keychain.username
+        return self.api.keychain.account if self.api.keychain.account else self.api.keychain.username()
 
     def login_principal(self):
         """ Tell you the user account that is used to login, regardless of who the current
             assume-role account is """
-        return self.api.keychain.username
+        return self.api.keychain.username()
