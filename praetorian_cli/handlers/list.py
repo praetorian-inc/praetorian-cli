@@ -117,7 +117,7 @@ def files(chariot, filter, details, offset, page):
 
 
 @list.command()
-@list_params('definition name')
+@list_params('definition name', has_details=False)
 def definitions(chariot, filter, offset, page):
     """ List risk definitions
 
@@ -127,7 +127,6 @@ def definitions(chariot, filter, offset, page):
     Example usages:
         - praetorian chariot list definitions
         - praetorian chariot list definitions --filter "home/reports/cloud-assessment-2024-"
-        - praetorian chariot list definitions --details
         - praetorian chariot list definitions --page all
     """
     definitions, next_offset = chariot.definitions.list(filter, offset, pagination_size(page))

@@ -22,7 +22,7 @@ def asset(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot delete asset "#asset#example.com#1.2.3.4"
+        - praetorian chariot delete asset "#asset#www.example.com#1.2.3.4"
     """
     chariot.assets.delete(key)
 
@@ -67,7 +67,7 @@ def attribute(chariot, key):
 def webhook(chariot):
     """ Delete webhook
 
-    Example usages:
+    Example usage:
         - praetorian chariot delete webhook
     """
     if chariot.webhook.get_record():
@@ -83,7 +83,7 @@ def webhook(chariot):
 def purge(controller):
     """ Delete account and all related information
 
-    Example usages:
+    Example usage:
         - praetorian chariot purge
     """
     if click.confirm('This will delete all your data and revoke access, are you sure?', default=False):

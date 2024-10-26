@@ -32,12 +32,13 @@ def asset(sdk, name, dns, priority):
         - A domain name:   reddit.com
         - An IP addresses: 208.67.222.222
         - A CIDR range:    208.67.222.0/24
-        - A GitHub org:    https://github.com/praetorian-inc
 
     \b
     Example usages:
         - praetorian chariot add asset --dns example.com
         - praetorian chariot add asset --dns example.com --name 1.2.3.4
+        - praetorian chariot add asset --dns example.com --name 1.2.3.4 --priority comprehensive
+        - praetorian chariot add asset --dns example.com --name 1.2.3.4 --priority discover
     """
     if not name:
         name = dns
@@ -51,11 +52,11 @@ def asset(sdk, name, dns, priority):
 def file(sdk, path, name):
     """ Upload a file
 
-    This commands takes the path to the local file and uploads it to the
+    This commands takes the path to a local file and uploads it to the
     Chariot file system. The Chariot file system is where the platform
     stores proofs of exploit, risk definitions, and other supporting data.
 
-    User files reside in the home/ folder. Those files appear in the app
+    User files reside in the "home/" folder. Those files appear in the app
     at https://chariot.praetorian.com/app/files
 
     \b
@@ -84,7 +85,7 @@ def definition(sdk, path, name):
     Chariot file system as risk definitions. Risk definitions reside
     in the "definitions/" folder in the file system.
 
-    Risk definitions need to be in the markdown format.
+    Risk definitions need to be in the Markdown format.
 
     \b
     Arguments
@@ -92,8 +93,8 @@ def definition(sdk, path, name):
 
     \b
     Example usages:
-        - praetorian chariot add definition ./CVE-2024-23049.md
-        - praetorian chariot add definition ./CVE-2024-23049.md --name "Symphony v3.6.3 RCE by Log4j"
+        - praetorian chariot add definition ./CVE-2024-23049
+        - praetorian chariot add definition ./CVE-2024-23049.updated.md --name CVE-2024-23049
     """
     if name is None:
         name = os.path.basename(path)
@@ -132,10 +133,8 @@ def webhook(sdk):
 def risk(sdk, name, asset, status, comment):
     """ Add a risk
 
-    NAME is the name of the risk
-
     This command adds a risk to Chariot. A risk must have an associated asset.
-    The asset is specified by its key, which can be retrieve by listing and
+    The asset is specified by its key, which can be retrieved by listing and
     searching the assets.
 
     \b
@@ -144,8 +143,8 @@ def risk(sdk, name, asset, status, comment):
 
     \b
     Example usages:
-        - praetorian chariot add risk CVE-2024-23049 --asset #asset#example.com#1.2.3.4 --status TI
-        - praetorian chariot add risk CVE-2024-23049 --asset #asset#example.com#1.2.3.4 --status TC
+        - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI
+        - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC
     """
     sdk.risks.add(asset, name, status, comment)
 
@@ -181,6 +180,6 @@ def attribute(sdk, key, name, value):
     \b
     Example usages:
         - praetorian chariot add attribute --key "#risk#www.example.com#CVE-2024-23049" --name https --value 443
-        - praetorian chariot add attribute --key "#risk#www.example.com#CVE-2024-23049" --name source --value "#asset#www.example.com#1.2.3.4"
+        - praetorian chariot add attribute --key "#asset#www.example.com#www.example.com" --name id --value "arn:aws:route53::1654874321:hostedzone/Z0000000EJBHGTFTGH3"
     """
     sdk.attributes.add(key, name, value)
