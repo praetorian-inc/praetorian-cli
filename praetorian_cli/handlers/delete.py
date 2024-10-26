@@ -14,14 +14,15 @@ def delete():
 @click.argument('key', required=True)
 @cli_handler
 def asset(chariot, key):
-    """
-    Delete an asset
-
-    KEY is the key of an existing asset
+    """ Delete an asset
 
     \b
-    Example usages:
-        - praetorian chariot delete asset '#asset#example.com#1.2.3.4'
+    Arguments:
+        - KEY: the key of an existing asset
+
+    \b
+    Example usage:
+        - praetorian chariot delete asset "#asset#example.com#1.2.3.4"
     """
     chariot.assets.delete(key)
 
@@ -31,7 +32,16 @@ def asset(chariot, key):
 @click.argument('key', required=True)
 @click.option('-c', '--comment', default='', help='Optional comment for the delete')
 def risk(chariot, key, comment):
-    """ Delete a risk """
+    """ Delete a risk
+
+    \b
+    Arguments:
+        - KEY: the key of an existing risk
+
+    \b
+    Example usage:
+        - praetorian chariot delete risk "#risk#example.com#CVE-2024-23049"
+    """
     chariot.risks.delete(key, comment)
 
 
@@ -39,14 +49,27 @@ def risk(chariot, key, comment):
 @cli_handler
 @click.argument('key', required=True)
 def attribute(chariot, key):
-    """ Delete an attribute """
+    """ Delete an attribute
+
+    \b
+    Arguments:
+        - KEY: the key of an existing attribute
+
+    \b
+    Example usage:
+        - praetorian chariot delete attribute "#attribute#source#kev#risk#api.example.com#CVE-2024-23049"
+    """
     chariot.attributes.delete(key)
 
 
 @delete.command()
 @cli_handler
 def webhook(chariot):
-    """ Delete webhook """
+    """ Delete webhook
+
+    Example usages:
+        - praetorian chariot delete webhook
+    """
     if chariot.webhook.get_record():
         chariot.webhook.delete()
         click.echo('Webhook successfully deleted.')
@@ -58,7 +81,11 @@ def webhook(chariot):
 @chariot.command()
 @cli_handler
 def purge(controller):
-    """ Delete account and all related information """
+    """ Delete account and all related information
+
+    Example usages:
+        - praetorian chariot purge
+    """
     if click.confirm('This will delete all your data and revoke access, are you sure?', default=False):
         controller.purge()
     else:

@@ -18,7 +18,19 @@ def get():
 @click.argument('key', required=True)
 @click.option('-d', '--details', is_flag=True, help='Get attributes of the asset')
 def asset(chariot, key, details):
-    """ Get asset details """
+    """ Get asset details
+
+    Provide the --details flag to further retrieve the attributes of the asset.
+
+    \b
+    Argument:
+        - KEY: the key of an existing asset
+
+    \b
+    Example usages:
+        - praetorian chariot get asset "#asset#api.example.com#1.2.3.4"
+        - praetorian chariot get asset "#asset#api.example.com#1.2.3.4" --details
+    """
     print_json(chariot.assets.get(key, details))
 
 
@@ -27,7 +39,19 @@ def asset(chariot, key, details):
 @click.argument('key', required=True)
 @click.option('-d', '--details', is_flag=True, help='Get attributes of the risk')
 def risk(chariot, key, details):
-    """ Get risk details """
+    """ Get risk details
+
+    Provide the --details flag to further retrieve the attributes of the risk.
+
+    \b
+    Argument:
+        - KEY: the key of an existing risk
+
+    \b
+    Example usages:
+        - praetorian chariot get risk "#risk#api.example.com#CVE-2024-23049"
+        - praetorian chariot get risk "#risk#api.example.com#CVE-2024-23049" --details
+     """
     print_json(chariot.risks.get(key, details))
 
 
@@ -35,7 +59,16 @@ def risk(chariot, key, details):
 @cli_handler
 @click.argument('key', required=True)
 def attribute(chariot, key):
-    """ Get asset details """
+    """ Get attribute details
+
+    \b
+    Argument:
+        - KEY: the key of an existing attribute
+
+    \b
+    Example usage:
+        - praetorian chariot get attribute "#attribute#source#kev#risk#api.example.com#CVE-2024-23049"
+    """
     print_json(chariot.attributes.get(key))
 
 
@@ -43,7 +76,16 @@ def attribute(chariot, key):
 @cli_handler
 @click.argument('key', required=True)
 def account(chariot, key):
-    """ Get account (collaborator or authorized master account) details """
+    """ Get account (collaborator or authorized master account) details
+
+    \b
+    Argument:
+        - KEY: key of an existing account
+
+    \b
+    Example usage:
+        - praetorian chariot get account "#account#customer@example.com#john@praetorian.com"
+    """
     print_json(chariot.accounts.get(key))
 
 
@@ -51,7 +93,16 @@ def account(chariot, key):
 @cli_handler
 @click.argument('key', required=True)
 def integration(chariot, key):
-    """ Get integration details """
+    """ Get integration details
+
+    \b
+    Argument:
+        - KEY: key of an existing integration connection
+
+    \b
+    Example usage:
+        - praetorian chariot get integration "#account#chariot+halliburton@praetorian.com#azure#556bee78-30d0-4a4c-8e4f-8ac2e19ce3d5"
+    """
     print_json(chariot.integrations.get(key))
 
 
@@ -59,7 +110,16 @@ def integration(chariot, key):
 @cli_handler
 @click.argument('key', required=True)
 def job(chariot, key):
-    """ Get job details """
+    """ Get job details
+
+    \b
+    Argument:
+        - KEY: key of an existing, recently scheduled, job
+
+    \b
+    Example usage:
+        - praetorian chariot get job "#job#api.example.com#1.2.3.4#portscan"
+    """
     print_json(chariot.jobs.get(key))
 
 
@@ -68,7 +128,11 @@ def job(chariot, key):
 @click.argument('name')
 @click.option('-p', '--path', default=os.getcwd(), help='Download path. Default: save to current directory')
 def file(chariot, name, path):
-    """ Download a file using key or name."""
+    """ Download a file using key or name
+
+
+
+    """
     if name.startswith('#'):
         downloaded_filepath = chariot.files.get(name.split('#')[-1], path)
     else:

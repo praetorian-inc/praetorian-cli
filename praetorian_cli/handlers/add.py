@@ -23,9 +23,9 @@ def add():
 def asset(sdk, name, dns, priority):
     """ Add an asset
 
-    This command requires a DNS name for the asset. Optionally, a name can be provided
-    to give the asset more specific information, such as IP address. If no name is
-    provided, the DNS name will be used as the name.
+    Add an asset to the Chariot database. This command requires a DNS name for the asset.
+    Optionally, a name can be provided to give the asset more specific information,
+    such as IP address. If no name is provided, the DNS name will be used as the name.
 
     \b
     Example assets:
@@ -36,8 +36,8 @@ def asset(sdk, name, dns, priority):
 
     \b
     Example usages:
-        - praetorian chariot asset add --dns example.com
-        - praetorian chariot asset add --dns example.com --name 1.2.3.4
+        - praetorian chariot add asset --dns example.com
+        - praetorian chariot add asset --dns example.com --name 1.2.3.4
     """
     if not name:
         name = dns
@@ -49,10 +49,23 @@ def asset(sdk, name, dns, priority):
 @click.argument('path')
 @click.option('-n', '--name', help='The file name in Chariot. Default: the full path of the uploaded file')
 def file(sdk, path, name):
-    """
-    Upload a file
+    """ Upload a file
 
-    PATH is the file path in the local system
+    This commands takes the path to the local file and uploads it to the
+    Chariot file system. The Chariot file system is where the platform
+    stores proofs of exploit, risk definitions, and other supporting data.
+
+    User files reside in the home/ folder. Those files appear in the app
+    at https://chariot.praetorian.com/app/files
+
+    \b
+    Arguments:
+        - PATH: the local file path to the file you want to upload.
+
+    \b
+    Example usages:
+        - praetorian chariot add file ./file.txt
+        - praetorian chariot add file ./file.txt --name "home/file.txt"
     """
     try:
         sdk.files.add(path, name)
@@ -65,10 +78,22 @@ def file(sdk, path, name):
 @click.argument('path')
 @click.option('-n', '--name', help='The risk name definition. Default: the filename used')
 def definition(sdk, path, name):
-    """
-    Upload a risk definition in markdown format
+    """ Upload a risk definition
 
-    PATH:  File path in the local system
+    This commands takes the path to the local file and uploads it to the
+    Chariot file system as risk definitions. Risk definitions reside
+    in the "definitions/" folder in the file system.
+
+    Risk definitions need to be in the markdown format.
+
+    \b
+    Arguments
+        - PATH: the local file path to the risk definition file
+
+    \b
+    Example usages:
+        - praetorian chariot add definition ./CVE-2024-23049.md
+        - praetorian chariot add definition ./CVE-2024-23049.md --name "Symphony v3.6.3 RCE by Log4j"
     """
     if name is None:
         name = os.path.basename(path)
@@ -81,7 +106,16 @@ def definition(sdk, path, name):
 @add.command()
 @cli_handler
 def webhook(sdk):
-    """ Add an authenticated URL for posting assets and risks """
+    """ Generate an authenticated URL for posting assets and risks
+
+    The command prints the URL of the webhook generated. If the webhook
+    is already present, you need to first delete it before generating
+    a new one.
+
+    \b
+    Example usages:
+        - praetorian chariot add webhook
+    """
     if sdk.webhook.get_record():
         click.echo('There is an existing webhook. Delete it first before adding a new one.')
     else:
@@ -96,10 +130,22 @@ def webhook(sdk):
               help=f'Status of the risk')
 @click.option('-comment', '--comment', default='', help='Comment for the risk')
 def risk(sdk, name, asset, status, comment):
-    """
-    Add a risk
+    """ Add a risk
 
     NAME is the name of the risk
+
+    This command adds a risk to Chariot. A risk must have an associated asset.
+    The asset is specified by its key, which can be retrieve by listing and
+    searching the assets.
+
+    \b
+    Arguments:
+        - NAME: the name of the risk. For example, "CVE-2024-23049".
+
+    \b
+    Example usages:
+        - praetorian chariot add risk CVE-2024-23049 --asset #asset#example.com#1.2.3.4 --status TI
+        - praetorian chariot add risk CVE-2024-23049 --asset #asset#example.com#1.2.3.4 --status TC
     """
     sdk.risks.add(asset, name, status, comment)
 
@@ -108,7 +154,17 @@ def risk(sdk, name, asset, status, comment):
 @cli_handler
 @click.option('-k', '--key', required=True, help='Key of an existing asset or attribute')
 def job(sdk, key):
-    """ Add a job for an asset or an attribute """
+    """ Schedule scan jobs for an asset or an attribute
+
+    This command schedules the relevant discovery and vulnerability scans for
+    the specified asset or attribute. Make sure to quote the key, since it
+    contain the "#" sign.
+
+    \b
+    Example usages:
+        - praetorian chariot add job --key "#asset#example.com#1.2.3.4"
+        - praetorian chariot add job --key "#attribute#ssh#22#asset#api.www.example.com#1.2.3.4"
+    """
     sdk.jobs.add(key)
 
 
@@ -118,5 +174,13 @@ def job(sdk, key):
 @click.option('-n', '--name', required=True, help='Name of the attribute')
 @click.option('-v', '--value', required=True, help='Value of the attribute')
 def attribute(sdk, key, name, value):
-    """ Add an attribute for an asset or risk """
+    """ Add an attribute for an asset or risk
+
+    This command adds a name-value attribute for the specified asset or risk.
+
+    \b
+    Example usages:
+        - praetorian chariot add attribute --key "#risk#www.example.com#CVE-2024-23049" --name https --value 443
+        - praetorian chariot add attribute --key "#risk#www.example.com#CVE-2024-23049" --name source --value "#asset#www.example.com#1.2.3.4"
+    """
     sdk.attributes.add(key, name, value)
