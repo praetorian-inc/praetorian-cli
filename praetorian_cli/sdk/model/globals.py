@@ -12,8 +12,6 @@ class Asset(Enum):
 
 
 class Risk(Enum):
-    DELETED = 'D'
-
     TRIAGE_INFO = 'TI'
     TRIAGE_LOW = 'TL'
     TRIAGE_MEDIUM = 'TM'
@@ -42,6 +40,13 @@ class Risk(Enum):
     REMEDIATED_HIGH = 'RH'
     REMEDIATED_CRITICAL = 'RC'
     REMEDIATED_MATERIAL = "RX"
+
+    DELETED_EXPOSURE = 'DE'
+    DELETED_INFO = 'DI'
+    DELETED_LOW = 'DL'
+    DELETED_MEDIUM = 'DM'
+    DELETED_HIGH = 'DH'
+    DELETED_CRITICAL = 'DC'
 
 
 class AddRisk(Enum):

@@ -18,10 +18,16 @@ def update():
 @click.option('-p', '--priority', type=click.Choice(AssetPriorities.keys()), required=True,
               help='The priority of the asset')
 def asset(chariot, key, priority):
-    """
-    Update an asset
+    """ Update the priority of an asset
 
-    KEY is the key of the asset
+    \b
+    Argument:
+        - KEY: the key of an existing asset
+
+    \b
+    Example usages:
+        - praetorian chariot update asset "#asset#www.example.com#1.2.3.4" --priority frozen
+        - praetorian chariot update asset "#asset#www.example.com#1.2.3.4" --priority comprehensive
     """
     chariot.assets.update(key, AssetPriorities[priority])
 
@@ -32,9 +38,15 @@ def asset(chariot, key, priority):
 @click.option('-s', '--status', type=click.Choice([s.value for s in Risk]), help=f'Status of the risk')
 @click.option('-c', '--comment', default='', help='Comment for the risk')
 def risk(chariot, key, status, comment):
-    """
-    Update a risk
+    """ Update the status and comment of a risk
 
-    KEY is the key of the risk
+    \b
+    Argument:
+        - KEY: the key of an existing risk
+
+    \b
+    Example usages:
+        - praetorian chariot update risk "#risk#www.example.com#CVE-2024-23049" --status OH --comment "Open it as a high severity risk"
+        - praetorian chariot update risk "#risk#www.example.com#open-ssh-port" --status RH --comment "John stopped sshd on the server"
     """
     chariot.risks.update(key, status, comment)

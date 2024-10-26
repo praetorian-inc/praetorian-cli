@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.2 (2024-10-25)
+
+* [Breaking change] The `D` status for risks is expanded to `DE`, DI`, `DL`, `DM`,
+  `DH`, and `DC` for the severity levels of exposure, info, low, medium, high, and
+  critical. `D` is no longer a valid status for risks
+* [Misc] Improved in-app documentation, where the `--help` text includes
+  more example usages.
+
 ## 1.5.1 (2024-10-15)
 
 * [Bug fix] Fixed errors in functions related to principals in

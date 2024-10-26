@@ -33,7 +33,7 @@ class TestZCli:
         verify_cli(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.ACTIVE_LOW.value}"'])
 
         verify_cli(f'delete asset "{o.asset_key}"')
-        verify_cli(f'get asset "{o.asset_key}"', ['"status": "D"'])
+        verify_cli(f'get asset "{o.asset_key}"', [f'"status": "{Asset.DELETED.value}"'])
 
         clean_test_entities(self.sdk, o)
 
@@ -55,7 +55,7 @@ class TestZCli:
         verify_cli(f'get risk "{o.risk_key}"', [o.risk_key, f'"status": "{Risk.OPEN_LOW.value}"'])
 
         verify_cli(f'delete risk "{o.risk_key}"')
-        verify_cli(f'get risk "{o.risk_key}"', ['"status": "D"'])
+        verify_cli(f'get risk "{o.risk_key}"', [f'"status": "{Risk.DELETED_LOW.value}"'])
 
         clean_test_entities(self.sdk, o)
 
@@ -143,3 +143,60 @@ class TestZCli:
     def test_integration_cli(self):
         verify_cli('list integrations', ignore_stdout=True)
         verify_cli('list integrations -d', ignore_stdout=True)
+
+    def test_help_cli(self):
+        verify_cli('--help', ignore_stdout=True)
+        verify_cli('list --help', ignore_stdout=True)
+        verify_cli('list assets --help', ignore_stdout=True)
+        verify_cli('list risks --help', ignore_stdout=True)
+        verify_cli('list accounts --help', ignore_stdout=True)
+        verify_cli('list integrations --help', ignore_stdout=True)
+        verify_cli('list jobs --help', ignore_stdout=True)
+        verify_cli('list files --help', ignore_stdout=True)
+        verify_cli('list definitions --help', ignore_stdout=True)
+        verify_cli('list attributes --help', ignore_stdout=True)
+
+        verify_cli('get --help', ignore_stdout=True)
+        verify_cli('get asset --help', ignore_stdout=True)
+        verify_cli('get risk --help', ignore_stdout=True)
+        verify_cli('get account --help', ignore_stdout=True)
+        verify_cli('get integration --help', ignore_stdout=True)
+        verify_cli('get job --help', ignore_stdout=True)
+        verify_cli('get file --help', ignore_stdout=True)
+        verify_cli('get definition --help', ignore_stdout=True)
+        verify_cli('get attribute --help', ignore_stdout=True)
+        verify_cli('get webhook --help', ignore_stdout=True)
+
+        verify_cli('add --help', ignore_stdout=True)
+        verify_cli('add asset --help', ignore_stdout=True)
+        verify_cli('add risk --help', ignore_stdout=True)
+        verify_cli('add attribute --help', ignore_stdout=True)
+        verify_cli('add job --help', ignore_stdout=True)
+        verify_cli('add file --help', ignore_stdout=True)
+        verify_cli('add definition --help', ignore_stdout=True)
+        verify_cli('add webhook --help', ignore_stdout=True)
+
+        verify_cli('imports --help', ignore_stdout=True)
+        verify_cli('imports qualys --help', ignore_stdout=True)
+        verify_cli('imports insightvm --help', ignore_stdout=True)
+        verify_cli('imports nessus --help', ignore_stdout=True)
+
+        verify_cli('link --help', ignore_stdout=True)
+        verify_cli('link account --help', ignore_stdout=True)
+
+        verify_cli('unlink --help', ignore_stdout=True)
+        verify_cli('unlink account --help', ignore_stdout=True)
+
+        verify_cli('delete --help', ignore_stdout=True)
+        verify_cli('delete asset --help', ignore_stdout=True)
+        verify_cli('delete risk --help', ignore_stdout=True)
+        verify_cli('delete attribute --help', ignore_stdout=True)
+        verify_cli('delete webhook --help', ignore_stdout=True)
+
+        verify_cli('update --help', ignore_stdout=True)
+        verify_cli('update asset --help', ignore_stdout=True)
+        verify_cli('update risk --help', ignore_stdout=True)
+
+        verify_cli('search --help', ignore_stdout=True)
+        verify_cli('script --help', ignore_stdout=True)
+        verify_cli('purge --help', ignore_stdout=True)

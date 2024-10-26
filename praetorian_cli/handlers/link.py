@@ -14,5 +14,19 @@ def link():
 @cli_handler
 @click.argument('username')
 def account(chariot, username):
-    """ Add a collaborator account to your account """
+    """ Add a collaborator account to your account
+
+    This allows them to assume access into your account
+    and perform actions on your behalf.
+
+    \b
+    Arguments:
+        - NAME: their email address
+
+
+
+    \b
+    Example usages:
+        - praetorian chariot link account john@praetorian.com
+    """
     chariot.accounts.add_collaborator(username)
