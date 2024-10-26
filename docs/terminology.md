@@ -17,6 +17,7 @@ of the `get asset` and `list assets --details` commands:
 | F            | A frozen asset. All scans are stopped on frozen assets.                                                                                                                                        |
 | FL           | A frozen asset, originally scanned only for discovery. All scans are stopped on frozen assets.                                                                                                 |                                                                                       
 | FH           | A frozen asset, originally scanned comprehensively. All scans are stopped on frozen assets.                                                                                                    |                                                                                      
+| D            | A deleted asset                                                                                                                                                                                |
 
 # Risk statuses
 
