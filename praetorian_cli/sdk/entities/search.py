@@ -42,9 +42,20 @@ class Search:
         # extract all the different types of entities in the search results into a
         # flattened list of `hits`
         results = self.api.my(params, pages)
-        hits = []
-        for key in results.keys():
-            if key != 'offset':
-                hits.extend(results[key])
-        offset = results['offset'] if 'offset' in results else None
-        return hits, offset
+
+        if 'offset' in results:
+            offset = results['offset']
+            del results['offset']
+        else:
+            offset = None
+
+        return flatten_results(results), offset
+
+
+def flatten_results(results):
+    if type(results) == list:
+        return results
+    flattened = []
+    for key in results.keys():
+        flattened.extend(flatten_results(results[key]))
+    return flattened
