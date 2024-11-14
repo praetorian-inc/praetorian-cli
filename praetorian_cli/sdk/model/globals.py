@@ -1,3 +1,6 @@
+"""
+This file contains the global constants in the Chariot backend API
+"""
 from enum import Enum
 
 
@@ -9,6 +12,8 @@ class Asset(Enum):
     FROZEN_LOW = 'FL'
     FROZEN_HIGH = 'FH'
     DELETED = 'D'
+    PENDING = 'P'
+    PENDING_LOW = 'PL'
 
 
 class Risk(Enum):
