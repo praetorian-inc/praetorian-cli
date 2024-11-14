@@ -55,7 +55,7 @@ class Search:
 def flatten_results(results):
     if type(results) == list:
         return results
-    aggregate = []
+    flattened = []
     for key in results.keys():
-        aggregate.extend(flatten_results(results[key]))
-    return aggregate
+        flattened.extend(flatten_results(results[key]))
+    return flattened
