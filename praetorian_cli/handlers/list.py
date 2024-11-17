@@ -16,7 +16,7 @@ def list():
 def assets(chariot, filter, details, offset, page):
     """ List assets
 
-   	Retrieve and display a list of assets.
+       Retrieve and display a list of assets.
 
     \b
     Example usages:
@@ -50,8 +50,8 @@ def risks(chariot, filter, details, offset, page):
 def accounts(chariot, filter, details, offset, page):
     """ List accounts
 
-	Retrieve and display a list of your collaborators, as well as the accounts that
-	you are authorized to access.
+    Retrieve and display a list of your collaborators, as well as the accounts that
+    you are authorized to access.
 
     \b
     Example usages:
@@ -68,7 +68,7 @@ def accounts(chariot, filter, details, offset, page):
 def integrations(chariot, filter, details, offset, page):
     """ List integrations
 
-	Retrieve and display a list of integration connections.
+    Retrieve and display a list of integration connections.
 
     \b
     Example usages:
@@ -157,3 +157,53 @@ def attributes(chariot, filter, key, details, offset, page):
         - praetorian chariot list attributes --page all
     """
     render_list_results(chariot.attributes.list(filter, key, offset, pagination_size(page)), details)
+
+
+@list.command()
+@list_params('statistic type and/or filter dates')
+@click.option('-f', '--filter', default='', help='Filter by statistic type or name')
+@click.option('--from', 'from_date', help='Start date (YYYY-MM-DD)')
+@click.option('--to', 'to_date', help='End date (YYYY-MM-DD)')
+@click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')
+@click.option('-o', '--offset', default='', help='List results from an offset')
+@click.option('-p', '--page', type=click.Choice(('first', 'all')), default='first',
+              help='Pagination mode. "all" pages up to 1000 pages.', show_default=True)
+@click.option('--help-stats', is_flag=True, help='Show detailed information about statistic types')
+def stats(chariot, filter, from_date, to_date, details, offset, page, help_stats):
+    """ List statistics
+
+    Retrieve and display a list of statistics with optional date range filtering.
+    Use --help-stats for detailed information about available statistic types.
+
+    \b
+    Example usages:
+        - praetorian chariot list statistics
+        - praetorian chariot list statistics --filter "my#status"
+        - praetorian chariot list statistics --from 2025-01-01 --to 2024-01-31
+        - praetorian chariot list statistics --details
+        - praetorian chariot list statistics --page all
+        - praetorian chariot list statistics --help-stats
+    """
+    if help_stats:
+        click.echo(chariot.stats.util.get_statistics_help())
+        return
+
+    # Map common filter aliases to StatsFilter values
+    filter_map = {
+        'risks': chariot.stats.util.RISKS,
+        'risk_events': chariot.stats.util.RISK_EVENTS
+    }
+
+    # Use mapped filter if available, otherwise use raw filter string
+    actual_filter = filter_map.get(filter, filter) 
+
+    render_list_results(
+        chariot.stats.list(
+            actual_filter,
+            from_date,
+            to_date,
+            offset,
+            pagination_size(page)
+        ),
+        details
+    )
