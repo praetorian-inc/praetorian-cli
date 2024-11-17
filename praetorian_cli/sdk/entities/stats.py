@@ -80,7 +80,6 @@ class Stats:
         if offset:
             params['offset'] = offset
 
-        breakpoint()
         results = self.api.my(params, pages)
         stats = self._flatten_results(results)
         

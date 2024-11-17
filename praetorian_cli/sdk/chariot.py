@@ -55,7 +55,6 @@ class Chariot:
     def post(self, type: str, params):
         resp = requests.post(f'{self.keychain.base_url()}/{type}',
                              json=params, headers=self.keychain.headers())
-        breakpoint()
         process_failure(resp)
         return resp.json()
 
