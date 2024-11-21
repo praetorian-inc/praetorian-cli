@@ -166,7 +166,7 @@ def job(sdk, key, capability):
         - praetorian chariot add job --key "#asset#example.com#1.2.3.4" -c subdomain -c portscan
         - praetorian chariot add job --key "#attribute#ssh#22#asset#api.www.example.com#1.2.3.4"
     """
-    sdk.jobs.add(key, list(capability) if capability else None)
+    sdk.jobs.add(key, capability)
 
 
 @add.command()
