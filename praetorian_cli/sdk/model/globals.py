@@ -97,6 +97,5 @@ CAPABILITIES = (
     'digitalocean',
     'burp-internal',
     'seed-import',
-    'builtwith',
-    'axonius'
+    'builtwith'
 )
