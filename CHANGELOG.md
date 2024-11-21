@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.4 (2024-11-22)
+
+* [New feature] Add the option to specify the capabilities to run when adding
+  jobs for an asset.
+
 ## 1.5.3 (2024-11-14)
 
 * [Bug] Fixed an error with the `list` and `search` commands.
