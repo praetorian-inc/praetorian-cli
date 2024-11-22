@@ -79,7 +79,6 @@ class Risks:
             Supply this to perform prefix-filtering of the risk keys after the "#risk#"
             portion of the key. Risk keys read '#risk#{asset_dns}#{risk_name}'
 
-
         offset: str
             The offset of the page you want to retrieve results. If this is not supplied,
             this function retrieves from the first page.

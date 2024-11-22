@@ -61,3 +61,45 @@ class AddRisk(Enum):
     TRIAGE_MEDIUM = 'TM'
     TRIAGE_HIGH = 'TH'
     TRIAGE_CRITICAL = 'TC'
+
+
+CAPABILITIES = (
+    'favicon',
+    'reverse-csp',
+    'nuclei',
+    'whois',
+    'subdomain',
+    'csp-mine',
+    'tls-mine',
+    'portscan',
+    'github',
+    'github-repository',
+    'secrets',
+    'amazon',
+    'azure',
+    'gcp',
+    'ns1',
+    'cloudflare',
+    'gato',
+    'crowdstrike',
+    'crawler',
+    'gitlab',
+    'ssh',
+    'azuread-discovery',
+    'edgar',
+    'nessus',
+    'nessus-import',
+    'insightvm',
+    'insightvm-import',
+    'qualys',
+    'qualys-import',
+    'burp-enterprise',
+    'ip',
+    'cidr',
+    'website',
+    'reverse-whois',
+    'digitalocean',
+    'burp-internal',
+    'seed-import',
+    'builtwith'
+)

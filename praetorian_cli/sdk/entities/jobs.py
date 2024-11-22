@@ -5,9 +5,12 @@ class Jobs:
     def __init__(self, api):
         self.api = api
 
-    def add(self, target_key):
+    def add(self, target_key, capabilities=[]):
         """ Add a job for an asset or an attribute """
-        return self.api.force_add('job', dict(key=target_key))
+        params = dict(key=target_key)
+        if capabilities:
+            params = params | dict(capabilities=capabilities)
+        return self.api.force_add('job', params)
 
     def get(self, key):
         """ Get details of a job """

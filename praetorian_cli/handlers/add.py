@@ -5,7 +5,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import AssetPriorities, error
-from praetorian_cli.sdk.model.globals import AddRisk
+from praetorian_cli.sdk.model.globals import AddRisk, CAPABILITIES
 
 
 @chariot.group()
@@ -152,19 +152,22 @@ def risk(sdk, name, asset, status, comment):
 @add.command()
 @cli_handler
 @click.option('-k', '--key', required=True, help='Key of an existing asset or attribute')
-def job(sdk, key):
+@click.option('-c', '--capability', 'capabilities', multiple=True, type=click.Choice(CAPABILITIES),
+              help='Capabilities to run (can be specified multiple times)')
+def job(sdk, key, capabilities):
     """ Schedule scan jobs for an asset or an attribute
 
     This command schedules the relevant discovery and vulnerability scans for
     the specified asset or attribute. Make sure to quote the key, since it
-    contain the "#" sign.
+    contains the "#" sign.
 
     \b
     Example usages:
         - praetorian chariot add job --key "#asset#example.com#1.2.3.4"
+        - praetorian chariot add job --key "#asset#example.com#1.2.3.4" -c subdomain -c portscan
         - praetorian chariot add job --key "#attribute#ssh#22#asset#api.www.example.com#1.2.3.4"
     """
-    sdk.jobs.add(key)
+    sdk.jobs.add(key, capabilities)
 
 
 @add.command()
