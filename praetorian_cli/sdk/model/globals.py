@@ -64,9 +64,13 @@ class AddRisk(Enum):
 
 
 CAPABILITIES = (
+    'favicon',
+    'reverse-csp',
     'nuclei',
     'whois',
     'subdomain',
+    'csp-mine',
+    'tls-mine',
     'portscan',
     'github',
     'github-repository',

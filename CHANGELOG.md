@@ -2,8 +2,8 @@
 
 ## 1.5.4 (2024-11-22)
 
-* [New feature] Add the option to specify the capabilities to run when adding
-  jobs for an asset.
+* [New feature] Add the option to specify the capabilities to run when adding scan
+  jobs for assets.
 
 ## 1.5.3 (2024-11-14)
 
