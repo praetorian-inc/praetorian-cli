@@ -1,7 +1,10 @@
 import traceback
 from functools import wraps
+from importlib.metadata import version
 
 import click
+import requests
+from packaging.version import Version
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.utils import error
@@ -9,7 +12,7 @@ from praetorian_cli.handlers.utils import error
 
 def handle_error(func):
     @wraps(func)
-    def handler(*args, **kwargs):
+    def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except Exception as e:
@@ -17,12 +20,29 @@ def handle_error(func):
             if chariot.is_debug:
                 click.echo(traceback.format_exc())
 
-    return handler
+    return wrapper
+
+
+def upgrade_check(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        response = requests.get('https://pypi.org/pypi/praetorian-cli/json')
+        pypi = sorted([Version(v) for v in list(response.json()['releases'].keys())])[-1]
+        local = Version(version('praetorian-cli'))
+        if pypi > local:
+            click.echo(f'A new version of praetorian-cli is available: {pypi}')
+            click.echo(f'You are currently running {local}.')
+            click.echo('To upgrade, run "pip install --upgrade praetorian-cli".')
+        return result
+
+    return wrapper
 
 
 def cli_handler(func):
     func = click.pass_obj(func)
     func = handle_error(func)
+    func = upgrade_check(func)
     return func
 
 
