@@ -13,6 +13,7 @@ from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.webhook import Webhook
+from praetorian_cli.sdk.entities.stats import Stats
 from praetorian_cli.sdk.keychain import Keychain
 
 
@@ -30,6 +31,7 @@ class Chariot:
         self.attributes = Attributes(self)
         self.search = Search(self)
         self.webhook = Webhook(self)
+        self.stats = Stats(self)
 
     def my(self, params: dict, pages=1) -> {}:
         my_resp = dict()
