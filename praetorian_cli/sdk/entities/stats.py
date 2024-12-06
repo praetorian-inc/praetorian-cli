@@ -4,9 +4,14 @@ class StatsUtil:
     # Main categories
     RISKS = "my#status"  # Risk statistics by status/severity  
     RISK_EVENTS = "event#risk"  # Risk event statistics
+    ASSETS_BY_STATUS = "asset#status"  # Asset statistics by status - NOTE this is just to differentiate from RISKS; the actual prefix is the same
+    ASSETS_BY_CLASS = "class##asset##"  # Asset statistics by class
     
     # All possible risk statuses
     RISK_STATUSES = ["T", "O", "R", "I", "D"]
+    
+    # All possible asset statuses
+    ASSET_STATUSES = ["A", "P", "D", "F", "AL", "AH"]
     
     @staticmethod
     def risks_by_status(status=None, severity=None):
@@ -27,6 +32,10 @@ class StatsUtil:
        --filter risks               : All risk statistics
        --filter risk_events         : All risk event statistics
        --filter "my#status:O#H"    : Open high severity risks
+
+    2. Assets:
+       --filter assets_by_status    : All asset statistics by status (A,P,D,F,AL,AH)
+       --filter assets_by_class     : All asset statistics by class
        
     Examples:
     1. Current risk counts:
@@ -34,6 +43,9 @@ class StatsUtil:
        
     2. Risk event history:
        $ chariot list statistics --filter risk_events --from 2024-01-01
+       
+    3. Current asset status:
+       $ chariot list statistics --filter assets_by_status --to now
     """
 
 class Stats:
@@ -57,6 +69,15 @@ class Stats:
         elif prefix_filter == self.util.RISK_EVENTS:
             # events require double pounds before event type
             return self._query_single("event##risk#", from_date, to_date, offset, pages)
+        elif prefix_filter == self.util.ASSETS_BY_STATUS:
+            all_stats = []
+            for status in self.util.ASSET_STATUSES:
+                asset_filter = f"my#status:{status}"
+                stats, _ = self._query_single(asset_filter, from_date, to_date, offset, pages)
+                all_stats.extend(stats)
+            return all_stats, None
+        elif prefix_filter == self.util.ASSETS_BY_CLASS:
+            return self._query_single("class##asset#", from_date, to_date, offset, pages)
         else:
             return self._query_single(prefix_filter, from_date, to_date, offset, pages)
 
