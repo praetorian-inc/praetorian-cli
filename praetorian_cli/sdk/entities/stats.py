@@ -6,6 +6,7 @@ class StatsUtil:
     RISK_EVENTS = "event#risk"  # Risk event statistics
     ASSETS_BY_STATUS = "asset#status"  # Asset statistics by status - NOTE this is just to differentiate from RISKS; the actual prefix is the same
     ASSETS_BY_CLASS = "class##asset##"  # Asset statistics by class
+    SEEDS = "class##seed"  # Seed statistics by class
     
     # All possible risk statuses
     RISK_STATUSES = ["T", "O", "R", "I", "D"]
@@ -36,6 +37,7 @@ class StatsUtil:
     2. Assets:
        --filter assets_by_status    : All asset statistics by status (A,P,D,F,AL,AH)
        --filter assets_by_class     : All asset statistics by class
+       --filter seeds               : All seed statistics by class
        
     Examples:
     1. Current risk counts:
@@ -78,6 +80,8 @@ class Stats:
             return all_stats, None
         elif prefix_filter == self.util.ASSETS_BY_CLASS:
             return self._query_single("class##asset#", from_date, to_date, offset, pages)
+        elif prefix_filter == self.util.SEEDS:
+            return self._query_single("class##seed", from_date, to_date, offset, pages)
         else:
             return self._query_single(prefix_filter, from_date, to_date, offset, pages)
 
