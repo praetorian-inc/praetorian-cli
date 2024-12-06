@@ -191,7 +191,9 @@ def stats(chariot, filter, from_date, to_date, details, offset, page, help_stats
     # Map common filter aliases to StatsFilter values
     filter_map = {
         'risks': chariot.stats.util.RISKS,
-        'risk_events': chariot.stats.util.RISK_EVENTS
+        'risk_events': chariot.stats.util.RISK_EVENTS,
+        'assets_by_status': chariot.stats.util.ASSETS_BY_STATUS,
+        'assets_by_class': chariot.stats.util.ASSETS_BY_CLASS
     }
 
     # Use mapped filter if available, otherwise use raw filter string
