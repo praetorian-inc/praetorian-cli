@@ -34,5 +34,6 @@ class Webhook:
             return None
 
     def webhook_url(self, pin):
-        username = b64encode(self.api.keychain.username().encode('utf8'))
-        return f'{self.api.keychain.base_url()}/hook/{username.decode("utf8").rstrip("=")}/{pin}'
+            # Use current_principal() instead of username()
+            username = b64encode(self.api.accounts.current_principal().encode('utf8'))
+            return f'{self.api.keychain.base_url()}/hook/{username.decode("utf8").rstrip("=")}/{pin}'
