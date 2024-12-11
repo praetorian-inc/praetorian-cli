@@ -27,13 +27,18 @@ def upgrade_check(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
-        response = requests.get('https://pypi.org/pypi/praetorian-cli/json')
-        pypi = sorted([Version(v) for v in list(response.json()['releases'].keys())])[-1]
-        local = Version(version('praetorian-cli'))
-        if pypi > local:
-            click.echo(f'A new version of praetorian-cli is available: {pypi}')
-            click.echo(f'You are currently running {local}.')
-            click.echo('To upgrade, run "pip install --upgrade praetorian-cli".')
+        try:
+            response = requests.get('https://pypi.org/pypi/praetorian-cli/json')
+            pypi = sorted([Version(v) for v in list(response.json()['releases'].keys())])[-1]
+            local = Version(version('praetorian-cli'))
+            if pypi > local:
+                click.echo(f'A new version of praetorian-cli is available: {pypi}', err=True)
+                click.echo(f'You are currently running {local}.', err=True)
+                click.echo('To upgrade, run "pip install --upgrade praetorian-cli".', err=True)
+        except:
+            # Silently fail if we can't check for updates
+            # This preserves the main functionality even if update checks fail
+            pass
         return result
 
     return wrapper
