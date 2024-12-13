@@ -1,7 +1,6 @@
 import os
 import time
 from random import randint
-from subprocess import run
 
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
@@ -45,24 +44,6 @@ def clean_test_entities(sdk, o):
         sdk.attributes.delete(a['key'])
     sdk.risks.delete(o.risk_key)
     sdk.assets.delete(o.asset_key)
-
-
-def verify_cli(command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
-    result = run(f'praetorian chariot {command}', capture_output=True, text=True, shell=True)
-    if expected_stdout:
-        for out in expected_stdout:
-            assert out in result.stdout, f'CLI "{command}" does not contain {out} in stdout; instead, got {result.stdout}'
-    else:
-        if not ignore_stdout:
-            assert len(result.stdout) == 0, \
-                f'CLI "{command}" should not have content in stdout; instead, got {result.stdout}'
-
-    if expected_stderr:
-        for err in expected_stderr:
-            assert err in result.stderr, f'CLI "{command}" of CLI does not contain {out} in stderr; instead, got {result.stderr}'
-    else:
-        assert len(result.stderr) == 0, \
-            f'CLI "{command}" should not have content in stderr; instead, got {result.stderr}'
 
 
 def setup_chariot():
