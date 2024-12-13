@@ -32,23 +32,20 @@ class Chariot:
         self.webhook = Webhook(self)
 
     def my(self, params: dict, pages=1) -> {}:
-        my_resp = dict()
+        final_resp = dict()
         for _ in range(pages):
             resp = requests.get(f'{self.keychain.base_url()}/my',
                                 params=params, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
-            for key, value in resp.items():
-                if key in my_resp and isinstance(value, list):
-                    my_resp[key].extend(value)
-                else:
-                    my_resp[key] = value
-            if 'offset' in resp:
-                params['offset'] = json.dumps(resp['offset'])
-            else:
-                my_resp.pop('offset', None)
+            extend(final_resp, resp)
+
+            if 'offset' not in resp:
                 break
-        return my_resp
+
+            params['offset'] = json.dumps(resp['offset'])
+
+        return final_resp
 
     def post(self, type: str, params):
         resp = requests.post(f'{self.keychain.base_url()}/{type}',
@@ -146,3 +143,18 @@ def process_failure(response):
     if not response.ok:
         message = f'[{response.status_code}] Request failed' + (f'\nError: {response.text}' if response.text else '')
         raise Exception(message)
+
+
+def extend(accumulate, new):
+    for key, value in new.items():
+        if isinstance(value, list):
+            if key in accumulate:
+                accumulate[key].extend(value)
+            else:
+                accumulate[key] = value
+        elif isinstance(value, dict):
+            if key not in accumulate:
+                accumulate[key] = dict()
+            extend(accumulate[key], value)
+
+    return accumulate

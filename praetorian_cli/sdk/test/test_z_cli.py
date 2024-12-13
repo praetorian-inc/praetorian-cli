@@ -202,7 +202,6 @@ class TestZCli:
         self.verify('purge --help', ignore_stdout=True)
 
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
-        print(f'profile = {self.sdk.keychain.profile}')
         result = run(f'praetorian --profile "{self.sdk.keychain.profile}" chariot {command}', capture_output=True,
                      text=True, shell=True)
         if expected_stdout:

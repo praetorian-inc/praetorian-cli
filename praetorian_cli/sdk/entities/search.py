@@ -53,7 +53,7 @@ class Search:
 
 
 def flatten_results(results):
-    if type(results) == list:
+    if isinstance(results, list):
         return results
     flattened = []
     for key in results.keys():
