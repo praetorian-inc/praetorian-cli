@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.5 (2024-12-13)
+
+* [New feature] Added version check. The CLI now prompts the user to upgrade if a newer
+  version is available on PyPI.
+* [Bug fix] Pagination when searching for `#seed` is fixed.
+
 ## 1.5.4 (2024-11-22)
 
 * [New feature] Add the option to specify the capabilities to run when adding scan
