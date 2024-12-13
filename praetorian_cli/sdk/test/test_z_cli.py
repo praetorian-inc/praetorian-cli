@@ -20,9 +20,9 @@ class TestZCli:
 
         self.verify('list assets -p all', [o.asset_key])
         self.verify(f'list assets -f "{o.asset_dns}"', [o.asset_key])
-        self.verify(f'list assets -p first -f "{o.asset_dns}"', [o.asset_key])
-        self.verify(f'list assets -p all -f "{o.asset_dns}"', [o.asset_key])
-        self.verify(f'list assets -d -f "{o.asset_dns}"', [o.asset_key, '"key"', '"data"'])
+        self.verify(f'list assets -f "{o.asset_dns}" -p first', [o.asset_key])
+        self.verify(f'list assets -f "{o.asset_dns}" -p all', [o.asset_key])
+        self.verify(f'list assets -f "{o.asset_dns}" -d', [o.asset_key, '"key"', '"data"'])
 
         self.verify(f'list assets -f {epoch_micro()}')
 
@@ -45,7 +45,9 @@ class TestZCli:
 
         self.verify('list risks -p all', [o.risk_key])
         self.verify(f'list risks -f "{o.asset_dns}"', [o.risk_key])
-        self.verify(f'list risks -d -f "{o.asset_dns}"', [o.risk_key, '"key"', '"data"'])
+        self.verify(f'list risks -f "{o.asset_dns}" -p first', [o.risk_key])
+        self.verify(f'list risks -f "{o.asset_dns}" -p all', [o.risk_key])
+        self.verify(f'list risks -f "{o.asset_dns}" -d', [o.risk_key, '"key"', '"data"'])
         self.verify(f'list risks -f {epoch_micro()}')
 
         self.verify(f'get risk "{o.risk_key}"', [o.risk_key, f'"status": "{AddRisk.TRIAGE_HIGH.value}"'])
@@ -69,8 +71,8 @@ class TestZCli:
 
         self.verify(f'add definition {local_filepath} -n {definition_name}')
         self.verify(f'list definitions -f {definition_name}', [definition_name])
-        self.verify(f'list definitions -f {definition_name} -p all', [definition_name])
         self.verify(f'list definitions -f {definition_name} -p first', [definition_name])
+        self.verify(f'list definitions -f {definition_name} -p all', [definition_name])
         self.verify(f'get definition {definition_name}', ['Saved', definition_name])
 
         with open(definition_name, 'r') as f:
@@ -100,24 +102,24 @@ class TestZCli:
         o = make_test_values(lambda: None)
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
 
-        self.verify(f'search -t "#asset#{o.asset_dns}"', [o.asset_key])
-        self.verify(f'search -t "#asset#{o.asset_dns}" -d', [o.asset_key, '"key"', '"data"'])
-        self.verify(f'search -t "#asset#{o.asset_dns}" -c', ['"A": 1'])
+        self.verify(f'search -t "#asset#{o.asset_dns}" -p all', [o.asset_key])
+        self.verify(f'search -t "#asset#{o.asset_dns}" -d -p all', [o.asset_key, '"key"', '"data"'])
+        self.verify(f'search -t "#asset#{o.asset_dns}" -c -p all', ['"A": 1'])
 
-        self.verify(f'search -t "source:{o.asset_key}"', ['surface#provided', o.asset_key, 'attribute'])
-        self.verify(f'search -t "ip:{o.asset_name}"', [o.asset_key])
-        self.verify(f'search -t "name:{o.asset_name}"', [o.asset_key])
-        self.verify(f'search -t "dns:{o.asset_dns}"', [o.asset_key])
+        self.verify(f'search -t "source:{o.asset_key}" -p all', ['surface#provided', o.asset_key, 'attribute'])
+        self.verify(f'search -t "ip:{o.asset_name}" -p all', [o.asset_key])
+        self.verify(f'search -t "name:{o.asset_name}" -p all', [o.asset_key])
+        self.verify(f'search -t "dns:{o.asset_dns}" -p all', [o.asset_key])
 
-        self.verify(f'search -t "source:{o.asset_key}"', ['surface#provided', o.asset_key, 'attribute'])
-        self.verify(f'search -t "ip:{o.asset_name}"', [o.asset_key])
-        self.verify(f'search -t "name:{o.asset_name}"', [o.asset_key])
-        self.verify(f'search -t "dns:{o.asset_dns}"', [o.asset_key])
-        self.verify(f'search -t "status:{Asset.ACTIVE.value}"', [o.asset_key])
+        self.verify(f'search -t "source:{o.asset_key}" -p all', ['surface#provided', o.asset_key, 'attribute'])
+        self.verify(f'search -t "ip:{o.asset_name}" -p all', [o.asset_key])
+        self.verify(f'search -t "name:{o.asset_name}" -p all', [o.asset_key])
+        self.verify(f'search -t "dns:{o.asset_dns}" -p all', [o.asset_key])
+        self.verify(f'search -t "status:{Asset.ACTIVE.value}" -p all', [o.asset_key])
 
         self.verify(f'add attribute -n {o.attribute_name} -v {o.attribute_value} -k "{o.asset_key}"')
 
-        self.verify(f'search -t "name:{o.attribute_name}"', [o.asset_key, 'attribute'])
+        self.verify(f'search -t "name:{o.attribute_name}" -p all', [o.asset_key, 'attribute'])
 
         clean_test_entities(self.sdk, o)
 
