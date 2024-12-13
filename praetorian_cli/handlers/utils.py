@@ -28,7 +28,7 @@ def render_offset(offset):
 
 
 def pagination_size(page):
-    return 1000 if page == 'all' else 1
+    return 10000 if page == 'all' else 1
 
 
 def print_json(data):
