@@ -4,10 +4,11 @@ from praetorian_cli.sdk.keychain import Keychain, DEFAULT_API, DEFAULT_CLIENT_ID
 
 
 @click.command()
-@click.option('--email', help='Email you used to register for Chariot', required=True,
-              prompt='Enter your email')
-@click.option('--password', help='Password you used to register for Chariot', required=True,
-              prompt='Enter your password', hide_input=True)
+@click.option('--email', help='Email you used to register for Chariot', default='',
+              prompt='Enter your email (Type ENTER if this is set in the PRAETORIAN_CLI_USERNAME environment variable, or if using SSO)')
+@click.option('--password', help='Password you used to register for Chariot', default='',
+              prompt='Enter your password (Type ENTER if this is set in the PRAETORIAN_CLI_PASSWORD environment variable, or if using SSO)',
+              hide_input=True)
 @click.option('--profile-name', help='Profile name.', required=True,
               prompt='Enter the profile name to configure', default=DEFAULT_PROFILE, show_default=True)
 @click.option('--url', help='URL to the backend API. Default provided.', required=True,

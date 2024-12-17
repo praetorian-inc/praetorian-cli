@@ -1,4 +1,5 @@
 from configparser import ConfigParser
+from os import environ
 from os.path import join, split
 from pathlib import Path
 from time import time
@@ -51,13 +52,24 @@ class Keychain:
             error(f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
 
         profile = self.config[self.profile]
-        if not all(['username' in profile, 'password' in profile, 'api' in profile, 'client_id' in profile]):
+        if 'api' not in profile or 'client_id' not in profile:
             error(f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
+
+        self.load_env('username', 'PRAETORIAN_CLI_USERNAME')
+        self.load_env('password', 'PRAETORIAN_CLI_PASSWORD')
 
         if self.account is None:
             self.account = self.config.get(self.profile, 'account', fallback=None)
 
         return self
+
+    def load_env(self, config_name, env_name):
+        if not self.config.get(self.profile, config_name, fallback=None):
+            if env_name in environ:
+                self.config.set(self.profile, config_name, environ[env_name])
+            else:
+                error(
+                    f'{config_name} not in keychain or the {env_name} env variable. Run "praetorian configure" to fix.')
 
     def token(self):
         """ Authenticate to AWS Cognito and get the token. Cache the token until expiry. """
@@ -107,9 +119,13 @@ class Keychain:
             'client_id': client_id,
             'api': api,
             'user_pool_id': user_pool_id,
-            'username': username,
-            'password': password
         }
+
+        if username:
+            new_profile['username'] = username
+
+        if password:
+            new_profile['password'] = password
 
         if account:
             new_profile['account'] = account
