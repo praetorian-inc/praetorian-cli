@@ -2,7 +2,7 @@
 
 ## 1.5.7 (2024-12-24)
 
-* [New feature] Added support for updating attributes
+* [New feature] Added support for updating attributes.
 
 ## 1.5.6 (2024-12-23)
 
