@@ -13,6 +13,10 @@ class Attributes:
         """ Get details of an attribute """
         return self.api.search.by_exact_key(key)
 
+    def update(self, key, status):
+        """ Update an attribute """
+        return self.api.upsert('attribute', dict(key=key, status=status))
+
     def delete(self, key):
         """ Delete an attribute """
         return self.api.delete('attribute', key)

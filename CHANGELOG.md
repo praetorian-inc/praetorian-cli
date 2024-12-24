@@ -1,8 +1,14 @@
 # Changelog
 
+## 1.5.7 (2024-12-24)
+
+* [New feature] Added support for updating attributes.
+
 ## 1.5.6 (2024-12-23)
 
 * [New feature] Added operations for adding, updating, deleting, and retrieving seeds.
+* [New feature] Added support for provide username and password using environment
+  variables -- `PRAETORIAN_CLI_USERNAME`, `PRAETORIAN_CLI_PASSWORD`.
 
 ## 1.5.5 (2024-12-13)
 

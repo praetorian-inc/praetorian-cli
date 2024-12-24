@@ -1,5 +1,6 @@
 import pytest
 
+from praetorian_cli.sdk.model.globals import Attribute
 from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
 
 
@@ -25,6 +26,10 @@ class TestAttribute:
         assert a['name'] == self.attribute_name
         assert a['value'] == self.attribute_value
         assert a['source'] == self.asset_key
+
+    def test_update_attribute(self):
+        self.sdk.attributes.update(self.asset_attribute_key, Attribute.DELETED.value)
+        assert self.sdk.attributes.get(self.asset_attribute_key)['status'] == Attribute.DELETED.value
 
     def test_delete_attribute(self):
         self.sdk.attributes.delete(self.asset_attribute_key)
