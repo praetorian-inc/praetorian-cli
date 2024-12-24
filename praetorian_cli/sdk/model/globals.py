@@ -24,6 +24,12 @@ class Seed(Enum):
     FROZEN = Asset.FROZEN.value
 
 
+class Attribute(Enum):
+    ACTIVE = 'A'
+    PENDING = 'P'
+    DELETED = 'D'
+
+
 class Risk(Enum):
     TRIAGE_INFO = 'TI'
     TRIAGE_LOW = 'TL'
