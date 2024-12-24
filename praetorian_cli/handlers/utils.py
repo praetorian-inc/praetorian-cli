@@ -38,6 +38,6 @@ def print_json(data):
 
 def error(message, quit=True):
     click.secho('ERROR: ', fg='red', nl=False, err=True)
-    click.echo(message, error=True)
+    click.echo(message, err=True)
     if quit:
         exit(1)

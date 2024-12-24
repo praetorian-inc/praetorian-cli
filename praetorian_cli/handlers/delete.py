@@ -89,7 +89,7 @@ def seed(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot delete seed "#seed#example.com"
+        - praetorian chariot delete seed "#seed#domain#example.com"
     """
     chariot.seeds.delete(key)
 
