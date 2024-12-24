@@ -176,3 +176,22 @@ def webhook(chariot):
         click.echo(chariot.webhook.get_url())
     else:
         click.echo('No existing webhook.')
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+@click.option('-d', '--details', is_flag=True, help='Further retrieve the attributes and associated risks of the asset')
+def seed(chariot, key, details):
+    """ Get seed details
+
+    \b
+    Argument:
+        - KEY: the key of an existing seed
+
+    \b
+    Example usages:
+        - praetorian chariot get seed "#seed#domain#example.com"
+        - praetorian chariot get seed "#seed#ip#1.1.1.0/24" --details
+    """
+    print_json(chariot.seeds.get(key, details))

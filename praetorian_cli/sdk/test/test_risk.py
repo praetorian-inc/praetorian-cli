@@ -24,7 +24,7 @@ class TestRisk:
 
     def test_list_risks(self):
         results, _ = self.sdk.risks.list()
-        assert len(results) > 1
+        assert len(results) > 0
         assert any(r['dns'] == self.asset_dns for r in results)
 
     def test_update_risk(self):

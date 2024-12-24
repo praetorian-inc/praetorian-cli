@@ -3,7 +3,8 @@ from subprocess import run
 
 import pytest
 
-from praetorian_cli.sdk.model.globals import AddRisk, Asset, Risk
+from praetorian_cli.sdk.model.globals import AddRisk, Asset, Risk, Seed
+from praetorian_cli.sdk.model.utils import seed_status
 from praetorian_cli.sdk.test.utils import epoch_micro, random_ip, make_test_values, clean_test_entities, setup_chariot
 
 
@@ -34,6 +35,37 @@ class TestZCli:
 
         self.verify(f'delete asset "{o.asset_key}"')
         self.verify(f'get asset "{o.asset_key}"', [f'"status": "{Asset.DELETED.value}"'])
+
+        clean_test_entities(self.sdk, o)
+
+    def test_seed_cli(self):
+        o = make_test_values(lambda: None)
+
+        self.verify(f'add seed -d {o.seed_dns}')
+
+        self.verify('list seeds -p all', [o.seed_key])
+        self.verify('list seeds -t domain -p all', [o.seed_key])
+        self.verify(f'list seeds -t domain -f "{o.seed_dns}"', [o.seed_key])
+        self.verify(f'list seeds -t domain -f "{o.seed_dns}" -p first', [o.seed_key])
+        self.verify(f'list seeds -t domain -f "{o.seed_dns}" -p all', [o.seed_key])
+        self.verify(f'list seeds -t domain -f "{o.seed_dns}" -p first', [o.seed_key])
+        self.verify(f'list seeds -t domain -f "{o.seed_dns}" -d', [o.seed_dns, '"key"', '"data"'])
+        self.verify(f'list seeds -t ip -f "{o.seed_dns}"')
+        self.verify(f'list seeds -f "{o.seed_dns}"', [],
+                    ["When the DNS filter is specified, you also need to specify the type of the filter"])
+
+        self.verify(f'list seeds -t domain -f {epoch_micro()}')
+
+        self.verify(f'get seed "{o.seed_key}"',
+                    [o.seed_key, f'"status": "{seed_status("domain", Seed.PENDING.value)}"'])
+        self.verify(f'get seed -d "{o.seed_key}"', ['"attributes"'])
+
+        self.verify(f'update seed -s {Seed.FROZEN.value} "{o.seed_key}"')
+        self.verify(f'get seed "{o.seed_key}"',
+                    [o.seed_key, f'"status": "{seed_status("domain", Seed.FROZEN.value)}"'])
+
+        self.verify(f'delete seed "{o.seed_key}"')
+        self.verify(f'get seed "{o.seed_key}"', [f'"status": "{seed_status("domain", Seed.DELETED.value)}"'])
 
         clean_test_entities(self.sdk, o)
 

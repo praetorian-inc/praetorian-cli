@@ -16,7 +16,7 @@ class Jobs:
         """ Get details of a job """
         return self.api.search.by_exact_key(key)
 
-    def list(self, prefix_filter='', offset=None, pages=1000):
+    def list(self, prefix_filter='', offset=None, pages=10000):
         """ List jobs, optionally prefix-filtered by the portion of the key after
             '#job#' """
         return self.api.search.by_key_prefix(f'#job#{prefix_filter}', offset, pages)

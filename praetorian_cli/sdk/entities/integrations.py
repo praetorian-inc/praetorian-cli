@@ -12,7 +12,7 @@ class Integrations:
         """ Get details of an integration """
         return self.api.search.by_exact_key(key)
 
-    def list(self, name_filter='', offset=None, pages=1000):
+    def list(self, name_filter='', offset=None, pages=10000):
         """ List integrations, optionally filtered by the name of the integrations,
             such as github, amazon, gcp, etc. """
         results, next_offset = self.api.search.by_key_prefix('#account#', offset, pages)

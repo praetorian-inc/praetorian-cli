@@ -12,6 +12,7 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.search import Search
+from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 
@@ -21,6 +22,7 @@ class Chariot:
     def __init__(self, keychain: Keychain):
         self.keychain = keychain
         self.assets = Assets(self)
+        self.seeds = Seeds(self)
         self.risks = Risks(self)
         self.accounts = Accounts(self)
         self.integrations = Integrations(self)

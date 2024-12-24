@@ -4,7 +4,7 @@ from random import randint
 
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
-from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key
+from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key, seed_key
 
 
 def epoch_micro():
@@ -27,6 +27,8 @@ def make_test_values(o):
     o.asset_dns = random_dns()
     o.asset_name = random_ip()
     o.asset_key = asset_key(o.asset_dns, o.asset_name)
+    o.seed_dns = random_dns()
+    o.seed_key = seed_key('domain', o.seed_dns)
     o.risk_name = f'test-risk-name-{epoch_micro()}'
     o.risk_key = risk_key(o.asset_dns, o.risk_name)
     o.comment = f'Test comment {epoch_micro()}'
