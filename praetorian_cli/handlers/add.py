@@ -5,7 +5,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import AssetPriorities, error
-from praetorian_cli.sdk.model.globals import AddRisk, CAPABILITIES
+from praetorian_cli.sdk.model.globals import AddRisk, Seed, CAPABILITIES
 
 
 @chariot.group()
@@ -186,3 +186,22 @@ def attribute(sdk, key, name, value):
         - praetorian chariot add attribute --key "#asset#www.example.com#www.example.com" --name id --value "arn:aws:route53::1654874321:hostedzone/Z0000000EJBHGTFTGH3"
     """
     sdk.attributes.add(key, name, value)
+
+
+@add.command()
+@cli_handler
+@click.option('-d', '--dns', required=True, help='The DNS of the asset')
+@click.option('-s', '--status', type=click.Choice([s.value for s in Seed]),
+              default=Seed.PENDING.value, help='The status of the seed', show_default=True)
+def seed(sdk, dns, status):
+    """ Add a seed
+
+    Add a seed to the Chariot database. This command requires DNS of the seed to be
+    specified. When status is not specified, the seed is added as PENDING.
+
+    \b
+    Example usages:
+        - praetorian chariot add seed --dns example.com
+        - praetorian chariot add seed --dns example.com --status A
+    """
+    sdk.seeds.add(dns, status)

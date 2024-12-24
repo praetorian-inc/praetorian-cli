@@ -71,7 +71,7 @@ class Risks:
             params = dict()
         return self.api.delete('risk', key, params)
 
-    def list(self, prefix_filter='', offset=None, pages=1000):
+    def list(self, prefix_filter='', offset=None, pages=10000):
         """ List risks
 
         Arguments:

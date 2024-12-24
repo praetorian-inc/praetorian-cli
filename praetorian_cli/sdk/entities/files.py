@@ -16,7 +16,7 @@ class Files:
         """ download a file """
         return self.api.download(chariot_filepath, download_directory)
 
-    def list(self, prefix_filter='', offset=None, pages=1000):
+    def list(self, prefix_filter='', offset=None, pages=10000):
         """ List the files, optionally prefix-filtered by portion of the key after
             '#file#'. File keys read '#file#{filepath}' """
         return self.api.search.by_key_prefix(f'#file#{prefix_filter}', offset, pages)

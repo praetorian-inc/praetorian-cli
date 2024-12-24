@@ -77,6 +77,23 @@ def webhook(chariot):
         click.echo('No webhook previously exists.')
 
 
+@delete.command()
+@click.argument('key', required=True)
+@cli_handler
+def seed(chariot, key):
+    """ Delete a seed
+
+    \b
+    Arguments:
+        - KEY: the key of an existing seed
+
+    \b
+    Example usage:
+        - praetorian chariot delete seed "#seed#domain#example.com"
+    """
+    chariot.seeds.delete(key)
+
+
 # Special command for deleting your account and all related information.
 @chariot.command()
 @cli_handler

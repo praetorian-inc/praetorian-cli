@@ -10,3 +10,11 @@ def risk_key(dns, name):
 
 def attribute_key(name, value, source_key):
     return f'#attribute#{name}#{value}{source_key}'
+
+
+def seed_key(type, dns):
+    return f'#seed#{type}#{dns}'
+
+
+def seed_status(type, status_code):
+    return f'{type}#{status_code}'

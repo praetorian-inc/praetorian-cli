@@ -16,6 +16,14 @@ class Asset(Enum):
     PENDING_LOW = 'PL'
 
 
+class Seed(Enum):
+    REJECTED = 'FR'
+    ACTIVE = Asset.ACTIVE.value
+    DELETED = Asset.DELETED.value
+    PENDING = Asset.PENDING.value
+    FROZEN = Asset.FROZEN.value
+
+
 class Risk(Enum):
     TRIAGE_INFO = 'TI'
     TRIAGE_LOW = 'TL'
@@ -56,11 +64,11 @@ class Risk(Enum):
 
 class AddRisk(Enum):
     """ AddRisk is a subset of Risk. These are the only valid statuses when creating manual risks """
-    TRIAGE_INFO = 'TI'
-    TRIAGE_LOW = 'TL'
-    TRIAGE_MEDIUM = 'TM'
-    TRIAGE_HIGH = 'TH'
-    TRIAGE_CRITICAL = 'TC'
+    TRIAGE_INFO = Risk.TRIAGE_INFO.value
+    TRIAGE_LOW = Risk.TRIAGE_LOW.value
+    TRIAGE_MEDIUM = Risk.TRIAGE_MEDIUM.value
+    TRIAGE_HIGH = Risk.TRIAGE_HIGH.value
+    TRIAGE_CRITICAL = Risk.TRIAGE_CRITICAL.value
 
 
 CAPABILITIES = (

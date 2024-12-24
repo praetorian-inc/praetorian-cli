@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.6 (2024-12-23)
+
+* [New feature] Added operations for adding, updating, deleting, and retrieving seeds.
+
 ## 1.5.5 (2024-12-13)
 
 * [New feature] Added version check. The CLI now prompts the user to upgrade if a newer

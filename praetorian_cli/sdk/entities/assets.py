@@ -58,7 +58,7 @@ class Assets:
         """
         return self.api.delete('asset', key)
 
-    def list(self, prefix_filter='', offset=None, pages=1000):
+    def list(self, prefix_filter='', offset=None, pages=10000):
         """ List assets
 
         Arguments:
