@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.8 (2024-12-27)
+
+* [New feature] Added support for the discovery-only scan level for seeds.
+
 ## 1.5.7 (2024-12-24)
 
 * [New feature] Added support for updating attributes.
