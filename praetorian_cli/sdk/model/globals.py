@@ -19,9 +19,12 @@ class Asset(Enum):
 class Seed(Enum):
     REJECTED = 'FR'
     ACTIVE = Asset.ACTIVE.value
+    ACTIVE_LOW = Asset.ACTIVE_LOW.value
     DELETED = Asset.DELETED.value
     PENDING = Asset.PENDING.value
+    PENDING_LOW = Asset.PENDING_LOW.value
     FROZEN = Asset.FROZEN.value
+    FROZEN_LOW = Asset.FROZEN_LOW.value
 
 
 class Attribute(Enum):
