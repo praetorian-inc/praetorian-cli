@@ -126,7 +126,7 @@ class TestZCli:
         self.verify(f'get attribute "{o.asset_attribute_key}"', [o.asset_attribute_key, '"key"', '"name"'])
 
         self.verify(f'update attribute -s {Attribute.DELETED.value} "{o.asset_attribute_key}"')
-        self.verify(f'get seed "{o.asset_attribute_key}"',
+        self.verify(f'get attribute "{o.asset_attribute_key}"',
                     [o.asset_attribute_key, f'"status": "{Attribute.DELETED.value}"'])
 
         self.verify(f'delete attribute "{o.asset_attribute_key}"')
