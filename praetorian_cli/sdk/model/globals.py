@@ -28,11 +28,11 @@ class Seed(Enum):
 
 
 class Attribute(Enum):
-    ACTIVE = 'A'
-    ACTIVE_LOW = 'AL'
-    PENDING = 'P'
-    PENDING_LOW = 'PL'
-    DELETED = 'D'
+    ACTIVE = Asset.ACTIVE.value
+    ACTIVE_LOW = Asset.ACTIVE_LOW.value
+    PENDING = Asset.PENDING.value
+    PENDING_LOW = Asset.PENDING_LOW.value
+    DELETED = Asset.DELETED.value
 
 
 class Risk(Enum):
