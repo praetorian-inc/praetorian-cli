@@ -29,7 +29,9 @@ class Seed(Enum):
 
 class Attribute(Enum):
     ACTIVE = 'A'
+    ACTIVE_LOW = 'AL'
     PENDING = 'P'
+    PENDING_LOW = 'PL'
     DELETED = 'D'
 
 
