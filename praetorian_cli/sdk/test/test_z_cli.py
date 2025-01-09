@@ -139,6 +139,9 @@ class TestZCli:
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
 
         self.verify(f'search -t "#asset#{o.asset_dns}" -p all', [o.asset_key])
+        self.verify(f'search -t "#asset#{o.asset_dns}" -p all --desc', [o.asset_key])
+        self.verify(f'search -t "#asset#{o.asset_dns}" -p all -g')
+
         self.verify(f'search -t "#asset#{o.asset_dns}" -d -p all', [o.asset_key, '"key"', '"data"'])
         self.verify(f'search -t "#asset#{o.asset_dns}" -c -p all', ['"A": 1'])
 

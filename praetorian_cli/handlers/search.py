@@ -11,7 +11,9 @@ from praetorian_cli.handlers.utils import render_list_results, print_json, pagin
 @click.option('-t', '--term', help='Enter a search term', required=True)
 @click.option('-c', '--count', is_flag=True, default=False, help='Return statistics on search')
 @click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')
-def search(chariot, term, count, details, offset, page):
+@click.option('-desc', '--desc', is_flag=True, default=False, help='Return data in descending order')
+@click.option('-g', '--global', 'global_', is_flag=True, default=False, help='Use the global data set')
+def search(chariot, term, count, details, offset, page, desc, global_):
     """ Query Chariot for matches or counts using the search syntax
 
     \b
@@ -53,9 +55,10 @@ def search(chariot, term, count, details, offset, page):
         - praetorian chariot search --term "status:OH"
         - praetorian chariot search --term "status:OH" --details --page all
         - praetorian chariot search --term "#asset#www.example.com"
-        - praetorian chariot search --term "dns:https://github.com/praetorian-inc/"
+        - praetorian chariot search --term "dns:https://github.com/praetorian-inc/" --desc
     """
     if count:
         print_json(chariot.search.count(term))
     else:
-        render_list_results(chariot.search.by_term(term, offset, pagination_size(page)), details)
+        render_list_results(chariot.search.by_term(term, offset, pagination_size(page), desc=desc, global_=global_),
+                            details)

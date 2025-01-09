@@ -24,7 +24,7 @@ def render_list_results(list_results, details):
 def render_offset(offset):
     if offset:
         click.echo('There are more results. Add the following argument to the command to view them:')
-        click.echo(f'--offset "{json.dumps(offset)}"')
+        click.echo(f'--offset {json.dumps(offset)}')
 
 
 def pagination_size(page):
