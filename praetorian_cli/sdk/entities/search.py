@@ -32,12 +32,16 @@ class Search:
     def by_dns(self, dns_prefix, offset=None, pages=10000) -> tuple:
         return self.by_term(f'dns:{dns_prefix}', offset, pages)
 
-    def by_term(self, search_term, offset=None, pages=1000, exact=False) -> tuple:
+    def by_term(self, search_term, offset=None, pages=1000, exact=False, desc=False, global_=False) -> tuple:
         params = dict(key=search_term)
         if offset:
             params = params | dict(offset=offset)
         if exact:
             params = params | dict(exact='true')
+        if desc:
+            params = params | dict(desc='true')
+        if global_:
+            params = params | {'global': 'true'}
 
         # extract all the different types of entities in the search results into a
         # flattened list of `hits`

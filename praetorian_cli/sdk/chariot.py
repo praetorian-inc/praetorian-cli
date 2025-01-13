@@ -41,11 +41,12 @@ class Chariot:
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
-
             if 'offset' not in resp:
                 break
-
             params['offset'] = json.dumps(resp['offset'])
+
+        if 'offset' in resp:
+            final_resp['offset'] = json.dumps(resp['offset'])
 
         return final_resp
 
