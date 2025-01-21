@@ -8,6 +8,7 @@ import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
 import praetorian_cli.handlers.script
 import praetorian_cli.handlers.search
+import praetorian_cli.handlers.statistics
 import praetorian_cli.handlers.test
 import praetorian_cli.handlers.unlink
 import praetorian_cli.handlers.update
