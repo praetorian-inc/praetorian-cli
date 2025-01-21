@@ -1,4 +1,4 @@
-class StatsUtil:
+class Util:
     """Helper class for building statistics filters"""
 
     # Main categories
@@ -40,13 +40,13 @@ class StatsUtil:
 
     Examples:
     1. Current risk counts:
-       $ chariot list statistics --filter risks --to now
+       $ praetorian chariot list statistics --filter risks --to now
 
     2. Risk event history:
-       $ chariot list statistics --filter risk_events --from 2024-01-01
+       $ praetorian chariot list statistics --filter risk_events --from 2024-01-01
 
     3. Current asset status:
-       $ chariot list statistics --filter assets_by_status --to now
+       $ praetorian chariot list statistics --filter assets_by_status --to now
     """
 
 
@@ -56,7 +56,7 @@ class Statistics:
 
     def __init__(self, api):
         self.api = api
-        self.util = StatsUtil
+        self.util = Util
 
     def list(self, prefix_filter='', from_date=None, to_date=None, offset=None, pages=1000):
         """List statistics with optional date range filtering"""
