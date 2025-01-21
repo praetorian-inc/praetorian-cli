@@ -33,18 +33,18 @@ def statistics(chariot, filter, from_date, to_date, details, offset, page, help_
 
     # Map common filter aliases to StatsFilter values
     filter_map = {
-        'risks': chariot.stats.util.RISKS,
-        'risk_events': chariot.stats.util.RISK_EVENTS,
-        'assets_by_status': chariot.stats.util.ASSETS_BY_STATUS,
-        'assets_by_class': chariot.stats.util.ASSETS_BY_CLASS,
-        'seeds': chariot.stats.util.SEEDS
+        'risks': chariot.statistics.util.RISKS,
+        'risk_events': chariot.statistics.util.RISK_EVENTS,
+        'assets_by_status': chariot.statistics.util.ASSETS_BY_STATUS,
+        'assets_by_class': chariot.statistics.util.ASSETS_BY_CLASS,
+        'seeds': chariot.statistics.util.SEEDS
     }
 
     # Use mapped filter if available, otherwise use raw filter string
     actual_filter = filter_map.get(filter, filter)
 
     render_list_results(
-        chariot.stats.list(
+        chariot.statistics.list(
             actual_filter,
             from_date,
             to_date,

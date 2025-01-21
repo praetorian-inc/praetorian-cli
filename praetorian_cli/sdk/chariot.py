@@ -33,7 +33,7 @@ class Chariot:
         self.attributes = Attributes(self)
         self.search = Search(self)
         self.webhook = Webhook(self)
-        self.stats = Statistics(self)
+        self.statistics = Statistics(self)
 
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
