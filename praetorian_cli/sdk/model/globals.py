@@ -6,33 +6,18 @@ from enum import Enum
 
 class Asset(Enum):
     ACTIVE = 'A'
-    ACTIVE_HIGH = 'AH'
-    ACTIVE_LOW = 'AL'
     FROZEN = 'F'
-    FROZEN_LOW = 'FL'
-    FROZEN_HIGH = 'FH'
     DELETED = 'D'
     PENDING = 'P'
-    PENDING_LOW = 'PL'
+    FROZEN_REJECTED = 'FR'
 
 
 class Seed(Enum):
-    REJECTED = 'FR'
     ACTIVE = Asset.ACTIVE.value
-    ACTIVE_LOW = Asset.ACTIVE_LOW.value
     DELETED = Asset.DELETED.value
     PENDING = Asset.PENDING.value
-    PENDING_LOW = Asset.PENDING_LOW.value
-    FROZEN = Asset.FROZEN.value
-    FROZEN_LOW = Asset.FROZEN_LOW.value
-
-
-class Attribute(Enum):
-    ACTIVE = Asset.ACTIVE.value
-    ACTIVE_LOW = Asset.ACTIVE_LOW.value
-    PENDING = Asset.PENDING.value
-    PENDING_LOW = Asset.PENDING_LOW.value
-    DELETED = Asset.DELETED.value
+    FROZEN = Asset.FROZEN.value,
+    FROZEN_REJECTED = Asset.FROZEN_REJECTED.value
 
 
 class Risk(Enum):
