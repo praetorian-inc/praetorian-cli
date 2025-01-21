@@ -17,11 +17,12 @@ def statistics(chariot, filter, from_date, to_date, details, offset, page, help_
     """ List statistics
     Retrieve and display a list of statistics with optional date range filtering.
     Use --help-stats for detailed information about available statistic types.
+
     \b
     Example usages:
         - praetorian chariot statistics
         - praetorian chariot statistics --filter "my#status"
-        - praetorian chariot statistics --from 2025-01-01 --to 2024-01-31
+        - praetorian chariot statistics --from 2024-12-01 --to 2024-12-31
         - praetorian chariot statistics --details
         - praetorian chariot statistics --page all
         - praetorian chariot statistics --help-stats
