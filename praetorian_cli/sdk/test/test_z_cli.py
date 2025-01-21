@@ -185,6 +185,19 @@ class TestZCli:
         self.verify('list integrations', ignore_stdout=True)
         self.verify('list integrations -d', ignore_stdout=True)
 
+    def test_statistics_cli(self):
+        self.verify('list statistics', ignore_stdout=True)
+        self.verify('list statistics -p first', ignore_stdout=True)
+        self.verify('list statistics -f risks', ignore_stdout=True)
+        self.verify('list statistics -f risk_events', ignore_stdout=True)
+        self.verify('list statistics -f assets_by_status', ignore_stdout=True)
+        self.verify('list statistics -f assets_by_class', ignore_stdout=True)
+        self.verify('list statistics -f seeds', ignore_stdout=True)
+        self.verify('list statistics -f "my#status:O#H"', ignore_stdout=True)
+        self.verify('list statistics --from 2025-01-01 --to now', ignore_stdout=True)
+        self.verify('list statistics --help', ['Start date (YYYY-MM-DD)'])
+        self.verify('list statistics --help-stats', ['Open high severity risks'])
+
     def test_help_cli(self):
         self.verify('--help', ignore_stdout=True)
         self.verify('list --help', ignore_stdout=True)
