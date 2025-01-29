@@ -10,6 +10,7 @@ from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
+from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
@@ -24,6 +25,7 @@ class Chariot:
         self.keychain = keychain
         self.assets = Assets(self)
         self.seeds = Seeds(self)
+        self.preseeds = Preseeds(self)
         self.risks = Risks(self)
         self.accounts = Accounts(self)
         self.integrations = Integrations(self)

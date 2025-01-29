@@ -181,6 +181,23 @@ def seeds(chariot, type, filter, details, offset, page):
     render_list_results(chariot.seeds.list(type, filter, offset, pagination_size(page)), details)
 
 
+@list.command()
+@list_params('DNS')
+def preseeds(chariot, filter, details, offset, page):
+    """ List adjacent domain discovery patterns (pre-seeds)
+
+   	Retrieve and display a list of pre-seeds.
+
+    \b
+    Example usages:
+        - praetorian chariot list preseeds
+        - praetorian chariot list preseeds --filter tlscert
+        - praetorian chariot list preseeds --details
+        - praetorian chariot list preseeds --page all
+    """
+    render_list_results(chariot.preseeds.list(filter, offset, pagination_size(page)), details)
+
+
 @list.command
 @click.option('-f', '--filter', default='', help='Filter by statistic type or name')
 @click.option('--from', 'from_date', help='Start date (YYYY-MM-DD)')

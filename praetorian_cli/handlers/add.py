@@ -35,8 +35,6 @@ def asset(sdk, name, dns):
     Example usages:
         - praetorian chariot add asset --dns example.com
         - praetorian chariot add asset --dns example.com --name 1.2.3.4
-        - praetorian chariot add asset --dns example.com --name 1.2.3.4 --priority comprehensive
-        - praetorian chariot add asset --dns example.com --name 1.2.3.4 --priority discover
     """
     if not name:
         name = dns

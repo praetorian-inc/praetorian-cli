@@ -12,7 +12,6 @@ from praetorian_cli.handlers.utils import error
 DEFAULT_API = 'https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot'
 DEFAULT_CLIENT_ID = '795dnnr45so7m17cppta0b295o'
 DEFAULT_PROFILE = 'United States'
-DEFAULT_USER_POOL_ID = 'us-east-2_BJ6QHVG2L'
 DEFAULT_KEYCHAIN_FILEPATH = join(Path.home(), '.praetorian', 'keychain.ini')
 
 
@@ -44,9 +43,18 @@ class Keychain:
         if self.data:
             self.config.read_string(self.data)
         else:
-            self.config.read(self.filepath)
+            keychain_file = Path(self.filepath)
+            if not keychain_file.is_file() or not keychain_file.exists():
+                # use the Production defaults
+                self.config.add_section(DEFAULT_PROFILE)
+                self.config.set(DEFAULT_PROFILE, 'api', DEFAULT_API)
+                self.config.set(DEFAULT_PROFILE, 'client_id', DEFAULT_CLIENT_ID)
+            else:
+                self.config.read(self.filepath)
+
         if not self.config.sections():
-            error('Keychain file is empty. Run "praetorian configure" to configure your profile and credentials.')
+            error(
+                f'Keychain file is corrupted. Run "praetorian configure" to configure your profile and credentials. Or, delete the corrupted keychain file at {self.filepath}')
 
         if self.profile not in self.config:
             error(f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
@@ -64,12 +72,12 @@ class Keychain:
         return self
 
     def load_env(self, config_name, env_name):
+        if env_name in environ:
+            # environment variable takes precedence
+            self.config.set(self.profile, config_name, environ[env_name])
         if not self.config.get(self.profile, config_name, fallback=None):
-            if env_name in environ:
-                self.config.set(self.profile, config_name, environ[env_name])
-            else:
-                error(
-                    f'{config_name} not in keychain or the {env_name} env variable. Run "praetorian configure" to fix.')
+            error(
+                f'{config_name} not in keychain file or the {env_name} environment variable. Run "praetorian configure" to fix. Or set the environment variable.')
 
     def token(self):
         """ Authenticate to AWS Cognito and get the token. Cache the token until expiry. """
@@ -111,14 +119,13 @@ class Keychain:
 
     @staticmethod
     def configure(username, password, profile=DEFAULT_PROFILE, api=DEFAULT_API, client_id=DEFAULT_CLIENT_ID,
-                  user_pool_id=DEFAULT_USER_POOL_ID, account=None):
+                  account=None):
         """ Update or insert a new profile to the keychain file at the default location.
             If the keychain file does not exist, create it. """
         new_profile = {
             'name': 'chariot',
             'client_id': client_id,
-            'api': api,
-            'user_pool_id': user_pool_id,
+            'api': api
         }
 
         if username:

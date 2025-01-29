@@ -12,7 +12,7 @@ class TestAsset:
         make_test_values(self)
 
     def test_add_asset(self):
-        asset = self.sdk.assets.add(self.asset_dns, self.asset_name, Asset.ACTIVE.value)
+        asset = self.sdk.assets.add(self.asset_dns, self.asset_name)
         assert asset['key'] == self.asset_key
 
     def test_get_asset(self):

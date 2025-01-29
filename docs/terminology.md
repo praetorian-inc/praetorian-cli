@@ -9,15 +9,12 @@ For assets, the `status` field has the following shorthands. These shorthands ar
 `add asset` and `update asset` commands. They are also used in the JSON output
 of the `get asset` and `list assets --details` commands:
 
-| Asset status | Meaning                                                                                                                                                                                        |
-|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| AH           | An active asset. Comprehensive asset and risk discovery scans, including more intensive testing that may generate significant load. Suitable for highly resilient and business critical assets |
-| A            | An active asset. Standard asset and risk discovery scans                                                                                                                                       |
-| AL           | An active asset. Asset discovery scans only with no risk scanning                                                                                                                              |
-| F            | A frozen asset. All scans are stopped on frozen assets.                                                                                                                                        |
-| FL           | A frozen asset, originally scanned only for discovery. All scans are stopped on frozen assets.                                                                                                 |                                                                                       
-| FH           | A frozen asset, originally scanned comprehensively. All scans are stopped on frozen assets.                                                                                                    |                                                                                      
-| D            | A deleted asset                                                                                                                                                                                |
+| Asset status | Meaning                                                  |
+|--------------|----------------------------------------------------------|
+| A            | An active asset. Standard asset and risk discovery scans |
+| F            | A frozen asset. All scans are stopped on frozen assets.  |
+| D            | A deleted asset                                          |
+| P            | A pending asset                                          |
 
 # Risk statuses
 

@@ -3,7 +3,7 @@ from subprocess import run
 
 import pytest
 
-from praetorian_cli.sdk.model.globals import AddRisk, Asset, Risk, Seed, Attribute
+from praetorian_cli.sdk.model.globals import AddRisk, Asset, Risk, Seed
 from praetorian_cli.sdk.model.utils import seed_status
 from praetorian_cli.sdk.test.utils import epoch_micro, random_ip, make_test_values, clean_test_entities, setup_chariot
 
@@ -30,8 +30,8 @@ class TestZCli:
         self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.ACTIVE.value}"'])
         self.verify(f'get asset -d "{o.asset_key}"', ['"attributes"', '"associated_risks"'])
 
-        self.verify(f'update asset -p discover "{o.asset_key}"')
-        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.ACTIVE_LOW.value}"'])
+        self.verify(f'update asset -s F "{o.asset_key}"')
+        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.FROZEN.value}"'])
 
         self.verify(f'delete asset "{o.asset_key}"')
         self.verify(f'get asset "{o.asset_key}"', [f'"status": "{Asset.DELETED.value}"'])
@@ -60,9 +60,9 @@ class TestZCli:
                     [o.seed_key, f'"status": "{seed_status("domain", Seed.PENDING.value)}"'])
         self.verify(f'get seed -d "{o.seed_key}"', ['"attributes"'])
 
-        self.verify(f'update seed -s {Seed.FROZEN.value} "{o.seed_key}"')
+        self.verify(f'update seed -s {Seed.ACTIVE.value} "{o.seed_key}"')
         self.verify(f'get seed "{o.seed_key}"',
-                    [o.seed_key, f'"status": "{seed_status("domain", Seed.FROZEN.value)}"'])
+                    [o.seed_key, f'"status": "{seed_status("domain", Seed.ACTIVE.value)}"'])
 
         self.verify(f'delete seed "{o.seed_key}"')
         self.verify(f'get seed "{o.seed_key}"', [f'"status": "{seed_status("domain", Seed.DELETED.value)}"'])
