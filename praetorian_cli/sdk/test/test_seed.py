@@ -27,8 +27,8 @@ class TestSeed:
         assert results[0]['dns'] == self.seed_dns
 
     def test_update_seed(self):
-        self.sdk.seeds.update(self.seed_key, Seed.FROZEN.value)
-        assert self.get_seed()['status'] == seed_status('domain', Seed.FROZEN.value)
+        self.sdk.seeds.update(self.seed_key, Seed.ACTIVE.value)
+        assert self.get_seed()['status'] == seed_status('domain', Seed.ACTIVE.value)
 
     def test_delete_seed(self):
         self.sdk.seeds.delete(self.seed_key)

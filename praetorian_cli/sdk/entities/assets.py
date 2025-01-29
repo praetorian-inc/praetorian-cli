@@ -1,6 +1,3 @@
-from praetorian_cli.sdk.model.globals import Asset
-
-
 class Assets:
     """ The methods in this class are to be assessed from sdk.assets, where sdk is an instance
     of Chariot. """
@@ -8,7 +5,7 @@ class Assets:
     def __init__(self, api):
         self.api = api
 
-    def add(self, dns, name, status=Asset.ACTIVE.value):
+    def add(self, dns, name):
         """ Add an asset
 
         Arguments:
@@ -16,10 +13,8 @@ class Assets:
             The DNS name of the asset
         name: str
             The name of the asset
-        status: str
-            See globals.py for list of valid statuses
         """
-        return self.api.upsert('asset', dict(dns=dns, name=name, status=status))[0]
+        return self.api.upsert('asset', dict(dns=dns, name=name))[0]
 
     def get(self, key, details=False):
         """ Get details of an asset
@@ -38,7 +33,6 @@ class Assets:
 
     def update(self, key, status):
         """ Update an asset; only status field makes sense to be updated.
-
         Arguments:
         key: str
             The key of an asset. If you supply a prefix that matches multiple assets,

@@ -4,7 +4,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import AssetPriorities, error
+from praetorian_cli.handlers.utils import error
 from praetorian_cli.sdk.model.globals import AddRisk, Seed, CAPABILITIES
 
 
@@ -18,9 +18,7 @@ def add():
 @cli_handler
 @click.option('-d', '--dns', required=True, help='The DNS of the asset')
 @click.option('-n', '--name', required=False, help='The name of the asset, e.g, IP address, GitHub repo URL')
-@click.option('-p', '--priority', type=click.Choice(AssetPriorities.keys()),
-              default='standard', help='The priority of the asset', show_default=True)
-def asset(sdk, name, dns, priority):
+def asset(sdk, name, dns):
     """ Add an asset
 
     Add an asset to the Chariot database. This command requires a DNS name for the asset.
@@ -37,12 +35,10 @@ def asset(sdk, name, dns, priority):
     Example usages:
         - praetorian chariot add asset --dns example.com
         - praetorian chariot add asset --dns example.com --name 1.2.3.4
-        - praetorian chariot add asset --dns example.com --name 1.2.3.4 --priority comprehensive
-        - praetorian chariot add asset --dns example.com --name 1.2.3.4 --priority discover
     """
     if not name:
         name = dns
-    sdk.assets.add(dns, name, AssetPriorities[priority])
+    sdk.assets.add(dns, name)
 
 
 @add.command()

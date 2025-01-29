@@ -181,9 +181,26 @@ def webhook(chariot):
 @get.command()
 @cli_handler
 @click.argument('key', required=True)
-@click.option('-d', '--details', is_flag=True, help='Further retrieve the attributes and associated risks of the asset')
-def seed(chariot, key, details):
+def seed(chariot, key):
     """ Get seed details
+
+    \b
+    Argument:
+        - KEY: the key of an existing pre-seed
+
+    \b
+    Example usages:
+        - praetorian chariot get preseed "#preseed#domain#example.com"
+    """
+    print_json(chariot.seeds.get(key))
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+@click.option('-d', '--details', is_flag=True, help='Further retrieve the attributes and associated risks of the asset')
+def preseed(chariot, key, details):
+    """ Get pre-seed details
 
     \b
     Argument:

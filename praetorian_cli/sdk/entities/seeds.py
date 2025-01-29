@@ -13,10 +13,9 @@ class Seeds:
         """ Add a seed """
         return self.api.upsert('seed', dict(dns=dns, status=status))
 
-    def get(self, key, details=False):
+    def get(self, key):
         """ Get details of a seed """
-        seed = self.api.search.by_exact_key(key, details)
-        return seed
+        return self.api.search.by_exact_key(key, False)
 
     def update(self, key, status):
         """ Update a seed; only status field makes sense to be updated. """

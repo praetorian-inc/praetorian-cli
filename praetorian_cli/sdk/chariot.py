@@ -10,6 +10,7 @@ from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
+from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
@@ -24,6 +25,7 @@ class Chariot:
         self.keychain = keychain
         self.assets = Assets(self)
         self.seeds = Seeds(self)
+        self.preseeds = Preseeds(self)
         self.risks = Risks(self)
         self.accounts = Accounts(self)
         self.integrations = Integrations(self)
@@ -38,7 +40,7 @@ class Chariot:
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
         for _ in range(pages):
-            resp = requests.get(f'{self.keychain.base_url()}/my',
+            resp = requests.get(self.url('/my'),
                                 params=params, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
@@ -52,20 +54,20 @@ class Chariot:
 
         return final_resp
 
-    def post(self, type: str, params):
-        resp = requests.post(f'{self.keychain.base_url()}/{type}',
+    def post(self, type: str, params: dict):
+        resp = requests.post(self.url(f'/{type}'),
                              json=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def put(self, type: str, params: dict) -> {}:
-        resp = requests.put(f'{self.keychain.base_url()}/{type}',
+        resp = requests.put(self.url(f'/{type}'),
                             json=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def delete(self, type: str, key: str, params: dict = {}) -> {}:
-        resp = requests.delete(f'{self.keychain.base_url()}/{type}', json=dict(key=key) | params,
+        resp = requests.delete(self.url(f'/{type}'), json=dict(key=key) | params,
                                headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
@@ -83,13 +85,13 @@ class Chariot:
         return self.put(type, params)
 
     def link_account(self, username: str, value: str = '', config: dict = {}):
-        resp = requests.post(f'{self.keychain.base_url()}/account/{username}', json=dict(config=config, value=value),
+        resp = requests.post(self.url(f'/account/{username}'), json=dict(config=config, value=value),
                              headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def unlink(self, username: str, value: str = ''):
-        resp = requests.delete(f'{self.keychain.base_url()}/account/{username}', headers=self.keychain.headers(),
+        resp = requests.delete(self.url(f'/account/{username}'), headers=self.keychain.headers(),
                                json={'value': value})
         process_failure(resp)
         return resp.json()
@@ -104,7 +106,7 @@ class Chariot:
     def _upload(self, chariot_filepath: str, content: str):
         # It is a two-step upload. The PUT request to the /file endpoint is to get a presigned URL for S3.
         # There is no data transfer.
-        presigned_url = requests.put(f'{self.keychain.base_url()}/file', params=dict(name=chariot_filepath),
+        presigned_url = requests.put(self.url('/file'), params=dict(name=chariot_filepath),
                                      headers=self.keychain.headers())
         process_failure(presigned_url)
         resp = requests.put(presigned_url.json()['url'], data=content)
@@ -112,7 +114,7 @@ class Chariot:
         return resp
 
     def download(self, name: str, download_directory: str = ''):
-        resp = requests.get(f'{self.keychain.base_url()}/file', params=dict(name=name), allow_redirects=True,
+        resp = requests.get(self.url('/file'), params=dict(name=name), allow_redirects=True,
                             headers=self.keychain.headers())
         process_failure(resp)
         if not download_directory:
@@ -135,13 +137,21 @@ class Chariot:
         return filename
 
     def count(self, params: dict) -> {}:
-        resp = requests.get(f'{self.keychain.base_url()}/my/count',
+        resp = requests.get(self.url('/my/count'),
                             params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def purge(self):
-        requests.delete(f'{self.keychain.base_url()}/account/purge', headers=self.keychain.headers())
+        requests.delete(self.url('/account/purge'), headers=self.keychain.headers())
+
+    def enrichment(self, type: str, id: str):
+        resp = requests.get(self.url(f'/enrich/{type}/{id}'), headers=self.keychain.headers())
+        process_failure(resp)
+        return resp.json()
+
+    def url(self, path: str):
+        return self.keychain.base_url() + path
 
 
 def process_failure(response):

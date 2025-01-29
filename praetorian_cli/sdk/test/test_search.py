@@ -10,7 +10,7 @@ class TestSearch:
     def setup_class(self):
         self.sdk = setup_chariot()
         make_test_values(self)
-        self.sdk.assets.add(self.asset_dns, self.asset_name, Asset.ACTIVE.value)
+        self.sdk.assets.add(self.asset_dns, self.asset_name)
         self.sdk.attributes.add(self.asset_key, self.attribute_name, self.attribute_value)
 
     def test_search_by_key_prefix(self):

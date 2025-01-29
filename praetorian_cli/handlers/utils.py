@@ -2,11 +2,6 @@ import json
 
 import click
 
-from praetorian_cli.sdk.model.globals import Asset
-
-AssetPriorities = {'comprehensive': Asset.ACTIVE_HIGH.value, 'standard': Asset.ACTIVE.value,
-                   'discover': Asset.ACTIVE_LOW.value, 'frozen': Asset.FROZEN.value}
-
 
 def render_list_results(list_results, details):
     list_data, offset = list_results
@@ -33,7 +28,7 @@ def pagination_size(page):
 
 def print_json(data):
     if data:
-        click.echo(json.dumps(data, indent=4))
+        click.echo(json.dumps(data, indent=2))
 
 
 def error(message, quit=True):

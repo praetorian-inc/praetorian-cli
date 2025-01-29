@@ -2,6 +2,7 @@ import click
 
 import praetorian_cli.handlers.add
 import praetorian_cli.handlers.delete
+import praetorian_cli.handlers.enrich
 import praetorian_cli.handlers.get
 import praetorian_cli.handlers.imports
 import praetorian_cli.handlers.link
