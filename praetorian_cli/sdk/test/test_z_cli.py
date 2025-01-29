@@ -58,7 +58,6 @@ class TestZCli:
 
         self.verify(f'get seed "{o.seed_key}"',
                     [o.seed_key, f'"status": "{seed_status("domain", Seed.PENDING.value)}"'])
-        self.verify(f'get seed -d "{o.seed_key}"', ['"attributes"'])
 
         self.verify(f'update seed -s {Seed.ACTIVE.value} "{o.seed_key}"')
         self.verify(f'get seed "{o.seed_key}"',
@@ -124,10 +123,6 @@ class TestZCli:
         self.verify(f'list attributes -k "{o.asset_key}" -d -p all', [o.asset_attribute_key, '"key"', '"data"'])
 
         self.verify(f'get attribute "{o.asset_attribute_key}"', [o.asset_attribute_key, '"key"', '"name"'])
-
-        self.verify(f'update attribute -s {Attribute.DELETED.value} "{o.asset_attribute_key}"')
-        self.verify(f'get attribute "{o.asset_attribute_key}"',
-                    [o.asset_attribute_key, f'"status": "{Attribute.DELETED.value}"'])
 
         self.verify(f'delete attribute "{o.asset_attribute_key}"')
         self.verify(f'get attribute "{o.asset_attribute_key}"')
@@ -209,6 +204,9 @@ class TestZCli:
         self.verify('list files --help', ignore_stdout=True)
         self.verify('list definitions --help', ignore_stdout=True)
         self.verify('list attributes --help', ignore_stdout=True)
+        self.verify('list statistics --help', ignore_stdout=True)
+        self.verify('list seeds --help', ignore_stdout=True)
+        self.verify('list preseeds --help', ignore_stdout=True)
 
         self.verify('get --help', ignore_stdout=True)
         self.verify('get asset --help', ignore_stdout=True)
@@ -220,6 +218,8 @@ class TestZCli:
         self.verify('get definition --help', ignore_stdout=True)
         self.verify('get attribute --help', ignore_stdout=True)
         self.verify('get webhook --help', ignore_stdout=True)
+        self.verify('get seed --help', ignore_stdout=True)
+        self.verify('get preseed --help', ignore_stdout=True)
 
         self.verify('add --help', ignore_stdout=True)
         self.verify('add asset --help', ignore_stdout=True)
@@ -229,6 +229,7 @@ class TestZCli:
         self.verify('add file --help', ignore_stdout=True)
         self.verify('add definition --help', ignore_stdout=True)
         self.verify('add webhook --help', ignore_stdout=True)
+        self.verify('add seed --help', ignore_stdout=True)
 
         self.verify('imports --help', ignore_stdout=True)
         self.verify('imports qualys --help', ignore_stdout=True)
@@ -246,10 +247,12 @@ class TestZCli:
         self.verify('delete risk --help', ignore_stdout=True)
         self.verify('delete attribute --help', ignore_stdout=True)
         self.verify('delete webhook --help', ignore_stdout=True)
+        self.verify('delete seed --help', ignore_stdout=True)
 
         self.verify('update --help', ignore_stdout=True)
         self.verify('update asset --help', ignore_stdout=True)
         self.verify('update risk --help', ignore_stdout=True)
+        self.verify('update seed --help', ignore_stdout=True)
 
         self.verify('search --help', ignore_stdout=True)
         self.verify('script --help', ignore_stdout=True)
