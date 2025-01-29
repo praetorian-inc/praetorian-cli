@@ -1,6 +1,15 @@
 # Changelog
 
-## 1.5.9 (2024-12-=30)
+## 1.6.0 (2025-01-29)
+
+* [Breaking change] Asset statuses are changed to A, D, P, F. Scan level is
+  now set globally for all assets in the Settings page in the Web UI.
+* [New feature] Added support for listing statistics on risks, assets, jobs, and more.
+* [New feature] Added support for seed approval.
+* [New feature] Added support for pre-seed approval.
+* [New feature] Added support for pulling detailed information on CVEs.
+
+## 1.5.9 (2024-12-30)
 
 * [New feature] Added support for the discovery-only scan level for attributes.
 

@@ -6,15 +6,16 @@ search bar. This document explains their semantics.
 # Asset statuses
 
 For assets, the `status` field has the following shorthands. These shorthands are used in the
-`add asset` and `update asset` commands. They are also used in the JSON output
-of the `get asset` and `list assets --details` commands:
+`add`, `update` commands of assets, seeds, and pre-seeds. They are also present in the JSON
+output of the `get` and `list` commands of those entities:
 
-| Asset status | Meaning                                                  |
-|--------------|----------------------------------------------------------|
-| A            | An active asset. Standard asset and risk discovery scans |
-| F            | A frozen asset. All scans are stopped on frozen assets.  |
-| D            | A deleted asset                                          |
-| P            | A pending asset                                          |
+| Status | Meaning                                                 |
+|--------|---------------------------------------------------------|
+| A      | An active asset or seed.                                |
+| D      | A deleted asset                                         |
+| P      | A pending asset                                         |
+| F      | A frozen asset. All scans are stopped on frozen assets. |
+| FR     | A frozen asset. All scans are stopped on frozen assets. |
 
 # Risk statuses
 
