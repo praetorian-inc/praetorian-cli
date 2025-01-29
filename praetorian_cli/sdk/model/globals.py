@@ -16,7 +16,7 @@ class Seed(Enum):
     ACTIVE = Asset.ACTIVE.value
     DELETED = Asset.DELETED.value
     PENDING = Asset.PENDING.value
-    FROZEN = Asset.FROZEN.value,
+    FROZEN = Asset.FROZEN.value
     FROZEN_REJECTED = Asset.FROZEN_REJECTED.value
 
 
