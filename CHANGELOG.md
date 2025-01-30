@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1 (2025-01-31)
+
+* [New feature] Added support for risk attribution.
+* [New feature] Added support for uploading Nosey Parker datastore.
+
 ## 1.6.0 (2025-01-29)
 
 * [Breaking change] Asset statuses are changed to A, D, P, F. Scan level is
