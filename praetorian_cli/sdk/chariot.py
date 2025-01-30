@@ -114,11 +114,10 @@ class Chariot:
         return resp
 
     def download(self, name: str, download_directory: str = ''):
-        resp = requests.get(self.url('/file'), params=dict(name=name), allow_redirects=True,
-                            headers=self.keychain.headers())
-        process_failure(resp)
+
+        content = self.download_in_memory(name)
         if not download_directory:
-            return resp.content.decode('utf-8')
+            raise Exception('No download_directory')
 
         name = self.sanitize_filename(name)
         directory = os.path.expanduser(download_directory)
@@ -127,8 +126,14 @@ class Chariot:
 
         download_path = os.path.join(directory, name)
         with open(download_path, 'wb') as file:
-            file.write(resp.content)
+            file.write(content)
         return download_path
+
+    def download_in_memory(self, name: str) -> bytes:
+        resp = requests.get(self.url('/file'), params=dict(name=name), allow_redirects=True,
+                            headers=self.keychain.headers())
+        process_failure(resp)
+        return resp.content
 
     def sanitize_filename(self, filename: str) -> str:
         invalid_chars = '<>:"/\\|?*'
