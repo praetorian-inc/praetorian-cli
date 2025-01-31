@@ -1,4 +1,3 @@
-import json
 from time import sleep, time
 
 from praetorian_cli.sdk.model.globals import AgentType
@@ -33,5 +32,4 @@ class Agents:
         return f'agents/{agent_type}/{risk_key}'
 
     def attribution_result(self, risk_key: str) -> dict:
-        return json.loads(
-            self.api.files.get(self.attribution_filename(AgentType.ATTRIBUTION.value, risk_key)).decode('utf-8'))
+        return self.api.files.get(self.attribution_filename(AgentType.ATTRIBUTION.value, risk_key)).decode('utf-8')
