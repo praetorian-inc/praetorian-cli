@@ -2,7 +2,6 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import print_json
 
 
 @chariot.group()
@@ -25,4 +24,4 @@ def attribution(sdk, risk):
         - praetorian chariot agent attribution -r #risk#www.praetorian.com#CVE-2024-1234
     """
     click.echo("Polling for the attribution result for up to 3 minutes.")
-    print_json(sdk.agents.attribution(risk))
+    click.echo(sdk.agents.attribution(risk))

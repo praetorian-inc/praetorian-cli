@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.2
+
+* [New feature] keychain.ini file is now optional. Users can pass login credentials via
+  in-memory environment variables.
+* [Bug fix] Process AI attribution results as plain text
+
 ## 1.6.1
 
 * [New feature] Added support for risk attribution.
