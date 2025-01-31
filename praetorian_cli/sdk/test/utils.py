@@ -4,6 +4,7 @@ from random import randint
 
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
+from praetorian_cli.sdk.model.globals import Risk
 from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key, seed_key
 
 
@@ -44,7 +45,7 @@ def clean_test_entities(sdk, o):
         sdk.attributes.delete(a['key'])
     for a in sdk.assets.attributes(o.risk_key):
         sdk.attributes.delete(a['key'])
-    sdk.risks.delete(o.risk_key)
+    sdk.risks.delete(o.risk_key, Risk.DELETED_DUPLICATE_CRITICAL.value)
     sdk.assets.delete(o.asset_key)
 
 

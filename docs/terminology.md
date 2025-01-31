@@ -23,39 +23,55 @@ For risks, the `status` field has the following shorthands. These shorthands are
 `add risk` and `update risk` commands. They are also used in the JSON output
 of the `get risk` and `list risk --details` commands:
 
-| Risk status | State      | Priority |
-|-------------|------------|----------|
-| TI          | Triage     | Info     |
-| TL          | Triage     | Low      |
-| TM          | Triage     | Medium   |
-| TH          | Triage     | High     |
-| TC          | Triage     | Critical |
-| IE          | Ignored    | Exposure |
-| II          | Ignored    | Info     |
-| IL          | Ignored    | Low      |
-| IM          | Ignored    | Medium   |
-| IH          | Ignored    | High     |
-| IC          | Ignored    | Critical |
-| OE          | Open       | Exposure |
-| OI          | Open       | Info     |
-| OL          | Open       | Low      |
-| OM          | Open       | Medium   |
-| OH          | Open       | High     |
-| OC          | Open       | Critical |
-| OX          | Open       | Material |
-| RI          | Remediated | Info     |
-| RE          | Remediated | Exposure |
-| RL          | Remediated | Low      |
-| RM          | Remediated | Medium   |
-| RH          | Remediated | High     |
-| RC          | Remediated | Critical |
-| RX          | Remediated | Material |
-| DE          | Deleted    | Exposure |
-| DI          | Deleted    | Info     |
-| DL          | Deleted    | Low      |
-| DM          | Deleted    | Medium   |
-| DH          | Deleted    | High     |
-| DC          | Deleted    | Critical |
+| Risk status | State                    | Priority |
+|-------------|--------------------------|----------|
+| TI          | Triage                   | Info     |
+| TL          | Triage                   | Low      |
+| TM          | Triage                   | Medium   |
+| TH          | Triage                   | High     |
+| TC          | Triage                   | Critical |
+| OE          | Open                     | Exposure |
+| OI          | Open                     | Info     |
+| OL          | Open                     | Low      |
+| OM          | Open                     | Medium   |
+| OH          | Open                     | High     |
+| OC          | Open                     | Critical |
+| IE          | Accepted Risk            | Exposure |
+| II          | Accepted Risk            | Info     |
+| IL          | Accepted Risk            | Low      |
+| IM          | Accepted Risk            | Medium   |
+| IH          | Accepted Risk            | High     |
+| IC          | Accepted Risk            | Critical |
+| RE          | Remediated               | Exposure |
+| RI          | Remediated               | Info     |
+| RL          | Remediated               | Low      |
+| RM          | Remediated               | Medium   |
+| RH          | Remediated               | High     |
+| RC          | Remediated               | Critical |
+| DEF         | Deleted (False Positive) | Exposure |
+| DIF         | Deleted (False Positive) | Info     |
+| DLF         | Deleted (False Positive) | Low      |
+| DMF         | Deleted (False Positive) | Medium   |
+| DHF         | Deleted (False Positive) | High     |
+| DCF         | Deleted (False Positive) | Critical |
+| DES         | Deleted (Out of Scope)   | Exposure |
+| DIS         | Deleted (Out of Scope)   | Info     |
+| DLS         | Deleted (Out of Scope)   | Low      |
+| DMS         | Deleted (Out of Scope)   | Medium   |
+| DHS         | Deleted (Out of Scope)   | High     |
+| DCS         | Deleted (Out of Scope)   | Critical |
+| DED         | Deleted (Duplicate)      | Exposure |
+| DID         | Deleted (Duplicate)      | Info     |
+| DLD         | Deleted (Duplicate)      | Low      |
+| DMD         | Deleted (Duplicate)      | Medium   |
+| DHD         | Deleted (Duplicate)      | High     |
+| DCD         | Deleted (Duplicate)      | Critical |
+| DEO         | Deleted (Other)          | Exposure |
+| DIO         | Deleted (Other)          | Info     |
+| DLO         | Deleted (Other)          | Low      |
+| DMO         | Deleted (Other)          | Medium   |
+| DHO         | Deleted (Other)          | High     |
+| DCO         | Deleted (Other)          | Critical |
 
 # Job statuses
 

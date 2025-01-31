@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 import pytest
 import requests
 
+from praetorian_cli.sdk.model.globals import Risk
 from praetorian_cli.sdk.model.utils import risk_key
 from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
 
@@ -45,7 +46,7 @@ class TestWebhook:
         assert attributes[0]['name'] == 'source'
         assert attributes[0]['value'] == 'webhook'
         assert attributes[0]['source'] == self.risk_key
-        self.sdk.risks.delete(self.risk_key)
+        self.sdk.risks.delete(self.risk_key, Risk.DELETED_DUPLICATE_CRITICAL.value)
 
     def test_delete_webhook(self):
         self.sdk.webhook.delete()

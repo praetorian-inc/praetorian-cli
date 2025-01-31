@@ -29,8 +29,9 @@ class Agents:
         else:
             raise Exception('Timeout (3 minutes) waiting for attribution result.')
 
-    def attribution_filename(self, risk_key: str) -> str:
-        return f'agents/attribution/{risk_key}'
+    def attribution_filename(self, agent_type: str, risk_key: str) -> str:
+        return f'agents/{agent_type}/{risk_key}'
 
     def attribution_result(self, risk_key: str) -> dict:
-        return json.loads(self.api.files.get(self.attribution_filename(risk_key)).decode('utf-8'))
+        return json.loads(
+            self.api.files.get(self.attribution_filename(AgentType.ATTRIBUTION.value, risk_key)).decode('utf-8'))
