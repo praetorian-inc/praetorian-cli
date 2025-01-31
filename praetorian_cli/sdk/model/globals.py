@@ -67,6 +67,10 @@ class AddRisk(Enum):
     TRIAGE_CRITICAL = Risk.TRIAGE_CRITICAL.value
 
 
+class AgentType(Enum):
+    ATTRIBUTION = 'attribution'
+
+
 CAPABILITIES = (
     'reverse-whois',
     'csp-mine',

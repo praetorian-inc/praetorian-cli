@@ -1,9 +1,9 @@
 import json
-import os
 
 import requests
 
 from praetorian_cli.sdk.entities.accounts import Accounts
+from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
 from praetorian_cli.sdk.entities.definitions import Definitions
@@ -36,6 +36,7 @@ class Chariot:
         self.search = Search(self)
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
+        self.agents = Agents(self)
 
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
@@ -113,33 +114,11 @@ class Chariot:
         process_failure(resp)
         return resp
 
-    def download(self, name: str, download_directory: str = ''):
-
-        content = self.download_in_memory(name)
-        if not download_directory:
-            raise Exception('No download_directory')
-
-        name = self.sanitize_filename(name)
-        directory = os.path.expanduser(download_directory)
-        if directory and not os.path.exists(directory):
-            os.makedirs(directory)
-
-        download_path = os.path.join(directory, name)
-        with open(download_path, 'wb') as file:
-            file.write(content)
-        return download_path
-
-    def download_in_memory(self, name: str) -> bytes:
+    def download(self, name: str) -> bytes:
         resp = requests.get(self.url('/file'), params=dict(name=name), allow_redirects=True,
                             headers=self.keychain.headers())
         process_failure(resp)
         return resp.content
-
-    def sanitize_filename(self, filename: str) -> str:
-        invalid_chars = '<>:"/\\|?*'
-        for char in invalid_chars:
-            filename = filename.replace(char, '_')
-        return filename
 
     def count(self, params: dict) -> {}:
         resp = requests.get(self.url('/my/count'),
@@ -152,6 +131,12 @@ class Chariot:
 
     def enrichment(self, type: str, id: str):
         resp = requests.get(self.url(f'/enrich/{type}/{id}'), headers=self.keychain.headers())
+        process_failure(resp)
+        return resp.json()
+
+    def agent(self, agent: str, params: dict):
+        params = params | dict(agent=agent)
+        resp = requests.put(self.url('/agent'), json=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
