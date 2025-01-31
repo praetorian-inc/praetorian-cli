@@ -55,7 +55,7 @@ class Risks:
 
         return self.api.upsert('risk', params)
 
-    def delete(self, key, comment=None):
+    def delete(self, key, status, comment=None):
         """ Delete a risk.
 
         Arguments:
@@ -65,10 +65,11 @@ class Risks:
         comment: str
             Optionally, provide a comment for this operation.
         """
+        params = dict(status=status)
+
         if comment:
-            params = dict(comment=comment)
-        else:
-            params = dict()
+            params = params | dict(comment=comment)
+
         return self.api.delete('risk', key, params)
 
     def list(self, prefix_filter='', offset=None, pages=10000):

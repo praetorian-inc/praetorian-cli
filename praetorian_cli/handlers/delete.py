@@ -2,6 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.sdk.model.globals import Risk
 
 
 @chariot.group()
@@ -30,8 +31,10 @@ def asset(chariot, key):
 @delete.command()
 @cli_handler
 @click.argument('key', required=True)
+@click.option('-s', '--status', default='DIO', type=click.Choice([s.value for s in Risk]),
+              help='A risk status to provide the sub-state for deleting.')
 @click.option('-c', '--comment', default='', help='Optional comment for the delete')
-def risk(chariot, key, comment):
+def risk(chariot, key, status, comment):
     """ Delete a risk
 
     \b

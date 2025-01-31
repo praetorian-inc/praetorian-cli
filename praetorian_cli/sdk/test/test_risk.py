@@ -32,8 +32,8 @@ class TestRisk:
         assert self.get_risk()['status'] == Risk.OPEN_CRITICAL.value
 
     def test_delete_risk(self):
-        self.sdk.risks.delete(self.risk_key)
-        assert self.get_risk()['status'] == Risk.DELETED_CRITICAL.value
+        self.sdk.risks.delete(self.risk_key, Risk.DELETED_DUPLICATE_CRITICAL.value)
+        assert self.get_risk()['status'] == Risk.DELETED_DUPLICATE_CRITICAL.value
 
     def get_risk(self):
         return self.sdk.risks.get(self.risk_key)

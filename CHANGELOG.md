@@ -3,6 +3,8 @@
 ## 1.6.1
 
 * [New feature] Added support for risk attribution.
+* [Breaking change] Risks.delete() now takes an additional status parameter.
+* [Breaking change] Risk statuses were updated. See globals.py for new values.
 * [Breaking change] The file download API was updated to be easier to use:
     * Chariot.download() now returns the bytes of the file. It does not save the file.
     * Files.get() now returns the bytes of the file. It does not save the file.

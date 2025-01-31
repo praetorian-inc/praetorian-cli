@@ -88,7 +88,7 @@ class TestZCli:
         self.verify(f'get risk "{o.risk_key}"', [o.risk_key, f'"status": "{Risk.OPEN_LOW.value}"'])
 
         self.verify(f'delete risk "{o.risk_key}"')
-        self.verify(f'get risk "{o.risk_key}"', [f'"status": "{Risk.DELETED_LOW.value}"'])
+        self.verify(f'get risk "{o.risk_key}"', [f'"status": "{Risk.DELETED_OTHER_LOW.value}"'])
 
         clean_test_entities(self.sdk, o)
 
@@ -225,6 +225,7 @@ class TestZCli:
         self.verify('list definitions --help', ignore_stdout=True)
         self.verify('list attributes --help', ignore_stdout=True)
         self.verify('list statistics --help', ignore_stdout=True)
+        self.verify('list statistics --help-stats', ignore_stdout=True)
         self.verify('list seeds --help', ignore_stdout=True)
         self.verify('list preseeds --help', ignore_stdout=True)
 
@@ -277,6 +278,9 @@ class TestZCli:
         self.verify('search --help', ignore_stdout=True)
         self.verify('script --help', ignore_stdout=True)
         self.verify('purge --help', ignore_stdout=True)
+
+        self.verify('agent --help', ignore_stdout=True)
+        self.verify('agent attribution --help', ignore_stdout=True)
 
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
         result = run(f'praetorian --profile "{self.sdk.keychain.profile}" chariot {command}', capture_output=True,
