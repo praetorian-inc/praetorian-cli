@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.1
+
+* [New feature] Added support for risk attribution.
+* [Breaking change] The file download API was updated to be easier to use:
+    * Chariot.download() now returns the bytes of the file. It does not save the file.
+    * Files.get() now returns the bytes of the file. It does not save the file.
+    * Files.save() saves the content of Files.get() in a file.
+    * Change usages of Files.get() to Files.save()
+    * Change usages of Chariot.download() to Files.save()
+
 ## 1.6.0 (2025-01-29)
 
 * [Breaking change] Asset statuses are changed to A, D, P, F. Scan level is

@@ -137,10 +137,10 @@ def file(chariot, name, path):
         - praetorian chariot get file "proofs/example.azurewebsites.net/jira-unauthenticated-user-picker" --path ~/Downloads
     """
     if name.startswith('#'):
-        downloaded_filepath = chariot.files.get(name.split('#')[-1], path)
+        downloaded_filepath = chariot.files.save(name.split('#')[-1], path)
     else:
-        downloaded_filepath = chariot.files.get(name, path)
-    print(f'Saved file at {downloaded_filepath}')
+        downloaded_filepath = chariot.files.save(name, path)
+    click.echo(f'Saved file at {downloaded_filepath}')
 
 
 @get.command()

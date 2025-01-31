@@ -20,3 +20,12 @@ class Jobs:
         """ List jobs, optionally prefix-filtered by the portion of the key after
             '#job#' """
         return self.api.search.by_key_prefix(f'#job#{prefix_filter}', offset, pages)
+
+    def is_failed(self, job):
+        return job['status'].startswith('JF')
+
+    def is_passed(self, job):
+        return job['status'].startswith('JP')
+
+    def system_job_key(self, source, id):
+        return f'#job#{id}#system#{source}'

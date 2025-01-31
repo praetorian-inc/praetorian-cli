@@ -112,6 +112,26 @@ class TestZCli:
         os.remove(local_filepath)
         os.remove(definition_name)
 
+    def test_file_cli(self):
+        file_name = f'test-file-{epoch_micro()}'
+        local_filepath = f'{file_name}.txt'
+        content = random_ip()
+
+        with open(local_filepath, 'w') as f:
+            f.write(content)
+
+        self.verify(f'add file {local_filepath} -n {file_name}')
+        self.verify(f'list files -f {file_name}', [file_name])
+        self.verify(f'list files -f {file_name} -p first', [file_name])
+        self.verify(f'list files -f {file_name} -p all', [file_name])
+        self.verify(f'get file {file_name}', ['Saved', file_name])
+
+        with open(file_name, 'r') as f:
+            assert f.read() == content
+
+        os.remove(local_filepath)
+        os.remove(file_name)
+
     def test_attribute_cli(self):
         o = make_test_values(lambda: None)
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
