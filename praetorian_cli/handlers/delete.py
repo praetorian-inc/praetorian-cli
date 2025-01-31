@@ -43,9 +43,9 @@ def risk(chariot, key, status, comment):
 
     \b
     Example usage:
-        - praetorian chariot delete risk "#risk#example.com#CVE-2024-23049"
+        - praetorian chariot delete risk "#risk#example.com#CVE-2024-23049" --status DIO
     """
-    chariot.risks.delete(key, comment)
+    chariot.risks.delete(key, status, comment)
 
 
 @delete.command()
