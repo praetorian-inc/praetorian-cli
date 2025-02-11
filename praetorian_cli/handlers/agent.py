@@ -12,16 +12,17 @@ def agent():
 
 @agent.command()
 @cli_handler
-@click.option('-r', '--risk', required=True, type=str, help='The key of the risk to be attributed')
-def attribution(sdk, risk):
-    """ Risk attribution
+@click.argument('key')
+def affiliation(sdk, key):
+    """ Get affiliation data for risks and assets
 
-    The AI agent makes an attribution determination for the risk. This command
+    The AI agent retrieves affiliation information for the asset or risk. This command
     waits up to 3 minutes for the results.
 
     \b
     Example usages:
-        - praetorian chariot agent attribution -r #risk#www.praetorian.com#CVE-2024-1234
+        - praetorian chariot agent affiliation "#risk#www.praetorian.com#CVE-2024-1234"
+        - praetorian chariot agent affiliation "#asset#praetorian.com#www.praetorian.com"
     """
-    click.echo("Polling for the attribution result for up to 3 minutes.")
-    click.echo(sdk.agents.attribution(risk))
+    click.echo("Polling for the affiliation data for up to 3 minutes.")
+    click.echo(sdk.agents.affiliation(key))

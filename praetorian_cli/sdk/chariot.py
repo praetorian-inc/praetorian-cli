@@ -12,7 +12,7 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
-from praetorian_cli.sdk.entities.search import Search
+from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
@@ -114,9 +114,12 @@ class Chariot:
         process_failure(resp)
         return resp
 
-    def download(self, name: str) -> bytes:
-        resp = requests.get(self.url('/file'), params=dict(name=name), allow_redirects=True,
-                            headers=self.keychain.headers())
+    def download(self, name: str, global_=False) -> bytes:
+        params = dict(name=name)
+        if global_:
+            params |= GLOBAL_FLAG
+
+        resp = requests.get(self.url('/file'), params=params, allow_redirects=True, headers=self.keychain.headers())
         process_failure(resp)
         return resp.content
 
@@ -126,13 +129,12 @@ class Chariot:
         process_failure(resp)
         return resp.json()
 
+    def enrichment(self, type: str, id: str):
+        filename = f'{id}.json' if type == 'cve' else id
+        return json.loads(self.download(f'enrichments/{type}/{filename}', True).decode('utf-8'))
+
     def purge(self):
         requests.delete(self.url('/account/purge'), headers=self.keychain.headers())
-
-    def enrichment(self, type: str, id: str):
-        resp = requests.get(self.url(f'/enrich/{type}/{id}'), headers=self.keychain.headers())
-        process_failure(resp)
-        return resp.json()
 
     def agent(self, agent: str, params: dict):
         params = params | dict(agent=agent)

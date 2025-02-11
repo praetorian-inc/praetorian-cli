@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.3
+
+* [Breaking change] The `agent attribution` command is renamed to `agent affiliation` command.
+    * See `praetorian chariot agent affiliation --help` for new invocation syntax.
+* [New feature] Added asset as an available type for the `affiliation` command.
+
 ## 1.6.2
 
 * [New feature] keychain.ini file is now optional. Users can pass login credentials via
