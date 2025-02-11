@@ -60,5 +60,5 @@ def search(chariot, term, count, details, offset, page, desc, global_):
     if count:
         print_json(chariot.search.count(term))
     else:
-        render_list_results(chariot.search.by_term(term, offset, pagination_size(page), desc=desc, global_=global_),
-                            details)
+        render_list_results(
+            chariot.search.by_term(term, offset, pagination_size(page), descending=desc, global_=global_), details)
