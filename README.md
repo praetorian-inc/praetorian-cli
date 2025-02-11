@@ -112,30 +112,6 @@ To get detailed information about a specific asset, run:
 praetorian chariot get asset <ASSET_KEY>
 ```
 
-# Using scripts
-
-The CLI has a scripting engine for implementing more complex workflows. They add end-to-end
-functions as commands grouped under `script`. To see a list of them:
-
-```zsh
-praetorian chariot script --help
-```
-
-For example the following command is used to ingest scan results from Nessus XML export files:
-
-```zsh
-praetorian chariot script nessus-xml
-```
-
-You can find the list of scripts that comes with the CLI in
-[this directory](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/scripts/commands)
-
-## Loading more extension scripts
-
-In addition to scripts that are packaged with the CLI, you can point CLI to directories
-with scripts to further extend the CLI with those scripts. Set the `PRAETORIAN_SCRIPTS_PATH`
-environment to point to directories where you store additional extension scripts.
-
 # Developers
 
 Both CLI and SDK is open-source in this repository. The SDK is installed along with the `praetorian-cli`
@@ -163,11 +139,23 @@ The best place to explore the SDK is the code of the CLI, especially
 
 You can inspect the handler code to see how each CLI command is implemented with the SDK.
 
-## Developing scripts
+## Developing external scripts
 
-If you want to take advantage of the scaffolding of the CLI, you can write fully fledged functions using
-the scripting engine. For developing scripts, you can refer to
+The CLI has a scripting engine that allow external scripts to be executed within the CLI's framework, taking
+advantage of the SDK, `click`, and authentication.
+
+To add those external scripts to the CLI, set the `PRAETORIAN_SCRIPTS_PATH`
+environment to point to directories where you store additional extension scripts.
+
+Those external scripts are available under the `script` commands. To see a list of them:
+
+```zsh
+praetorian chariot script --help
+```
+
+For developing scripts, you can refer to
 this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/script-development.md).
+
 
 ## Contributing
 
