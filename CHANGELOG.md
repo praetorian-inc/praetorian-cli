@@ -3,7 +3,7 @@
 ## 1.6.4
 
 * [Breaking change] The `delete` function in the `Chariot` class was renamed to `delete_by_key`.
-  The `delete` function is a new one that takes general body and query parameters.
+  The `delete` function is a new one that takes the more general `body` and `query` arguments.
 * [New feature] The `chariot delete file` command was added.
 
 ## 1.6.3
