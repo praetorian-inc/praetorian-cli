@@ -55,35 +55,35 @@ class Chariot:
 
         return final_resp
 
-    def post(self, type: str, params: dict):
-        resp = requests.post(self.url(f'/{type}'),
-                             json=params, headers=self.keychain.headers())
+    def post(self, type: str, body: dict, params: dict = {}):
+        resp = requests.post(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def put(self, type: str, params: dict) -> {}:
-        resp = requests.put(self.url(f'/{type}'),
-                            json=params, headers=self.keychain.headers())
+    def put(self, type: str, body: dict, params: dict = {}) -> {}:
+        resp = requests.put(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def delete(self, type: str, key: str, params: dict = {}) -> {}:
-        resp = requests.delete(self.url(f'/{type}'), json=dict(key=key) | params,
-                               headers=self.keychain.headers())
+    def delete(self, type: str, body: dict, params: dict) -> {}:
+        resp = requests.delete(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def add(self, type: str, params: dict) -> {}:
-        return self.upsert(type, params)
+    def delete_by_key(self, type: str, key: str, body: dict = {}, params: dict = {}) -> {}:
+        self.delete(type, body | dict(key=key), params)
 
-    def force_add(self, type: str, params: dict) -> {}:
-        return self.post(type, params)
+    def add(self, type: str, body: dict, params: dict = {}) -> {}:
+        return self.upsert(type, body, params)
 
-    def update(self, type: str, params: dict) -> {}:
-        return self.upsert(type, params)
+    def force_add(self, type: str, body: dict, params: dict = {}) -> {}:
+        return self.post(type, body, params)
 
-    def upsert(self, type: str, params: dict) -> {}:
-        return self.put(type, params)
+    def update(self, type: str, body: dict, params: dict = {}) -> {}:
+        return self.upsert(type, body, params)
+
+    def upsert(self, type: str, body: dict, params: dict = {}) -> {}:
+        return self.put(type, body, params)
 
     def link_account(self, username: str, value: str = '', config: dict = {}):
         resp = requests.post(self.url(f'/account/{username}'), json=dict(config=config, value=value),
@@ -136,9 +136,9 @@ class Chariot:
     def purge(self):
         requests.delete(self.url('/account/purge'), headers=self.keychain.headers())
 
-    def agent(self, agent: str, params: dict):
-        params = params | dict(agent=agent)
-        resp = requests.put(self.url('/agent'), json=params, headers=self.keychain.headers())
+    def agent(self, agent: str, body: dict):
+        body = body | dict(agent=agent)
+        resp = requests.put(self.url('/agent'), json=body, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 

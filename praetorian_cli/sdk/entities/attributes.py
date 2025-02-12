@@ -15,7 +15,7 @@ class Attributes:
 
     def delete(self, key):
         """ Delete an attribute """
-        return self.api.delete('attribute', key)
+        return self.api.delete_by_key('attribute', key)
 
     def list(self, prefix_filter='', source_key=None, offset=None, pages=10000):
         """ List attribute, optionally prefix-filtered by the portion of the key after

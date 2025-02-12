@@ -32,4 +32,4 @@ class Agents:
         return f'agents/{agent_type}/{key}'
 
     def affiliation_result(self, key: str) -> dict:
-        return self.api.files.get(self.affiliation_filename(AgentType.AFFILIATION.value, key)).decode('utf-8')
+        return self.api.files.get_utf8(self.affiliation_filename(AgentType.AFFILIATION.value, key))

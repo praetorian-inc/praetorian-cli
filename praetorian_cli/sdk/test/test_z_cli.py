@@ -129,6 +129,9 @@ class TestZCli:
         with open(file_name, 'r') as f:
             assert f.read() == content
 
+        self.verify(f'delete file {file_name}')
+        self.verify(f'list files -f {file_name}')
+
         os.remove(local_filepath)
         os.remove(file_name)
 
