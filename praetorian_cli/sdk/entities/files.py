@@ -32,7 +32,7 @@ class Files:
         self.raise_if_missing(chariot_filepath)
         return self.api.download(chariot_filepath)
 
-    def get_as_string(self, chariot_filepath) -> str:
+    def get_utf8(self, chariot_filepath) -> str:
         return self.get(chariot_filepath).decode('utf-8')
 
     def list(self, prefix_filter='', offset=None, pages=10000):

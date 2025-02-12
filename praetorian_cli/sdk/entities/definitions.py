@@ -16,7 +16,7 @@ class Definitions:
 
     def get(self, definition_name, download_directory=os.getcwd()):
         """ download a risk definition file """
-        content = self.api.files.get_as_string(f'definitions/{definition_name}')
+        content = self.api.files.get_utf8(f'definitions/{definition_name}')
         download_path = os.path.join(download_directory, definition_name)
         with open(download_path, 'w') as file:
             file.write(content)

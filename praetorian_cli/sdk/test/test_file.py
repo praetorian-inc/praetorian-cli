@@ -33,7 +33,7 @@ class TestFile:
             assert f.read() == self.content
 
     def test_get_file(self):
-        content = self.sdk.files.get_as_string(self.chariot_filepath)
+        content = self.sdk.files.get_utf8(self.chariot_filepath)
         assert content == self.content
 
     def test_get_non_existent_file(self):
