@@ -112,7 +112,6 @@ class TestZCli:
         os.remove(local_filepath)
         os.remove(definition_name)
 
-    @pytest.mark.skip(reason="UNSKIP THIS before merging!")
     def test_file_cli(self):
         file_name = f'test-file-{epoch_micro()}'
         local_filepath = f'{file_name}.txt'
@@ -131,6 +130,7 @@ class TestZCli:
             assert f.read() == content
 
         self.verify(f'delete file {file_name}')
+        self.verify(f'list files -f {file_name}')
 
         os.remove(local_filepath)
         os.remove(file_name)

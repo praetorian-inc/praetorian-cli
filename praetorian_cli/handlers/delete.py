@@ -97,6 +97,23 @@ def seed(chariot, key):
     chariot.seeds.delete(key)
 
 
+@delete.command()
+@click.argument('filepath', required=True)
+@cli_handler
+def file(chariot, filepath):
+    """ Delete a file
+
+    \b
+    Arguments:
+        - FILEPATH: The Chariot file path
+
+    \b
+    Example usage:
+        - praetorian chariot delete file "home/report-dec-2024.pdf"
+    """
+    chariot.files.delete(filepath)
+
+
 # Special command for deleting your account and all related information.
 @chariot.command()
 @cli_handler
