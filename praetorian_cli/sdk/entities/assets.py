@@ -50,7 +50,7 @@ class Assets:
             The key of an asset. If you supply a prefix that matches multiple assets,
             all of them will be deleted.
         """
-        return self.api.delete('asset', key)
+        return self.api.delete_by_key('asset', key)
 
     def list(self, prefix_filter='', offset=None, pages=10000):
         """ List assets

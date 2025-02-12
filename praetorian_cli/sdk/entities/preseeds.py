@@ -22,7 +22,7 @@ class Preseeds:
 
     def delete(self, key):
         """ Delete a pre-seeds """
-        return self.api.delete('preseed', key)
+        return self.api.delete_by_key('preseed', key)
 
     def list(self, prefix_filter='', offset=None, pages=10000):
         """ List pre-seeds """

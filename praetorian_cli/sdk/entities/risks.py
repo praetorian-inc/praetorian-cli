@@ -65,12 +65,12 @@ class Risks:
         comment: str
             Optionally, provide a comment for this operation.
         """
-        params = dict(status=status)
+        body = dict(status=status)
 
         if comment:
-            params = params | dict(comment=comment)
+            body = body | dict(comment=comment)
 
-        return self.api.delete('risk', key, params)
+        return self.api.delete_by_key('risk', key, body)
 
     def list(self, prefix_filter='', offset=None, pages=10000):
         """ List risks

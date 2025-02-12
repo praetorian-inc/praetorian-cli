@@ -28,12 +28,12 @@ class Webhook:
     def delete(self):
         hook = self.get_record()
         if hook:
-            self.api.delete('account/hook', hook['key'], dict(member='hook', value=hook['value']))
+            self.api.delete_by_key('account/hook', hook['key'], dict(member='hook', value=hook['value']))
             return hook
         else:
             return None
 
     def webhook_url(self, pin):
-            # Use current_principal() instead of username()
-            username = b64encode(self.api.accounts.current_principal().encode('utf8'))
-            return f'{self.api.keychain.base_url()}/hook/{username.decode("utf8").rstrip("=")}/{pin}'
+        # Use current_principal() instead of username()
+        username = b64encode(self.api.accounts.current_principal().encode('utf8'))
+        return f'{self.api.keychain.base_url()}/hook/{username.decode("utf8").rstrip("=")}/{pin}'

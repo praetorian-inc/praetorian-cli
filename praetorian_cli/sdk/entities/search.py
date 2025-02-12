@@ -1,5 +1,5 @@
-EXACT_FLAG = dict(exact='true')
-DESCENDING_FLAG = dict(desc='true')
+EXACT_FLAG = {'exact': 'true'}
+DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}
 
 

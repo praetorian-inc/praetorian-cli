@@ -29,15 +29,28 @@ class Files:
 
     def get(self, chariot_filepath) -> bytes:
         """ download a file in memory """
+        self.raise_if_missing(chariot_filepath)
         return self.api.download(chariot_filepath)
+
+    def get_as_string(self, chariot_filepath) -> str:
+        return self.get(chariot_filepath).decode('utf-8')
 
     def list(self, prefix_filter='', offset=None, pages=10000):
         """ List the files, optionally prefix-filtered by portion of the key after
             '#file#'. File keys read '#file#{filepath}' """
         return self.api.search.by_key_prefix(f'#file#{prefix_filter}', offset, pages)
 
+    def delete(self, chariot_filepath):
+        self.raise_if_missing(chariot_filepath)
+        return self.api.delete('file', params=dict(name=chariot_filepath), body={})
+
     def sanitize_filename(self, filename: str) -> str:
         invalid_chars = '<>:"/\\|?*'
         for char in invalid_chars:
             filename = filename.replace(char, '_')
         return filename
+
+    def raise_if_missing(self, chariot_filepath):
+        file = self.api.search.by_exact_key(f'#file#{chariot_filepath}')
+        if not file:
+            raise Exception(f'File {chariot_filepath} not found.')
