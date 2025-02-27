@@ -1,3 +1,6 @@
+from praetorian_cli.sdk.model.globals import Asset
+
+
 class Assets:
     """ The methods in this class are to be assessed from sdk.assets, where sdk is an instance
     of Chariot. """
@@ -5,7 +8,7 @@ class Assets:
     def __init__(self, api):
         self.api = api
 
-    def add(self, dns, name, status):
+    def add(self, dns, name, status=Asset.ACTIVE.value):
         """ Add an asset
 
         Arguments:

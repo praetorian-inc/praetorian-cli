@@ -85,13 +85,6 @@ class AddRisk(Enum):
     TRIAGE_HIGH = Risk.TRIAGE_HIGH.value
     TRIAGE_CRITICAL = Risk.TRIAGE_CRITICAL.value
 
-class AddAsset(Enum):
-    """ AddRisk is a subset of Risk. These are the only valid statuses when creating manual risks """
-    DELETED = Asset.DELETED.value
-    PENDING = Asset.PENDING.value
-    ACTIVE = Asset.ACTIVE.value
-    FROZEN = Asset.FROZEN.value
-    FROZEN_REJECTED = Asset.FROZEN_REJECTED.value
 
 class AgentType(Enum):
     AFFILIATION = 'attribution'

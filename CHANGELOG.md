@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.5
+
+* [New feature] Added ability to add asset with chosen status.
+
 ## 1.6.4
 
 * [Breaking change] The `delete` function in the `Chariot` class was renamed to `delete_by_key`.
