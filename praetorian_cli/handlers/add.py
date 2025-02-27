@@ -5,7 +5,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
-from praetorian_cli.sdk.model.globals import AddRisk, AddAsset, Seed, CAPABILITIES
+from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, CAPABILITIES
 
 
 @chariot.group()
@@ -18,8 +18,8 @@ def add():
 @cli_handler
 @click.option('-d', '--dns', required=True, help='The DNS of the asset')
 @click.option('-n', '--name', required=False, help='The name of the asset, e.g, IP address, GitHub repo URL')
-@click.option('-s', '--status', type=click.Choice([s.value for s in AddAsset]), required=False,
-              default=AddAsset.ACTIVE.value, help=f'Status of the asset', show_default=True)
+@click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), required=False,
+              default=Asset.ACTIVE.value, help=f'Status of the asset', show_default=True)
 def asset(sdk, name, dns, status):
     """ Add an asset
 
