@@ -5,7 +5,7 @@ class Assets:
     def __init__(self, api):
         self.api = api
 
-    def add(self, dns, name):
+    def add(self, dns, name, status):
         """ Add an asset
 
         Arguments:
@@ -14,7 +14,7 @@ class Assets:
         name: str
             The name of the asset
         """
-        return self.api.upsert('asset', dict(dns=dns, name=name))[0]
+        return self.api.upsert('asset', dict(dns=dns, name=name, status=status))[0]
 
     def get(self, key, details=False):
         """ Get details of an asset
