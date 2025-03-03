@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.0
+
+* [Breaking change] The API layer has changed to work with the new my API.
+
 ## 1.6.5
 
 * [New feature] Added ability to add asset with chosen status.

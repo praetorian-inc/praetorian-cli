@@ -17,7 +17,9 @@ class Assets:
         name: str
             The name of the asset
         """
-        return self.api.upsert('asset', dict(dns=dns, name=name, status=status))[0]
+        result = self.api.upsert('asset', dict(dns=dns, name=name, status=status))
+        print(f'in Assets.add() result = {result}')
+        return result[0]
 
     def get(self, key, details=False):
         """ Get details of an asset
@@ -72,7 +74,7 @@ class Assets:
 
     def attributes(self, key):
         """ list associated attributes """
-        attributes, _ = self.api.search.by_source(key)
+        attributes, _ = self.api.search.by_source(key, 'attribute')
         return attributes
 
     def associated_risks(self, key):

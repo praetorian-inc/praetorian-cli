@@ -20,4 +20,5 @@ def test(chariot, key, suite):
         command.extend(['-k', key])
     if suite:
         command.extend(['-m', suite])
+    command.extend(['-s'])
     pytest.main(command)

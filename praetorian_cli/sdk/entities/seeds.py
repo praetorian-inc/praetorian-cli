@@ -51,5 +51,5 @@ class Seeds:
 
     def attributes(self, key):
         """ list associated attributes """
-        attributes, _ = self.api.search.by_source(key)
+        attributes, _ = self.api.search.by_source(key, 'attribute')
         return attributes

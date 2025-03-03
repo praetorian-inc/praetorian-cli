@@ -39,19 +39,26 @@ class Chariot:
         self.agents = Agents(self)
 
     def my(self, params: dict, pages=1) -> {}:
+        pages = 1
+        print(f'In my() params = {params}')
+
         final_resp = dict()
         for _ in range(pages):
             resp = requests.get(self.url('/my'),
                                 params=params, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
+            # print(f'resp = {resp}')
             extend(final_resp, resp)
             if 'offset' not in resp:
+                print(f'Offset is not in resp')
                 break
-            params['offset'] = json.dumps(resp['offset'])
+
+            print(f'resp["offset"] = {resp["offset"]}, pages = {pages}')
+            params['offset'] = resp['offset']
 
         if 'offset' in resp:
-            final_resp['offset'] = json.dumps(resp['offset'])
+            final_resp['offset'] = resp['offset']
 
         return final_resp
 
@@ -92,6 +99,9 @@ class Chariot:
         return resp.json()
 
     def unlink(self, username: str, value: str = ''):
+
+        print(f'')
+
         resp = requests.delete(self.url(f'/account/{username}'), headers=self.keychain.headers(),
                                json={'value': value})
         process_failure(resp)
@@ -148,6 +158,10 @@ class Chariot:
 
 def process_failure(response):
     if not response.ok:
+        # print(f'method = {response.request.method}')
+        # print(f'url = {response.request.url}')
+        # if response.request.body:
+        #     print(f'body = {response.request.body}')
         message = f'[{response.status_code}] Request failed' + (f'\nError: {response.text}' if response.text else '')
         raise Exception(message)
 

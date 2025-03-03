@@ -58,7 +58,7 @@ class Statistics:
         self.api = api
         self.util = Util
 
-    def list(self, prefix_filter='', from_date=None, to_date=None, offset=None, pages=1000):
+    def list(self, prefix_filter='', from_date=None, to_date=None, offset=None, pages=10000):
         """List statistics with optional date range filtering"""
         # Handle the shorthands
         if prefix_filter == self.util.RISKS:

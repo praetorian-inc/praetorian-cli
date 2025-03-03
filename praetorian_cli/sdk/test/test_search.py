@@ -23,27 +23,27 @@ class TestSearch:
         assert self.sdk.search.by_exact_key(self.asset_key)['key'] == self.asset_key
 
     def test_search_by_source(self):
-        hits, _ = self.sdk.search.by_source(self.asset_key)
+        hits, _ = self.sdk.search.by_source(self.asset_key, 'asset')
         assert len(hits) > 1
         assert any(h['key'] == self.asset_attribute_key for h in hits)
 
     def test_search_by_status(self):
-        hits, _ = self.sdk.search.by_status(Asset.ACTIVE.value)
+        hits, _ = self.sdk.search.by_status(Asset.ACTIVE.value, 'asset')
         assert len(hits) > 1
         assert any(h['dns'] == self.asset_dns for h in hits)
 
     def test_search_by_dns(self):
-        hits, _ = self.sdk.search.by_dns(self.asset_dns)
+        hits, _ = self.sdk.search.by_dns(self.asset_dns, 'asset')
         assert len(hits) == 1
         assert hits[0]['dns'] == self.asset_dns
 
     def test_search_by_name(self):
-        hits, _ = self.sdk.search.by_name(self.asset_name)
+        hits, _ = self.sdk.search.by_name(self.asset_name, 'asset')
         assert len(hits) == 1
         assert hits[0]['dns'] == self.asset_dns
 
     def test_search_by_ip(self):
-        hits, _ = self.sdk.search.by_ip(self.asset_name)
+        hits, _ = self.sdk.search.by_ip(self.asset_name, 'asset')
         assert len(hits) == 1
         assert hits[0]['dns'] == self.asset_dns
 

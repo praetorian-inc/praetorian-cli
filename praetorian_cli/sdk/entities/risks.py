@@ -90,11 +90,11 @@ class Risks:
 
     def attributes(self, key):
         """ list associated attributes """
-        attributes, _ = self.api.search.by_source(key)
+        attributes, _ = self.api.search.by_source(key, 'attribute')
         return attributes
 
     def affected_assets(self, key):
-        attributes, _ = self.api.search.by_source(key)
+        attributes, _ = self.api.search.by_source(key, 'attribute')
         source_attributes = [a for a in attributes if a['name'] == 'source']
         assets = []
         for attribute in source_attributes:
