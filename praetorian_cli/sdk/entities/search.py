@@ -1,6 +1,76 @@
+from typing import List
+
 EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}
+
+
+class Filter:
+
+    def __init__(self, field: str, operator: str, value: str):
+        self.field = field
+        self.operator = operator
+        self.value = value
+
+    def to_dict(self) -> dict:
+        return dict(field=self.field, operator=self.operator, value=self.value)
+
+
+class Node:
+
+    def __init__(self, labels: List[str], filters: List[Filter], relationships: List['Relationship']):
+        self.labels = labels
+        self.filters = filters
+        self.relationships = relationships
+
+    def to_dict(self):
+        ret = dict()
+        if self.labels:
+            ret |= dict(labels=self.labels)
+        if self.filters:
+            ret |= dict(filters=[x.to_dict() for x in self.filters])
+        if self.relationships:
+            ret |= dict(relationships=[x.to_dict() for x in self.relationships])
+        return ret
+
+
+class Relationship:
+
+    def __init__(self, label: str, source: Node, Target: Node):
+        self.label = label
+        self.source = source
+        self.target = target
+
+        def to_dict(self):
+            ret = dict(label=self.label)
+            if self.source:
+                ret |= dict(source=self.source.to_dict())
+            if self.target:
+                ret |= dict(target=self.target.to_dict())
+            return ret
+
+
+class Query:
+    def __init__(self, node: Node, page: int, limit: int, order_by: str, descending: bool):
+        self.node = node
+        self.page = page
+        self.limit = limit
+        self.order_by = order_by
+        self.descending = descending
+
+    def to_dict(self):
+        ret = dict()
+        if self.node:
+            ret |= dict(node=self.node.to_dict())
+        if self.page:
+            ret |= dict(page=self.page)
+        if self.limit:
+            ret |= dict(limit=self.limit)
+        if self.order_by:
+            ret |= dict(orderBy=self.order_by)
+        if self.descending:
+            ret |= dict(descending=self.descending)
+        return ret
 
 
 class Search:
@@ -54,6 +124,7 @@ class Search:
 
         # extract all the different types of entities in the search results into a
         # flattened list of `hits`
+        # # REMOVE
         # print(f'by_term() pages = {pages}')
         results = self.api.my(params, pages)
 
@@ -65,9 +136,16 @@ class Search:
 
         return flatten_results(results), offset
 
-    def by_query(self, query, kind=None, offset):
-        pass    def by_term(self, search_term, kind=None, offset=None, pages=10000, exact=False, descending=False,
+    def by_query(self, query: Query, pages=10000):
+        results = self.api.my_by_query(query, pages)
 
+        if 'offset' in results:
+            offset = results['offset']
+            del results['offset']
+        else:
+            offset = None
+
+        return flatten_results(results), offset
 
 
 # {

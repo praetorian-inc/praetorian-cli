@@ -21,6 +21,7 @@ class Attributes:
         """ List attribute, optionally prefix-filtered by the portion of the key after
             '#attribute#' """
 
+        # REMOVE
         print(f'in Attributes.list() pages = {pages}')
         if source_key:
             return self.api.search.by_source(source_key, 'attribute', offset, pages)

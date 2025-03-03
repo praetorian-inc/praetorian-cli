@@ -18,6 +18,7 @@ class Assets:
             The name of the asset
         """
         result = self.api.upsert('asset', dict(dns=dns, name=name, status=status))
+        # REMOVE
         print(f'in Assets.add() result = {result}')
         return result[0]
 

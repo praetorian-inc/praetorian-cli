@@ -11,8 +11,10 @@ class TestAccount:
         self.collaborator_email = f'chariot_cli_test_{epoch_micro()}@example-{epoch_micro()}.com'
 
     def test_add_collaborator(self):
+        # REMOVE
         # print(f'test_add_collaborator')
         account = self.sdk.accounts.add_collaborator(self.collaborator_email)
+        # REMOVE
         # print(f'return from add_collaborator')
         assert account['member'] == self.collaborator_email
         accounts, _ = self.sdk.accounts.list()

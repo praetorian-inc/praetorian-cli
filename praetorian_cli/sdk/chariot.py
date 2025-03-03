@@ -12,7 +12,7 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
-from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search
+from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search, Query
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
@@ -39,7 +39,10 @@ class Chariot:
         self.agents = Agents(self)
 
     def my(self, params: dict, pages=1) -> {}:
+        # TODO
+        # remove this when the pagination is fixed in Noah's stack
         pages = 1
+        # REMOVE
         print(f'In my() params = {params}')
 
         final_resp = dict()
@@ -48,14 +51,39 @@ class Chariot:
                                 params=params, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
+            # REMOVE
+            # print(f'resp = {resp}')
+            extend(final_resp, resp)
+            if 'offset' not in resp:
+                # REMOVE
+                print(f'Offset is not in resp')
+                break
+            # REMOVE
+            print(f'resp["offset"] = {resp["offset"]}, pages = {pages}')
+            params['offset'] = resp['offset']
+
+        if 'offset' in resp:
+            final_resp['offset'] = resp['offset']
+
+        return final_resp
+
+    def my_by_query(self, query: Query, pages=1) -> {}:
+        final_resp = dict()
+        for _ in range(pages):
+            resp = requests.post(self.url('/my'),
+                                 json=query.to_dict(), headers=self.keychain.headers())
+            process_failure(resp)
+            resp = resp.json()
+            # REMOVE
             # print(f'resp = {resp}')
             extend(final_resp, resp)
             if 'offset' not in resp:
                 print(f'Offset is not in resp')
                 break
 
+            # REMOVE
             print(f'resp["offset"] = {resp["offset"]}, pages = {pages}')
-            params['offset'] = resp['offset']
+            query.page = int(resp['offset'])
 
         if 'offset' in resp:
             final_resp['offset'] = resp['offset']
@@ -99,9 +127,6 @@ class Chariot:
         return resp.json()
 
     def unlink(self, username: str, value: str = ''):
-
-        print(f'')
-
         resp = requests.delete(self.url(f'/account/{username}'), headers=self.keychain.headers(),
                                json={'value': value})
         process_failure(resp)
