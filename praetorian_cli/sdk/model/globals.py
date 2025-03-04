@@ -91,10 +91,10 @@ class AgentType(Enum):
     AUTO_TRIAGE = 'autotriage'
 
 
-class Kinds(Enum):
+class Kind(Enum):
     ASSET = 'asset'
     RISK = 'risk'
-    ATTRIBUTES = 'attribute'
+    ATTRIBUTE = 'attribute'
     SEED = 'seed'
     PRESEED = 'preseed'
     JOB = 'job'

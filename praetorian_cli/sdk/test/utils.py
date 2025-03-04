@@ -36,7 +36,7 @@ def make_test_values(o):
     o.attribute_name = f'test-attribute-name-{epoch_micro()}'
     o.attribute_value = f'test-attribute-value-{epoch_micro()}'
     o.asset_attribute_key = attribute_key(o.attribute_name, o.attribute_value, o.asset_key)
-    o.email = f'test_email_{epoch_micro()}@example-{epoch_micro()}.com'
+    o.email = email_address()
     return o
 
 
@@ -51,3 +51,7 @@ def clean_test_entities(sdk, o):
 
 def setup_chariot():
     return Chariot(Keychain(os.environ.get('CHARIOT_TEST_PROFILE')))
+
+
+def email_address():
+    return f'test_email_{epoch_micro()}@example-{epoch_micro()}.com'

@@ -1,6 +1,6 @@
 import pytest
 
-from praetorian_cli.sdk.model.globals import Risk
+from praetorian_cli.sdk.model.globals import Risk, Kind
 from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
 
 
@@ -33,7 +33,11 @@ class TestRisk:
 
     def test_delete_risk(self):
         self.sdk.risks.delete(self.risk_key, Risk.DELETED_DUPLICATE_CRITICAL.value)
-        assert self.get_risk()['status'] == Risk.DELETED_DUPLICATE_CRITICAL.value
+        assert self.get_risk() == None
+        deleted_risks, _ = self.sdk.search.by_status(Risk.DELETED_DUPLICATE_CRITICAL.value, Kind.RISK.value)
+        assert any([r['name'] == self.risk_name for r in deleted_risks])
+
+        ['status'] == Risk.DELETED_DUPLICATE_CRITICAL.value
 
     def get_risk(self):
         return self.sdk.risks.get(self.risk_key)

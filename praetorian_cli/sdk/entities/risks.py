@@ -1,3 +1,6 @@
+from praetorian_cli.sdk.model.globals import Kind
+
+
 class Risks:
     """ The methods in this class are to be assessed from sdk.risks, where sdk is an instance
     of Chariot. """
@@ -90,11 +93,11 @@ class Risks:
 
     def attributes(self, key):
         """ list associated attributes """
-        attributes, _ = self.api.search.by_source(key, 'attribute')
+        attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
         return attributes
 
     def affected_assets(self, key):
-        attributes, _ = self.api.search.by_source(key, 'attribute')
+        attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
         source_attributes = [a for a in attributes if a['name'] == 'source']
         assets = []
         for attribute in source_attributes:

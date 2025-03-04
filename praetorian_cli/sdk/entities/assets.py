@@ -1,4 +1,4 @@
-from praetorian_cli.sdk.model.globals import Asset
+from praetorian_cli.sdk.model.globals import Asset, Kind
 
 
 class Assets:
@@ -18,8 +18,6 @@ class Assets:
             The name of the asset
         """
         result = self.api.upsert('asset', dict(dns=dns, name=name, status=status))
-        # REMOVE
-        print(f'in Assets.add() result = {result}')
         return result[0]
 
     def get(self, key, details=False):
@@ -75,7 +73,7 @@ class Assets:
 
     def attributes(self, key):
         """ list associated attributes """
-        attributes, _ = self.api.search.by_source(key, 'attribute')
+        attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
         return attributes
 
     def associated_risks(self, key):

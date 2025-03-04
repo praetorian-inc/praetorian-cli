@@ -90,7 +90,7 @@ class Search:
         hits, _ = self.by_term(key, exact=True)
         hit = hits[0] if hits else None
         if get_attributes and hit:
-            attributes, _ = self.by_source(key, 'attribute')
+            attributes, _ = self.by_source(key, Kind.ATTRIBUTE.value)
             hit['attributes'] = attributes
         return hit
 

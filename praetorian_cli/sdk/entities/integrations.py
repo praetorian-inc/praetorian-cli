@@ -18,7 +18,8 @@ class Integrations:
         results, next_offset = self.api.search.by_key_prefix('#account#', offset, pages)
 
         # filter out the user accounts and settings
-        results = [i for i in results if '@' not in i['member'] and i['member'] != 'settings']
+        results = [i for i in results if
+                   '@' not in i['member'] and i['member'] != 'settings' and i['member'] != 'settings-display-name']
 
         # filter for integration names, such as 'github', 'amazon'
         if name_filter:

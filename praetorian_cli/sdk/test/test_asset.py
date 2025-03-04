@@ -1,6 +1,6 @@
 import pytest
 
-from praetorian_cli.sdk.model.globals import Asset
+from praetorian_cli.sdk.model.globals import Asset, Kind
 from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
 
 
@@ -40,7 +40,9 @@ class TestAsset:
 
     def test_delete_asset(self):
         self.sdk.assets.delete(self.asset_key)
-        assert self.sdk.assets.get(self.asset_key)['status'] == Asset.DELETED.value
+        assert self.get_asset() == None
+        deleted_assets, _ = self.sdk.search.by_status(Asset.DELETED.value, Kind.ASSET.value)
+        assert any([a['dns'] == self.asset_dns for a in deleted_assets])
 
     def get_asset(self):
         return self.sdk.assets.get(self.asset_key)

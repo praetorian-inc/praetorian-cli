@@ -208,6 +208,7 @@ def extend(accumulate, new):
 
 
 def inspect_request(response):
+    return
     print(f'- Method = {response.request.method}')
     print(f'- URL = {response.request.url}')
     if response.request.body:

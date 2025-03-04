@@ -1,6 +1,6 @@
 import pytest
 
-from praetorian_cli.sdk.test.utils import epoch_micro, setup_chariot
+from praetorian_cli.sdk.test.utils import setup_chariot, email_address
 
 
 @pytest.mark.coherence
@@ -8,14 +8,10 @@ class TestAccount:
 
     def setup_class(self):
         self.sdk = setup_chariot()
-        self.collaborator_email = f'chariot_cli_test_{epoch_micro()}@example-{epoch_micro()}.com'
+        self.collaborator_email = email_address()
 
     def test_add_collaborator(self):
-        # REMOVE
-        # print(f'test_add_collaborator')
         account = self.sdk.accounts.add_collaborator(self.collaborator_email)
-        # REMOVE
-        # print(f'return from add_collaborator')
         assert account['member'] == self.collaborator_email
         accounts, _ = self.sdk.accounts.list()
         assert len(accounts) > 0
@@ -25,6 +21,4 @@ class TestAccount:
         account = self.sdk.accounts.delete_collaborator(self.collaborator_email)
         assert account['member'] == self.collaborator_email
         accounts, _ = self.sdk.accounts.list()
-        print(self.collaborator_email)
-        print([(a['member'], a['key']) for a in accounts])
         assert all([a['member'] != self.collaborator_email for a in accounts])
