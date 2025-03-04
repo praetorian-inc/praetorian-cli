@@ -82,7 +82,8 @@ class Search:
         return self.api.count(dict(key=search_term))
 
     def by_key_prefix(self, key_prefix, offset=None, pages=10000) -> tuple:
-        print(f'by_key_prefix() pages = {pages}')
+        # REMOVE
+        # print(f'by_key_prefix() pages = {pages}')
         return self.by_term(key_prefix, None, offset, pages)
 
     def by_exact_key(self, key, get_attributes=False) -> {}:

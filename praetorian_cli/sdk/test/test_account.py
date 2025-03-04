@@ -25,4 +25,6 @@ class TestAccount:
         account = self.sdk.accounts.delete_collaborator(self.collaborator_email)
         assert account['member'] == self.collaborator_email
         accounts, _ = self.sdk.accounts.list()
-        assert all(a['member'] != self.collaborator_email for a in accounts)
+        print(self.collaborator_email)
+        print([(a['member'], a['key']) for a in accounts])
+        assert all([a['member'] != self.collaborator_email for a in accounts])
