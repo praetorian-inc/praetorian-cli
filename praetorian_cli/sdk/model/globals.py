@@ -98,6 +98,8 @@ class Kind(Enum):
     SEED = 'seed'
     PRESEED = 'preseed'
     JOB = 'job'
+    ACCOUNT = 'account'
+    FILE = 'file'
 
 
 CAPABILITIES = (

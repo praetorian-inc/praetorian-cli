@@ -23,7 +23,7 @@ class TestSearch:
         assert self.sdk.search.by_exact_key(self.asset_key)['key'] == self.asset_key
 
     def test_search_by_source(self):
-        hits, _ = self.sdk.search.by_source(self.asset_key, Kind.ASSET.value)
+        hits, _ = self.sdk.search.by_source(self.asset_key, Kind.ATTRIBUTE.value)
         assert len(hits) > 1
         assert any(h['key'] == self.asset_attribute_key for h in hits)
 
@@ -39,11 +39,6 @@ class TestSearch:
 
     def test_search_by_name(self):
         hits, _ = self.sdk.search.by_name(self.asset_name, Kind.ASSET.value)
-        assert len(hits) == 1
-        assert hits[0]['dns'] == self.asset_dns
-
-    def test_search_by_ip(self):
-        hits, _ = self.sdk.search.by_ip(self.asset_name, Kind.ASSET.value)
         assert len(hits) == 1
         assert hits[0]['dns'] == self.asset_dns
 

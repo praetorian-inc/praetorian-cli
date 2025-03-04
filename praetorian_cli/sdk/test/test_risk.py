@@ -37,8 +37,6 @@ class TestRisk:
         deleted_risks, _ = self.sdk.search.by_status(Risk.DELETED_DUPLICATE_CRITICAL.value, Kind.RISK.value)
         assert any([r['name'] == self.risk_name for r in deleted_risks])
 
-        ['status'] == Risk.DELETED_DUPLICATE_CRITICAL.value
-
     def get_risk(self):
         return self.sdk.risks.get(self.risk_key)
 
