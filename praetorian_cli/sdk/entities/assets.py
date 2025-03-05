@@ -17,8 +17,7 @@ class Assets:
         name: str
             The name of the asset
         """
-        result = self.api.upsert('asset', dict(dns=dns, name=name, status=status))
-        return result[0]
+        return self.api.upsert('asset', dict(dns=dns, name=name, status=status))[0]
 
     def get(self, key, details=False):
         """ Get details of an asset

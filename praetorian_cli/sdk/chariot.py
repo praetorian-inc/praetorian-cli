@@ -42,9 +42,6 @@ class Chariot:
         final_resp = dict()
         for _ in range(pages):
             resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
-            # REMOVE
-            # print(f'URL = {resp.request.url}')
-
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
