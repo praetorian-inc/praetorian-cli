@@ -1,5 +1,7 @@
 from typing import List
 
+from praetorian_cli.sdk.model.globals import Kind
+
 EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}
@@ -36,7 +38,7 @@ class Node:
 
 class Relationship:
 
-    def __init__(self, label: str, source: Node, Target: Node):
+    def __init__(self, label: str, source: Node, target: Node):
         self.label = label
         self.source = source
         self.target = target
@@ -81,9 +83,7 @@ class Search:
     def count(self, search_term) -> {}:
         return self.api.count(dict(key=search_term))
 
-    def by_key_prefix(self, key_prefix, offset=None, pages=10000) -> tuple:
-        # REMOVE
-        # print(f'by_key_prefix() pages = {pages}')
+    def by_key_prefix(self, key_prefix, offset=None, pages=100000) -> tuple:
         return self.by_term(key_prefix, None, offset, pages)
 
     def by_exact_key(self, key, get_attributes=False) -> {}:
@@ -94,22 +94,19 @@ class Search:
             hit['attributes'] = attributes
         return hit
 
-    def by_source(self, source, kind, offset=None, pages=10000) -> tuple:
+    def by_source(self, source, kind, offset=None, pages=100000) -> tuple:
         return self.by_term(f'source:{source}', kind, offset, pages)
 
-    def by_status(self, status_prefix, kind, offset=None, pages=10000) -> tuple:
+    def by_status(self, status_prefix, kind, offset=None, pages=100000) -> tuple:
         return self.by_term(f'status:{status_prefix}', kind, offset, pages)
 
-    def by_name(self, name_prefix, kind, offset=None, pages=10000) -> tuple:
+    def by_name(self, name_prefix, kind, offset=None, pages=100000) -> tuple:
         return self.by_term(f'name:{name_prefix}', kind, offset, pages)
 
-    def by_ip(self, ip_prefix, kind, offset=None, pages=10000) -> tuple:
-        return self.by_term(f'ip:{ip_prefix}', kind, offset, pages)
-
-    def by_dns(self, dns_prefix, kind, offset=None, pages=10000) -> tuple:
+    def by_dns(self, dns_prefix, kind, offset=None, pages=100000) -> tuple:
         return self.by_term(f'dns:{dns_prefix}', kind, offset, pages)
 
-    def by_term(self, search_term, kind=None, offset=None, pages=10000, exact=False, descending=False,
+    def by_term(self, search_term, kind=None, offset=None, pages=100000, exact=False, descending=False,
                 global_=False) -> tuple:
         params = dict(key=search_term)
         if kind:
@@ -125,8 +122,6 @@ class Search:
 
         # extract all the different types of entities in the search results into a
         # flattened list of `hits`
-        # # REMOVE
-        # print(f'by_term() pages = {pages}')
         results = self.api.my(params, pages)
 
         if 'offset' in results:
@@ -137,7 +132,7 @@ class Search:
 
         return flatten_results(results), offset
 
-    def by_query(self, query: Query, pages=10000):
+    def by_query(self, query: Query, pages=100000) -> tuple:
         results = self.api.my_by_query(query, pages)
 
         if 'offset' in results:

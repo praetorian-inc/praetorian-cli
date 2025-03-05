@@ -75,7 +75,7 @@ class Risks:
 
         return self.api.delete_by_key('risk', key, body)
 
-    def list(self, prefix_filter='', offset=None, pages=10000):
+    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List risks
 
         Arguments:

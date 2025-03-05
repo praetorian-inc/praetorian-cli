@@ -56,7 +56,7 @@ class Assets:
         """
         return self.api.delete_by_key('asset', key)
 
-    def list(self, prefix_filter='', offset=None, pages=10000):
+    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List assets
 
         Arguments:

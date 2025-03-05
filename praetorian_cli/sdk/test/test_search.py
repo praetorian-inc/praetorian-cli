@@ -22,6 +22,9 @@ class TestSearch:
         assert self.sdk.search.by_exact_key(f'#asset#{self.asset_dns}#') is None
         assert self.sdk.search.by_exact_key(self.asset_key)['key'] == self.asset_key
 
+    def test_search_as_global_user(self):
+        assert self.sdk.search.by_term(self.asset_key, exact=True, global_=True) is None
+
     def test_search_by_source(self):
         hits, _ = self.sdk.search.by_source(self.asset_key, Kind.ATTRIBUTE.value)
         assert len(hits) > 1

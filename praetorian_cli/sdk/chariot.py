@@ -39,29 +39,16 @@ class Chariot:
         self.agents = Agents(self)
 
     def my(self, params: dict, pages=1) -> {}:
-        # TODO
-        # remove this when the pagination is fixed in Noah's stack
-        # REMOVE
-        # print(f'In my() params = {params}')
-
         final_resp = dict()
         for _ in range(pages):
-            resp = requests.get(self.url('/my'),
-                                params=params, headers=self.keychain.headers())
+            resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
-            # REMOVE
-            # print(f'resp = {resp}')
             extend(final_resp, resp)
-            # REMOVE `or resp['offset'] == dict()` once Noah fixed the backend to not return
-            # the offset field when there is not more results.
-            if 'offset' not in resp or not resp['offset']:
-                # REMOVE
-                # print(f'Offset is not in resp or it is empty')
+            if 'offset' in resp:
+                params['offset'] = json.dumps(resp['offset'])
+            else:
                 break
-            # REMOVE
-            # print(f'resp["offset"] = {resp["offset"]}, type of it: {type(resp["offset"])}, pages = {pages}')
-            params['offset'] = json.dumps(resp['offset'])
 
         if 'offset' in resp:
             final_resp['offset'] = json.dumps(resp['offset'])
@@ -71,20 +58,14 @@ class Chariot:
     def my_by_query(self, query: Query, pages=1) -> {}:
         final_resp = dict()
         for _ in range(pages):
-            resp = requests.post(self.url('/my'),
-                                 json=query.to_dict(), headers=self.keychain.headers())
+            resp = requests.post(self.url('/my'), json=query.to_dict(), headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
-            # REMOVE
-            # print(f'resp = {resp}')
             extend(final_resp, resp)
-            if 'offset' not in resp:
-                print(f'Offset is not in resp')
+            if 'offset' in resp:
+                query.page = int(resp['offset'])
+            else:
                 break
-
-            # REMOVE
-            print(f'resp["offset"] = {resp["offset"]}, pages = {pages}')
-            query.page = int(resp['offset'])
 
         if 'offset' in resp:
             final_resp['offset'] = resp['offset']
@@ -99,12 +80,10 @@ class Chariot:
     def put(self, type: str, body: dict, params: dict = {}) -> {}:
         resp = requests.put(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
-        inspect_request(resp)
         return resp.json()
 
     def delete(self, type: str, body: dict, params: dict) -> {}:
         resp = requests.delete(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
-        inspect_request(resp)
         process_failure(resp)
         return resp.json()
 
@@ -132,7 +111,6 @@ class Chariot:
     def unlink(self, username: str, value: str = '', config: dict = {}):
         resp = requests.delete(self.url(f'/account/{username}'), headers=self.keychain.headers(),
                                json=dict(value=value, config=config))
-        # inspect_request(resp)
         process_failure(resp)
         return resp.json()
 
@@ -187,7 +165,6 @@ class Chariot:
 
 def process_failure(response):
     if not response.ok:
-        inspect_request(response)
         message = f'[{response.status_code}] Request failed' + (f'\nError: {response.text}' if response.text else '')
         raise Exception(message)
 
@@ -205,11 +182,3 @@ def extend(accumulate, new):
             extend(accumulate[key], value)
 
     return accumulate
-
-
-def inspect_request(response):
-    return
-    print(f'- Method = {response.request.method}')
-    print(f'- URL = {response.request.url}')
-    if response.request.body:
-        print(f'- Body = {response.request.body}')

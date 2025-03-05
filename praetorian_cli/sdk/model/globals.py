@@ -97,9 +97,7 @@ class Kind(Enum):
     ATTRIBUTE = 'attribute'
     SEED = 'seed'
     PRESEED = 'preseed'
-    JOB = 'job'
-    ACCOUNT = 'account'
-    FILE = 'file'
+    OTHERS = 'others'
 
 
 CAPABILITIES = (

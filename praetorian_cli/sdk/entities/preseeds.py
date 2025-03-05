@@ -24,6 +24,6 @@ class Preseeds:
         """ Delete a pre-seeds """
         return self.api.delete_by_key('preseed', key)
 
-    def list(self, prefix_filter='', offset=None, pages=10000):
+    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List pre-seeds """
         return self.api.search.by_key_prefix(f'#preseed#{prefix_filter}', offset, pages)

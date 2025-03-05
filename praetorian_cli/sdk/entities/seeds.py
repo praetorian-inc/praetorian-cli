@@ -1,5 +1,5 @@
 from praetorian_cli.handlers.utils import error
-from praetorian_cli.sdk.model.globals import Seed
+from praetorian_cli.sdk.model.globals import Seed, Kind
 
 
 class Seeds:
@@ -39,7 +39,7 @@ class Seeds:
         else:
             error(f'Seed {key} is not found.')
 
-    def list(self, type='', prefix_filter='', offset=None, pages=10000):
+    def list(self, type='', prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List seeds """
         prefix_term = '#seed#'
         if type:

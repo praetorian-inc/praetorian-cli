@@ -17,7 +17,7 @@ class Attributes:
         """ Delete an attribute """
         return self.api.delete_by_key('attribute', key)
 
-    def list(self, prefix_filter='', source_key=None, offset=None, pages=10000):
+    def list(self, prefix_filter='', source_key=None, offset=None, pages=100000) -> tuple:
         """ List attribute, optionally prefix-filtered by the portion of the key after
             '#attribute#' """
         if source_key:

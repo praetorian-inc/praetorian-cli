@@ -42,9 +42,6 @@ def risks(chariot, filter, details, offset, page):
         - praetorian chariot list risks --details
         - praetorian chariot list risks --page all
     """
-
-    # REMOVE
-    # print(f'offset = {offset}')
     render_list_results(chariot.risks.list(filter, offset, pagination_size(page)), details)
 
 
