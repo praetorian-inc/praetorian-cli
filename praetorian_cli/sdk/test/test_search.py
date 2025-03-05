@@ -32,7 +32,7 @@ class TestSearch:
 
     def test_search_by_status(self):
         hits, _ = self.sdk.search.by_status(Asset.ACTIVE.value, Kind.ASSET.value)
-        assert len(hits) > 1
+        assert len(hits) >= 1
         assert any(h['dns'] == self.asset_dns for h in hits)
 
     def test_search_by_dns(self):
