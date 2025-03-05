@@ -58,7 +58,7 @@ def search(chariot, term, count, kind, details, offset, page, desc, global_):
         - praetorian chariot search --term "status:OH"
         - praetorian chariot search --term "status:OH" --details --page all
         - praetorian chariot search --term "#asset#www.example.com"
-        - praetorian chariot search --term "dns:https://github.com/praetorian-inc/" --label asset --desc
+        - praetorian chariot search --term "dns:https://github.com/praetorian-inc/" --kind asset --desc
     """
     if count:
         print_json(chariot.search.count(term))

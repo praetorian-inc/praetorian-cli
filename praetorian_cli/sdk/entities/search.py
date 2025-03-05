@@ -144,29 +144,6 @@ class Search:
         return flatten_results(results), offset
 
 
-# {
-#   "node": {
-#     "relationships": [
-#       {
-#         "label": "HAS_VULNERABILITY",
-#         "target": {
-#           "labels": [
-#             "Risk"
-#           ],
-#           "filters": [
-#             {
-#               "field": "key",
-#               "operator": "=",
-#               "value": "#risk#gladiator.systems#CVE-2018-1273"
-#             }
-#           ]
-#         }
-#       }
-#     ]
-#   }
-# }
-
-
 def flatten_results(results):
     if isinstance(results, list):
         return results
