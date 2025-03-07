@@ -27,7 +27,7 @@ class TestWebhook:
         response = requests.put(url=self.sdk.webhook.get_url(), json=dict(dns=self.asset_dns, name=self.asset_name))
         assert response.status_code == 200, 'Webhook POST request failed'
         asset = self.sdk.assets.get(self.asset_key)
-        assert asset is not None
+        assert asset != None
         attributes = self.sdk.assets.attributes(self.asset_key)
         assert len(attributes) == 1
         assert attributes[0]['name'] == 'source'
@@ -40,7 +40,7 @@ class TestWebhook:
                                 json=dict(dns=self.asset_dns, name=self.asset_name, finding=self.risk_name))
         assert response.status_code == 200, 'Webhook POST request failed'
         risk = self.sdk.risks.get(risk_key(self.asset_dns, self.risk_name))
-        assert risk is not None
+        assert risk != None
         attributes = self.sdk.risks.attributes(self.risk_key)
         assert len(attributes) == 1
         assert attributes[0]['name'] == 'source'

@@ -141,8 +141,7 @@ class Chariot:
         return resp.content
 
     def count(self, params: dict) -> {}:
-        resp = requests.get(self.url('/my/count'),
-                            params=params, headers=self.keychain.headers())
+        resp = requests.get(self.url('/my/count'), params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 

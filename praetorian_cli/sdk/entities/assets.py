@@ -1,4 +1,5 @@
 from praetorian_cli.sdk.model.globals import Asset, Kind
+from praetorian_cli.sdk.entities.search import Relationship, Node, Query, asset_of_key, RISK_NODE, ATTRIBUTE_NODE
 
 
 class Assets:
@@ -76,67 +77,17 @@ class Assets:
         return attributes
 
     def associated_risks(self, key):
-        asset = self.get(key)
-        if asset:
-            risks, _ = self.api.risks.list(asset['dns'])
-            return risks
-        else:
-            return []
+        # risks directly linked to the asset
+        from_this = Relationship(Relationship.Label.HAS_VULNERABILITY, source=asset_of_key(key))
+        query = Query(Node(RISK_NODE, relationships=[from_this]))
+        risks, _ = self.api.search.by_query(query)
 
-        # {
-        #   "node": {
-        #     "labels": [
-        #         "Risk"
-        #     ],
-        #     "relationships": [
-        #       {
-        #         "label": "HAS_VULNERABILITY",
-        #         "source": {
-        #           "labels": [
-        #             "Asset"
-        #           ],
-        #           "filters": [
-        #             {
-        #               "field": "key",
-        #               "operator": "=",
-        #               "value": "#asset#dns#name"
-        #             }
-        #           ]
-        #         }
-        #       }
-        #     ]
-        #   }
-        # }
+        # risks indirectly linked to this asset via asset attributes
+        attributes_of_this = Relationship(Relationship.Label.HAS_ATTRIBUTE, source=asset_of_key(key))
+        this_attributes = Node(ATTRIBUTE_NODE, relationships=[attributes_of_this])
+        risks_of_these_attributes = Relationship(Relationship.Label.HAS_VULNERABILITY, source=this_attributes)
+        query = Query(Node(RISK_NODE, relationships=[risks_of_these_attributes]))
+        indirect_risks, _ = self.api.search.by_query(query)
 
-        # {
-        #     "node": {
-        #         "labels": [
-        #             "Risk"
-        #         ],
-        #         "relationships": [
-        #             {
-        #                 "label": "HAS_VULNERABILITY",
-        #                 "source": {
-        #                     "labels": [
-        #                         "Attribute"
-        #                     ],
-        #                     "relationships": {
-        #                         "label": "HAS_ATTRIBUTE",
-        #                         "source": {
-        #                             "labels": [
-        #                                 "Asset"
-        #                             ],
-        #                             "filters": [
-        #                                 {
-        #                                     "field": "key",
-        #                                     "operator": "=",
-        #                                     "value": "#asset#dns#name"
-        #                                 }
-        #                             ]
-        #                         }
-        #                     }
-        #                 }
-        #             }
-        #         ]
-        #     }
-        # }
+        risks.extend(indirect_risks)
+        return risks

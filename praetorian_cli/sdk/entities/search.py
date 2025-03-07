@@ -180,3 +180,21 @@ def flatten_results(results):
     for key in results.keys():
         flattened.extend(flatten_results(results[key]))
     return flattened
+
+
+# helpers for building graph queries
+ASSET_NODE = [Node.Label.ASSET]
+RISK_NODE = [Node.Label.RISK]
+ATTRIBUTE_NODE = [Node.Label.ATTRIBUTE]
+
+
+def key_equals(key: str):
+    return [Filter(Filter.Field.KEY, Filter.Operator.EQUAL, key)]
+
+
+def risk_of_key(key: str):
+    return Node(RISK_NODE, filters=key_equals(key))
+
+
+def asset_of_key(key: str):
+    return Node(ASSET_NODE, filters=key_equals(key))

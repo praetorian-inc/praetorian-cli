@@ -28,11 +28,11 @@ class TestAsset:
 
     def test_jobs_kicked_off(self):
         jobs, offset = self.sdk.jobs.list(self.asset_dns)
-        assert jobs is not None
-        assert jobs is not []
+        assert jobs != None
+        assert jobs != []
         for job in jobs:
-            assert job['source'] is not ''
-            assert job['status'] is not None
+            assert job['source'] != ''
+            assert job['status'] != None
 
     def test_update_asset(self):
         self.sdk.assets.update(self.asset_key, Asset.FROZEN.value)
