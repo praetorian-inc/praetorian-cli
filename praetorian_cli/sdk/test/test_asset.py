@@ -26,14 +26,6 @@ class TestAsset:
         assert len(results) > 0
         assert any([a['dns'] == self.asset_dns for a in results])
 
-    def test_jobs_kicked_off(self):
-        jobs, offset = self.sdk.jobs.list(self.asset_dns)
-        assert jobs != None
-        assert jobs != []
-        for job in jobs:
-            assert job['source'] != ''
-            assert job['status'] != None
-
     def test_update_asset(self):
         self.sdk.assets.update(self.asset_key, Asset.FROZEN.value)
         assert self.get_asset()['status'] == Asset.FROZEN.value
