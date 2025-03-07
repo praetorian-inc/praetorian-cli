@@ -50,7 +50,7 @@ class TestWebhook:
 
     def test_delete_webhook(self):
         self.sdk.webhook.delete()
-        assert self.sdk.webhook.get_record() is None
+        assert self.sdk.webhook.get_record() == None
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)

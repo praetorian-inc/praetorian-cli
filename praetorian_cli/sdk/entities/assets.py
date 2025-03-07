@@ -82,3 +82,61 @@ class Assets:
             return risks
         else:
             return []
+
+        # {
+        #   "node": {
+        #     "labels": [
+        #         "Risk"
+        #     ],
+        #     "relationships": [
+        #       {
+        #         "label": "HAS_VULNERABILITY",
+        #         "source": {
+        #           "labels": [
+        #             "Asset"
+        #           ],
+        #           "filters": [
+        #             {
+        #               "field": "key",
+        #               "operator": "=",
+        #               "value": "#asset#dns#name"
+        #             }
+        #           ]
+        #         }
+        #       }
+        #     ]
+        #   }
+        # }
+
+        # {
+        #     "node": {
+        #         "labels": [
+        #             "Risk"
+        #         ],
+        #         "relationships": [
+        #             {
+        #                 "label": "HAS_VULNERABILITY",
+        #                 "source": {
+        #                     "labels": [
+        #                         "Attribute"
+        #                     ],
+        #                     "relationships": {
+        #                         "label": "HAS_ATTRIBUTE",
+        #                         "source": {
+        #                             "labels": [
+        #                                 "Asset"
+        #                             ],
+        #                             "filters": [
+        #                                 {
+        #                                     "field": "key",
+        #                                     "operator": "=",
+        #                                     "value": "#asset#dns#name"
+        #                                 }
+        #                             ]
+        #                         }
+        #                     }
+        #                 }
+        #             }
+        #         ]
+        #     }
+        # }

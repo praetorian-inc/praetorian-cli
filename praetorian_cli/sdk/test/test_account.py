@@ -15,7 +15,7 @@ class TestAccount:
         assert account['member'] == self.collaborator_email
         accounts, _ = self.sdk.accounts.list()
         assert len(accounts) > 0
-        assert any(a['member'] == self.collaborator_email for a in accounts)
+        assert any([a['member'] == self.collaborator_email for a in accounts])
 
     def test_delete_collaborator(self):
         account = self.sdk.accounts.delete_collaborator(self.collaborator_email)

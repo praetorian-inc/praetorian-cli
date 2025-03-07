@@ -18,7 +18,7 @@ class TestAttribute:
     def test_list_attributes(self):
         results, _ = self.sdk.attributes.list()
         assert len(results) > 0
-        assert any(r['name'] == self.attribute_name for r in results)
+        assert any([r['name'] == self.attribute_name for r in results])
 
     def test_get_attribute(self):
         a = self.sdk.attributes.get(self.asset_attribute_key)
@@ -28,7 +28,7 @@ class TestAttribute:
 
     def test_delete_attribute(self):
         self.sdk.attributes.delete(self.asset_attribute_key)
-        assert self.sdk.attributes.get(self.asset_attribute_key) is None
+        assert self.sdk.attributes.get(self.asset_attribute_key) == None
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)

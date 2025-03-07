@@ -24,7 +24,7 @@ class TestAsset:
     def test_list_asset(self):
         results, _ = self.sdk.assets.list()
         assert len(results) > 0
-        assert any(a['dns'] == self.asset_dns for a in results)
+        assert any([a['dns'] == self.asset_dns for a in results])
 
     def test_jobs_kicked_off(self):
         jobs, offset = self.sdk.jobs.list(self.asset_dns)
@@ -40,7 +40,7 @@ class TestAsset:
 
     def test_delete_asset(self):
         self.sdk.assets.delete(self.asset_key)
-        assert self.get_asset() is None
+        assert self.get_asset() == None
         deleted_assets, _ = self.sdk.search.by_status(Asset.DELETED.value, Kind.ASSET.value)
         assert any([a['dns'] == self.asset_dns for a in deleted_assets])
 

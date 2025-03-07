@@ -1,4 +1,5 @@
 from praetorian_cli.sdk.model.globals import Kind
+from praetorian_cli.sdk.entities.search import Filter, Relationship, Node, Query
 
 
 class Risks:
@@ -97,11 +98,23 @@ class Risks:
         return attributes
 
     def affected_assets(self, key):
-        attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
-        source_attributes = [a for a in attributes if a['name'] == 'source']
-        assets = []
-        for attribute in source_attributes:
-            asset = self.api.assets.get(f"#asset#{attribute['value'].split('#asset#')[1]}")
-            if asset:
-                assets.append(asset)
+        # assets directly linked to the risk
+        risk_target = Node([Node.Label.RISK], filters=[Filter(
+            Filter.Field.KEY, Filter.Operator.EQUAL, key)])
+        risk_relationship = Relationship(
+            Relationship.Label.HAS_VULNERABILITY, target=risk_target)
+        query = Query(
+            Node([Node.Label.ASSET], relationships=[risk_relationship]))
+        assets, _ = self.api.search.by_query(query)
+
+        # assets indirectly linked to the risk via an attribute
+        attribute_target = Node([Node.Label.ATTRIBUTE],
+                                relationships=[risk_relationship])
+        attribute_relationship = Relationship(
+            Relationship.Label.HAS_ATTRIBUTE, target=attribute_target)
+        query = Query(
+            Node([Node.Label.ASSET], relationships=[attribute_relationship]))
+        indirect_assets, _ = self.api.search.by_query(query)
+
+        assets.extend(indirect_assets)
         return assets

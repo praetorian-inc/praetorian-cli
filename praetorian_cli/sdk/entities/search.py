@@ -1,4 +1,4 @@
-from typing import List
+from enum import Enum
 
 from praetorian_cli.sdk.model.globals import Kind
 
@@ -8,19 +8,63 @@ GLOBAL_FLAG = {'global': 'true'}
 
 
 class Filter:
+    class Operator(Enum):
+        EQUAL = '='
+        CONTAINS = 'CONTAINS'
+        LESS_THAN = '<'
+        LARGER_THAN = '>'
+        STARTS_WITH = 'STARTS WITH'
+        ENDS_WITH = 'ENDS WITH'
 
-    def __init__(self, field: str, operator: str, value: str):
+    class Field(Enum):
+        KEY = 'key'
+        DNS = 'dns'
+        NAME = 'name'
+        STATUS = 'status'
+        SOURCE = 'source'
+        CREATED = 'created'
+
+    def __init__(self, field: Field, operator: Operator, value: str):
         self.field = field
         self.operator = operator
         self.value = value
 
     def to_dict(self) -> dict:
-        return dict(field=self.field, operator=self.operator, value=self.value)
+        return dict(field=self.field.value, operator=self.operator.value, value=self.value)
+
+
+class Relationship:
+    class Label(Enum):
+        HAS_VULNERABILITY = 'HAS_VULNERABILITY'
+        DISCOVERED = 'DISCOVERED'
+        HAS_ATTRIBUTE = 'HAS_ATTRIBUTE'
+
+    def __init__(self, label: Label, source: 'Node' = None, target: 'Node' = None):
+        self.label = label
+        self.source = source
+        self.target = target
+
+    def to_dict(self):
+        ret = dict(label=self.label.value)
+        if self.source:
+            ret |= dict(source=self.source.to_dict())
+        if self.target:
+            ret |= dict(target=self.target.to_dict())
+        return ret
 
 
 class Node:
+    class Label(Enum):
+        ASSET = 'Asset'
+        ATTRIBUTE = 'Attribute'
+        RISK = 'Risk'
+        ACCOUNT = 'Account'
+        PRESEED = 'Preseed'
+        SEED = 'Seed'
+        TTL = 'TTL'
 
-    def __init__(self, labels: List[str], filters: List[Filter], relationships: List['Relationship']):
+    def __init__(self, labels: list[Label] = None, filters: list[Filter] = None,
+                 relationships: list[Relationship] = None):
         self.labels = labels
         self.filters = filters
         self.relationships = relationships
@@ -28,7 +72,7 @@ class Node:
     def to_dict(self):
         ret = dict()
         if self.labels:
-            ret |= dict(labels=self.labels)
+            ret |= dict(labels=[x.value for x in self.labels])
         if self.filters:
             ret |= dict(filters=[x.to_dict() for x in self.filters])
         if self.relationships:
@@ -36,24 +80,9 @@ class Node:
         return ret
 
 
-class Relationship:
-
-    def __init__(self, label: str, source: Node, target: Node):
-        self.label = label
-        self.source = source
-        self.target = target
-
-        def to_dict(self):
-            ret = dict(label=self.label)
-            if self.source:
-                ret |= dict(source=self.source.to_dict())
-            if self.target:
-                ret |= dict(target=self.target.to_dict())
-            return ret
-
-
 class Query:
-    def __init__(self, node: Node, page: int, limit: int, order_by: str, descending: bool):
+    def __init__(self, node: Node, page: int = 0, limit: int = 0, order_by: str = None,
+                 descending: bool = False):
         self.node = node
         self.page = page
         self.limit = limit
