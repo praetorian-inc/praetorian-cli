@@ -78,15 +78,15 @@ class Assets:
 
     def associated_risks(self, key):
         # risks directly linked to the asset
-        from_this = Relationship(Relationship.Label.HAS_VULNERABILITY, source=asset_of_key(key))
-        query = Query(Node(RISK_NODE, relationships=[from_this]))
+        risks_from_this = Relationship(Relationship.Label.HAS_VULNERABILITY, source=asset_of_key(key))
+        query = Query(Node(RISK_NODE, relationships=[risks_from_this]))
         risks, _ = self.api.search.by_query(query)
 
         # risks indirectly linked to this asset via asset attributes
-        attributes_of_this = Relationship(Relationship.Label.HAS_ATTRIBUTE, source=asset_of_key(key))
-        this_attributes = Node(ATTRIBUTE_NODE, relationships=[attributes_of_this])
-        risks_of_these_attributes = Relationship(Relationship.Label.HAS_VULNERABILITY, source=this_attributes)
-        query = Query(Node(RISK_NODE, relationships=[risks_of_these_attributes]))
+        attributes_from_this = Relationship(Relationship.Label.HAS_ATTRIBUTE, source=asset_of_key(key))
+        attributes = Node(ATTRIBUTE_NODE, relationships=[attributes_from_this])
+        risks_from_attributes = Relationship(Relationship.Label.HAS_VULNERABILITY, source=attributes)
+        query = Query(Node(RISK_NODE, relationships=[risks_from_attributes]))
         indirect_risks, _ = self.api.search.by_query(query)
 
         risks.extend(indirect_risks)
