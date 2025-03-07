@@ -2,8 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, pagination
-from praetorian_cli.handlers.utils import error
-from praetorian_cli.handlers.utils import render_list_results, print_json, pagination_size
+from praetorian_cli.handlers.utils import render_list_results, print_json, pagination_size, error
 from praetorian_cli.sdk.model.globals import Kind
 
 
