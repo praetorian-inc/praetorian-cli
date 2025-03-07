@@ -163,18 +163,20 @@ class TestZCli:
         self.verify(f'search -t "#asset#{o.asset_dns}" -d -p all', [o.asset_key, '"key"', '"data"'])
         self.verify(f'search -t "#asset#{o.asset_dns}" -c -p all', ['"A": 1'])
 
-        self.verify(f'search -t "source:{o.asset_key}" -p all', ['surface#provided', o.asset_key, 'attribute'])
-        self.verify(f'search -t "name:{o.asset_name}" -p all', [o.asset_key])
-        self.verify(f'search -t "dns:{o.asset_dns}" -p all', [o.asset_key])
+        self.verify(f'search -t "source:{o.asset_key}" -k attribute -p all',
+                    ['surface#provided', o.asset_key, 'attribute'])
+        self.verify(f'search -t "name:{o.asset_name}" -k asset -p all', [o.asset_key])
+        self.verify(f'search -t "dns:{o.asset_dns}" -k asset -p all', [o.asset_key])
 
-        self.verify(f'search -t "source:{o.asset_key}" -p all', ['surface#provided', o.asset_key, 'attribute'])
-        self.verify(f'search -t "name:{o.asset_name}" -p all', [o.asset_key])
-        self.verify(f'search -t "dns:{o.asset_dns}" -p all', [o.asset_key])
-        self.verify(f'search -t "status:{Asset.ACTIVE.value}" -p all', [o.asset_key])
+        self.verify(f'search -t "source:{o.asset_key}" -k attribute -p all',
+                    ['surface#provided', o.asset_key, 'attribute'])
+        self.verify(f'search -t "name:{o.asset_name}" -k asset -p all', [o.asset_key])
+        self.verify(f'search -t "dns:{o.asset_dns}" -k asset -p all', [o.asset_key])
+        self.verify(f'search -t "status:{Asset.ACTIVE.value}" -k asset -p all', [o.asset_key])
 
         self.verify(f'add attribute -n {o.attribute_name} -v {o.attribute_value} -k "{o.asset_key}"')
 
-        self.verify(f'search -t "name:{o.attribute_name}" -p all', [o.asset_key, 'attribute'])
+        self.verify(f'search -t "name:{o.attribute_name}" -k attribute -p all', [o.asset_key, 'attribute'])
 
         clean_test_entities(self.sdk, o)
 
