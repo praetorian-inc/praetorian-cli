@@ -12,13 +12,14 @@ class Integrations:
         """ Get details of an integration """
         return self.api.search.by_exact_key(key)
 
-    def list(self, name_filter='', offset=None, pages=10000):
+    def list(self, name_filter='', offset=None, pages=100000) -> tuple:
         """ List integrations, optionally filtered by the name of the integrations,
             such as github, amazon, gcp, etc. """
         results, next_offset = self.api.search.by_key_prefix('#account#', offset, pages)
 
         # filter out the user accounts and settings
-        results = [i for i in results if '@' not in i['member'] and i['member'] != 'settings']
+        results = [i for i in results if
+                   '@' not in i['member'] and i['member'] != 'settings' and i['member'] != 'settings-display-name']
 
         # filter for integration names, such as 'github', 'amazon'
         if name_filter:

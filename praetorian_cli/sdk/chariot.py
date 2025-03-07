@@ -12,7 +12,7 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
-from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search
+from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search, Query
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
@@ -41,17 +41,34 @@ class Chariot:
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
         for _ in range(pages):
-            resp = requests.get(self.url('/my'),
-                                params=params, headers=self.keychain.headers())
+            resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
-            if 'offset' not in resp:
+            if 'offset' in resp:
+                params['offset'] = json.dumps(resp['offset'])
+            else:
                 break
-            params['offset'] = json.dumps(resp['offset'])
 
         if 'offset' in resp:
             final_resp['offset'] = json.dumps(resp['offset'])
+
+        return final_resp
+
+    def my_by_query(self, query: Query, pages=1) -> {}:
+        final_resp = dict()
+        for _ in range(pages):
+            resp = requests.post(self.url('/my'), json=query.to_dict(), headers=self.keychain.headers())
+            process_failure(resp)
+            resp = resp.json()
+            extend(final_resp, resp)
+            if 'offset' in resp:
+                query.page = int(resp['offset'])
+            else:
+                break
+
+        if 'offset' in resp:
+            final_resp['offset'] = resp['offset']
 
         return final_resp
 
@@ -91,9 +108,9 @@ class Chariot:
         process_failure(resp)
         return resp.json()
 
-    def unlink(self, username: str, value: str = ''):
+    def unlink(self, username: str, value: str = '', config: dict = {}):
         resp = requests.delete(self.url(f'/account/{username}'), headers=self.keychain.headers(),
-                               json={'value': value})
+                               json=dict(value=value, config=config))
         process_failure(resp)
         return resp.json()
 
@@ -124,8 +141,7 @@ class Chariot:
         return resp.content
 
     def count(self, params: dict) -> {}:
-        resp = requests.get(self.url('/my/count'),
-                            params=params, headers=self.keychain.headers())
+        resp = requests.get(self.url('/my/count'), params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 

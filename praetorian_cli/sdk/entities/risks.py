@@ -1,3 +1,7 @@
+from praetorian_cli.sdk.model.globals import Kind
+from praetorian_cli.sdk.entities.search import Relationship, Node, Query, risk_of_key, ASSET_NODE, ATTRIBUTE_NODE
+
+
 class Risks:
     """ The methods in this class are to be assessed from sdk.risks, where sdk is an instance
     of Chariot. """
@@ -72,7 +76,7 @@ class Risks:
 
         return self.api.delete_by_key('risk', key, body)
 
-    def list(self, prefix_filter='', offset=None, pages=10000):
+    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List risks
 
         Arguments:
@@ -90,15 +94,20 @@ class Risks:
 
     def attributes(self, key):
         """ list associated attributes """
-        attributes, _ = self.api.search.by_source(key)
+        attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
         return attributes
 
     def affected_assets(self, key):
-        attributes, _ = self.api.search.by_source(key)
-        source_attributes = [a for a in attributes if a['name'] == 'source']
-        assets = []
-        for attribute in source_attributes:
-            asset = self.api.assets.get(f"#asset#{attribute['value'].split('#asset#')[1]}")
-            if asset:
-                assets.append(asset)
+        # assets directly linked to the risk
+        to_this = Relationship(Relationship.Label.HAS_VULNERABILITY, target=risk_of_key(key))
+        query = Query(Node(ASSET_NODE, relationships=[to_this]))
+        assets, _ = self.api.search.by_query(query)
+
+        # assets indirectly linked to the risk via an attribute
+        attributes = Node(ATTRIBUTE_NODE, relationships=[to_this])
+        to_attributes = Relationship(Relationship.Label.HAS_ATTRIBUTE, target=attributes)
+        query = Query(Node(ASSET_NODE, relationships=[to_attributes]))
+        indirect_assets, _ = self.api.search.by_query(query)
+
+        assets.extend(indirect_assets)
         return assets

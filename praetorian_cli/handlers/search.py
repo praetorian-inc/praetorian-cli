@@ -2,7 +2,8 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, pagination
-from praetorian_cli.handlers.utils import render_list_results, print_json, pagination_size
+from praetorian_cli.handlers.utils import render_list_results, print_json, pagination_size, error
+from praetorian_cli.sdk.model.globals import Kind
 
 
 @chariot.command()
@@ -10,10 +11,11 @@ from praetorian_cli.handlers.utils import render_list_results, print_json, pagin
 @pagination
 @click.option('-t', '--term', help='Enter a search term', required=True)
 @click.option('-c', '--count', is_flag=True, default=False, help='Return statistics on search')
+@click.option('-k', '--kind', type=click.Choice([s.value for s in Kind]), help='The kind of entities to return')
 @click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')
 @click.option('-desc', '--desc', is_flag=True, default=False, help='Return data in descending order')
 @click.option('-g', '--global', 'global_', is_flag=True, default=False, help='Use the global data set')
-def search(chariot, term, count, details, offset, page, desc, global_):
+def search(chariot, term, count, kind, details, offset, page, desc, global_):
     """ Query Chariot for matches or counts using the search syntax
 
     \b
@@ -55,10 +57,15 @@ def search(chariot, term, count, details, offset, page, desc, global_):
         - praetorian chariot search --term "status:OH"
         - praetorian chariot search --term "status:OH" --details --page all
         - praetorian chariot search --term "#asset#www.example.com"
-        - praetorian chariot search --term "dns:https://github.com/praetorian-inc/" --desc
+        - praetorian chariot search --term "dns:https://github.com/praetorian-inc/" --kind asset --desc
     """
     if count:
         print_json(chariot.search.count(term))
     else:
+        term = term.strip()
+        if not term.startswith('#') and not kind:
+            error(f'Search term "{term}" requires the entity kind (--kind) argument.')
+
         render_list_results(
-            chariot.search.by_term(term, offset, pagination_size(page), descending=desc, global_=global_), details)
+            chariot.search.by_term(term, kind, offset, pagination_size(page), descending=desc, global_=global_),
+            details)

@@ -9,7 +9,7 @@ class Accounts:
         """ Get details of an account """
         return self.api.search.by_exact_key(key)
 
-    def list(self, username_filter='', offset=None, pages=10000):
+    def list(self, username_filter='', offset=None, pages=100000):
         """ List accounts of collaborators and also list the master accounts that the current
             principal can access.
 

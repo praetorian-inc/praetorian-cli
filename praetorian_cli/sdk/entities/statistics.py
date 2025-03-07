@@ -58,8 +58,8 @@ class Statistics:
         self.api = api
         self.util = Util
 
-    def list(self, prefix_filter='', from_date=None, to_date=None, offset=None, pages=1000):
-        """List statistics with optional date range filtering"""
+    def list(self, prefix_filter='', from_date=None, to_date=None, offset=None, pages=100000) -> tuple:
+        """ List statistics with optional date range filtering """
         # Handle the shorthands
         if prefix_filter == self.util.RISKS:
             all_stats = []
@@ -86,7 +86,7 @@ class Statistics:
             return self._query_single(prefix_filter, from_date, to_date, offset, pages)
 
     def _query_single(self, prefix_filter, from_date, to_date, offset, pages):
-        """Make a single query with the given parameters"""
+        """ Make a single query with the given parameters """
         params = {}
 
         if from_date or to_date:

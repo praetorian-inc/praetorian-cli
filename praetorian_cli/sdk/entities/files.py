@@ -35,7 +35,7 @@ class Files:
     def get_utf8(self, chariot_filepath) -> str:
         return self.get(chariot_filepath).decode('utf-8')
 
-    def list(self, prefix_filter='', offset=None, pages=10000):
+    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List the files, optionally prefix-filtered by portion of the key after
             '#file#'. File keys read '#file#{filepath}' """
         return self.api.search.by_key_prefix(f'#file#{prefix_filter}', offset, pages)

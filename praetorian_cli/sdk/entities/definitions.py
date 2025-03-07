@@ -22,7 +22,7 @@ class Definitions:
             file.write(content)
         return download_path
 
-    def list(self, name_filter='', offset=None, pages=10000):
+    def list(self, name_filter='', offset=None, pages=100000) -> tuple:
         """ List the definition names, optionally prefix-filtered by a definition name """
         definitions, next_offset = self.api.search.by_key_prefix(f'#file#definitions/{name_filter}', offset, pages)
         names = [d['name'][12:] for d in definitions]

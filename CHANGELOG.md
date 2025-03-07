@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.0
+
+* [Breaking change] The API layer has changed to work with the new my API.
+    * See the changes in Chariot.my()
+* [Breaking change] There are two changes in the CLI command layer:
+    * When searching using terms prefixed by `status:`, `source:`, `name:`,
+      and `dns:`, you will now need to provide the `--kind` argument
+      to indicate the kind of records you want. Available kinds are:
+      `asset`, `risk`, `attribute`, `seed`, `preseed`, and `others`.
+    * Searching by the `ip:` prefix is removed.
+
 ## 1.6.5
 
 * [New feature] Added ability to add asset with chosen status.

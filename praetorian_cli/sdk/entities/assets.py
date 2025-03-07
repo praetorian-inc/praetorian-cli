@@ -1,4 +1,5 @@
-from praetorian_cli.sdk.model.globals import Asset
+from praetorian_cli.sdk.model.globals import Asset, Kind
+from praetorian_cli.sdk.entities.search import Relationship, Node, Query, asset_of_key, RISK_NODE, ATTRIBUTE_NODE
 
 
 class Assets:
@@ -55,7 +56,7 @@ class Assets:
         """
         return self.api.delete_by_key('asset', key)
 
-    def list(self, prefix_filter='', offset=None, pages=10000):
+    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List assets
 
         Arguments:
@@ -72,13 +73,21 @@ class Assets:
 
     def attributes(self, key):
         """ list associated attributes """
-        attributes, _ = self.api.search.by_source(key)
+        attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
         return attributes
 
     def associated_risks(self, key):
-        asset = self.get(key)
-        if asset:
-            risks, _ = self.api.risks.list(asset['dns'])
-            return risks
-        else:
-            return []
+        # risks directly linked to the asset
+        risks_from_this = Relationship(Relationship.Label.HAS_VULNERABILITY, source=asset_of_key(key))
+        query = Query(Node(RISK_NODE, relationships=[risks_from_this]))
+        risks, _ = self.api.search.by_query(query)
+
+        # risks indirectly linked to this asset via asset attributes
+        attributes_from_this = Relationship(Relationship.Label.HAS_ATTRIBUTE, source=asset_of_key(key))
+        attributes = Node(ATTRIBUTE_NODE, relationships=[attributes_from_this])
+        risks_from_attributes = Relationship(Relationship.Label.HAS_VULNERABILITY, source=attributes)
+        query = Query(Node(RISK_NODE, relationships=[risks_from_attributes]))
+        indirect_risks, _ = self.api.search.by_query(query)
+
+        risks.extend(indirect_risks)
+        return risks

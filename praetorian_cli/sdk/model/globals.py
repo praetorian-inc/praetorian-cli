@@ -91,6 +91,15 @@ class AgentType(Enum):
     AUTO_TRIAGE = 'autotriage'
 
 
+class Kind(Enum):
+    ASSET = 'asset'
+    RISK = 'risk'
+    ATTRIBUTE = 'attribute'
+    SEED = 'seed'
+    PRESEED = 'preseed'
+    OTHERS = 'others'
+
+
 CAPABILITIES = (
     'reverse-whois',
     'csp-mine',
