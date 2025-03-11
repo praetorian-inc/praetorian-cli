@@ -11,7 +11,7 @@ class Agents:
     def affiliation(self, key, timeout=180) -> str:
         self.api.agent(AgentType.AFFILIATION.value, dict(key=key))
 
-        # poll for the attribution job to complete
+        # poll for the affiliation job to complete
         job_key = self.api.jobs.system_job_key(AgentType.AFFILIATION.value, key)
 
         start_time = time()
