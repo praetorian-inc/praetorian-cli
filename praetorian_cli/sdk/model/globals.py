@@ -87,7 +87,7 @@ class AddRisk(Enum):
 
 
 class AgentType(Enum):
-    AFFILIATION = 'attribution'
+    AFFILIATION = 'affiliation'
     AUTO_TRIAGE = 'autotriage'
 
 

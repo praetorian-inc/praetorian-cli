@@ -11,7 +11,7 @@ class TestRisk:
         self.sdk = setup_chariot()
         make_test_values(self)
 
-    def test_attribution(self):
+    def test_affiliation(self):
         result = self.sdk.assets.add(self.asset_dns, self.asset_name)
         assert result['key'] == self.asset_key
         result = self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value, self.comment)
