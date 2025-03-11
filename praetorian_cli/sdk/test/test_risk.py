@@ -41,7 +41,7 @@ class TestRisk:
 
     def test_delete_risk(self):
         self.sdk.risks.delete(self.risk_key, Risk.DELETED_DUPLICATE_CRITICAL.value)
-        assert self.get_risk() is None
+        assert self.get_risk()['status'] == Risk.DELETED_DUPLICATE_CRITICAL.value
         deleted_risks, _ = self.sdk.search.by_status(Risk.DELETED_DUPLICATE_CRITICAL.value, Kind.RISK.value)
         assert any([r['name'] == self.risk_name for r in deleted_risks])
 
