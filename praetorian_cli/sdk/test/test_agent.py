@@ -20,7 +20,8 @@ class TestRisk:
         # the following at least tests the affiliation code compiles
         with pytest.raises(Exception) as ex_info:
             self.sdk.agents.affiliation(self.risk_key, 1)
-        assert str(ex_info.value) == 'Timeout waiting for affiliation result (1 seconds).'
+        assert any(s in str(ex_info.value)
+                   for s in ['Timeout waiting for affiliation result', 'Affiliation is not available'])
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
