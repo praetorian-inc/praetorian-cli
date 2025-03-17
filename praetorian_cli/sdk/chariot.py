@@ -172,7 +172,6 @@ class Chariot:
 def swap_query_type(params: dict, pages: int):
     if pages >= QUERY_LIMIT_SWITCH_POINT:
         key = params.get('key', None)
-        # Swap to query if "key" is prefixed by either afield type or label type
         if key:
             prefix_list = []
             prefix_list.extend([prefix.value.lower() for prefix in Filter.Field])

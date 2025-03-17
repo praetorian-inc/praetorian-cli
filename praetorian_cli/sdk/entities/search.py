@@ -77,7 +77,6 @@ class Node:
                  relationships: list[Relationship] = None, params: dict = None):
         if params:
             filters = [Filter(params=params)]
-            # During testing, it was found that having no labels returns no results.
             label = params.get('label', None)
             if label == None:
                 for filter in filters:
