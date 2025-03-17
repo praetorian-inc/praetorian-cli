@@ -46,7 +46,7 @@ class Chariot:
         # For large, graph db queries, we can override default small query limit using a query object
         query = swap_query_type(params, pages)
         if query:
-            return self.my_by_query(query, pages)
+            return self.my_by_query(query, pages, params.get('global', False))
         for _ in range(pages):
             resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
@@ -62,10 +62,10 @@ class Chariot:
 
         return final_resp
 
-    def my_by_query(self, query: Query, pages=1) -> {}:
+    def my_by_query(self, query: Query, pages=1, global_=False) -> {}:
         final_resp = dict()
         for _ in range(pages):
-            resp = requests.post(self.url('/my'), json=query.to_dict(), headers=self.keychain.headers())
+            resp = requests.post(self.url('/my'), json=query.to_dict(), params={"global": global_}, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
