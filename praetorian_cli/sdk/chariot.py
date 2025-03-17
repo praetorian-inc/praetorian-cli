@@ -12,14 +12,13 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
-from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search, Query, Node
+from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search, Query, Node, Filter
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 
 QUERY_LIMIT_SWITCH_POINT = 10
-SMALL_QUERY_LIMIT = 100
 LARGE_QUERY_LIMIT = 5000
 
 class Chariot:
@@ -171,11 +170,17 @@ class Chariot:
 
 
 def swap_query_type(params: dict, pages: int):
-    if pages > QUERY_LIMIT_SWITCH_POINT:
+    if pages >= QUERY_LIMIT_SWITCH_POINT:
         key = params.get('key', None)
-        if key and any([key.startswith(prefix) for prefix in [ "#" + label.value.lower() for label in Node.Label]]):
-            params['limit'] = LARGE_QUERY_LIMIT
-            return Query(params=params)
+        # Swap to query if "key" is prefixed by either afield type or label type
+        if key:
+            prefix_list = []
+            prefix_list.extend([prefix.value.lower() for prefix in Filter.Field])
+            prefix_list.extend([label.value.lower() for label in Node.Label])
+            key = key.removeprefix('#')
+            if any([key.startswith(prefix) for prefix in prefix_list]):
+                params['limit'] = LARGE_QUERY_LIMIT
+                return Query(params=params)
     return None
 
 

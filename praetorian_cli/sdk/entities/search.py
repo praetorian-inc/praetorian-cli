@@ -1,7 +1,7 @@
 from enum import Enum
 
 from praetorian_cli.sdk.model.globals import Kind
-
+from praetorian_cli.sdk.model.utils import get_type_from_key
 EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}
@@ -16,7 +16,7 @@ class Filter:
         STARTS_WITH = 'STARTS WITH'
         ENDS_WITH = 'ENDS WITH'
 
-    class Field(Enum):
+    class Field(Enum): # Chariot.API.My depends upon these fields
         KEY = 'key'
         DNS = 'dns'
         NAME = 'name'
@@ -77,13 +77,12 @@ class Node:
                  relationships: list[Relationship] = None, params: dict = None):
         if params:
             filters = [Filter(params=params)]
-            # Label is expected to be None in params, we use the filter's value to determine the label
-            # This allows for the use of field filters like source, status, etc. 
+            # During testing, it was found that having no labels returns no results.
             label = params.get('label', None)
             if label == None:
                 for filter in filters:
-                    label = filter.value.split('#')[1]
-            labels = self.str_to_label(label)
+                    label = get_type_from_key(filter.value)
+            labels = Node.str_to_label(label)
             relationships = None # Not supported since params does not support relationships
         self.labels = labels
         self.filters = filters
@@ -99,11 +98,14 @@ class Node:
             ret |= dict(relationships=[x.to_dict() for x in self.relationships])
         return ret      
     
-    def str_to_label(self, str_of_label: str) -> list[Label]:
-        try:
-            return [next(label for label in Node.Label if str_of_label != None and label.name.lower() == str_of_label.lower())]
-        except StopIteration:
+    @staticmethod
+    def str_to_label(str_of_label: str) -> list[Label]:
+        if not str_of_label:
             return None
+        for label in Node.Label:
+            if label.name.lower() == str_of_label.lower():
+                return [label]
+        return None
 
 class Query:
     def __init__(self, node: Node = None, page: int = 0, limit: int = 0, order_by: str = None,
