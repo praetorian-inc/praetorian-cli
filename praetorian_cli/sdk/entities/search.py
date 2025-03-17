@@ -24,14 +24,25 @@ class Filter:
         SOURCE = 'source'
         CREATED = 'created'
 
-    def __init__(self, field: Field, operator: Operator, value: str):
+    def __init__(self, field: Field = None, operator: Operator = None, value: str = None, params: dict = None):
+        if params:
+            key = params.get('key', None)
+            if key:
+                if ':' in key:
+                    field = Filter.Field(key.split(':')[0])
+                    value = key.split(':')[1]
+                else:
+                    field = Filter.Field.KEY
+                    value = key
+                operator = Filter.Operator.STARTS_WITH
         self.field = field
         self.operator = operator
         self.value = value
 
     def to_dict(self) -> dict:
+        if self.field == None or self.operator == None or self.value == None:
+            return None
         return dict(field=self.field.value, operator=self.operator.value, value=self.value)
-
 
 class Relationship:
     class Label(Enum):
@@ -54,17 +65,26 @@ class Relationship:
 
 
 class Node:
-    class Label(Enum):
+    class Label(Enum): # Chariot.API.My depends upon these labels
         ASSET = 'Asset'
         ATTRIBUTE = 'Attribute'
         RISK = 'Risk'
-        ACCOUNT = 'Account'
         PRESEED = 'Preseed'
         SEED = 'Seed'
         TTL = 'TTL'
 
     def __init__(self, labels: list[Label] = None, filters: list[Filter] = None,
-                 relationships: list[Relationship] = None):
+                 relationships: list[Relationship] = None, params: dict = None):
+        if params:
+            filters = [Filter(params=params)]
+            # Label is expected to be None in params, we use the filter's value to determine the label
+            # This allows for the use of field filters like source, status, etc. 
+            label = params.get('label', None)
+            if label == None:
+                for filter in filters:
+                    label = filter.value.split('#')[1]
+            labels = self.str_to_label(label)
+            relationships = None # Not supported since params does not support relationships
         self.labels = labels
         self.filters = filters
         self.relationships = relationships
@@ -77,12 +97,23 @@ class Node:
             ret |= dict(filters=[x.to_dict() for x in self.filters])
         if self.relationships:
             ret |= dict(relationships=[x.to_dict() for x in self.relationships])
-        return ret
-
+        return ret      
+    
+    def str_to_label(self, str_of_label: str) -> list[Label]:
+        try:
+            return [next(label for label in Node.Label if str_of_label != None and label.name.lower() == str_of_label.lower())]
+        except StopIteration:
+            return None
 
 class Query:
-    def __init__(self, node: Node, page: int = 0, limit: int = 0, order_by: str = None,
-                 descending: bool = False):
+    def __init__(self, node: Node = None, page: int = 0, limit: int = 0, order_by: str = None,
+                 descending: bool = False, params: dict = None):
+        if params:
+            node = Node(params=params)
+            page = params.get('offset', page)
+            limit = params.get('limit', limit)
+            order_by = params.get('orderBy', order_by)
+            descending = params.get('descending', descending)
         self.node = node
         self.page = page
         self.limit = limit
@@ -116,7 +147,7 @@ class Search:
         return self.by_term(key_prefix, None, offset, pages)
 
     def by_exact_key(self, key, get_attributes=False) -> {}:
-        hits, _ = self.by_term(key, exact=True)
+        hits, _ = self.by_term(key, pages=1, exact=True)
         hit = hits[0] if hits else None
         if get_attributes and hit:
             attributes, _ = self.by_source(key, Kind.ATTRIBUTE.value)
@@ -149,8 +180,6 @@ class Search:
         if global_:
             params |= GLOBAL_FLAG
 
-        # extract all the different types of entities in the search results into a
-        # flattened list of `hits`
         results = self.api.my(params, pages)
 
         if 'offset' in results:

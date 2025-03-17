@@ -12,12 +12,15 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
-from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search, Query
+from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search, Query, Node
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 
+QUERY_LIMIT_SWITCH_POINT = 10
+SMALL_QUERY_LIMIT = 100
+LARGE_QUERY_LIMIT = 5000
 
 class Chariot:
 
@@ -40,6 +43,11 @@ class Chariot:
 
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
+        
+        # For large, graph db queries, we can override default small query limit using a query object
+        query = swap_query_type(params, pages)
+        if query:
+            return self.my_by_query(query, pages)
         for _ in range(pages):
             resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
@@ -160,6 +168,15 @@ class Chariot:
 
     def url(self, path: str):
         return self.keychain.base_url() + path
+
+
+def swap_query_type(params: dict, pages: int):
+    if pages > QUERY_LIMIT_SWITCH_POINT:
+        key = params.get('key', None)
+        if key and any([key.startswith(prefix) for prefix in [ "#" + label.value.lower() for label in Node.Label]]):
+            params['limit'] = LARGE_QUERY_LIMIT
+            return Query(params=params)
+    return None
 
 
 def process_failure(response):
