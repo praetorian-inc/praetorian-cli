@@ -74,12 +74,12 @@ class Node:
         return ret      
     
     @staticmethod
-    def str_to_label(str_of_label: str) -> list[Label]:
+    def str_to_label(str_of_label: str) -> Label:
         if not str_of_label:
             return None
         for label in Node.Label:
             if label.name.lower() == str_of_label.lower():
-                return [label]
+                return label
         return None
 
 class Query:
@@ -204,8 +204,8 @@ class QueryBuilderDirector:
         if label == None:
             for filter in self.builder.filters:
                 label = get_type_from_key(filter.value)
-        labels = Node.str_to_label(label)
-        self.builder.add_node_label(labels=labels)
+        label = Node.str_to_label(label)
+        self.builder.add_node_label(label=label)
     
     def _params_query(self):
         page = int(self.params.get('offset', 0))
