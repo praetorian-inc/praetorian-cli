@@ -99,15 +99,11 @@ class Risks:
 
     def affected_assets(self, key):
         # assets directly linked to the risk
-        query = (SimpleQueryBuilder()
-        .add_node_label(Node.Label.ASSET)
-        .add_relationship(Relationship.Label.HAS_VULNERABILITY, target=risk_of_key(key))
-        .build()
-        )
+        to_this = Relationship(Relationship.Label.HAS_VULNERABILITY, target=risk_of_key(key))
+        query = Query(Node(ASSET_NODE, relationships=[to_this]))
         assets, _ = self.api.search.by_query(query)
 
         # assets indirectly linked to the risk via an attribute
-        to_this = Relationship(Relationship.Label.HAS_VULNERABILITY, target=risk_of_key(key))
         attributes = Node(ATTRIBUTE_NODE, relationships=[to_this])
         to_attributes = Relationship(Relationship.Label.HAS_ATTRIBUTE, target=attributes)
         query = Query(Node(ASSET_NODE, relationships=[to_attributes]))

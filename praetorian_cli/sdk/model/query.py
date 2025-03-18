@@ -134,7 +134,11 @@ class SimpleQueryBuilder:
         self.relationships.append(Relationship(label, source, target))
         return self
 
-    def add_node_label(self, labels: list[Node.Label]) -> 'SimpleQueryBuilder':
+    def add_node_label(self, label: Node.Label) -> 'SimpleQueryBuilder':
+        self.labels.append(label)
+        return self
+    
+    def add_node_label_list(self, labels: list[Node.Label]) -> 'SimpleQueryBuilder':
         self.labels.extend(labels)
         return self
 
@@ -148,7 +152,7 @@ class SimpleQueryBuilder:
         self.descending = descending
         return self
 
-    def set_global(self, global_: bool = False) -> 'SimpleQueryBuilder':
+    def set_global(self, global_: bool) -> 'SimpleQueryBuilder':
         self.global_ = global_
         return self
 
