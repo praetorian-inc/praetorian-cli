@@ -48,6 +48,7 @@ class Chariot:
         # For large, graph db queries, we can override default small query limit using a query object
         key = params.get('key', None)
         if key and isGraphType(key):
+            params['limit'] = LARGE_QUERY_LIMIT
             query = QueryBuilderDirector().from_params(params)
             return self.my_by_query(query, pages)
         
