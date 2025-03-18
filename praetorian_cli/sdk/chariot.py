@@ -20,7 +20,6 @@ from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
 from praetorian_cli.sdk.model.query import QueryBuilderDirector, Query, isGraphType
 
-QUERY_LIMIT_SWITCH_POINT = 10
 LARGE_QUERY_LIMIT = 5000
 
 class Chariot:
