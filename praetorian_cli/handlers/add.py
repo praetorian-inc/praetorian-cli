@@ -20,7 +20,8 @@ def add():
 @click.option('-n', '--name', required=False, help='The name of the asset, e.g, IP address, GitHub repo URL')
 @click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), required=False,
               default=Asset.ACTIVE.value, help=f'Status of the asset', show_default=True)
-def asset(sdk, name, dns, status):
+@click.option('-f', '--surface', required=False, default='', help=f'Attack surface of the asset', show_default=False)
+def asset(sdk, name, dns, status, surface):
     """ Add an asset
 
     Add an asset to the Chariot database. This command requires a DNS name for the asset.
@@ -40,7 +41,7 @@ def asset(sdk, name, dns, status):
     """
     if not name:
         name = dns
-    sdk.assets.add(dns, name, status)
+    sdk.assets.add(dns, name, status, surface)
 
 
 @add.command()

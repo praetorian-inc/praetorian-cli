@@ -9,7 +9,7 @@ class Assets:
     def __init__(self, api):
         self.api = api
 
-    def add(self, dns, name, status=Asset.ACTIVE.value):
+    def add(self, dns, name, status=Asset.ACTIVE.value, surface=''):
         """ Add an asset
 
         Arguments:
@@ -17,8 +17,12 @@ class Assets:
             The DNS name of the asset
         name: str
             The name of the asset
+        status: str
+            The status of the asset
+        surface: str
+            The attack surface of the asset
         """
-        return self.api.upsert('asset', dict(dns=dns, name=name, status=status))[0]
+        return self.api.upsert('asset', dict(dns=dns, name=name, status=status, surface=surface))[0]
 
     def get(self, key, details=False):
         """ Get details of an asset
