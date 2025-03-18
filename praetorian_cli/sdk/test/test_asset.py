@@ -32,7 +32,7 @@ class TestAsset:
 
     def test_delete_asset(self):
         self.sdk.assets.delete(self.asset_key)
-        assert self.get_asset() == None
+        assert self.get_asset()['status'] == Asset.DELETED.value
         deleted_assets, _ = self.sdk.search.by_status(Asset.DELETED.value, Kind.ASSET.value)
         assert any([a['dns'] == self.asset_dns for a in deleted_assets])
 

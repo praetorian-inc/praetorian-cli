@@ -99,6 +99,9 @@ class Kind(Enum):
     PRESEED = 'preseed'
     OTHERS = 'others'
 
+EXACT_FLAG = {'exact': 'true'}
+DESCENDING_FLAG = {'desc': 'true'}
+GLOBAL_FLAG = {'global': 'true'}
 
 CAPABILITIES = (
     'reverse-whois',
