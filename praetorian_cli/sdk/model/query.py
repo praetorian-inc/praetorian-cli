@@ -178,7 +178,7 @@ class QueryBuilderDirector:
         self.params = params
 
         self._params_filter()
-        self._params_node()
+        self._params_node_label()
         self._params_query()
 
         return self.builder.build()
@@ -199,7 +199,7 @@ class QueryBuilderDirector:
                 operator = Filter.Operator.STARTS_WITH
             self.builder.add_filter(field=field, operator=operator, value=value)
     
-    def _params_node(self):
+    def _params_node_label(self):
         label = self.params.get('label', None)
         if label == None:
             for filter in self.builder.filters:
