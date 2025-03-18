@@ -22,7 +22,7 @@ class Assets:
         surface: str
             The attack surface of the asset
         """
-        return self.api.upsert('asset', dict(dns=dns, name=name, status=status, surface=surface))[0]
+        return self.api.upsert('asset', dict(dns=dns, name=name, status=status, source=surface))[0]
 
     def get(self, key, details=False):
         """ Get details of an asset
