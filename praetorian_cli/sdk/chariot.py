@@ -42,7 +42,6 @@ class Chariot:
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
         
-        # For large, graph db queries, we can override default small query limit using a query object
         query, is_graph_query = convert_params_to_query(params)
         if is_graph_query:
             return self.my_by_query(query, pages)
