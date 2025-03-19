@@ -1,7 +1,7 @@
 from enum import Enum
 
 from praetorian_cli.sdk.model.utils import get_type_from_key
-from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
+from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
 
 class Filter:
     class Operator(Enum):
@@ -47,7 +47,6 @@ class Relationship:
             ret |= dict(target=self.target.to_dict())
         return ret
 
-
 class Node:
     class Label(Enum):
         ASSET = 'Asset'
@@ -72,15 +71,6 @@ class Node:
         if self.relationships:
             ret |= dict(relationships=[x.to_dict() for x in self.relationships])
         return ret      
-    
-    @staticmethod
-    def str_to_label(str_of_label: str) -> Label:
-        if not str_of_label:
-            return None
-        for label in Node.Label:
-            if label.name.lower() == str_of_label.lower():
-                return label
-        return None
 
 class Query:
     def __init__(self, node: Node = None, page: int = 0, limit: int = 0, order_by: str = None,
@@ -204,17 +194,15 @@ class QueryBuilderDirector:
         if label == None:
             for filter in self.builder.filters:
                 label = get_type_from_key(filter.value)
-        label = Node.str_to_label(label)
-        self.builder.add_node_label(label=label)
+        label = KIND_TO_LABEL.get(label, None)
+        if label:
+            self.builder.add_node_label(label=label)
     
     def _params_query(self):
         page = int(self.params.get('offset', 0))
         limit = int(self.params.get('limit', 0))
-        order_by = self.params.get('orderBy')
-        descending = bool(self.params.get('descending', False))
         global_ = bool(self.params.get('global', False))
         self.builder.set_pagination(page=page, limit=limit)
-        self.builder.set_order(order_by=order_by, descending=descending)
         self.builder.set_global(global_=global_)
 
 
@@ -223,6 +211,14 @@ class QueryBuilderDirector:
 ASSET_NODE = [Node.Label.ASSET]
 RISK_NODE = [Node.Label.RISK]
 ATTRIBUTE_NODE = [Node.Label.ATTRIBUTE]
+
+KIND_TO_LABEL = {
+    Kind.ASSET.value: Node.Label.ASSET,
+    Kind.RISK.value: Node.Label.RISK,
+    Kind.ATTRIBUTE.value: Node.Label.ATTRIBUTE,
+    Kind.SEED.value: Node.Label.SEED,
+    Kind.PRESEED.value: Node.Label.PRESEED,
+}
 
 
 def key_equals(key: str):

@@ -34,7 +34,7 @@ class TestZCli:
         self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.FROZEN.value}"'])
 
         self.verify(f'delete asset "{o.asset_key}"')
-        self.verify(f'get asset "{o.asset_key}"', ignore_stdout=True) # New behavior, swap once filters are built
+        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.DELETED.value}"']) 
 
         clean_test_entities(self.sdk, o)
 
