@@ -3,16 +3,21 @@ from enum import Enum
 from praetorian_cli.sdk.model.utils import get_type_from_key
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
 
+
 class Filter:
     class Operator(Enum):
         EQUAL = '='
         CONTAINS = 'CONTAINS'
         LESS_THAN = '<'
+        LESS_THAN_OR_EQUAL = '<='
         LARGER_THAN = '>'
+        LARGER_THAN_OR_EQUAL = '>='
         STARTS_WITH = 'STARTS WITH'
         ENDS_WITH = 'ENDS WITH'
+        AND = "AND"
+        OR = "OR"
 
-    class Field(Enum): 
+    class Field(Enum):
         KEY = 'key'
         DNS = 'dns'
         NAME = 'name'
@@ -27,6 +32,7 @@ class Filter:
 
     def to_dict(self) -> dict:
         return dict(field=self.field.value, operator=self.operator.value, value=self.value)
+
 
 class Relationship:
     class Label(Enum):
@@ -46,6 +52,7 @@ class Relationship:
         if self.target:
             ret |= dict(target=self.target.to_dict())
         return ret
+
 
 class Node:
     class Label(Enum):
@@ -70,7 +77,8 @@ class Node:
             ret |= dict(filters=[x.to_dict() for x in self.filters])
         if self.relationships:
             ret |= dict(relationships=[x.to_dict() for x in self.relationships])
-        return ret      
+        return ret
+
 
 class Query:
     def __init__(self, node: Node = None, page: int = 0, limit: int = 0, order_by: str = None,
@@ -95,12 +103,13 @@ class Query:
         if self.descending:
             ret |= dict(descending=self.descending)
         return ret
-    
+
     def get_params(self):
         ret = dict()
         if self.global_:
             ret |= GLOBAL_FLAG
         return ret
+
 
 # helpers for building graph queries
 ASSET_NODE = [Node.Label.ASSET]
@@ -119,11 +128,14 @@ KIND_TO_LABEL = {
 def key_equals(key: str):
     return [Filter(Filter.Field.KEY, Filter.Operator.EQUAL, key)]
 
+
 def risk_of_key(key: str):
     return Node(RISK_NODE, filters=key_equals(key))
 
+
 def asset_of_key(key: str):
     return Node(ASSET_NODE, filters=key_equals(key))
+
 
 def isGraphType(key: str):
     if key:
@@ -135,14 +147,15 @@ def isGraphType(key: str):
             return True
     return False
 
+
 def convert_params_to_query(params: dict):
     key = params.get('key', None)
     if key == None:
         return None, False
-    
+
     if not isGraphType(key):
         return None, False
-    
+
     # We set the filter based on if key in field:value format (source:key)
     # or just a key
     if ':' in key:
@@ -151,20 +164,20 @@ def convert_params_to_query(params: dict):
     else:
         field = Filter.Field.KEY
         value = key
-    
+
     if params.get('exact', False):
         operator = Filter.Operator.EQUAL
     else:
         operator = Filter.Operator.STARTS_WITH
-    
+
     filter = Filter(field, operator, value)
 
-    # Label is set if we are using a key:value format 
+    # Label is set if we are using a key:value format
     label = params.get('label', get_type_from_key(filter.value))
     label = KIND_TO_LABEL.get(label, None)
     if label == None:
         return None, False
-    
+
     node = Node(labels=[label], filters=[filter])
 
     page = int(params.get('offset', 0))
@@ -172,4 +185,3 @@ def convert_params_to_query(params: dict):
     global_ = bool(params.get('global', False))
 
     return Query(node=node, page=page, limit=limit, global_=global_), True
-    
