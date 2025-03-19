@@ -1,5 +1,5 @@
 from praetorian_cli.sdk.model.globals import Kind
-from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, ATTRIBUTE_NODE, SimpleQueryBuilder
+from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, ATTRIBUTE_NODE
 
 
 class Risks:

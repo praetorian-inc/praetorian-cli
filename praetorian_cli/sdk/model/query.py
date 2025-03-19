@@ -101,111 +101,6 @@ class Query:
         if self.global_:
             ret |= GLOBAL_FLAG
         return ret
-    
-class SimpleQueryBuilder:
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.labels = []
-        self.filters = []
-        self.relationships = []
-        self.page = 0
-        self.limit = 0
-        self.order_by = None
-        self.descending = False
-        self.global_ = False
-
-    def add_filter(self, field: Filter.Field, operator: Filter.Operator, value: str) -> 'SimpleQueryBuilder':
-        self.filters.append(Filter(field, operator, value))
-        return self
-
-    def add_relationship(self, label: Relationship.Label, source: Node = None, target: Node = None) -> 'SimpleQueryBuilder':
-        self.relationships.append(Relationship(label, source, target))
-        return self
-
-    def add_node_label(self, label: Node.Label) -> 'SimpleQueryBuilder':
-        self.labels.append(label)
-        return self
-    
-    def add_node_label_list(self, labels: list[Node.Label]) -> 'SimpleQueryBuilder':
-        self.labels.extend(labels)
-        return self
-
-    def set_pagination(self, page: int, limit: int) -> 'SimpleQueryBuilder':
-        self.page = page
-        self.limit = limit
-        return self
-
-    def set_order(self, order_by: str, descending: bool = False) -> 'SimpleQueryBuilder':
-        self.order_by = order_by
-        self.descending = descending
-        return self
-
-    def set_global(self, global_: bool) -> 'SimpleQueryBuilder':
-        self.global_ = global_
-        return self
-
-    def build(self) -> Query:
-        node = Node(
-            labels=self.labels if self.labels else None,
-            filters=self.filters if self.filters else None,
-            relationships=self.relationships if self.relationships else None
-        )
-        return Query(
-            node=node,
-            page=self.page,
-            limit=self.limit,
-            order_by=self.order_by,
-            descending=self.descending,
-            global_=self.global_
-        )
-
-class QueryBuilderDirector:
-
-    def from_params(self, params: dict):
-        self.builder = SimpleQueryBuilder()
-        self.params = params
-
-        self._params_filter()
-        self._params_node_label()
-        self._params_query()
-
-        return self.builder.build()
-        
-    def _params_filter(self):
-        key = self.params.get('key', None)
-        if key:
-            if ':' in key:
-                field = Filter.Field(key.split(':')[0])
-                value = key.split(':')[1]
-            else:
-                field = Filter.Field.KEY
-                value = key
-            
-            if self.params.get('exact', False):
-                operator = Filter.Operator.EQUAL
-            else:
-                operator = Filter.Operator.STARTS_WITH
-            self.builder.add_filter(field=field, operator=operator, value=value)
-    
-    def _params_node_label(self):
-        label = self.params.get('label', None)
-        if label == None:
-            for filter in self.builder.filters:
-                label = get_type_from_key(filter.value)
-        label = KIND_TO_LABEL.get(label, None)
-        if label:
-            self.builder.add_node_label(label=label)
-    
-    def _params_query(self):
-        page = int(self.params.get('offset', 0))
-        limit = int(self.params.get('limit', 0))
-        global_ = bool(self.params.get('global', False))
-        self.builder.set_pagination(page=page, limit=limit)
-        self.builder.set_global(global_=global_)
-
-
 
 # helpers for building graph queries
 ASSET_NODE = [Node.Label.ASSET]
@@ -239,3 +134,42 @@ def isGraphType(key: str):
         if any([key.startswith(prefix) for prefix in prefix_list]):
             return True
     return False
+
+def convert_params_to_query(params: dict):
+    key = params.get('key', None)
+    if key == None:
+        return None, False
+    
+    if not isGraphType(key):
+        return None, False
+    
+    # We set the filter based on if key in field:value format (source:key)
+    # or just a key
+    if ':' in key:
+        field = Filter.Field(key.split(':')[0])
+        value = key.split(':')[1]
+    else:
+        field = Filter.Field.KEY
+        value = key
+    
+    if params.get('exact', False):
+        operator = Filter.Operator.EQUAL
+    else:
+        operator = Filter.Operator.STARTS_WITH
+    
+    filter = Filter(field, operator, value)
+
+    # Label is set if we are using a key:value format 
+    label = params.get('label', get_type_from_key(filter.value))
+    label = KIND_TO_LABEL.get(label, None)
+    if label == None:
+        return None, False
+    
+    node = Node(labels=[label], filters=[filter])
+
+    page = int(params.get('offset', 0))
+    limit = int(params.get('limit', 5000))
+    global_ = bool(params.get('global', False))
+
+    return Query(node=node, page=page, limit=limit, global_=global_), True
+    

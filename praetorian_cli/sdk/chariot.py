@@ -18,9 +18,7 @@ from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
-from praetorian_cli.sdk.model.query import QueryBuilderDirector, Query, isGraphType
-
-LARGE_QUERY_LIMIT = 5000
+from praetorian_cli.sdk.model.query import Query, convert_params_to_query
 
 class Chariot:
 
@@ -45,10 +43,8 @@ class Chariot:
         final_resp = dict()
         
         # For large, graph db queries, we can override default small query limit using a query object
-        key = params.get('key', None)
-        if key and isGraphType(key):
-            params['limit'] = LARGE_QUERY_LIMIT
-            query = QueryBuilderDirector().from_params(params)
+        query, is_graph_query = convert_params_to_query(params)
+        if is_graph_query:
             return self.my_by_query(query, pages)
         
         for _ in range(pages):
