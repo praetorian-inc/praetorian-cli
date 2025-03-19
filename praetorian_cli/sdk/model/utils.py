@@ -15,13 +15,6 @@ def attribute_key(name, value, source_key):
 def seed_key(type, dns):
     return f'#seed#{type}#{dns}'
 
+
 def seed_status(type, status_code):
     return f'{type}#{status_code}'
-
-def get_type_from_key(key: str) -> str:
-    if key and key.startswith('#'):
-        split_key = key.split('#')
-        if len(split_key) > 1:
-            return split_key[1]
-    return None
-

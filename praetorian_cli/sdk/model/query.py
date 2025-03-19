@@ -1,6 +1,5 @@
 from enum import Enum
 
-from praetorian_cli.sdk.model.utils import get_type_from_key
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
 
 
@@ -137,51 +136,64 @@ def asset_of_key(key: str):
     return Node(ASSET_NODE, filters=key_equals(key))
 
 
-def isGraphType(key: str):
-    if key:
-        prefix_list = []
-        prefix_list.extend([prefix.value.lower() for prefix in Filter.Field])
-        prefix_list.extend([label.value.lower() for label in Node.Label])
-        key = key.removeprefix('#')
-        if any([key.startswith(prefix) for prefix in prefix_list]):
-            return True
-    return False
+def is_graph_kind(key: str):
+    parts = key.split('#')
+
+    if len(parts) <= 1:
+        return False
+
+    return parts[1] in KIND_TO_LABEL
 
 
-def convert_params_to_query(params: dict):
+def my_params_to_query(params: dict):
     key = params.get('key', None)
     if key == None:
         return None, False
 
-    if not isGraphType(key):
-        return None, False
+    # determine whether this is a key-based search, or, a "source:ABC"-style search
+
+    if key.startswith('#'):
+        # this is a key-based search
+        if not is_graph_kind(key):
+            return None, False
+
+        field = Filter.Field.KEY
+        value = key
+        kind = get_kind_from_key(key)
+        if params.get('exact', False):
+            operator = Filter.Operator.EQUAL
+        else:
+            operator = Filter.Operator.STARTS_WITH
+    else:
+        # this is a "source:ABC"-style search
+        field = Filter.Field(key.split(':')[0])
+        value = key.split(':')[1]
+        kind = params.get('kind', None)
+        if not kind:
+            return None, False
+        operator = Filter.Operator.STARTS_WITH
 
     # We set the filter based on if key in field:value format (source:key)
     # or just a key
-    if ':' in key:
-        field = Filter.Field(key.split(':')[0])
-        value = key.split(':')[1]
-    else:
-        field = Filter.Field.KEY
-        value = key
-
-    if params.get('exact', False):
-        operator = Filter.Operator.EQUAL
-    else:
-        operator = Filter.Operator.STARTS_WITH
 
     filter = Filter(field, operator, value)
 
     # Label is set if we are using a key:value format
-    label = params.get('label', get_type_from_key(filter.value))
-    label = KIND_TO_LABEL.get(label, None)
-    if label == None:
+    label = KIND_TO_LABEL.get(kind, None)
+    if not label:
         return None, False
 
     node = Node(labels=[label], filters=[filter])
 
     page = int(params.get('offset', 0))
-    limit = int(params.get('limit', 5000))
     global_ = bool(params.get('global', False))
 
-    return Query(node=node, page=page, limit=limit, global_=global_), True
+    return Query(node=node, page=page, limit=5000, global_=global_), True
+
+
+def get_kind_from_key(key: str) -> str:
+    if key and key.startswith('#'):
+        split_key = key.split('#')
+        if len(split_key) > 1:
+            return split_key[1]
+    return None
