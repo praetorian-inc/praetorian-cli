@@ -9,7 +9,7 @@ class Risks:
     def __init__(self, api):
         self.api = api
 
-    def add(self, asset_key, name, status, comment=None):
+    def add(self, asset_key, name, status, comment=None, capability=''):
         """ Add a risk
 
         Arguments:
@@ -21,8 +21,10 @@ class Risks:
             See globals.py for list of valid statuses
         comment: str
             Optional comment
+        capability: str
+            Optional capability that discovered this risk
         """
-        return self.api.upsert('risk', dict(key=asset_key, name=name, status=status, comment=comment))['risks'][0]
+        return self.api.upsert('risk', dict(key=asset_key, name=name, status=status, comment=comment, source=capability))['risks'][0]
 
     def get(self, key, details=False):
         """ Get details of a risk
