@@ -12,7 +12,7 @@ class Search:
         return self.by_term(key_prefix, None, offset, pages)
 
     def by_exact_key(self, key, get_attributes=False) -> {}:
-        hits, _ = self.by_term(key, pages=1, exact=True)
+        hits, _ = self.by_term(key, exact=True)
         hit = hits[0] if hits else None
         if get_attributes and hit:
             attributes, _ = self.by_source(key, Kind.ATTRIBUTE.value)
