@@ -15,7 +15,7 @@ def update():
 @cli_handler
 @click.argument('key', required=True)
 @click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), help='The status of the asset')
-@click.option('-f', '--surface', type=click.Choice([s.value for s in Asset]), help='The attack surface of the asset')
+@click.option('-f', '--surface', required=False, default='', help=f'Attack surface of the asset', show_default=False)
 def asset(chariot, key, status, surface):
     """ Update the status or surface of an asset
 
@@ -26,11 +26,9 @@ def asset(chariot, key, status, surface):
     \b
     Example usages:
         - praetorian chariot update asset "#asset#www.example.com#1.2.3.4" -s F
+        - praetorian chariot update asset "#asset#www.example.com#1.2.3.4" -f internal
     """
-    if status:
-        chariot.assets.update(key, status)
-    if surface:
-        chariot.attributes.add(key, 'surface', surface)
+    chariot.assets.update(key, status, surface)
 
 
 @update.command()

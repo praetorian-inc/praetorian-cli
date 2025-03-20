@@ -38,6 +38,7 @@ def asset(sdk, name, dns, status, surface):
     Example usages:
         - praetorian chariot add asset --dns example.com
         - praetorian chariot add asset --dns example.com --name 1.2.3.4
+        - praetorian chariot add asset --dns internal.example.com --name 10.2.3.4 --surface internal
     """
     if not name:
         name = dns
@@ -145,6 +146,7 @@ def risk(sdk, name, asset, status, comment, capability):
     Example usages:
         - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI
         - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC
+        - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC --capability red-team
     """
     sdk.risks.add(asset, name, status, comment, capability)
 

@@ -39,16 +39,21 @@ class Assets:
             asset['associated_risks'] = self.associated_risks(key)
         return asset
 
-    def update(self, key, status):
-        """ Update an asset; only status field makes sense to be updated.
+    def update(self, key, status=None, surface=None):
+        """ Update an asset
         Arguments:
         key: str
             The key of an asset. If you supply a prefix that matches multiple assets,
             all of them will be updated.
         status: str
             See globals.py for list of valid statuses
+        surface: str
+            The attack surface of the asset, for example, 'internal', 'external'
         """
-        return self.api.upsert('asset', dict(key=key, status=status))
+        if status:
+            self.api.upsert('asset', dict(key=key, status=status))
+        if surface:
+            self.api.attributes.add(key, 'surface', surface)
 
     def delete(self, key):
         """ Delete an asset
