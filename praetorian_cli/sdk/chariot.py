@@ -65,8 +65,8 @@ class Chariot:
     def my_by_query(self, query: Query, pages=1) -> {}:
         final_resp = dict()
         for _ in range(pages):
-            resp = requests.post(self.url('/my'), json=query.to_dict(),
-                                 params=query.params(), headers=self.keychain.headers())
+            resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
+                                 headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
