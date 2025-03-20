@@ -133,11 +133,12 @@ def asset_of_key(key: str):
     return Node(ASSET_NODE, filters=key_equals(key))
 
 
-def is_graph_kind(key: str):
-    parts = key.split('#')
-    if len(parts) <= 1:
-        return False
-    return parts[1] in KIND_TO_LABEL
+def get_graph_kind(key: str):
+    if key and key.startswith('#'):
+        split_key = key.split('#')
+        if len(split_key) > 1 and split_key[1] in KIND_TO_LABEL:
+            return split_key[1]
+    return None
 
 
 def my_params_to_query(params: dict):
@@ -147,23 +148,24 @@ def my_params_to_query(params: dict):
 
     if key.startswith('#'):
         # this is a key-based search
-        if not is_graph_kind(key):
+        kind = get_graph_kind(key)
+        if not kind:
             return None
 
         field = Filter.Field.KEY
         value = key
-        kind = get_kind_from_key(key)
         if params.get('exact', False):
             operator = Filter.Operator.EQUAL
         else:
             operator = Filter.Operator.STARTS_WITH
     else:
         # this is a "field:value"-style search, such as "source:#asset#exmaple.com#1.2.3.4"
-        field = Filter.Field(key.split(':')[0])
-        value = key.split(':')[1]
-        kind = params.get('kind', None)
+        kind = params.get('label', None)
         if not kind:
             return None
+        
+        field = Filter.Field(key.split(':')[0])
+        value = key.split(':')[1]
         operator = Filter.Operator.STARTS_WITH
 
     filter = Filter(field, operator, value)
@@ -178,11 +180,3 @@ def my_params_to_query(params: dict):
     global_ = bool(params.get('global', False))
 
     return Query(node=node, page=page, limit=5000, global_=global_)
-
-
-def get_kind_from_key(key: str) -> str:
-    if key and key.startswith('#'):
-        split_key = key.split('#')
-        if len(split_key) > 1:
-            return split_key[1]
-    return None
