@@ -18,7 +18,8 @@ from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
-from praetorian_cli.sdk.model.query import Query, convert_params_to_query
+from praetorian_cli.sdk.model.query import Query, my_params_to_query
+
 
 class Chariot:
 
@@ -41,11 +42,11 @@ class Chariot:
 
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
-        
-        query, is_graph_query = convert_params_to_query(params)
-        if is_graph_query:
+
+        query = my_params_to_query(params)
+        if query:
             return self.my_by_query(query, pages)
-        
+
         for _ in range(pages):
             resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
@@ -64,7 +65,8 @@ class Chariot:
     def my_by_query(self, query: Query, pages=1) -> {}:
         final_resp = dict()
         for _ in range(pages):
-            resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.get_params(), headers=self.keychain.headers())
+            resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
+                                 headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
@@ -165,6 +167,7 @@ class Chariot:
 
     def url(self, path: str):
         return self.keychain.base_url() + path
+
 
 def process_failure(response):
     if not response.ok:
