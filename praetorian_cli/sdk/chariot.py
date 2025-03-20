@@ -43,8 +43,8 @@ class Chariot:
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
 
-        query, is_graph_query = my_params_to_query(params)
-        if is_graph_query:
+        query = my_params_to_query(params)
+        if query:
             return self.my_by_query(query, pages)
 
         for _ in range(pages):
@@ -66,7 +66,7 @@ class Chariot:
         final_resp = dict()
         for _ in range(pages):
             resp = requests.post(self.url('/my'), json=query.to_dict(),
-                                 params=query.get_params(), headers=self.keychain.headers())
+                                 params=query.params(), headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)

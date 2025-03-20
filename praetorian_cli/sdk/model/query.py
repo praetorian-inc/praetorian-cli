@@ -103,11 +103,8 @@ class Query:
             ret |= dict(descending=self.descending)
         return ret
 
-    def get_params(self):
-        ret = dict()
-        if self.global_:
-            ret |= GLOBAL_FLAG
-        return ret
+    def params(self):
+        return GLOBAL_FLAG if self.global_ else dict()
 
 
 # helpers for building graph queries
@@ -138,24 +135,20 @@ def asset_of_key(key: str):
 
 def is_graph_kind(key: str):
     parts = key.split('#')
-
     if len(parts) <= 1:
         return False
-
     return parts[1] in KIND_TO_LABEL
 
 
 def my_params_to_query(params: dict):
     key = params.get('key', None)
-    if key == None:
-        return None, False
-
-    # determine whether this is a key-based search, or, a "source:ABC"-style search
+    if not key:
+        return None
 
     if key.startswith('#'):
         # this is a key-based search
         if not is_graph_kind(key):
-            return None, False
+            return None
 
         field = Filter.Field.KEY
         value = key
@@ -165,30 +158,26 @@ def my_params_to_query(params: dict):
         else:
             operator = Filter.Operator.STARTS_WITH
     else:
-        # this is a "source:ABC"-style search
+        # this is a "field:value"-style search, such as "source:#asset#exmaple.com#1.2.3.4"
         field = Filter.Field(key.split(':')[0])
         value = key.split(':')[1]
         kind = params.get('kind', None)
         if not kind:
-            return None, False
+            return None
         operator = Filter.Operator.STARTS_WITH
-
-    # We set the filter based on if key in field:value format (source:key)
-    # or just a key
 
     filter = Filter(field, operator, value)
 
-    # Label is set if we are using a key:value format
     label = KIND_TO_LABEL.get(kind, None)
     if not label:
-        return None, False
+        return None
 
     node = Node(labels=[label], filters=[filter])
 
     page = int(params.get('offset', 0))
     global_ = bool(params.get('global', False))
 
-    return Query(node=node, page=page, limit=5000, global_=global_), True
+    return Query(node=node, page=page, limit=5000, global_=global_)
 
 
 def get_kind_from_key(key: str) -> str:
