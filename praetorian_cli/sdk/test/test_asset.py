@@ -27,11 +27,8 @@ class TestAsset:
         assert any([a['dns'] == self.asset_dns for a in results])
 
     def test_update_asset(self):
-        self.sdk.assets.update(self.asset_key, status=Asset.FROZEN.value)
+        self.sdk.assets.update(self.asset_key, Asset.FROZEN.value)
         assert self.get_asset()['status'] == Asset.FROZEN.value
-        self.sdk.assets.update(self.asset_key, surface='abc')
-        attributes = self.sdk.assets.attributes(self.asset_key)
-        assert any([a['name'] == 'surface' and a['value'] == 'abc' for a in attributes])
 
     def test_delete_asset(self):
         self.sdk.assets.delete(self.asset_key)

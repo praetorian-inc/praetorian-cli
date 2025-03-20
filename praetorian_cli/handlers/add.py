@@ -20,8 +20,7 @@ def add():
 @click.option('-n', '--name', required=False, help='The name of the asset, e.g, IP address, GitHub repo URL')
 @click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), required=False,
               default=Asset.ACTIVE.value, help=f'Status of the asset', show_default=True)
-@click.option('-f', '--surface', required=False, default='', help=f'Attack surface of the asset', show_default=False)
-def asset(sdk, name, dns, status, surface):
+def asset(sdk, name, dns, status):
     """ Add an asset
 
     Add an asset to the Chariot database. This command requires a DNS name for the asset.
@@ -38,11 +37,10 @@ def asset(sdk, name, dns, status, surface):
     Example usages:
         - praetorian chariot add asset --dns example.com
         - praetorian chariot add asset --dns example.com --name 1.2.3.4
-        - praetorian chariot add asset --dns internal.example.com --name 10.2.3.4 --surface internal
     """
     if not name:
         name = dns
-    sdk.assets.add(dns, name, status, surface)
+    sdk.assets.add(dns, name, status)
 
 
 @add.command()
@@ -129,9 +127,8 @@ def webhook(sdk):
 @click.option('-a', '--asset', required=True, help='Key of an existing asset')
 @click.option('-s', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
               help=f'Status of the risk')
-@click.option('-c', '--comment', default='', help='Comment for the risk')
-@click.option('-cap', '--capability', default='', help='Capability that discoverd the risk')
-def risk(sdk, name, asset, status, comment, capability):
+@click.option('-comment', '--comment', default='', help='Comment for the risk')
+def risk(sdk, name, asset, status, comment):
     """ Add a risk
 
     This command adds a risk to Chariot. A risk must have an associated asset.
@@ -146,9 +143,8 @@ def risk(sdk, name, asset, status, comment, capability):
     Example usages:
         - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI
         - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC
-        - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC --capability red-team
     """
-    sdk.risks.add(asset, name, status, comment, capability)
+    sdk.risks.add(asset, name, status, comment)
 
 
 @add.command()
