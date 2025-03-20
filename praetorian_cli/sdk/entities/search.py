@@ -1,109 +1,5 @@
-from enum import Enum
-
-from praetorian_cli.sdk.model.globals import Kind
-
-EXACT_FLAG = {'exact': 'true'}
-DESCENDING_FLAG = {'desc': 'true'}
-GLOBAL_FLAG = {'global': 'true'}
-
-
-class Filter:
-    class Operator(Enum):
-        EQUAL = '='
-        CONTAINS = 'CONTAINS'
-        LESS_THAN = '<'
-        LARGER_THAN = '>'
-        STARTS_WITH = 'STARTS WITH'
-        ENDS_WITH = 'ENDS WITH'
-
-    class Field(Enum):
-        KEY = 'key'
-        DNS = 'dns'
-        NAME = 'name'
-        STATUS = 'status'
-        SOURCE = 'source'
-        CREATED = 'created'
-
-    def __init__(self, field: Field, operator: Operator, value: str):
-        self.field = field
-        self.operator = operator
-        self.value = value
-
-    def to_dict(self) -> dict:
-        return dict(field=self.field.value, operator=self.operator.value, value=self.value)
-
-
-class Relationship:
-    class Label(Enum):
-        HAS_VULNERABILITY = 'HAS_VULNERABILITY'
-        DISCOVERED = 'DISCOVERED'
-        HAS_ATTRIBUTE = 'HAS_ATTRIBUTE'
-
-    def __init__(self, label: Label, source: 'Node' = None, target: 'Node' = None):
-        self.label = label
-        self.source = source
-        self.target = target
-
-    def to_dict(self):
-        ret = dict(label=self.label.value)
-        if self.source:
-            ret |= dict(source=self.source.to_dict())
-        if self.target:
-            ret |= dict(target=self.target.to_dict())
-        return ret
-
-
-class Node:
-    class Label(Enum):
-        ASSET = 'Asset'
-        ATTRIBUTE = 'Attribute'
-        RISK = 'Risk'
-        ACCOUNT = 'Account'
-        PRESEED = 'Preseed'
-        SEED = 'Seed'
-        TTL = 'TTL'
-
-    def __init__(self, labels: list[Label] = None, filters: list[Filter] = None,
-                 relationships: list[Relationship] = None):
-        self.labels = labels
-        self.filters = filters
-        self.relationships = relationships
-
-    def to_dict(self):
-        ret = dict()
-        if self.labels:
-            ret |= dict(labels=[x.value for x in self.labels])
-        if self.filters:
-            ret |= dict(filters=[x.to_dict() for x in self.filters])
-        if self.relationships:
-            ret |= dict(relationships=[x.to_dict() for x in self.relationships])
-        return ret
-
-
-class Query:
-    def __init__(self, node: Node, page: int = 0, limit: int = 0, order_by: str = None,
-                 descending: bool = False):
-        self.node = node
-        self.page = page
-        self.limit = limit
-        self.order_by = order_by
-        self.descending = descending
-
-    def to_dict(self):
-        ret = dict()
-        if self.node:
-            ret |= dict(node=self.node.to_dict())
-        if self.page:
-            ret |= dict(page=self.page)
-        if self.limit:
-            ret |= dict(limit=self.limit)
-        if self.order_by:
-            ret |= dict(orderBy=self.order_by)
-        if self.descending:
-            ret |= dict(descending=self.descending)
-        return ret
-
-
+from praetorian_cli.sdk.model.query import Query
+from praetorian_cli.sdk.model.globals import EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, Kind
 class Search:
 
     def __init__(self, api):
@@ -149,8 +45,6 @@ class Search:
         if global_:
             params |= GLOBAL_FLAG
 
-        # extract all the different types of entities in the search results into a
-        # flattened list of `hits`
         results = self.api.my(params, pages)
 
         if 'offset' in results:
@@ -180,21 +74,3 @@ def flatten_results(results):
     for key in results.keys():
         flattened.extend(flatten_results(results[key]))
     return flattened
-
-
-# helpers for building graph queries
-ASSET_NODE = [Node.Label.ASSET]
-RISK_NODE = [Node.Label.RISK]
-ATTRIBUTE_NODE = [Node.Label.ATTRIBUTE]
-
-
-def key_equals(key: str):
-    return [Filter(Filter.Field.KEY, Filter.Operator.EQUAL, key)]
-
-
-def risk_of_key(key: str):
-    return Node(RISK_NODE, filters=key_equals(key))
-
-
-def asset_of_key(key: str):
-    return Node(ASSET_NODE, filters=key_equals(key))

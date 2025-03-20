@@ -12,11 +12,13 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
-from praetorian_cli.sdk.entities.search import GLOBAL_FLAG, Search, Query
+from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
+from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
+from praetorian_cli.sdk.model.query import Query, my_params_to_query
 
 
 class Chariot:
@@ -40,6 +42,11 @@ class Chariot:
 
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
+
+        query = my_params_to_query(params)
+        if query:
+            return self.my_by_query(query, pages)
+
         for _ in range(pages):
             resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
@@ -58,7 +65,8 @@ class Chariot:
     def my_by_query(self, query: Query, pages=1) -> {}:
         final_resp = dict()
         for _ in range(pages):
-            resp = requests.post(self.url('/my'), json=query.to_dict(), headers=self.keychain.headers())
+            resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
+                                 headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
@@ -69,7 +77,6 @@ class Chariot:
 
         if 'offset' in resp:
             final_resp['offset'] = resp['offset']
-
         return final_resp
 
     def post(self, type: str, body: dict, params: dict = {}):

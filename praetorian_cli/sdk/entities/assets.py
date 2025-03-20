@@ -1,5 +1,5 @@
 from praetorian_cli.sdk.model.globals import Asset, Kind
-from praetorian_cli.sdk.entities.search import Relationship, Node, Query, asset_of_key, RISK_NODE, ATTRIBUTE_NODE
+from praetorian_cli.sdk.model.query import Relationship, Node, Query, asset_of_key, RISK_NODE, ATTRIBUTE_NODE
 
 
 class Assets:
