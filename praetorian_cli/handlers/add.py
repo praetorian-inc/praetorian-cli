@@ -128,7 +128,7 @@ def webhook(sdk):
 @click.option('-a', '--asset', required=True, help='Key of an existing asset')
 @click.option('-s', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
               help=f'Status of the risk')
-@click.option('-comment', '--comment', default='', help='Comment for the risk')
+@click.option('-c', '--comment', default='', help='Comment for the risk')
 @click.option('-cap', '--capability', default='', help='Capability that discoverd the risk')
 def risk(sdk, name, asset, status, comment, capability):
     """ Add a risk
