@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.2
+
+- [New feature] The Chariot.my() function now optimizes the search query when feasible.
+
 ## 2.0.1
 
 - [Internal update] The backend API now expects `affiliation` as the agent name
