@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.2
+
+- [New feature] Search queries in Chariot.my() are automatically optimized when feasible.
+- [New feature] Added the ability to specify the attack surface when adding or updating an asset.
+- [New feature] Added the ability to specify the capability when adding a risk.
+
 ## 2.0.1
 
 - [Internal update] The backend API now expects `affiliation` as the agent name
