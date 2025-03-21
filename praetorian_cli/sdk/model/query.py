@@ -2,6 +2,7 @@ from enum import Enum
 
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
 
+DEFAULT_PAGE_SIZE = 1500
 
 class Filter:
     class Operator(Enum):
@@ -179,4 +180,4 @@ def my_params_to_query(params: dict):
     page = int(params.get('offset', 0))
     global_ = bool(params.get('global', False))
 
-    return Query(node=node, page=page, limit=5000, global_=global_)
+    return Query(node=node, page=page, limit=DEFAULT_PAGE_SIZE, global_=global_)
