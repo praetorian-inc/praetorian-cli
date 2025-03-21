@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.3
+
+- [Bug fix] Lowered the page size for graph queries.
+
 ## 2.0.2
 
 - [New feature] The Chariot.my() function now optimizes the search query when feasible.
