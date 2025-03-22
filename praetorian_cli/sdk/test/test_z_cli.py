@@ -30,8 +30,9 @@ class TestZCli:
         self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.ACTIVE.value}"'])
         self.verify(f'get asset -d "{o.asset_key}"', ['"attributes"', '"associated_risks"'])
 
-        self.verify(f'update asset -s F "{o.asset_key}"')
-        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.FROZEN.value}"'])
+        self.verify(f'update asset -s F "{o.asset_key}" -f internal')
+        self.verify(f'get asset "{o.asset_key}" -d', [o.asset_key,
+                    f'"status": "{Asset.FROZEN.value}"', f'#surface#internal'])
 
         self.verify(f'delete asset "{o.asset_key}"')
         self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.DELETED.value}"']) 
