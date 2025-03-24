@@ -64,9 +64,16 @@ class Chariot:
 
     def my_by_query(self, query: Query, pages=1) -> {}:
         final_resp = dict()
-        for _ in range(pages):
+        desired_limit = query.limit
+        i = 0
+        while i < pages:
             resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
                                  headers=self.keychain.headers())
+            if is_query_limit_failure(resp):
+                query.limit //= 2
+                continue
+            else: 
+                query.limit = desired_limit
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
@@ -74,6 +81,7 @@ class Chariot:
                 query.page = int(resp['offset'])
             else:
                 break
+            i += 1
 
         if 'offset' in resp:
             final_resp['offset'] = resp['offset']
@@ -167,6 +175,10 @@ class Chariot:
 
     def url(self, path: str):
         return self.keychain.base_url() + path
+
+
+def is_query_limit_failure(response):
+    return response.status_code == 413 and 'reduce page size' in response.text
 
 
 def process_failure(response):
