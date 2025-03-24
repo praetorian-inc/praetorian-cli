@@ -69,7 +69,7 @@ class Chariot:
         while i < pages:
             resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
                                  headers=self.keychain.headers())
-            if check_query_limit_failure(resp):
+            if is_query_limit_failure(resp):
                 query.limit //= 2
                 continue
             else: 
@@ -177,7 +177,7 @@ class Chariot:
         return self.keychain.base_url() + path
 
 
-def check_query_limit_failure(response):
+def is_query_limit_failure(response):
     return response.status_code == 413 and 'reduce page size' in response.text
 
 
