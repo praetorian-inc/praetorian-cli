@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.4
+
+- [New feature] Optimized page size for graph queries with automatic backoff for large queries.
+
 ## 2.0.3
 
 - [Bug fix] Lowered the page size for graph queries.
