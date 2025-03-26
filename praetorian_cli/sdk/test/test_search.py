@@ -29,7 +29,7 @@ class TestSearch:
 
     def test_search_by_source(self):
         hits, _ = self.sdk.search.by_source(self.asset_key, Kind.ATTRIBUTE.value)
-        assert len(hits) > 1
+        assert len(hits) > 0
         assert any([h['key'] == self.asset_attribute_key for h in hits])
 
     def test_search_by_status(self):

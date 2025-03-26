@@ -12,8 +12,12 @@ class TestAsset:
         make_test_values(self)
 
     def test_add_asset(self):
-        asset = self.sdk.assets.add(self.asset_dns, self.asset_name)
+        asset = self.sdk.assets.add(self.asset_dns, self.asset_name, Asset.ACTIVE.value, 'test-surface')
+        print(asset)
         assert asset['key'] == self.asset_key
+        assert len(asset['surface']) == 1
+        assert asset['surface'][0] == 'test-surface'
+        assert asset['status'] == Asset.ACTIVE.value
 
     def test_get_asset(self):
         a = self.get_asset()
