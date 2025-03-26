@@ -30,8 +30,9 @@ class TestZCli:
         self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.ACTIVE.value}"'])
         self.verify(f'get asset -d "{o.asset_key}"', ['"attributes"', '"associated_risks"'])
 
-        self.verify(f'update asset -s F "{o.asset_key}"')
-        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.FROZEN.value}"'])
+        self.verify(f'update asset -s F "{o.asset_key}" -f internal')
+        self.verify(f'get asset "{o.asset_key}" -d', [o.asset_key,
+                    f'"status": "{Asset.FROZEN.value}"', f'#surface#internal'])
 
         self.verify(f'delete asset "{o.asset_key}"')
         self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.DELETED.value}"']) 
@@ -165,13 +166,9 @@ class TestZCli:
         self.verify(f'search -t "#asset#{o.asset_dns}" -d -p all', [o.asset_key, '"key"', '"data"'])
         self.verify(f'search -t "#asset#{o.asset_dns}" -c -p all', ['"A": 1'])
 
-        self.verify(f'search -t "source:{o.asset_key}" -k attribute -p all',
-                    ['surface#provided', o.asset_key, 'attribute'])
         self.verify(f'search -t "name:{o.asset_name}" -k asset -p all', [o.asset_key])
         self.verify(f'search -t "dns:{o.asset_dns}" -k asset -p all', [o.asset_key])
 
-        self.verify(f'search -t "source:{o.asset_key}" -k attribute -p all',
-                    ['surface#provided', o.asset_key, 'attribute'])
         self.verify(f'search -t "name:{o.asset_name}" -k asset -p all', [o.asset_key])
         self.verify(f'search -t "dns:{o.asset_dns}" -k asset -p all', [o.asset_key])
         self.verify(f'search -t "status:{Asset.ACTIVE.value}" -k asset -p all', [o.asset_key])
