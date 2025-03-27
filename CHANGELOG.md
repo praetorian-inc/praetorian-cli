@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.5
+
+- [New feature] Ability to set a manual surface on an asset and manual capability on a risk. 
+
 ## 2.0.4
 
 - [New feature] Optimized page size for graph queries with automatic backoff for large queries.
