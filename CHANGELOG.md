@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.6
+
+- [Bug fix] Fixed the offset calculation for automatic backoffs on large queries.
+
 ## 2.0.5
 
 - [New feature] Ability to set a manual surface on an asset and manual capability on a risk. 

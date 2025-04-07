@@ -2,7 +2,7 @@ from enum import Enum
 
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
 
-DEFAULT_PAGE_SIZE = 5000
+DEFAULT_PAGE_SIZE = 4096
 
 class Filter:
     class Operator(Enum):
