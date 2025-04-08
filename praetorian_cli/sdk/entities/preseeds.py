@@ -8,6 +8,10 @@ class Preseeds:
     def __init__(self, api):
         self.api = api
 
+    def add(self, type, title, value, status):
+        """ Add a pre-seed """
+        return self.api.force_add('preseed', dict(type=type, title=title, value=value, status=status))
+
     def get(self, key):
         """ Get details of a pre-seed """
         return self.api.search.by_exact_key(key, False)

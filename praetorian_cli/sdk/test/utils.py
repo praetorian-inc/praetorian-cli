@@ -37,6 +37,10 @@ def make_test_values(o):
     o.attribute_value = f'test-attribute-value-{epoch_micro()}'
     o.asset_attribute_key = attribute_key(o.attribute_name, o.attribute_value, o.asset_key)
     o.email = email_address()
+    o.preseed_type = f'test-preseed-type-{epoch_micro()}'
+    o.preseed_title = f'test-preseed-title-{epoch_micro()}'
+    o.preseed_value = f'test-preseed-value-{epoch_micro()}'
+    o.preseed_status = 'AL'
     return o
 
 
