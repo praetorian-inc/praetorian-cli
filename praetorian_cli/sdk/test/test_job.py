@@ -18,6 +18,12 @@ class TestJob:
         assert len(jobs) > 0
         assert jobs[0]['dns'] == self.asset_dns
 
+    def test_add_job_with_unknown_capability(self):
+        result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
+        with pytest.raises(Exception) as e:
+            self.sdk.jobs.add(result['key'], ['unknown-not-a-capability'])
+        assert 'unknown capability: unknown-not-a-capability' in str(e.value)
+
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
         self.sdk.assets.delete(asset_key(self.asset_dns, self.asset_dns))
