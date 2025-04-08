@@ -5,7 +5,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
-from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, CAPABILITIES
+from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed
 
 
 @chariot.group()
