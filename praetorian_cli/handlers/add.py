@@ -5,7 +5,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
-from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, CAPABILITIES
+from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed
 
 
 @chariot.group()
@@ -154,7 +154,7 @@ def risk(sdk, name, asset, status, comment, capability):
 @add.command()
 @cli_handler
 @click.option('-k', '--key', required=True, help='Key of an existing asset or attribute')
-@click.option('-c', '--capability', 'capabilities', multiple=True, type=click.Choice(CAPABILITIES),
+@click.option('-c', '--capability', 'capabilities', multiple=True,
               help='Capabilities to run (can be specified multiple times)')
 def job(sdk, key, capabilities):
     """ Schedule scan jobs for an asset or an attribute
