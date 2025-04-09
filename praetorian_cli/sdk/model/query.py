@@ -16,22 +16,45 @@ class Filter:
         ENDS_WITH = 'ENDS WITH'
         AND = "AND"
         OR = "OR"
-
+        IN = "IN"
+	
     class Field(Enum):
         KEY = 'key'
         DNS = 'dns'
         NAME = 'name'
+        VALUE = 'value'
         STATUS = 'status'
         SOURCE = 'source'
         CREATED = 'created'
+        REGISTRAR = 'registrar'
+        EMAIL = 'email'
+        LOCATION = 'location'
+        PRIORITY = 'priority'
+        CLASS = 'class'
+        TYPE = 'type'
+        TITLE = 'title'
+        VISITED = 'visited'
+        VENDOR = 'vendor'
+        PRODUCT = 'product'
+        VERSION = 'version'
+        CPE = 'cpe'
+        SURFACE = 'surface'
+        ASNAME = 'asname'
+        ASNUMBER = 'asnumber'
+        CVSS = 'cvss'
+        EPSS = 'epss'
+        KEV = 'kev'
+        EXPLOIT = 'exploit'
+        PRIVATE = 'private'
 
-    def __init__(self, field: Field, operator: Operator, value: str):
+    def __init__(self, field: Field, operator: Operator, value: str, not_: bool = False):
         self.field = field
         self.operator = operator
         self.value = value
+        self.not_ = not_
 
     def to_dict(self) -> dict:
-        return dict(field=self.field.value, operator=self.operator.value, value=self.value)
+        return {'field': self.field.value, 'operator': self.operator.value, 'value': self.value, 'not': self.not_}
 
 
 class Relationship:
