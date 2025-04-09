@@ -26,4 +26,3 @@ class TestJob:
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
-        self.sdk.assets.delete(asset_key(self.asset_dns, self.asset_dns))

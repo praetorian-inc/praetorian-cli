@@ -207,3 +207,23 @@ def seed(sdk, dns, status):
         - praetorian chariot add seed --dns example.com --status A
     """
     sdk.seeds.add(dns, status)
+
+
+@add.command()
+@cli_handler
+@click.option('-t', '--type', required=True, help='Preseed type')
+@click.option('-l', '--title', required=True, help='Preseed title')
+@click.option('-v', '--value', required=True, help='Preseed value')
+@click.option('-s', '--status', required=False, default='A', help='Preseed status', show_default=True)
+def preseed(sdk, type, title, value, status):
+    """ Add a preseed
+
+    This command adds a preseed to the Chariot database. 
+    Preseeds default to ACTIVE and cannot be added as PENDING.
+
+    \b 
+    Example usages:
+        - praetorian chariot add preseed -t "whois+company" -l "Example Company" -v "example company"
+        - praetorian chariot add preseed --type "whois+company" --title "Example Company" --value "example company" --status "A"
+    """
+    sdk.preseeds.add(type, title, value, status)

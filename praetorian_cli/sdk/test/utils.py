@@ -4,8 +4,8 @@ from random import randint
 
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
-from praetorian_cli.sdk.model.globals import Risk
-from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key, seed_key
+from praetorian_cli.sdk.model.globals import Risk, Preseed
+from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key, seed_key, preseed_key
 
 
 def epoch_micro():
@@ -37,6 +37,11 @@ def make_test_values(o):
     o.attribute_value = f'test-attribute-value-{epoch_micro()}'
     o.asset_attribute_key = attribute_key(o.attribute_name, o.attribute_value, o.asset_key)
     o.email = email_address()
+    o.preseed_type = f'test-preseed-type-{epoch_micro()}'
+    o.preseed_title = f'test-preseed-title-{epoch_micro()}'
+    o.preseed_value = f'test-preseed-value-{epoch_micro()}'
+    o.preseed_status = Preseed.FROZEN.value
+    o.preseed_key = preseed_key(o.preseed_type, o.preseed_title, o.preseed_value)
     return o
 
 

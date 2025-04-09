@@ -16,5 +16,9 @@ def seed_key(type, dns):
     return f'#seed#{type}#{dns}'
 
 
+def preseed_key(type, title, value):
+    return f'#preseed#{type}#{title}#{value}'
+
+
 def seed_status(type, status_code):
     return f'{type}#{status_code}'

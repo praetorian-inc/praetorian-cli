@@ -8,15 +8,19 @@ class Preseeds:
     def __init__(self, api):
         self.api = api
 
-    def get(self, key):
+    def add(self, type, title, value, status):
+        """ Add a pre-seed """
+        return self.api.force_add('preseed', dict(type=type, title=title, value=value, status=status))
+
+    def get(self, key, details=False):
         """ Get details of a pre-seed """
-        return self.api.search.by_exact_key(key, False)
+        return self.api.search.by_exact_key(key, details)
 
     def update(self, key, status):
         """ Update a pre-seeds; only status field makes sense to be updated. """
         preseed = self.api.search.by_exact_key(key)
         if preseed:
-            return self.api.upsert('preseed', dict(key=key, status=status))
+            return self.api.update('preseed', dict(key=key, status=status))
         else:
             error(f'Pre-seed {key} is not found.')
 
