@@ -20,7 +20,7 @@ class Preseeds:
         """ Update a pre-seeds; only status field makes sense to be updated. """
         preseed = self.api.search.by_exact_key(key)
         if preseed:
-            return self.api.upsert('preseed', dict(key=key, status=status))
+            return self.api.update('preseed', dict(key=key, status=status))
         else:
             error(f'Pre-seed {key} is not found.')
 

@@ -69,3 +69,22 @@ def seed(chariot, key, status):
         - praetorian chariot update seed "#seed#ip#1.1.1.0/24" -s F
     """
     chariot.seeds.update(key, status)
+
+
+@update.command()
+@cli_handler
+@click.argument('key', required=True)
+@click.option('-s', '--status', type=click.Choice([s.value for s in Seed]), required=True,
+              help='The status of the preseed')
+def preseed(chariot, key, status):
+    """ Update the status of a preseed
+
+    \b
+    Argument:
+        - KEY: the key of an existing preseed
+
+    \b
+    Example usages:
+        - praetorian chariot update preseed "#preseed#whois+company#Example Company" -s A
+    """
+    chariot.preseeds.update(key, status)
