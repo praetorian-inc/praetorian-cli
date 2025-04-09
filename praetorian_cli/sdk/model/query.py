@@ -63,10 +63,12 @@ class Relationship:
         DISCOVERED = 'DISCOVERED'
         HAS_ATTRIBUTE = 'HAS_ATTRIBUTE'
 
-    def __init__(self, label: Label, source: 'Node' = None, target: 'Node' = None):
+    def __init__(self, label: Label, source: 'Node' = None, target: 'Node' = None, optional: bool = False, length: int = 0):
         self.label = label
         self.source = source
         self.target = target
+        self.optional = optional
+        self.length = length
 
     def to_dict(self):
         ret = dict(label=self.label.value)
@@ -74,6 +76,10 @@ class Relationship:
             ret |= dict(source=self.source.to_dict())
         if self.target:
             ret |= dict(target=self.target.to_dict())
+        if self.optional:
+            ret |= dict(optional=self.optional)
+        if self.length:
+            ret |= dict(length=self.length)
         return ret
 
 
