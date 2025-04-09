@@ -22,10 +22,10 @@ class TestPreseed:
         assert preseeds[0]['status'] == self.preseed_status
 
     def test_update_preseed(self):
-        self.sdk.preseeds.update(self.preseed_key, Preseed.FROZEN.value)
+        self.sdk.preseeds.update(self.preseed_key, Preseed.FROZEN_REJECTED.value)
         preseeds, _ = self.sdk.preseeds.list(self.preseed_type)
         assert len(preseeds) > 0
-        assert preseeds[0]['status'] == Preseed.FROZEN.value
+        assert preseeds[0]['status'] == Preseed.FROZEN_REJECTED.value
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
