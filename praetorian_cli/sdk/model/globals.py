@@ -19,6 +19,13 @@ class Seed(Enum):
     FROZEN = Asset.FROZEN.value
     FROZEN_REJECTED = Asset.FROZEN_REJECTED.value
 
+class Preseed(Enum):
+    ACTIVE = Asset.ACTIVE.value
+    DELETED = Asset.DELETED.value
+    PENDING = Asset.PENDING.value
+    FROZEN = Asset.FROZEN.value
+    FROZEN_REJECTED = Asset.FROZEN_REJECTED.value
+
 
 class Risk(Enum):
     TRIAGE_INFO = 'TI'

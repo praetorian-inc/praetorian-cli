@@ -198,17 +198,17 @@ def seed(chariot, key):
 @get.command()
 @cli_handler
 @click.argument('key', required=True)
-@click.option('-d', '--details', is_flag=True, help='Further retrieve the attributes and associated risks of the asset')
+@click.option('-d', '--details', is_flag=True, help='Further retrieve the details of the pre-seed')
 def preseed(chariot, key, details):
     """ Get pre-seed details
 
     \b
     Argument:
-        - KEY: the key of an existing seed
+        - KEY: the key of an existing preseed
 
     \b
     Example usages:
-        - praetorian chariot get seed "#seed#domain#example.com"
-        - praetorian chariot get seed "#seed#ip#1.1.1.0/24" --details
+        - praetorian chariot get preseed "#preseed#whois+company#Example Companys#example company"
+        - praetorian chariot get preseed "#preseed#whois+company#Example Companys#example company" --details
     """
-    print_json(chariot.seeds.get(key, details))
+    print_json(chariot.preseeds.get(key, details))

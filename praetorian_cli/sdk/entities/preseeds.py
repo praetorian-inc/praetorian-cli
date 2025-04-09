@@ -12,9 +12,9 @@ class Preseeds:
         """ Add a pre-seed """
         return self.api.force_add('preseed', dict(type=type, title=title, value=value, status=status))
 
-    def get(self, key):
+    def get(self, key, details=False):
         """ Get details of a pre-seed """
-        return self.api.search.by_exact_key(key, False)
+        return self.api.search.by_exact_key(key, details)
 
     def update(self, key, status):
         """ Update a pre-seeds; only status field makes sense to be updated. """

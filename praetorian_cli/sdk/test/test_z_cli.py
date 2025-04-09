@@ -3,7 +3,7 @@ from subprocess import run
 
 import pytest
 
-from praetorian_cli.sdk.model.globals import AddRisk, Asset, Risk, Seed
+from praetorian_cli.sdk.model.globals import AddRisk, Asset, Risk, Seed, Preseed
 from praetorian_cli.sdk.model.utils import seed_status
 from praetorian_cli.sdk.test.utils import epoch_micro, random_ip, make_test_values, clean_test_entities, setup_chariot
 
@@ -66,6 +66,20 @@ class TestZCli:
 
         self.verify(f'delete seed "{o.seed_key}"')
         self.verify(f'get seed "{o.seed_key}"', [f'"status": "{seed_status("domain", Seed.DELETED.value)}"'])
+
+        clean_test_entities(self.sdk, o)
+
+    def test_preseed_cli(self):
+        o = make_test_values(lambda: None)
+
+        self.verify(f'add preseed -t {o.preseed_type} -l {o.preseed_title} -v {o.preseed_value} -s {o.preseed_status}')
+
+        self.verify(f'list preseeds -p all', [o.preseed_key])
+
+        self.verify(f'update preseed -s {Preseed.FROZEN.value} "{o.preseed_key}"')
+        self.verify(f'get preseed "{o.preseed_key}"', [o.preseed_key, f'"status": "{Preseed.FROZEN.value}"'])
+
+        self.verify(f'get preseed "{o.preseed_key}" --details', [o.preseed_key, f'"status": "{Preseed.FROZEN.value}"'])
 
         clean_test_entities(self.sdk, o)
 
