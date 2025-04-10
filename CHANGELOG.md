@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.7
+
+- [New Feature] Preseeds can now be added or updated
+  - See `chariot add preseed` and `chariot update preseed`
+- [New Feature] Additional Query operators, fields, and length has been added
+- [Bug fix] Removed CLI enforcement of allowed `capability` on `chariot add job`
+  - An error will be thrown from Chariot if a capability does not exist
+
 ## 2.0.6
 
 - [Bug fix] Fixed the offset calculation for automatic backoffs on large queries.
