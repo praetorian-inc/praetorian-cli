@@ -84,6 +84,37 @@ class Chariot:
             final_resp['offset'] = resp['offset']
         return final_resp
 
+    def my_by_query_raw(self, query_dict, pages=1):
+        final_resp = dict()
+        page_count = 0
+
+        if 'page' not in query_dict:
+            query_dict['page'] = 0
+
+        while page_count < pages:
+            resp = requests.post(self.url('/my'),
+                                json=query_dict,
+                                headers=self.keychain.headers())
+
+            if is_query_limit_failure(resp):
+                # If the query is too large, we can't automatically adjust as with Query objects
+                raise Exception("Query limit exceeded. Consider reducing query complexity.")
+
+            process_failure(resp)
+            resp = resp.json()
+            extend(final_resp, resp)
+
+            if 'offset' in resp:
+                query_dict['page'] = int(resp['offset'])
+                page_count += 1
+            else:
+                break
+
+        if 'offset' in resp:
+            final_resp['offset'] = resp['offset']
+
+        return final_resp
+
     def post(self, type: str, body: dict, params: dict = {}):
         resp = requests.post(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
