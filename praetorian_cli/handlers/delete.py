@@ -129,3 +129,20 @@ def purge(controller):
         click.echo('Purge cancelled')
         return
     click.echo('Account deleted successfully')
+
+
+@delete.command()
+@cli_handler
+@click.argument('key', required=True)
+def setting(chariot, key):
+    """ Delete a setting
+
+    \b
+    Arguments:
+        - KEY: the key of an existing setting
+
+    \b
+    Example usage:
+        - praetorian chariot delete setting "#setting#rate-limit"
+    """
+    chariot.settings.delete(key)

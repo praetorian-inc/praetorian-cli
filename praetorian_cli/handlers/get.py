@@ -212,3 +212,20 @@ def preseed(chariot, key, details):
         - praetorian chariot get preseed "#preseed#whois+company#Example Companys#example company" --details
     """
     print_json(chariot.preseeds.get(key, details))
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+def setting(chariot, key):
+    """ Get setting details
+
+    \b
+    Argument:
+        - KEY: the key of an existing setting
+
+    \b
+    Example usage:
+        - praetorian chariot get setting "#setting#rate-limit"
+    """
+    print_json(chariot.settings.get(key))

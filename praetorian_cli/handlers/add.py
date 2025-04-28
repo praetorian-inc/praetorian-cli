@@ -227,3 +227,19 @@ def preseed(sdk, type, title, value, status):
         - praetorian chariot add preseed --type "whois+company" --title "Example Company" --value "example company" --status "A"
     """
     sdk.preseeds.add(type, title, value, status)
+
+
+@add.command()
+@cli_handler
+@click.option('-n', '--name', required=True, help='Name of the setting')
+@click.option('-v', '--value', required=True, help='Value of the setting')
+def setting(sdk, name, value):
+    """ Add a setting
+
+    This command adds a name-value setting.
+
+    \b
+    Example usages:
+        - praetorian chariot add setting --name "rate-limit" --value "example rate limit"
+    """
+    sdk.settings.add(name, value)
