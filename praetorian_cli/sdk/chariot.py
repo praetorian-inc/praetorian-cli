@@ -64,7 +64,8 @@ class Chariot:
 
     def my_by_query(self, query: Query, pages=1) -> {}:
         final_resp = dict()
-        while query.page < pages:
+        requested_pages = pages + query.page 
+        while query.page < requested_pages:
             resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
                                  headers=self.keychain.headers())
             if is_query_limit_failure(resp):
