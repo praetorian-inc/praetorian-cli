@@ -71,7 +71,7 @@ class Chariot:
             if is_query_limit_failure(resp):
                 query.limit //= 2
                 query.page *= 2
-                pages *= 2
+                requested_pages *= 2
                 continue
             process_failure(resp)
             resp = resp.json()
