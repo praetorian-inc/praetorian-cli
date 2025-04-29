@@ -1,6 +1,5 @@
 import pytest
 
-from praetorian_cli.sdk.model.utils import setting_key
 from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
 
 
@@ -36,4 +35,4 @@ class TestSettings:
         assert self.sdk.settings.get(self.setting_key) is None
 
     def teardown_class(self):
-        clean_test_entities(self.sdk, self) 
+        clean_test_entities(self.sdk, self)
