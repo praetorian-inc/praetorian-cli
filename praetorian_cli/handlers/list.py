@@ -250,8 +250,7 @@ def statistics(chariot, filter, from_date, to_date, details, offset, page, help_
 
 @list.command()
 @list_params('setting name')
-@click.option('-k', '--key', default=None, help='Filter by an asset or risk key')
-def settings(chariot, filter, key, details, offset, page):
+def settings(chariot, filter, details, offset, page):
     """ List settings
 
     Retrieve and display a list of settings.
@@ -259,15 +258,12 @@ def settings(chariot, filter, key, details, offset, page):
     \b
     Filtering options:
         - Use the --filter option to filter on the name of the setting.
-        - Use the --key option to filter for settings of an asset or a risk.
-        - You can only filter using either of the above, not together.
 
     \b
     Example usages:
         - praetorian chariot list settings
         - praetorian chariot list settings --filter rate-limit
-        - praetorian chariot list settings --key "#setting#rate-limit"
         - praetorian chariot list settings --details
         - praetorian chariot list settings --page all
     """
-    render_list_results(chariot.settings.list(filter, key, offset, pagination_size(page)), details)
+    render_list_results(chariot.settings.list(filter, offset, pagination_size(page)), details)

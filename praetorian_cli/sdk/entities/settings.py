@@ -7,7 +7,7 @@ class Settings:
 
     def add(self, name, value):
         """ Add a new setting """
-        return self.api.upsert('setting', dict(name=name, value=value))['settings'][0]
+        return self.api.upsert('setting', dict(name=name, value=value))
 
     def get(self, key):
         """ Get details of a setting """

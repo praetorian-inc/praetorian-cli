@@ -14,6 +14,7 @@ from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
+from praetorian_cli.sdk.entities.settings import Settings
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
@@ -39,6 +40,7 @@ class Chariot:
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
         self.agents = Agents(self)
+        self.settings = Settings(self)
 
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()

@@ -240,6 +240,6 @@ def setting(sdk, name, value):
 
     \b
     Example usages:
-        - praetorian chariot add setting --name "rate-limit" --value "example rate limit"
+        - praetorian chariot add setting --name "rate-limit" --value '{"capability-rate-limit": 100}'
     """
     sdk.settings.add(name, value)
