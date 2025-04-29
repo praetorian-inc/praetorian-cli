@@ -14,11 +14,16 @@ class TestConfigurations:
             pytest.skip("This test is only available to Praetorian engineers")
 
     def test_add_configuration(self):
+        a = self.sdk.configurations.add(self.configuration_name, self.configuration_value)
+        assert a is not None
+        assert a['name'] == self.configuration_name
+        assert a['value'] == self.configuration_value
+
+    def test_list_configurations(self):
         self.sdk.configurations.add(self.configuration_name, self.configuration_value)
-        configurations, _ = self.sdk.configurations.list(self.configuration_name)
-        assert len(configurations) > 0
-        assert configurations[0]['name'] == self.configuration_name
-        assert configurations[0]['value'] == self.configuration_value
+        results, _ = self.sdk.configurations.list()
+        assert len(results) > 0
+        assert any([r['name'] == self.configuration_name for r in results])
 
     def test_get_configuration(self):
         self.sdk.configurations.add(self.configuration_name, self.configuration_value)
@@ -28,10 +33,12 @@ class TestConfigurations:
         assert configuration['value'] == self.configuration_value
 
     def test_delete_configuration(self):
-        self.sdk.configurations.add(self.configuration_name, self.configuration_value)
-        self.sdk.configurations.delete(self.configuration_key)
-        configurations, _ = self.sdk.configurations.list(self.configuration_name)
-        assert len(configurations) == 0
+        a= self.sdk.configurations.add(self.configuration_name, self.configuration_value)
+        print(a)
+        self.sdk.configurations.delete(self.configuration_name)
+        assert self.sdk.configurations.get(self.configuration_key) == None
+        assert self.sdk.configurations.get(self.configuration_key) is None
+
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)

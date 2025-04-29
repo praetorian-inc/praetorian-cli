@@ -13,9 +13,9 @@ class Settings:
         """ Get details of a setting """
         return self.api.search.by_exact_key(key)
 
-    def delete(self, key):
+    def delete(self, name):
         """ Delete a setting """
-        return self.api.delete_by_key('setting', key)
+        return self.api.delete('setting', dict(name=name), {})
 
     def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List setting, optionally prefix-filtered by the portion of the key after

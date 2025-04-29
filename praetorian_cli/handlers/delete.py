@@ -133,34 +133,34 @@ def purge(controller):
 
 @delete.command()
 @cli_handler
-@click.argument('key', required=True)
-def setting(chariot, key):
+@click.argument('name', required=True)
+def setting(chariot, name):
     """ Delete a setting
 
     \b
     Arguments:
-        - KEY: the key of an existing setting
+        - NAME: the name of an existing setting
 
     \b
     Example usage:
-        - praetorian chariot delete setting "#setting#rate-limit"
+        - praetorian chariot delete setting "rate-limit"
     """
-    chariot.settings.delete(key)
+    chariot.settings.delete(name)
 
 
 @delete.command()
 @cli_handler
-@click.argument('key', required=True)
+@click.argument('name', required=True)
 @praetorian_only
-def configuration(chariot, key):
+def configuration(chariot, name):
     """ Delete a configuration
 
     \b
     Arguments:
-        - KEY: the key of an existing configuration
+        - NAME: the name of an existing configuration
 
     \b
     Example usage:
-        - praetorian chariot delete configuration "#configuration#nuclei"
+        - praetorian chariot delete configuration "nuclei"
     """
-    chariot.configurations.delete(key)
+    chariot.configurations.delete(name)

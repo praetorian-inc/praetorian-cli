@@ -12,11 +12,16 @@ class TestSettings:
         make_test_values(self)
 
     def test_add_setting(self):
+        s = self.sdk.settings.add(self.setting_name, self.setting_value)
+        assert s is not None
+        assert s['name'] == self.setting_name
+        assert s['value'] == self.setting_value
+
+    def test_list_settings(self):
         self.sdk.settings.add(self.setting_name, self.setting_value)
-        settings, _ = self.sdk.settings.list(self.setting_name)
-        assert len(settings) > 0
-        assert settings[0]['name'] == self.setting_name
-        assert settings[0]['value'] == self.setting_value
+        results, _ = self.sdk.settings.list()
+        assert len(results) > 0
+        assert any([r['name'] == self.setting_name for r in results])
 
     def test_get_setting(self):
         self.sdk.settings.add(self.setting_name, self.setting_value)
@@ -27,9 +32,8 @@ class TestSettings:
 
     def test_delete_setting(self):
         self.sdk.settings.add(self.setting_name, self.setting_value)
-        self.sdk.settings.delete(self.setting_key)
-        settings, _ = self.sdk.settings.list(self.setting_name)
-        assert len(settings) == 0
+        self.sdk.settings.delete(self.setting_name)
+        assert self.sdk.settings.get(self.setting_key) is None
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self) 

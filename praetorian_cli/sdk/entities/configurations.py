@@ -22,10 +22,10 @@ class Configurations:
         self._check_if_praetorian()
         return self.api.search.by_exact_key(key)
 
-    def delete(self, key):
+    def delete(self, name):
         """ Delete a configuration """
         self._check_if_praetorian()
-        return self.api.delete_by_key('configuration', key)
+        return self.api.delete('configuration', dict(name=name), {})
 
     def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """ List configuration, optionally prefix-filtered by the portion of the key after
