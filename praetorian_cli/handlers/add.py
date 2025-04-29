@@ -3,7 +3,7 @@ import os.path
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed
 
@@ -249,6 +249,7 @@ def setting(sdk, name, value):
 @cli_handler
 @click.option('-n', '--name', required=True, help='Name of the configuration')
 @click.option('-v', '--value', required=True, help='Value of the configuration')
+@praetorian_only
 def configuration(sdk, name, value):
     """ Add a configuration
 

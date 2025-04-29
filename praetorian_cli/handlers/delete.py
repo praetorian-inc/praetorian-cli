@@ -1,7 +1,7 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.sdk.model.globals import Risk
 
 
@@ -151,6 +151,7 @@ def setting(chariot, key):
 @delete.command()
 @cli_handler
 @click.argument('key', required=True)
+@praetorian_only
 def configuration(chariot, key):
     """ Delete a configuration
 

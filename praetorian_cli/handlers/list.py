@@ -1,7 +1,7 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import list_params, pagination, cli_handler
+from praetorian_cli.handlers.cli_decorators import list_params, pagination, cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import render_offset, render_list_results, pagination_size, error
 
 
@@ -271,6 +271,7 @@ def settings(chariot, filter, details, offset, page):
 
 @list.command()
 @list_params('configuration name')
+@praetorian_only
 def configurations(chariot, filter, details, offset, page):
     """ List configurations
 

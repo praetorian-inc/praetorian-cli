@@ -3,7 +3,7 @@ import os
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import print_json
 
 
@@ -234,6 +234,7 @@ def setting(chariot, key):
 @get.command()
 @cli_handler
 @click.argument('key', required=True)
+@praetorian_only
 def configuration(chariot, key):
     """ Get configuration details
 
