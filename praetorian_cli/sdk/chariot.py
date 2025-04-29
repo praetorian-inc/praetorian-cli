@@ -64,7 +64,7 @@ class Chariot:
 
     def my_by_query(self, query: Query, pages=1) -> {}:
         final_resp = dict()
-        while query.page < pages:
+        while pages > 0:
             resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
                                  headers=self.keychain.headers())
             if is_query_limit_failure(resp):
@@ -75,6 +75,7 @@ class Chariot:
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
+            pages -= 1
             if 'offset' in resp:
                 query.page = int(resp['offset'])
             else:
