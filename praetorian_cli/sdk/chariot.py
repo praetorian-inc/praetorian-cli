@@ -177,6 +177,9 @@ class Chariot:
     def url(self, path: str):
         return self.keychain.base_url() + path
 
+    def is_praetorian_user(self) -> bool:
+        return self.keychain.username().endswith('@praetorian.com')
+
 
 def is_query_limit_failure(response):
     return response.status_code == 413 and 'reduce page size' in response.text
