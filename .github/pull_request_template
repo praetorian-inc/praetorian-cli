@@ -2,8 +2,6 @@
 
 Briefly describe the changes and the issue it addresses. It helps the reviewers understand the context.
 
----
-
 ## JIRA (required)
 
 - Add reference to the JIRA ticket. It helps connect JIRA with this PR.
