@@ -267,3 +267,24 @@ def settings(chariot, filter, details, offset, page):
         - praetorian chariot list settings --page all
     """
     render_list_results(chariot.settings.list(filter, offset, pagination_size(page)), details)
+
+
+@list.command()
+@list_params('configuration name')
+def configurations(chariot, filter, details, offset, page):
+    """ List configurations
+
+    Retrieve and display a list of configurations.
+
+    \b
+    Filtering options:
+        - Use the --filter option to filter on the name of the configuration.
+
+    \b
+    Example usages:
+        - praetorian chariot list configurations
+        - praetorian chariot list configurations --filter nuclei
+        - praetorian chariot list configurations --details
+        - praetorian chariot list configurations --page all
+    """
+    render_list_results(chariot.configurations.list(filter, offset, pagination_size(page)), details)

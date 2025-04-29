@@ -146,3 +146,20 @@ def setting(chariot, key):
         - praetorian chariot delete setting "#setting#rate-limit"
     """
     chariot.settings.delete(key)
+
+
+@delete.command()
+@cli_handler
+@click.argument('key', required=True)
+def configuration(chariot, key):
+    """ Delete a configuration
+
+    \b
+    Arguments:
+        - KEY: the key of an existing configuration
+
+    \b
+    Example usage:
+        - praetorian chariot delete configuration "#configuration#nuclei"
+    """
+    chariot.configurations.delete(key)

@@ -243,3 +243,19 @@ def setting(sdk, name, value):
         - praetorian chariot add setting --name "rate-limit" --value '{"capability-rate-limit": 100}'
     """
     sdk.settings.add(name, value)
+
+
+@add.command()
+@cli_handler
+@click.option('-n', '--name', required=True, help='Name of the configuration')
+@click.option('-v', '--value', required=True, help='Value of the configuration')
+def configuration(sdk, name, value):
+    """ Add a configuration
+
+    This command adds a name-value configuration.
+
+    \b
+    Example usages:
+        - praetorian chariot add configuration --name "nuclei" --value '{"extra-tags": "http,sql"}'
+    """
+    sdk.configurations.add(name, value)

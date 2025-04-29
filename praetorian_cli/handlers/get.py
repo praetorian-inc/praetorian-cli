@@ -229,3 +229,20 @@ def setting(chariot, key):
         - praetorian chariot get setting "#setting#rate-limit"
     """
     print_json(chariot.settings.get(key))
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+def configuration(chariot, key):
+    """ Get configuration details
+
+    \b
+    Argument:
+        - KEY: the key of an existing configuration
+
+    \b
+    Example usage:
+        - praetorian chariot get configuration "#configuration#nuclei"
+    """
+    print_json(chariot.configurations.get(key))
