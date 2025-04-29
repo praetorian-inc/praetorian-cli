@@ -3,7 +3,7 @@ import os
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import print_json
 
 
@@ -212,3 +212,38 @@ def preseed(chariot, key, details):
         - praetorian chariot get preseed "#preseed#whois+company#Example Companys#example company" --details
     """
     print_json(chariot.preseeds.get(key, details))
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+def setting(chariot, key):
+    """ Get setting details
+
+    \b
+    Argument:
+        - KEY: the key of an existing setting
+
+    \b
+    Example usage:
+        - praetorian chariot get setting "#setting#rate-limit"
+    """
+    print_json(chariot.settings.get(key))
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+@praetorian_only
+def configuration(chariot, key):
+    """ Get configuration details
+
+    \b
+    Argument:
+        - KEY: the key of an existing configuration
+
+    \b
+    Example usage:
+        - praetorian chariot get configuration "#configuration#nuclei"
+    """
+    print_json(chariot.configurations.get(key))

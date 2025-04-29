@@ -5,7 +5,7 @@ from random import randint
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import Risk, Preseed
-from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key, seed_key, preseed_key
+from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key, seed_key, preseed_key, setting_key, configuration_key
 
 
 def epoch_micro():
@@ -42,6 +42,12 @@ def make_test_values(o):
     o.preseed_value = f'test-preseed-value-{epoch_micro()}'
     o.preseed_status = Preseed.FROZEN.value
     o.preseed_key = preseed_key(o.preseed_type, o.preseed_title, o.preseed_value)
+    o.setting_name = f'test-setting-name-{epoch_micro()}'
+    o.setting_value = f'test-setting-value-{epoch_micro()}'
+    o.setting_key = setting_key(o.setting_name)
+    o.configuration_name = f'test-configuration-name-{epoch_micro()}'
+    o.configuration_value = f'test-configuration-value-{epoch_micro()}'
+    o.configuration_key = configuration_key(o.configuration_name)
     return o
 
 
@@ -52,6 +58,8 @@ def clean_test_entities(sdk, o):
         sdk.attributes.delete(a['key'])
     sdk.risks.delete(o.risk_key, Risk.DELETED_DUPLICATE_CRITICAL.value)
     sdk.assets.delete(o.asset_key)
+    sdk.settings.delete(o.setting_key)
+    sdk.configurations.delete(o.configuration_key)
 
 
 def setup_chariot():
