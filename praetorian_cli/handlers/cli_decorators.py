@@ -6,18 +6,18 @@ import click
 import requests
 from packaging.version import Version
 
-from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.utils import error
 
 
 def handle_error(func):
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    @click.pass_context
+    def wrapper(ctx, *args, **kwargs):
         try:
             return func(*args, **kwargs)
         except Exception as e:
             error(str(e), quit=False)
-            if chariot.is_debug:
+            if ctx.obj.is_debug:
                 click.echo(traceback.format_exc())
 
     return wrapper
@@ -68,3 +68,12 @@ def pagination(func):
     func = click.option('-p', '--page', type=click.Choice(('first', 'all')), default='first',
                         help='Pagination mode. "all" pages up to 10,000 pages.', show_default=True)(func)
     return func
+
+def praetorian_only(func):
+    @wraps(func)
+    @click.pass_context
+    def wrapper(ctx, *args, **kwargs):
+        if not ctx.obj.is_praetorian_user():
+            error("This option is limited to Praetorian engineers only. Please contact your Praetorian representative for assistance.")
+        return func(*args, **kwargs)
+    return wrapper

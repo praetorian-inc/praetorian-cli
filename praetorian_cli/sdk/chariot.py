@@ -14,6 +14,8 @@ from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
+from praetorian_cli.sdk.entities.settings import Settings
+from praetorian_cli.sdk.entities.configurations import Configurations
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
@@ -39,6 +41,8 @@ class Chariot:
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
         self.agents = Agents(self)
+        self.settings = Settings(self)
+        self.configurations = Configurations(self)
 
     def my(self, params: dict, pages=1) -> {}:
         final_resp = dict()
@@ -64,7 +68,7 @@ class Chariot:
 
     def my_by_query(self, query: Query, pages=1) -> {}:
         final_resp = dict()
-        while query.page < pages:
+        while pages > 0:
             resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
                                  headers=self.keychain.headers())
             if is_query_limit_failure(resp):
@@ -75,6 +79,7 @@ class Chariot:
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
+            pages -= 1
             if 'offset' in resp:
                 query.page = int(resp['offset'])
             else:
@@ -203,6 +208,9 @@ class Chariot:
 
     def url(self, path: str):
         return self.keychain.base_url() + path
+
+    def is_praetorian_user(self) -> bool:
+        return self.keychain.username().endswith('@praetorian.com')
 
 
 def is_query_limit_failure(response):

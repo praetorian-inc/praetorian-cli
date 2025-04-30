@@ -3,7 +3,7 @@ import os.path
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed
 
@@ -227,3 +227,36 @@ def preseed(sdk, type, title, value, status):
         - praetorian chariot add preseed --type "whois+company" --title "Example Company" --value "example company" --status "A"
     """
     sdk.preseeds.add(type, title, value, status)
+
+
+@add.command()
+@cli_handler
+@click.option('-n', '--name', required=True, help='Name of the setting')
+@click.option('-v', '--value', required=True, help='Value of the setting')
+def setting(sdk, name, value):
+    """ Add a setting
+
+    This command adds a name-value setting.
+
+    \b
+    Example usages:
+        - praetorian chariot add setting --name "rate-limit" --value '{"capability-rate-limit": 100}'
+    """
+    sdk.settings.add(name, value)
+
+
+@add.command()
+@cli_handler
+@click.option('-n', '--name', required=True, help='Name of the configuration')
+@click.option('-v', '--value', required=True, help='Value of the configuration')
+@praetorian_only
+def configuration(sdk, name, value):
+    """ Add a configuration
+
+    This command adds a name-value configuration.
+
+    \b
+    Example usages:
+        - praetorian chariot add configuration --name "nuclei" --value '{"extra-tags": "http,sql"}'
+    """
+    sdk.configurations.add(name, value)

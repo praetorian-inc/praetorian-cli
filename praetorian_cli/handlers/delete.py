@@ -1,7 +1,7 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.sdk.model.globals import Risk
 
 
@@ -129,3 +129,38 @@ def purge(controller):
         click.echo('Purge cancelled')
         return
     click.echo('Account deleted successfully')
+
+
+@delete.command()
+@cli_handler
+@click.argument('name', required=True)
+def setting(chariot, name):
+    """ Delete a setting
+
+    \b
+    Arguments:
+        - NAME: the name of an existing setting
+
+    \b
+    Example usage:
+        - praetorian chariot delete setting "rate-limit"
+    """
+    chariot.settings.delete(name)
+
+
+@delete.command()
+@cli_handler
+@click.argument('name', required=True)
+@praetorian_only
+def configuration(chariot, name):
+    """ Delete a configuration
+
+    \b
+    Arguments:
+        - NAME: the name of an existing configuration
+
+    \b
+    Example usage:
+        - praetorian chariot delete configuration "nuclei"
+    """
+    chariot.configurations.delete(name)

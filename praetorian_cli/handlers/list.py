@@ -1,7 +1,7 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import list_params, pagination, cli_handler
+from praetorian_cli.handlers.cli_decorators import list_params, pagination, cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import render_offset, render_list_results, pagination_size, error
 
 
@@ -246,3 +246,46 @@ def statistics(chariot, filter, from_date, to_date, details, offset, page, help_
         ),
         details
     )
+
+
+@list.command()
+@list_params('setting name')
+def settings(chariot, filter, details, offset, page):
+    """ List settings
+
+    Retrieve and display a list of settings.
+
+    \b
+    Filtering options:
+        - Use the --filter option to filter on the name of the setting.
+
+    \b
+    Example usages:
+        - praetorian chariot list settings
+        - praetorian chariot list settings --filter rate-limit
+        - praetorian chariot list settings --details
+        - praetorian chariot list settings --page all
+    """
+    render_list_results(chariot.settings.list(filter, offset, pagination_size(page)), details)
+
+
+@list.command()
+@list_params('configuration name')
+@praetorian_only
+def configurations(chariot, filter, details, offset, page):
+    """ List configurations
+
+    Retrieve and display a list of configurations.
+
+    \b
+    Filtering options:
+        - Use the --filter option to filter on the name of the configuration.
+
+    \b
+    Example usages:
+        - praetorian chariot list configurations
+        - praetorian chariot list configurations --filter nuclei
+        - praetorian chariot list configurations --details
+        - praetorian chariot list configurations --page all
+    """
+    render_list_results(chariot.configurations.list(filter, offset, pagination_size(page)), details)

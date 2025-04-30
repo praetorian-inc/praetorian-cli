@@ -229,6 +229,36 @@ class TestZCli:
         self.verify('list statistics --help', ['Start date (YYYY-MM-DD)'])
         self.verify('list statistics --help-stats', ['Open high severity risks'])
 
+    def test_setting_cli(self):
+        o = make_test_values(lambda: None)
+
+        self.verify(f'add setting --name "{o.setting_name}" --value "{o.setting_value}"')
+
+        self.verify(f'get setting "{o.setting_key}"', expected_stdout=[o.setting_key, o.setting_name, o.setting_value])
+
+        self.verify('list settings', expected_stdout=[o.setting_key])
+        self.verify('list settings -d', expected_stdout=[o.setting_key, o.setting_name, o.setting_value])
+        self.verify(f'list settings -f "{o.setting_name}"', expected_stdout=[o.setting_key])
+
+        self.verify(f'delete setting "{o.setting_key}"', ignore_stdout=True)
+
+    def test_configuration_cli(self):
+        o = make_test_values(lambda: None)
+
+        if not self.sdk.is_praetorian_user():
+            # Configurations are limited to Praetorian engineers only and I don't know how to mock that
+            pytest.skip("This test is only available to Praetorian engineers")
+
+        self.verify(f'add configuration --name "{o.configuration_name}" --value "{o.configuration_value}"')
+
+        self.verify(f'get configuration "{o.configuration_key}"', expected_stdout=[o.configuration_key, o.configuration_name, o.configuration_value])
+
+        self.verify('list configurations', expected_stdout=[o.configuration_key])
+        self.verify('list configurations -d', expected_stdout=[o.configuration_key, o.configuration_name, o.configuration_value])
+        self.verify(f'list configurations -f "{o.configuration_name}"', expected_stdout=[o.configuration_key])
+
+        self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
+
     def test_help_cli(self):
         self.verify('--help', ignore_stdout=True)
         self.verify('list --help', ignore_stdout=True)
@@ -244,6 +274,8 @@ class TestZCli:
         self.verify('list statistics --help-stats', ignore_stdout=True)
         self.verify('list seeds --help', ignore_stdout=True)
         self.verify('list preseeds --help', ignore_stdout=True)
+        self.verify('list settings --help', ignore_stdout=True)
+        self.verify('list configurations --help', ignore_stdout=True)
 
         self.verify('get --help', ignore_stdout=True)
         self.verify('get asset --help', ignore_stdout=True)
@@ -257,6 +289,8 @@ class TestZCli:
         self.verify('get webhook --help', ignore_stdout=True)
         self.verify('get seed --help', ignore_stdout=True)
         self.verify('get preseed --help', ignore_stdout=True)
+        self.verify('get setting --help', ignore_stdout=True)
+        self.verify('get configuration --help', ignore_stdout=True)
 
         self.verify('add --help', ignore_stdout=True)
         self.verify('add asset --help', ignore_stdout=True)
@@ -267,6 +301,8 @@ class TestZCli:
         self.verify('add definition --help', ignore_stdout=True)
         self.verify('add webhook --help', ignore_stdout=True)
         self.verify('add seed --help', ignore_stdout=True)
+        self.verify('add setting --help', ignore_stdout=True)
+        self.verify('add configuration --help', ignore_stdout=True)
 
         self.verify('imports --help', ignore_stdout=True)
         self.verify('imports qualys --help', ignore_stdout=True)
@@ -285,6 +321,8 @@ class TestZCli:
         self.verify('delete attribute --help', ignore_stdout=True)
         self.verify('delete webhook --help', ignore_stdout=True)
         self.verify('delete seed --help', ignore_stdout=True)
+        self.verify('delete setting --help', ignore_stdout=True)
+        self.verify('delete configuration --help', ignore_stdout=True)
 
         self.verify('update --help', ignore_stdout=True)
         self.verify('update asset --help', ignore_stdout=True)
@@ -311,7 +349,7 @@ class TestZCli:
 
         if expected_stderr:
             for err in expected_stderr:
-                assert err in result.stderr, f'CLI "{command}" of CLI does not contain {out} in stderr; instead, got {result.stderr}'
+                assert err in result.stderr, f'CLI "{command}" of CLI does not contain {err} in stderr; instead, got {result.stderr}'
         else:
             assert len(result.stderr) == 0, \
                 f'CLI "{command}" should not have content in stderr; instead, got {result.stderr}'
