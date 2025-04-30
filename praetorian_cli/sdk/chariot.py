@@ -20,7 +20,7 @@ from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
-from praetorian_cli.sdk.model.query import Query, my_params_to_query
+from praetorian_cli.sdk.model.query import Query, my_params_to_query, DEFAULT_PAGE_SIZE
 
 
 class Chariot:
@@ -49,8 +49,10 @@ class Chariot:
 
         query = my_params_to_query(params)
         if query:
+            # The search is on data in Neo4j, which uses NoahQL.
             return self.my_by_query(query, pages)
 
+        # The search is on data in DynamoDB, which uses DynamoDB's native offset format.
         for _ in range(pages):
             resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
@@ -67,51 +69,34 @@ class Chariot:
         return final_resp
 
     def my_by_query(self, query: Query, pages=1) -> {}:
+        return self.my_by_raw_query(query.to_dict(), pages, query.params())
+
+    def my_by_raw_query(self, raw_query: dict, pages=1, params: dict = {}):
+        if 'page' not in raw_query:
+            raw_query['page'] = 0
+
+        if 'limit' not in raw_query:
+            raw_query['limit'] = DEFAULT_PAGE_SIZE
+
         final_resp = dict()
+
         while pages > 0:
-            resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
-                                 headers=self.keychain.headers())
+            resp = requests.post(self.url('/my'), json=raw_query, params=params, headers=self.keychain.headers())
             if is_query_limit_failure(resp):
-                query.limit //= 2
-                query.page *= 2
+                # The data size is too large for the number of records requested in raw_query['limit'].
+                # Halve the limit; adjust the page offset; and double the number of remaining pages to fetch
+                raw_query['limit'] //= 2
+                raw_query['page'] *= 2
                 pages *= 2
                 continue
-            process_failure(resp)
-            resp = resp.json()
-            extend(final_resp, resp)
-            pages -= 1
-            if 'offset' in resp:
-                query.page = int(resp['offset'])
-            else:
-                break
-
-        if 'offset' in resp:
-            final_resp['offset'] = resp['offset']
-        return final_resp
-
-    def my_by_query_raw(self, query_dict, pages=1):
-        final_resp = dict()
-        page_count = 0
-
-        if 'page' not in query_dict:
-            query_dict['page'] = 0
-
-        while page_count < pages:
-            resp = requests.post(self.url('/my'),
-                                json=query_dict,
-                                headers=self.keychain.headers())
-
-            if is_query_limit_failure(resp):
-                # If the query is too large, we can't automatically adjust as with Query objects
-                raise Exception("Query limit exceeded. Consider reducing query complexity.")
 
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
 
             if 'offset' in resp:
-                query_dict['page'] = int(resp['offset'])
-                page_count += 1
+                raw_query['page'] = int(resp['offset'])
+                pages -= 1
             else:
                 break
 
