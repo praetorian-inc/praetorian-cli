@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.8
+
+- [New Feature] Added support for settings and configurations.
+- [Bug fix] Corrected the bug when `--offset` is used.
+
 ## 2.0.7
 
 - [New Feature] Preseeds can now be added or updated
@@ -14,7 +19,7 @@
 
 ## 2.0.5
 
-- [New feature] Ability to set a manual surface on an asset and manual capability on a risk. 
+- [New feature] Ability to set a manual surface on an asset and manual capability on a risk.
 
 ## 2.0.4
 
