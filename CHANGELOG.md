@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.9
+
+- [New Feature] Added support for running the my() function with a raw JSON graph query.
+
 ## 2.0.8
 
 - [New Feature] Added support for settings and configurations.
