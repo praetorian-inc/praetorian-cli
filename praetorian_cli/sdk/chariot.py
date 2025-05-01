@@ -83,8 +83,10 @@ class Chariot:
         while pages > 0:
             resp = requests.post(self.url('/my'), json=raw_query, params=params, headers=self.keychain.headers())
             if is_query_limit_failure(resp):
-                # The data size is too large for the number of records requested in raw_query['limit'].
-                # Halve the limit; adjust the page offset; and double the number of remaining pages to fetch
+                # In this block, the data size is too large for the number of records requested in raw_query['limit'].
+                # We need to halve the page size: LIMIT = LIMIT / 2
+                # But in order to still retrieve the next page of results, we now need to double the offset: OFFSET = OFFSET * 2
+                # In addition, we need to double the number of remaining pages to fetch: PAGES = PAGES * 2
                 raw_query['limit'] //= 2
                 raw_query['page'] *= 2
                 pages *= 2
