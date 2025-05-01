@@ -20,7 +20,7 @@ from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
-from praetorian_cli.sdk.model.query import Query, my_params_to_query
+from praetorian_cli.sdk.model.query import Query, my_params_to_query, DEFAULT_PAGE_SIZE
 
 
 class Chariot:
@@ -44,13 +44,15 @@ class Chariot:
         self.settings = Settings(self)
         self.configurations = Configurations(self)
 
-    def my(self, params: dict, pages=1) -> {}:
+    def my(self, params: dict, pages=1) -> dict:
         final_resp = dict()
 
         query = my_params_to_query(params)
         if query:
+            # The search is on data in Neo4j, which uses NoahQL.
             return self.my_by_query(query, pages)
 
+        # The search is on data in DynamoDB, which uses DynamoDB's native offset format.
         for _ in range(pages):
             resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
@@ -66,79 +68,95 @@ class Chariot:
 
         return final_resp
 
-    def my_by_query(self, query: Query, pages=1) -> {}:
+    def my_by_query(self, query: Query, pages=1) -> dict:
+        return self.my_by_raw_query(query.to_dict(), pages, query.params())
+
+    def my_by_raw_query(self, raw_query: dict, pages=1, params: dict = {}) -> dict:
+        if 'page' not in raw_query:
+            raw_query['page'] = 0
+
+        if 'limit' not in raw_query:
+            raw_query['limit'] = DEFAULT_PAGE_SIZE
+
         final_resp = dict()
+
         while pages > 0:
-            resp = requests.post(self.url('/my'), json=query.to_dict(), params=query.params(),
-                                 headers=self.keychain.headers())
+            resp = requests.post(self.url('/my'), json=raw_query, params=params, headers=self.keychain.headers())
             if is_query_limit_failure(resp):
-                query.limit //= 2
-                query.page *= 2
+                # In this block, the data size is too large for the number of records requested in raw_query['limit'].
+                # We need to halve the page size: LIMIT = LIMIT / 2
+                # But in order to still retrieve the next page of results, we now need to double the offset: OFFSET = OFFSET * 2
+                # In addition, we need to double the number of remaining pages to fetch: PAGES = PAGES * 2
+                raw_query['limit'] //= 2
+                raw_query['page'] *= 2
                 pages *= 2
                 continue
+
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
-            pages -= 1
+
             if 'offset' in resp:
-                query.page = int(resp['offset'])
+                raw_query['page'] = int(resp['offset'])
+                pages -= 1
             else:
                 break
 
         if 'offset' in resp:
             final_resp['offset'] = resp['offset']
+
         return final_resp
 
-    def post(self, type: str, body: dict, params: dict = {}):
+    def post(self, type: str, body: dict, params: dict = {}) -> dict:
         resp = requests.post(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def put(self, type: str, body: dict, params: dict = {}) -> {}:
+    def put(self, type: str, body: dict, params: dict = {}) -> dict:
         resp = requests.put(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def delete(self, type: str, body: dict, params: dict) -> {}:
+    def delete(self, type: str, body: dict, params: dict) -> dict:
         resp = requests.delete(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def delete_by_key(self, type: str, key: str, body: dict = {}, params: dict = {}) -> {}:
+    def delete_by_key(self, type: str, key: str, body: dict = {}, params: dict = {}) -> dict:
         self.delete(type, body | dict(key=key), params)
 
-    def add(self, type: str, body: dict, params: dict = {}) -> {}:
+    def add(self, type: str, body: dict, params: dict = {}) -> dict:
         return self.upsert(type, body, params)
 
-    def force_add(self, type: str, body: dict, params: dict = {}) -> {}:
+    def force_add(self, type: str, body: dict, params: dict = {}) -> dict:
         return self.post(type, body, params)
 
-    def update(self, type: str, body: dict, params: dict = {}) -> {}:
+    def update(self, type: str, body: dict, params: dict = {}) -> dict:
         return self.upsert(type, body, params)
 
-    def upsert(self, type: str, body: dict, params: dict = {}) -> {}:
+    def upsert(self, type: str, body: dict, params: dict = {}) -> dict:
         return self.put(type, body, params)
 
-    def link_account(self, username: str, value: str = '', config: dict = {}):
+    def link_account(self, username: str, value: str = '', config: dict = {}) -> dict:
         resp = requests.post(self.url(f'/account/{username}'), json=dict(config=config, value=value),
                              headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def unlink(self, username: str, value: str = '', config: dict = {}):
+    def unlink(self, username: str, value: str = '', config: dict = {}) -> dict:
         resp = requests.delete(self.url(f'/account/{username}'), headers=self.keychain.headers(),
                                json=dict(value=value, config=config))
         process_failure(resp)
         return resp.json()
 
-    def upload(self, local_filepath: str, chariot_filepath: str = None):
+    def upload(self, local_filepath: str, chariot_filepath: str = None) -> dict:
         if not chariot_filepath:
             chariot_filepath = local_filepath
         with open(local_filepath, 'rb') as content:
             resp = self._upload(chariot_filepath, content)
         return resp
 
-    def _upload(self, chariot_filepath: str, content: str):
+    def _upload(self, chariot_filepath: str, content: str) -> dict:
         # It is a two-step upload. The PUT request to the /file endpoint is to get a presigned URL for S3.
         # There is no data transfer.
         presigned_url = requests.put(self.url('/file'), params=dict(name=chariot_filepath),
@@ -157,42 +175,42 @@ class Chariot:
         process_failure(resp)
         return resp.content
 
-    def count(self, params: dict) -> {}:
+    def count(self, params: dict) -> dict:
         resp = requests.get(self.url('/my/count'), params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def enrichment(self, type: str, id: str):
+    def enrichment(self, type: str, id: str) -> dict:
         filename = f'{id}.json' if type == 'cve' else id
         return json.loads(self.download(f'enrichments/{type}/{filename}', True).decode('utf-8'))
 
     def purge(self):
         requests.delete(self.url('/account/purge'), headers=self.keychain.headers())
 
-    def agent(self, agent: str, body: dict):
+    def agent(self, agent: str, body: dict) -> dict:
         body = body | dict(agent=agent)
         resp = requests.put(self.url('/agent'), json=body, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
-    def url(self, path: str):
+    def url(self, path: str) -> str:
         return self.keychain.base_url() + path
 
     def is_praetorian_user(self) -> bool:
         return self.keychain.username().endswith('@praetorian.com')
 
 
-def is_query_limit_failure(response):
+def is_query_limit_failure(response: requests.Response) -> bool:
     return response.status_code == 413 and 'reduce page size' in response.text
 
 
-def process_failure(response):
+def process_failure(response: requests.Response):
     if not response.ok:
         message = f'[{response.status_code}] Request failed' + (f'\nError: {response.text}' if response.text else '')
         raise Exception(message)
 
 
-def extend(accumulate, new):
+def extend(accumulate: dict, new: dict) -> dict:
     for key, value in new.items():
         if isinstance(value, list):
             if key in accumulate:

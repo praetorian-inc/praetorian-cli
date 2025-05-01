@@ -4,6 +4,7 @@ from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
 
 DEFAULT_PAGE_SIZE = 4096
 
+
 class Filter:
     class Operator(Enum):
         EQUAL = '='
@@ -17,7 +18,7 @@ class Filter:
         AND = "AND"
         OR = "OR"
         IN = "IN"
-	
+
     class Field(Enum):
         KEY = 'key'
         DNS = 'dns'
@@ -110,7 +111,7 @@ class Node:
 
 
 class Query:
-    def __init__(self, node: Node = None, page: int = 0, limit: int = 0, order_by: str = None,
+    def __init__(self, node: Node = None, page: int = 0, limit: int = DEFAULT_PAGE_SIZE, order_by: str = None,
                  descending: bool = False, global_: bool = False):
         self.node = node
         self.page = page
@@ -193,7 +194,7 @@ def my_params_to_query(params: dict):
         kind = params.get('label', None)
         if not kind:
             return None
-        
+
         field = Filter.Field(key.split(':')[0])
         value = key.split(':')[1]
         operator = Filter.Operator.STARTS_WITH
