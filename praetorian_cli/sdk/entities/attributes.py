@@ -7,7 +7,7 @@ class Attributes:
 
     def add(self, source_key, name, value):
         """ Add an attribute for an existing asset or risk """
-        return self.api.upsert('attribute', dict(key=source_key, name=name, value=value))['attribute'][0]
+        return self.api.upsert('attribute', dict(key=source_key, name=name, value=value))['items']['attribute'][0]
 
     def get(self, key):
         """ Get details of an attribute """

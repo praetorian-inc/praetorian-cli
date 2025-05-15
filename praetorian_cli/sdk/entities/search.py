@@ -71,6 +71,7 @@ def flatten_results(results):
     if isinstance(results, list):
         return results
     flattened = []
-    for key in results['items'].keys():
-        flattened.extend(flatten_results(results['items'][key]))
+    items = results.get('items', {})
+    for key in items.keys():
+        flattened.extend(flatten_results(items[key]))
     return flattened

@@ -24,7 +24,7 @@ class Risks:
         capability: str
             Optional capability that discovered this risk
         """
-        return self.api.upsert('risk', dict(key=asset_key, name=name, status=status, comment=comment, source=capability))['risk'][0]
+        return self.api.upsert('risk', dict(key=asset_key, name=name, status=status, comment=comment, source=capability))['items']['risk'][0]
 
     def get(self, key, details=False):
         """ Get details of a risk
