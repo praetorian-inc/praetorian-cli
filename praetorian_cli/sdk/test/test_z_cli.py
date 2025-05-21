@@ -281,6 +281,8 @@ class TestZCli:
         jobs, _ = self.sdk.jobs.list(o.asset_dns)
         if jobs:
             job_key = jobs[0]['key']
+            assert job_key.startswith('#job#'), f"Job key format incorrect: {job_key}"
+            assert o.asset_dns in job_key, f"Job key does not contain asset DNS: {job_key}"
             self.verify(f'get job "{job_key}"', [job_key])
         
         try:
