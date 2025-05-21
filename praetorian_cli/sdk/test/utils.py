@@ -48,15 +48,10 @@ def make_test_values(o):
     o.configuration_name = f'test-configuration-name-{epoch_micro()}'
     o.configuration_value = f'test-configuration-value-{epoch_micro()}'
     o.configuration_key = configuration_key(o.configuration_name)
-    o.job_key_prefix = f'#job#{o.asset_dns}'
     return o
 
 
 def clean_test_entities(sdk, o):
-    jobs, _ = sdk.jobs.list(o.asset_dns)
-    for job in jobs:
-        pass
-        
     for a in sdk.assets.attributes(o.asset_key):
         sdk.attributes.delete(a['key'])
     for a in sdk.assets.attributes(o.risk_key):

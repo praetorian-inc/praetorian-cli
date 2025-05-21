@@ -264,12 +264,8 @@ class TestZCli:
         
         o = make_test_values(lambda: None)
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
-        
-        self.verify(f'add job -k "{o.asset_key}"')
-        self.verify(f'list jobs -f {o.asset_dns}', [o.asset_key])
-        
-        self.verify(f'add job -k "{o.asset_key}" -c subdomain -c portscan')
-        
+        # We only test json parsing since the job key contains the capability
+        # and is not easy to cleanly delete.
         config = {"test_config_key": "test_config_value"}
         config_json = json.dumps(config)
         self.verify(f'add job -k "{o.asset_key}" -g \'{config_json}\'')
