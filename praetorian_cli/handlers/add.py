@@ -248,15 +248,24 @@ def setting(sdk, name, value):
 @add.command()
 @cli_handler
 @click.option('-n', '--name', required=True, help='Name of the configuration')
-@click.option('-v', '--value', required=True, help='Value of the configuration')
+@click.option('-e', '--entry', required=True, multiple=True, help='Key-value pair in format key=value. Can be specified multiple times to set multiple values. Use empty value to delete a key.')
 @praetorian_only
-def configuration(sdk, name, value):
+def configuration(sdk, name, entry):
     """ Add a configuration
 
     This command adds a name-value configuration.
 
     \b
     Example usages:
-        - praetorian chariot add configuration --name "nuclei" --value '{"extra-tags": "http,sql"}'
+        - praetorian chariot add configuration --name "nuclei" --entry extra-tags=http,sql --entry something=else
+        - praetorian chariot add configuration --name "nuclei" --entry extra-tags= (to delete a key)
     """
-    sdk.configurations.add(name, value)
+    config_dict = {}
+    for item in entry:
+        if '=' not in item:
+            click.echo(f"Error: Entry '{item}' is not in the format key=value")
+            return
+        key, value = item.split('=', 1)
+        config_dict[key] = value
+    
+    sdk.configurations.add(name, config_dict)

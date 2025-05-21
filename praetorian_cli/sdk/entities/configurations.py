@@ -15,7 +15,39 @@ class Configurations:
     def add(self, name, value):
         """ Add a new configuration """
         self._check_if_praetorian()
+        if isinstance(value, str):
+            try:
+                import json
+                value = json.loads(value)
+            except:
+                pass
         return self.api.upsert('configuration', dict(name=name, value=value))
+        
+    def update(self, name, entries):
+        """ Update a configuration with new key-value pairs """
+        self._check_if_praetorian()
+        from praetorian_cli.sdk.model.utils import configuration_key
+        config_key = configuration_key(name)
+        existing_config = self.get(config_key)
+        if not existing_config:
+            raise ValueError(f"Configuration '{name}' not found")
+        
+        current_value = existing_config.get('value', {})
+        if isinstance(current_value, str):
+            try:
+                import json
+                current_value = json.loads(current_value)
+            except:
+                current_value = {}
+        
+        for key, value in entries.items():
+            if value == "":
+                if key in current_value:
+                    del current_value[key]
+            else:
+                current_value[key] = value
+        
+        return self.api.upsert('configuration', dict(name=name, value=current_value))
 
     def get(self, key):
         """ Get details of a configuration """

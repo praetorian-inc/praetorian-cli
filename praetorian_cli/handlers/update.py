@@ -1,7 +1,7 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.sdk.model.globals import Risk, Seed, Asset
 
 
@@ -88,3 +88,33 @@ def preseed(chariot, key, status):
         - praetorian chariot update preseed "#preseed#whois+company#Example Company" -s A
     """
     chariot.preseeds.update(key, status)
+
+@update.command()
+@cli_handler
+@click.argument('name', required=True)
+@click.option('-e', '--entry', required=True, multiple=True, help='Key-value pair in format key=value. Can be specified multiple times to update multiple values. Use empty value to delete a key.')
+@praetorian_only
+def configuration(chariot, name, entry):
+    """ Update a configuration
+
+    This command updates a configuration by adding or modifying key-value pairs.
+    To delete a key, provide an empty value.
+
+    \b
+    Argument:
+        - NAME: the name of an existing configuration
+
+    \b
+    Example usages:
+        - praetorian chariot update configuration nuclei --entry extra-tags=http,sql,injection
+        - praetorian chariot update configuration nuclei --entry extra-tags= --entry something=newvalue
+    """
+    config_dict = {}
+    for item in entry:
+        if '=' not in item:
+            click.echo(f"Error: Entry '{item}' is not in the format key=value")
+            return
+        key, value = item.split('=', 1)
+        config_dict[key] = value
+    
+    chariot.configurations.update(name, config_dict)

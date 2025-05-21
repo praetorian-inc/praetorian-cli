@@ -33,11 +33,28 @@ class TestConfigurations:
         assert configuration['value'] == self.configuration_value
 
     def test_delete_configuration(self):
-        a= self.sdk.configurations.add(self.configuration_name, self.configuration_value)
+        a = self.sdk.configurations.add(self.configuration_name, self.configuration_value)
         print(a)
         self.sdk.configurations.delete(self.configuration_name)
         assert self.sdk.configurations.get(self.configuration_key) == None
         assert self.sdk.configurations.get(self.configuration_key) is None
+        
+    def test_update_configuration(self):
+        test_dict = {"key1": "value1", "key2": "value2"}
+        self.sdk.configurations.add(self.configuration_name, test_dict)
+        
+        updates = {"key1": "new_value", "key3": "value3"}
+        result = self.sdk.configurations.update(self.configuration_name, updates)
+        
+        config = self.sdk.configurations.get(self.configuration_key)
+        assert config is not None
+        assert config['value']['key1'] == "new_value"  # Updated value
+        assert config['value']['key2'] == "value2"     # Unchanged value
+        assert config['value']['key3'] == "value3"     # New value
+        
+        self.sdk.configurations.update(self.configuration_name, {"key2": ""})
+        config = self.sdk.configurations.get(self.configuration_key)
+        assert 'key2' not in config['value']  # Key should be deleted
 
 
     def teardown_class(self):
