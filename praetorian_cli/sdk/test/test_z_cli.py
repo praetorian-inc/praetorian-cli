@@ -35,7 +35,7 @@ class TestZCli:
                     f'"status": "{Asset.FROZEN.value}"', f'#surface#internal'])
 
         self.verify(f'delete asset "{o.asset_key}"')
-        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.DELETED.value}"']) 
+        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.DELETED.value}"'])
 
         clean_test_entities(self.sdk, o)
 
@@ -257,21 +257,15 @@ class TestZCli:
         self.verify('list configurations -d', expected_stdout=[o.configuration_key, o.configuration_name, '"key1"', '"value1"', '"key2"', '"value2"'])
         self.verify(f'list configurations -f "{o.configuration_name}"', expected_stdout=[o.configuration_key])
 
-        self.verify(f'update configuration "{o.configuration_name}" --entry key1=newvalue --entry key3=value3')
-        
-        self.verify(f'update configuration "{o.configuration_name}" --entry key2=')
+        self.verify(f'delete configuration "{o.configuration_name}" --entry key1')
         
         result = run(f'praetorian --profile "{self.sdk.keychain.profile}" chariot get configuration "{o.configuration_key}"', 
                     capture_output=True, text=True, shell=True)
-        assert '"key1"' in result.stdout, f'CLI does not contain "key1" in stdout; instead, got {result.stdout}'
-        assert '"newvalue"' in result.stdout, f'CLI does not contain "newvalue" in stdout; instead, got {result.stdout}'
-        assert '"key3"' in result.stdout, f'CLI does not contain "key3" in stdout; instead, got {result.stdout}'
-        assert '"value3"' in result.stdout, f'CLI does not contain "value3" in stdout; instead, got {result.stdout}'
+        assert '"key2"' in result.stdout, f'CLI does not contain "key2" in stdout; instead, got {result.stdout}'
+        assert '"value2"' in result.stdout, f'CLI does not contain "value2" in stdout; instead, got {result.stdout}'
         
-        assert '"key2"' not in result.stdout, f'CLI contains "key2" in stdout when it should have been deleted; got {result.stdout}'
+        assert '"key1"' not in result.stdout, f'CLI contains "key1" in stdout when it should have been deleted; got {result.stdout}'
         
-        self.verify(f'get configuration "{o.configuration_key}"', expected_stdout=[o.configuration_key, o.configuration_name, '"key1"', '"newvalue"', '"key3"', '"value3"'])
-
         self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
 
     def test_help_cli(self):
