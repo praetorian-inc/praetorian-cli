@@ -335,19 +335,36 @@ class TestZCli:
 
         self.verify('agent --help', ignore_stdout=True)
         
-    def test_job_cli_with_config(self):
+    def test_job_cli(self):
         import json
         
         o = make_test_values(lambda: None)
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
         
+        self.verify(f'add job -k "{o.asset_key}"')
+        self.verify('list jobs', [o.asset_key])
+        self.verify('list jobs -d', [o.asset_key, '"key"', '"data"'])
+        self.verify(f'list jobs -f {o.asset_dns}', [o.asset_key])
+        
+        self.verify(f'add job -k "{o.asset_key}" -c subdomain -c portscan')
+        
         config = {"test_config_key": "test_config_value"}
         config_json = json.dumps(config)
+        self.verify(f'add job -k "{o.asset_key}" -g \'{config_json}\'')
+        
+        invalid_json = '{"invalid_json": "missing_closing_brace"'
+        self.verify(f'add job -k "{o.asset_key}" -g \'{invalid_json}\'', 
+                   expected_stderr=["Invalid JSON in configuration string"])
+        
+        jobs, _ = self.sdk.jobs.list(o.asset_dns)
+        if jobs:
+            job_key = jobs[0]['key']
+            self.verify(f'get job "{job_key}"', [job_key])
         
         try:
-            self.verify(f'add job -k "{o.asset_key}" -g \'{config_json}\'')
-        finally:
             clean_test_entities(self.sdk, o)
+        finally:
+            pass
         self.verify('agent affiliation --help', ignore_stdout=True)
 
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
