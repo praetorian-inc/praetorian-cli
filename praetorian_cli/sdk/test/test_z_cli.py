@@ -335,24 +335,18 @@ class TestZCli:
 
         self.verify('agent --help', ignore_stdout=True)
         
-    def test_job_cli_with_config_file(self):
+    def test_job_cli_with_config(self):
         import json
-        import os
-        import tempfile
         
         o = make_test_values(lambda: None)
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
         
         config = {"test_config_key": "test_config_value"}
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp:
-            json.dump(config, temp)
-            temp_file_path = temp.name
+        config_json = json.dumps(config)
         
         try:
-            self.verify(f'add job -k "{o.asset_key}" -f {temp_file_path}')
+            self.verify(f'add job -k "{o.asset_key}" -g \'{config_json}\'')
         finally:
-            os.unlink(temp_file_path)
             clean_test_entities(self.sdk, o)
         self.verify('agent affiliation --help', ignore_stdout=True)
 

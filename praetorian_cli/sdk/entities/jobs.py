@@ -7,21 +7,20 @@ class Jobs:
     def __init__(self, api):
         self.api = api
 
-    def add(self, target_key, capabilities=[], config_file=None):
+    def add(self, target_key, capabilities=[], config=None):
         """ Add a job for an asset or an attribute """
         params = dict(key=target_key)
         if capabilities:
             params = params | dict(capabilities=capabilities)
         
-        if config_file:
+        if config:
             try:
-                with open(config_file, 'r') as f:
-                    config = json.load(f)
-                    params = params | config
+                config_data = json.loads(config)
+                params = params | dict(config=config_data)
             except json.JSONDecodeError as e:
-                raise Exception(f"Invalid JSON in configuration file: {e}")
+                raise Exception(f"Invalid JSON in configuration string: {e}")
             except Exception as e:
-                raise Exception(f"Error reading configuration file: {e}")
+                raise Exception(f"Error processing configuration string: {e}")
                 
         return self.api.force_add('job', params)
 
