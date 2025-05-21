@@ -31,11 +31,11 @@ class TestJob:
         config_json = json.dumps(config)
         
         result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
-        job_result = self.sdk.jobs.add(result['key'], [], config_json)
+        jobs = self.sdk.jobs.add(result['key'], [], config_json)
         
-        assert "config" in job_result
-        assert "test_config_key" in job_result["config"]
-        assert job_result["config"]["test_config_key"] == "test_config_value"
+        assert "config" in jobs[0]
+        assert "test_config_key" in jobs[0]["config"]
+        assert jobs[0]["config"]["test_config_key"] == "test_config_value"
             
     def test_add_job_with_invalid_config(self):
         invalid_json = '{"invalid_json": "missing_closing_brace"'
