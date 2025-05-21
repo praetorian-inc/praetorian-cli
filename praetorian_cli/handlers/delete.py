@@ -180,8 +180,9 @@ def configuration(chariot, name, entry):
             try:
                 import json
                 current_value = json.loads(current_value)
-            except:
-                current_value = {}
+            except json.JSONDecodeError as e:
+                click.echo(f"Error: Failed to parse configuration value as JSON: {e}")
+                return
                 
         if entry in current_value:
             del current_value[entry]

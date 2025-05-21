@@ -275,6 +275,10 @@ def configuration(sdk, name, entry):
             click.echo("Error: Key cannot be empty")
             return
             
+        if not value:
+            click.echo("Error: Value cannot be empty")
+            return
+            
         config_dict[key] = value
 
     sdk.configurations.add(name, config_dict)
