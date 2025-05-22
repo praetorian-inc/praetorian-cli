@@ -1,10 +1,3 @@
-"""
-API Speed Test 
-
-This class serves as a reference for testing the speed of Praetorian API calls.
-It is designed to be used by external users of the API to benchmark performance.
-"""
-
 import time
 import statistics
 from typing import List, Dict, Any, Callable
@@ -22,85 +15,13 @@ class APISpeedTest:
         """
         Args:
             profile: Keychain profile name (defaults to CHARIOT_TEST_PROFILE)
-            account: Account to use (optional)
+            account: Account to use
         """
         if profile:
-            print(f"Using profile: {profile}")
             self.api = Chariot(Keychain(profile=profile, account=account))
         else:
-            print("Using default profile")
             self.api = setup_chariot()
-        
-        # Results storage
         self.results = []
-
-    def time_function(self, func: Callable, name: str, iterations: int = 3, **kwargs) -> Dict[str, Any]:
-        """
-        Args:
-            func: Function to time
-            name: Name of the function for reporting
-            iterations: Number of times to run the function
-            **kwargs: Arguments to pass to the function
-            
-        Returns:
-            Dictionary with timing results
-        """
-        times = []
-        results = []
-        success = True
-        
-        print(f"Testing {name}...")
-        
-        for i in range(iterations):
-            start_time = time.time()
-            try:
-                result = func(**kwargs)
-                results.append(result)
-            except Exception as e:
-                result = str(e)
-                results.append(result)
-                success = False
-                
-            elapsed = time.time() - start_time
-            times.append(elapsed)
-            
-            self._print_iteration_result(i, iterations, elapsed, results[-1])
-            
-        stats = self._calculate_statistics(times, iterations)
-        
-        result_data = {
-            "name": name,
-            "iterations": iterations,
-            "avg_time": stats["avg_time"],
-            "min_time": stats["min_time"],
-            "max_time": stats["max_time"],
-            "std_dev": stats["std_dev"],
-            "success": success,
-            "results": results
-        }
-        
-        self.results.append(result_data)
-        return result_data
-        
-    def _print_iteration_result(self, iteration_index: int, total_iterations: int, elapsed: float, result: Any):
-        if result and isinstance(result, tuple):
-            print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds returned {len(result[0])} results")
-        else:
-            print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds")
-            
-    def _calculate_statistics(self, times: List[float], iterations: int) -> Dict[str, float]:
-        avg_time = statistics.mean(times)
-        min_time = min(times)
-        max_time = max(times)
-        
-        std_dev = statistics.stdev(times) if iterations > 1 else 0
-        
-        return {
-            "avg_time": avg_time,
-            "min_time": min_time,
-            "max_time": max_time,
-            "std_dev": std_dev
-        }
 
     def run_asset_tests(self, iterations: int = 3):
         self.time_function(
@@ -116,7 +37,7 @@ class APISpeedTest:
             asset_key = assets[0]['key']
             self.time_function(
                 self.api.assets.get,
-                "Get Asset Details",
+                "Get Single Asset Details",
                 iterations=iterations,
                 key=asset_key,
                 details=True
@@ -142,7 +63,7 @@ class APISpeedTest:
     def run_risk_tests(self, iterations: int = 3):
         self.time_function(
             self.api.risks.list,
-            "List Risks",
+            "List All Risks",
             iterations=iterations,
             pages=100000
         )
@@ -151,6 +72,81 @@ class APISpeedTest:
         self.run_asset_tests(iterations)
         self.run_search_tests(iterations)
         self.run_risk_tests(iterations)
+
+    def time_function(self, func: Callable, name: str, iterations: int = 3, **kwargs) -> Dict[str, Any]:
+        """
+        Args:
+            func: Function to time
+            name: Name of the function for reporting
+            iterations: Number of times to run the function
+            **kwargs: Arguments to pass to the function
+            
+        Returns:
+            Dictionary with timing results
+        """
+        times = []
+        results = []
+        success = True
+        
+        print(f"Testing {name}...")
+        
+        for i in range(iterations):
+            start_time = time.time()
+            try:
+                result = func(**kwargs)
+            except Exception as e:
+                print(f"Error: {e}")
+                result = str(e)
+                success = False
+                
+            elapsed = time.time() - start_time
+            times.append(elapsed)
+            
+            resultLength = self._print_iteration_result(i, iterations, elapsed, result)
+            
+        stats = self._calculate_statistics(times, iterations)
+        
+        result_data = {
+            "name": name,
+            "iterations": iterations,
+            "avg_time": stats["avg_time"],
+            "min_time": stats["min_time"],
+            "max_time": stats["max_time"],
+            "std_dev": stats["std_dev"],
+            "success": success,
+            "resultsLength": resultLength
+        }
+        
+        self.results.append(result_data)
+        return result_data
+        
+    def _print_iteration_result(self, iteration_index: int, total_iterations: int, elapsed: float, result: Any):
+        if not result:
+            print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds")
+            return -1
+        if isinstance(result, tuple):
+            print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds returned {len(result[0])} results")
+            return len(result[0])   
+        elif isinstance(result, dict):
+            print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds returned 1 result")
+            return 1
+        else:
+            print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds returned error: {result}")
+            return 0
+        
+    def _calculate_statistics(self, times: List[float], iterations: int) -> Dict[str, float]:
+        avg_time = statistics.mean(times)
+        min_time = min(times)
+        max_time = max(times)
+        
+        std_dev = statistics.stdev(times) if iterations > 1 else 0
+        
+        return {
+            "avg_time": avg_time,
+            "min_time": min_time,
+            "max_time": max_time,
+            "std_dev": std_dev
+        }
 
     def print_results(self):
         if not self.results:
@@ -174,7 +170,6 @@ class APISpeedTest:
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
         
     def save_results(self, filename: str):
-        """Save the test results to a JSON file"""
         with open(filename, 'w') as f:
             json.dump(self.results, f, indent=2)
         print(f"Results saved to {filename}")
