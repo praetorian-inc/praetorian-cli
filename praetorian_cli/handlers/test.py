@@ -37,17 +37,4 @@ def test_speed(chariot, profile, account, iterations, test, output):
         profile=profile,
         account=account
     )
-    
-    if test == 'all':
-        speed_test.run_all_tests(iterations=iterations)
-    elif test == 'assets':
-        speed_test.run_asset_tests(iterations=iterations)
-    elif test == 'search':
-        speed_test.run_search_tests(iterations=iterations)
-    elif test == 'risks':
-        speed_test.run_risk_tests(iterations=iterations)
-    
-    speed_test.print_results()
-    
-    if output:
-        speed_test.save_results(output)
+    speed_test.run_tests(test, iterations=iterations, output=output)

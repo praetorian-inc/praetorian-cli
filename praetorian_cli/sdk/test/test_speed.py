@@ -11,7 +11,7 @@ from praetorian_cli.sdk.chariot import Chariot
 
 class APISpeedTest:
 
-    def __init__(self, profile: str = None, account: str = None):
+    def __init__(self, profile: str = None, account: str = None, iterations: int = 3):
         """
         Args:
             profile: Keychain profile name (defaults to CHARIOT_TEST_PROFILE)
@@ -22,12 +22,34 @@ class APISpeedTest:
         else:
             self.api = setup_chariot()
         self.results = []
+        self.iterations = iterations
 
-    def run_asset_tests(self, iterations: int = 3):
+    def run_tests(self, test_name: str, iterations: int = 3, output: str = None):
+        if test_name == 'assets':
+            self.run_asset_tests(iterations=iterations)
+        elif test_name == 'search':
+            self.run_search_tests(iterations=iterations)
+        elif test_name == 'risks':
+            self.run_risk_tests(iterations=iterations)
+        else:
+            self.run_all_tests(iterations=iterations)
+
+        self.print_results()
+
+        if output:
+            self.save_results(output)
+
+    def run_all_tests(self):
+        self.run_asset_tests()
+        self.run_search_tests()
+        self.run_risk_tests()
+
+
+    def run_asset_tests(self):
         self.time_function(
             self.api.assets.list,
             "List Assets",
-            iterations=iterations,
+            iterations=self.iterations,
             prefix_filter='',
             pages=100000
         )
@@ -38,40 +60,35 @@ class APISpeedTest:
             self.time_function(
                 self.api.assets.get,
                 "Get Single Asset Details",
-                iterations=iterations,
+                iterations=self.iterations,
                 key=asset_key,
                 details=True
             )
 
-    def run_search_tests(self, iterations: int = 3):
+    def run_search_tests(self):
         self.time_function(
             self.api.search.by_key_prefix,
             "Search by Key Prefix",
-            iterations=iterations,
+            iterations=self.iterations,
             key_prefix='#asset#',
             pages=100000
         )
         self.time_function(
             self.api.search.by_source,
             "Search by Source",
-            iterations=1,
+            iterations=1, # 1 iteration is enough for this test
             source='#asset#',
             kind='attribute',
             pages=100000
         )
 
-    def run_risk_tests(self, iterations: int = 3):
+    def run_risk_tests(self):
         self.time_function(
             self.api.risks.list,
             "List All Risks",
-            iterations=iterations,
+            iterations=self.iterations,
             pages=100000
         )
-
-    def run_all_tests(self, iterations: int = 3):
-        self.run_asset_tests(iterations)
-        self.run_search_tests(iterations)
-        self.run_risk_tests(iterations)
 
     def time_function(self, func: Callable, name: str, iterations: int = 3, **kwargs) -> Dict[str, Any]:
         """
