@@ -264,27 +264,19 @@ class TestZCli:
         
         o = make_test_values(lambda: None)
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
-        # We only test json parsing since the job key contains the capability
-        # and is not easy to cleanly delete.
+
         config = {"test_config_key": "test_config_value"}
         config_json = json.dumps(config)
-        self.verify(f'add job -k "{o.asset_key}" -g \'{config_json}\'')
+        self.verify(f'add job -k "{o.asset_key}" --config \'{config_json}\'')
+
+        self.verify(f'list jobs -f {o.asset_dns}', [o.asset_dns])
         
         invalid_json = '{"invalid_json": "missing_closing_brace"'
-        self.verify(f'add job -k "{o.asset_key}" -g \'{invalid_json}\'', 
+        self.verify(f'add job -k "{o.asset_key}" --config \'{invalid_json}\'', 
                    expected_stderr=["Invalid JSON in configuration string"])
         
-        jobs, _ = self.sdk.jobs.list(o.asset_dns)
-        if jobs:
-            job_key = jobs[0]['key']
-            assert job_key.startswith('#job#'), f"Job key format incorrect: {job_key}"
-            assert o.asset_dns in job_key, f"Job key does not contain asset DNS: {job_key}"
-            self.verify(f'get job "{job_key}"', [job_key])
-        
-        try:
-            clean_test_entities(self.sdk, o)
-        finally:
-            pass
+        clean_test_entities(self.sdk, o)
+
 
     def test_help_cli(self):
         self.verify('--help', ignore_stdout=True)
