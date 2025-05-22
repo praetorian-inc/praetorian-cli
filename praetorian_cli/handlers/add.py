@@ -156,7 +156,8 @@ def risk(sdk, name, asset, status, comment, capability):
 @click.option('-k', '--key', required=True, help='Key of an existing asset or attribute')
 @click.option('-c', '--capability', 'capabilities', multiple=True,
               help='Capabilities to run (can be specified multiple times)')
-def job(sdk, key, capabilities):
+@click.option('-g', '--config', help='JSON configuration string')
+def job(sdk, key, capabilities, config):
     """ Schedule scan jobs for an asset or an attribute
 
     This command schedules the relevant discovery and vulnerability scans for
@@ -168,8 +169,9 @@ def job(sdk, key, capabilities):
         - praetorian chariot add job --key "#asset#example.com#1.2.3.4"
         - praetorian chariot add job --key "#asset#example.com#1.2.3.4" -c subdomain -c portscan
         - praetorian chariot add job --key "#attribute#ssh#22#asset#api.www.example.com#1.2.3.4"
+        - praetorian chariot add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"}'
     """
-    sdk.jobs.add(key, capabilities)
+    sdk.jobs.add(key, capabilities, config)
 
 
 @add.command()

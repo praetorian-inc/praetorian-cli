@@ -1,4 +1,5 @@
 import os
+import json
 from subprocess import run
 
 import pytest
@@ -259,6 +260,23 @@ class TestZCli:
 
         self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
 
+    def test_job_cli(self):
+        o = make_test_values(lambda: None)
+        self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
+
+        config = {"test_config_key": "test_config_value"}
+        config_json = json.dumps(config)
+        self.verify(f'add job -k "{o.asset_key}" --config \'{config_json}\'')
+
+        self.verify(f'list jobs -f {o.asset_dns}', [o.asset_dns])
+        
+        invalid_json = '{"invalid_json": "missing_closing_brace"'
+        self.verify(f'add job -k "{o.asset_key}" --config \'{invalid_json}\'', 
+                   expected_stderr=["Invalid JSON in configuration string"])
+        
+        clean_test_entities(self.sdk, o)
+
+
     def test_help_cli(self):
         self.verify('--help', ignore_stdout=True)
         self.verify('list --help', ignore_stdout=True)
@@ -335,7 +353,7 @@ class TestZCli:
 
         self.verify('agent --help', ignore_stdout=True)
         self.verify('agent affiliation --help', ignore_stdout=True)
-
+        
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
         result = run(f'praetorian --profile "{self.sdk.keychain.profile}" chariot {command}', capture_output=True,
                      text=True, shell=True)

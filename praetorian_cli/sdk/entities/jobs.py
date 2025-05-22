@@ -1,3 +1,5 @@
+import json
+
 class Jobs:
     """ The methods in this class are to be assessed from sdk.jobs, where sdk is an instance
     of Chariot. """
@@ -5,11 +7,20 @@ class Jobs:
     def __init__(self, api):
         self.api = api
 
-    def add(self, target_key, capabilities=[]):
+    def add(self, target_key, capabilities=[], config=None):
         """ Add a job for an asset or an attribute """
         params = dict(key=target_key)
         if capabilities:
             params = params | dict(capabilities=capabilities)
+        
+        if config:
+            try:
+                params = params | dict(config=json.loads(config))
+            except json.JSONDecodeError as e:
+                raise Exception(f"Invalid JSON in configuration string: {e}")
+            except Exception as e:
+                raise Exception(f"Error processing configuration string: {e}")
+                
         return self.api.force_add('job', params)
 
     def get(self, key):
