@@ -1,4 +1,5 @@
 import os
+import json
 from subprocess import run
 
 import pytest
@@ -260,8 +261,6 @@ class TestZCli:
         self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
 
     def test_job_cli(self):
-        import json
-        
         o = make_test_values(lambda: None)
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
 

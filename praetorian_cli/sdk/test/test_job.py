@@ -1,4 +1,5 @@
 import pytest
+import json
 
 from praetorian_cli.sdk.model.utils import asset_key
 from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
@@ -27,8 +28,6 @@ class TestJob:
         assert 'unknown capability: unknown-not-a-capability' in str(e.value)
         
     def test_add_job_with_config(self):
-        import json
-        
         config = {"test_config_key": "test_config_value"}
         config_json = json.dumps(config)
         
