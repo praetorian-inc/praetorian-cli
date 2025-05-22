@@ -225,11 +225,9 @@ class APISpeedTest:
 @pytest.mark.speed
 def test_api_speed():
     """Pytest function to run API speed tests"""
-    # Use environment variable for profile if available
-    profile = os.environ.get('CHARIOT_TEST_PROFILE', DEFAULT_PROFILE)
     
-    # Create speed test instance
-    speed_test = APISpeedTest(profile=profile)
+    # Create speed test instance using the profile from the test handler
+    speed_test = APISpeedTest()
     
     # Run all tests with default iterations
     speed_test.run_all_tests()
