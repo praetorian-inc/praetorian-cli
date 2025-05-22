@@ -13,12 +13,12 @@ class TestJob:
 
     def test_add_job(self):
         result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
-        job_result = self.sdk.jobs.add(result['key'])
+        self.sdk.jobs.add(result['key'])
         jobs, _ = self.sdk.jobs.list(self.asset_dns)
         assert len(jobs) > 0
         assert jobs[0]['dns'] == self.asset_dns
-        assert jobs[0]['key'].startswith('#job#'), f"Job key format incorrect: {jobs[0]['key']}"
-        assert self.asset_dns in jobs[0]['key'], f"Job key does not contain asset DNS: {jobs[0]['key']}"
+        assert jobs[0]['key'].startswith('#job#')
+        assert self.asset_dns in jobs[0]['key']
 
     def test_add_job_with_unknown_capability(self):
         result = self.sdk.assets.add(self.asset_dns, self.asset_dns)

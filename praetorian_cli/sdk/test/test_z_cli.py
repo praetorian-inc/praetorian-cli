@@ -353,7 +353,6 @@ class TestZCli:
         self.verify('purge --help', ignore_stdout=True)
 
         self.verify('agent --help', ignore_stdout=True)
-
         self.verify('agent affiliation --help', ignore_stdout=True)
         
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
