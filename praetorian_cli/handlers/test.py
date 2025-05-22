@@ -26,31 +26,16 @@ def test(chariot, key, suite):
 
 @chariot.command()
 @cli_handler
-@click.option('--profile', help='Keychain profile name (defaults to current profile)')
-@click.option('--username', default='', help='Praetorian username')
-@click.option('--password', default='', help='Praetorian password')
-@click.option('--api', default='', help='API endpoint URL')
-@click.option('--client-id', default='', help='Client ID')
+@click.option('--profile', help='Keychain profile name (defaults to test profile)')
 @click.option('--account', default='', help='Account to use')
-@click.option('--keychain-filepath', help='Custom path to keychain file')
 @click.option('--iterations', type=int, default=3, help='Number of iterations for each test')
 @click.option('--test', type=click.Choice(['assets', 'search', 'risks', 'all']), default='all', 
               help='Test category to run (default: all)')
 @click.option('--output', help='Save results to this JSON file')
-def test_speed(chariot, profile, username, password, api, client_id, account, keychain_filepath, 
-               iterations, test, output):
-    """ Run performance monitoring / heavy use tests """
-    if profile is None:
-        profile = chariot.keychain.profile
-    
+def test_speed(chariot, profile, account, iterations, test, output):
     speed_test = APISpeedTest(
-        username=username,
-        password=password,
         profile=profile,
-        api=api,
-        client_id=client_id,
-        account=account,
-        keychain_filepath=keychain_filepath
+        account=account
     )
     
     if test == 'all':
