@@ -15,8 +15,7 @@ class Jobs:
         
         if config:
             try:
-                config_data = json.loads(config)
-                params = params | dict(config=config_data)
+                params = params | dict(config=json.loads(config))
             except json.JSONDecodeError as e:
                 raise Exception(f"Invalid JSON in configuration string: {e}")
             except Exception as e:
