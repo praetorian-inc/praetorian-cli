@@ -27,6 +27,7 @@ class Chariot:
 
     def __init__(self, keychain: Keychain):
         self.keychain = keychain
+        self.is_debug = False
         self.assets = Assets(self)
         self.seeds = Seeds(self)
         self.preseeds = Preseeds(self)
