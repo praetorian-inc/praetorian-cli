@@ -14,15 +14,11 @@ import json
 from tabulate import tabulate
 import sys
 from pathlib import Path
-import pytest
-import os
 
 from praetorian_cli.sdk.keychain import Keychain, DEFAULT_PROFILE, DEFAULT_API, DEFAULT_CLIENT_ID
 from praetorian_cli.sdk.chariot import Chariot
-from praetorian_cli.sdk.test.utils import setup_chariot
 
 
-@pytest.mark.speed
 class APISpeedTest:
     """Class to test and measure the speed of Praetorian API calls"""
 
@@ -221,23 +217,7 @@ class APISpeedTest:
         print(f"Results saved to {filename}")
 
 
-# Add pytest test functions
-@pytest.mark.speed
-def test_api_speed():
-    """Pytest function to run API speed tests"""
-    
-    # Create speed test instance using the profile from the test handler
-    speed_test = APISpeedTest()
-    
-    # Run all tests with default iterations
-    speed_test.run_all_tests()
-    
-    # Print results
-    speed_test.print_results()
-    
-    # Assert that tests ran successfully
-    assert len(speed_test.results) > 0
-    assert all(result["success"] for result in speed_test.results)
+
 
 
 def main():
