@@ -151,10 +151,9 @@ def setting(chariot, name):
 @delete.command()
 @cli_handler
 @click.argument('name', required=True)
-@click.option('-e', '--entry', required=False, help='If provided, only the provided entry will be deleted from the configuration.')
 @praetorian_only
 def configuration(chariot, name, entry):
-    """ Delete a configuration or a specific entry from a configuration
+    """ Delete a configuration
 
     \b
     Arguments:
@@ -163,33 +162,5 @@ def configuration(chariot, name, entry):
     \b
     Example usage:
         - praetorian chariot delete configuration "nuclei"
-        - praetorian chariot delete configuration "nuclei" --entry extra-tags
     """
-    if entry:
-        # Delete a specific entry from the configuration
-        from praetorian_cli.sdk.model.utils import configuration_key
-        config_key = configuration_key(name)
-        existing_config = chariot.configurations.get(config_key)
-
-        if not existing_config:
-            click.echo(f"Configuration '{name}' not found")
-            return
-
-        current_value = existing_config.get('value', {})
-        if isinstance(current_value, str):
-            try:
-                import json
-                current_value = json.loads(current_value)
-            except json.JSONDecodeError as e:
-                click.echo(f"Error: Failed to parse configuration value as JSON: {e}")
-                return
-
-        if entry in current_value:
-            del current_value[entry]
-            chariot.configurations.add(name, current_value)
-            click.echo(f"Entry '{entry}' deleted from configuration '{name}'")
-        else:
-            click.echo(f"Entry '{entry}' not found in configuration '{name}'")
-    else:
-        # Delete the entire configuration
-        chariot.configurations.delete(name)
+    chariot.configurations.delete(name)
