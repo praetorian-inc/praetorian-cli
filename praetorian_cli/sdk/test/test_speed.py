@@ -31,37 +31,33 @@ class APISpeedTest:
         Args:
             username: Praetorian username (optional if using existing keychain)
             password: Praetorian password (optional if using existing keychain)
-            profile: Keychain profile name (default: 'United States')
-            api: API endpoint URL (default: Praetorian default API)
-            client_id: Client ID (default: Praetorian default client ID)
+            profile: Keychain profile name (default: DEFAULT_PROFILE)
+            api: API endpoint URL (default: DEFAULT_API)
+            client_id: Client ID (default: DEFAULT_CLIENT_ID)
             account: Account to use (optional)
             keychain_filepath: Custom path to keychain file (optional)
         """
-        # Setup keychain
-        self.keychain_params = {
-            'username': username,
-            'password': password,
-            'profile': profile,
-            'api': api,
-            'client_id': client_id,
-            'account': account
-        }
-        
-        # Initialize keychain
         if username and password:
-            # Configure keychain with provided credentials
-            Keychain.configure(**{k: v for k, v in self.keychain_params.items() if v is not None})
+            auth_params = {
+                'username': username,
+                'password': password,
+                'profile': profile,
+                'api': api if api else None,
+                'client_id': client_id if client_id else None,
+                'account': account if account else None
+            }
+            auth_params = {k: v for k, v in auth_params.items() if v is not None}
+            Keychain.configure(**auth_params)
             
-        # Create keychain instance
+        # Create keychain instance with only necessary parameters
         keychain_kwargs = {'profile': profile}
         if keychain_filepath:
             keychain_kwargs['filepath'] = keychain_filepath
         if account:
             keychain_kwargs['account'] = account
             
-        self.keychain = Keychain(**keychain_kwargs)
-        
         # Initialize API client
+        self.keychain = Keychain(**keychain_kwargs)
         self.api = Chariot(self.keychain)
         
         # Results storage
@@ -82,52 +78,65 @@ class APISpeedTest:
         """
         times = []
         results = []
+        success = True
         
         print(f"Testing {name}...")
         
+        # Run the function for the specified number of iterations
         for i in range(iterations):
             start_time = time.time()
             try:
                 result = func(**kwargs)
                 results.append(result)
-                success = True
             except Exception as e:
                 result = str(e)
                 results.append(result)
                 success = False
                 
-            end_time = time.time()
-            elapsed = end_time - start_time
+            # Calculate and store elapsed time
+            elapsed = time.time() - start_time
             times.append(elapsed)
-            # If we can index the last result at [0] print the length of the result
-            if results[-1] and isinstance(results[-1], tuple):
-                print(f"  Iteration {i+1}/{iterations}: {elapsed:.4f} seconds returned {len(results[-1][0])} results")
-            else:
-                print(f"  Iteration {i+1}/{iterations}: {elapsed:.4f} seconds")
+            
+            self._print_iteration_result(i, iterations, elapsed, results[-1])
             
         # Calculate statistics
-        avg_time = statistics.mean(times)
-        min_time = min(times)
-        max_time = max(times)
+        stats = self._calculate_statistics(times, iterations)
         
-        if iterations > 1:
-            std_dev = statistics.stdev(times)
-        else:
-            std_dev = 0
-            
         result_data = {
             "name": name,
             "iterations": iterations,
-            "avg_time": avg_time,
-            "min_time": min_time,
-            "max_time": max_time,
-            "std_dev": std_dev,
+            "avg_time": stats["avg_time"],
+            "min_time": stats["min_time"],
+            "max_time": stats["max_time"],
+            "std_dev": stats["std_dev"],
             "success": success,
             "results": results
         }
         
         self.results.append(result_data)
         return result_data
+        
+    def _print_iteration_result(self, iteration_index: int, total_iterations: int, elapsed: float, result: Any):
+        """Helper method to print iteration results"""
+        if result and isinstance(result, tuple):
+            print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds returned {len(result[0])} results")
+        else:
+            print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds")
+            
+    def _calculate_statistics(self, times: List[float], iterations: int) -> Dict[str, float]:
+        """Helper method to calculate timing statistics"""
+        avg_time = statistics.mean(times)
+        min_time = min(times)
+        max_time = max(times)
+        
+        std_dev = statistics.stdev(times) if iterations > 1 else 0
+        
+        return {
+            "avg_time": avg_time,
+            "min_time": min_time,
+            "max_time": max_time,
+            "std_dev": std_dev
+        }
 
     def run_asset_tests(self, iterations: int = 3):
         """Run speed tests for asset-related API calls"""
@@ -226,7 +235,7 @@ def main():
     
     # Authentication options
     auth_group = parser.add_argument_group('Authentication')
-    auth_group.add_argument('--profile', default='United States', help='Keychain profile name')
+    auth_group.add_argument('--profile', help='Keychain profile name (defaults to United States)')
     auth_group.add_argument('--username', default='', help='Praetorian username')
     auth_group.add_argument('--password', default='', help='Praetorian password')
     auth_group.add_argument('--api', default='', help='API endpoint URL')
@@ -237,10 +246,8 @@ def main():
     # Test options
     test_group = parser.add_argument_group('Test Options')
     test_group.add_argument('--iterations', type=int, default=3, help='Number of iterations for each test')
-    test_group.add_argument('--test-assets', action='store_true', help='Run asset-related tests')
-    test_group.add_argument('--test-search', action='store_true', help='Run search-related tests')
-    test_group.add_argument('--test-risks', action='store_true', help='Run risk-related tests')
-    test_group.add_argument('--test-all', action='store_true', help='Run all tests')
+    test_group.add_argument('--test', choices=['assets', 'search', 'risks', 'all'], default='all',
+                           help='Test category to run (default: all)')
     
     # Output options
     output_group = parser.add_argument_group('Output Options')
@@ -248,31 +255,26 @@ def main():
     
     args = parser.parse_args()
     
-    # Create speed test instance
+    # Create speed test instance with profile defaulting to DEFAULT_PROFILE if not specified
     speed_test = APISpeedTest(
         username=args.username,
         password=args.password,
-        profile=args.profile,
+        profile=args.profile if args.profile else DEFAULT_PROFILE,
         api=args.api,
         client_id=args.client_id,
         account=args.account,
         keychain_filepath=args.keychain_filepath
     )
     
-    # Run selected tests
-    if args.test_all:
+    # Run selected test category
+    if args.test == 'all':
         speed_test.run_all_tests(iterations=args.iterations)
-    else:
-        if args.test_assets:
-            speed_test.run_asset_tests(iterations=args.iterations)
-        if args.test_search:
-            speed_test.run_search_tests(iterations=args.iterations)
-        if args.test_risks:
-            speed_test.run_risk_tests(iterations=args.iterations)
-            
-    # If no specific tests were selected, run all tests
-    if not (args.test_all or args.test_assets or args.test_search or args.test_risks):
-        speed_test.run_all_tests(iterations=args.iterations)
+    elif args.test == 'assets':
+        speed_test.run_asset_tests(iterations=args.iterations)
+    elif args.test == 'search':
+        speed_test.run_search_tests(iterations=args.iterations)
+    elif args.test == 'risks':
+        speed_test.run_risk_tests(iterations=args.iterations)
     
     # Print results
     speed_test.print_results()
