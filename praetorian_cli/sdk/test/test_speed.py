@@ -102,7 +102,7 @@ class APISpeedTest:
             elapsed = time.time() - start_time
             times.append(elapsed)
             
-            resultLength = self._print_iteration_result(i, iterations, elapsed, result)
+            resultLength = self._iteration_result(i, iterations, elapsed, result)
             
         stats = self._calculate_statistics(times, iterations)
         
@@ -120,7 +120,7 @@ class APISpeedTest:
         self.results.append(result_data)
         return result_data
         
-    def _print_iteration_result(self, iteration_index: int, total_iterations: int, elapsed: float, result: Any):
+    def _iteration_result(self, iteration_index: int, total_iterations: int, elapsed: float, result: Any):
         if not result:
             print(f"  Iteration {iteration_index+1}/{total_iterations}: {elapsed:.4f} seconds")
             return -1
