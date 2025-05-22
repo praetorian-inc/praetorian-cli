@@ -253,7 +253,7 @@ def setting(sdk, name, value):
 def configuration(sdk, name, entry):
     """ Add a configuration
 
-    This command adds a name-value configuration.
+    This command adds, or overwrites if exists, a name-value configuration.
 
     \b
     Example usages:
@@ -264,21 +264,21 @@ def configuration(sdk, name, entry):
         if '=' not in item:
             click.echo(f"Error: Entry '{item}' is not in the format key=value")
             return
-        
+
         if item.count('=') > 1:
             click.echo(f"Error: Entry '{item}' contains multiple '=' characters. Format should be key=value")
             return
-            
+
         key, value = item.split('=', 1)
-        
+
         if not key:
             click.echo("Error: Key cannot be empty")
             return
-            
+
         if not value:
             click.echo("Error: Value cannot be empty")
             return
-            
+
         config_dict[key] = value
 
     sdk.configurations.add(name, config_dict)

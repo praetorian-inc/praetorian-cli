@@ -258,14 +258,14 @@ class TestZCli:
         self.verify(f'list configurations -f "{o.configuration_name}"', expected_stdout=[o.configuration_key])
 
         self.verify(f'delete configuration "{o.configuration_name}" --entry key1')
-        
-        result = run(f'praetorian --profile "{self.sdk.keychain.profile}" chariot get configuration "{o.configuration_key}"', 
+
+        result = run(f'praetorian --profile "{self.sdk.keychain.profile}" chariot get configuration "{o.configuration_key}"',
                     capture_output=True, text=True, shell=True)
         assert '"key2"' in result.stdout, f'CLI does not contain "key2" in stdout; instead, got {result.stdout}'
         assert '"value2"' in result.stdout, f'CLI does not contain "value2" in stdout; instead, got {result.stdout}'
-        
+
         assert '"key1"' not in result.stdout, f'CLI contains "key1" in stdout when it should have been deleted; got {result.stdout}'
-        
+
         self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
 
     def test_help_cli(self):

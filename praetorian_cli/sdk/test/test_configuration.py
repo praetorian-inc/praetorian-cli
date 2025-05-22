@@ -38,20 +38,13 @@ class TestConfigurations:
         self.sdk.configurations.delete(self.configuration_name)
         assert self.sdk.configurations.get(self.configuration_key) == None
         assert self.sdk.configurations.get(self.configuration_key) is None
-        
+
     def test_delete_configuration_entry(self):
         test_dict = {"key1": "value1", "key2": "value2"}
         self.sdk.configurations.add(self.configuration_name, test_dict)
-        
+
         from praetorian_cli.sdk.model.utils import configuration_key
         config_key = configuration_key(self.configuration_name)
-        
-        config = self.sdk.configurations.get(config_key)
-        current_value = config.get('value', {})
-        if "key1" in current_value:
-            del current_value["key1"]
-            self.sdk.configurations.add(self.configuration_name, current_value)
-        
         config = self.sdk.configurations.get(config_key)
         assert config is not None
         assert "key1" not in config['value']
