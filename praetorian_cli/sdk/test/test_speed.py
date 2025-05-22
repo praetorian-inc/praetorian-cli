@@ -1,6 +1,6 @@
 import time
 import statistics
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any, Callable, Optional
 import json
 from tabulate import tabulate
 
@@ -11,11 +11,12 @@ from praetorian_cli.sdk.chariot import Chariot
 
 class APISpeedTest:
 
-    def __init__(self, profile: str = None, account: str = None, iterations: int = 3):
+    def __init__(self, profile: Optional[str] = None, account: Optional[str] = None, iterations: int = 3):
         """
         Args:
             profile: Keychain profile name (defaults to CHARIOT_TEST_PROFILE)
             account: Account to use
+            iterations: Number of iterations to run each test
         """
         if profile:
             self.api = Chariot(Keychain(profile=profile, account=account))
@@ -24,7 +25,7 @@ class APISpeedTest:
         self.results = []
         self.iterations = iterations
 
-    def run_tests(self, test_name: str, output: str = None):
+    def run_tests(self, test_name: str, output: Optional[str] = None):
         if test_name == 'assets':
             self.run_asset_tests()
         elif test_name == 'search':
@@ -102,7 +103,7 @@ class APISpeedTest:
             Dictionary with timing results
         """
         times = []
-        results = []
+        result_length = 0
         success = True
         
         print(f"Testing {name}...")
@@ -111,16 +112,17 @@ class APISpeedTest:
             start_time = time.time()
             try:
                 result = func(**kwargs)
+                elapsed = time.time() - start_time
+                times.append(elapsed)
+                result_length = self._iteration_result(i, iterations, elapsed, result)
             except Exception as e:
+                elapsed = time.time() - start_time
+                times.append(elapsed)
                 print(f"Error: {e}")
                 result = str(e)
                 success = False
+                result_length = self._iteration_result(i, iterations, elapsed, result)
                 
-            elapsed = time.time() - start_time
-            times.append(elapsed)
-            
-            resultLength = self._iteration_result(i, iterations, elapsed, result)
-            
         stats = self._calculate_statistics(times, iterations)
         
         result_data = {
@@ -131,7 +133,7 @@ class APISpeedTest:
             "max_time": stats["max_time"],
             "std_dev": stats["std_dev"],
             "success": success,
-            "resultsLength": resultLength
+            "resultsLength": result_length
         }
         
         self.results.append(result_data)
