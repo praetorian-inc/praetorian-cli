@@ -35,6 +35,7 @@ def test(chariot, key, suite):
 def test_speed(chariot, profile, account, iterations, test, output):
     speed_test = APISpeedTest(
         profile=profile,
-        account=account
+        account=account,
+        iterations=iterations
     )
-    speed_test.run_tests(test, iterations=iterations, output=output)
+    speed_test.run_tests(test, output=output)

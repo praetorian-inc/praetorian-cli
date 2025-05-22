@@ -24,15 +24,15 @@ class APISpeedTest:
         self.results = []
         self.iterations = iterations
 
-    def run_tests(self, test_name: str, iterations: int = 3, output: str = None):
+    def run_tests(self, test_name: str, output: str = None):
         if test_name == 'assets':
-            self.run_asset_tests(iterations=iterations)
+            self.run_asset_tests()
         elif test_name == 'search':
-            self.run_search_tests(iterations=iterations)
+            self.run_search_tests()
         elif test_name == 'risks':
-            self.run_risk_tests(iterations=iterations)
+            self.run_risk_tests()
         else:
-            self.run_all_tests(iterations=iterations)
+            self.run_all_tests()
 
         self.print_results()
 
