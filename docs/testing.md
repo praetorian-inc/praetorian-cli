@@ -36,8 +36,8 @@ praetorian chariot test-speed [OPTIONS]
 ### Example Usage
 
 ```bash
-# Run all performance tests with 5 iterations
-praetorian chariot test-speed --iterations 5
+# Run all performance tests with 1 iteration
+praetorian chariot test-speed --iterations 1
 
 # Run only asset tests and save results
 praetorian chariot test-speed --test assets --output results.json

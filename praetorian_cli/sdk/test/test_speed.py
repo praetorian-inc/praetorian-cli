@@ -103,7 +103,7 @@ class APISpeedTest:
             Dictionary with timing results
         """
         times = []
-        result_length = 0
+        result_lengths = []
         success = True
         
         print(f"Testing {name}...")
@@ -113,15 +113,12 @@ class APISpeedTest:
             try:
                 result = func(**kwargs)
                 elapsed = time.time() - start_time
-                times.append(elapsed)
-                result_length = self._iteration_result(i, iterations, elapsed, result)
             except Exception as e:
                 elapsed = time.time() - start_time
-                times.append(elapsed)
-                print(f"Error: {e}")
                 result = str(e)
                 success = False
-                result_length = self._iteration_result(i, iterations, elapsed, result)
+            times.append(elapsed)
+            result_lengths.append(self._iteration_result(i, iterations, elapsed, result))
                 
         stats = self._calculate_statistics(times, iterations)
         
@@ -133,7 +130,7 @@ class APISpeedTest:
             "max_time": stats["max_time"],
             "std_dev": stats["std_dev"],
             "success": success,
-            "resultsLength": result_length
+            "resultsLengths": result_lengths
         }
         
         self.results.append(result_data)
