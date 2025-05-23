@@ -152,7 +152,7 @@ def setting(chariot, name):
 @cli_handler
 @click.argument('name', required=True)
 @praetorian_only
-def configuration(chariot, name, entry):
+def configuration(chariot, name):
     """ Delete a configuration
 
     \b
