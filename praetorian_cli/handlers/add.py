@@ -220,10 +220,10 @@ def seed(sdk, dns, status):
 def preseed(sdk, type, title, value, status):
     """ Add a preseed
 
-    This command adds a preseed to the Chariot database. 
+    This command adds a preseed to the Chariot database.
     Preseeds default to ACTIVE and cannot be added as PENDING.
 
-    \b 
+    \b
     Example usages:
         - praetorian chariot add preseed -t "whois+company" -l "Example Company" -v "example company"
         - praetorian chariot add preseed --type "whois+company" --title "Example Company" --value "example company" --status "A"
@@ -250,15 +250,37 @@ def setting(sdk, name, value):
 @add.command()
 @cli_handler
 @click.option('-n', '--name', required=True, help='Name of the configuration')
-@click.option('-v', '--value', required=True, help='Value of the configuration')
+@click.option('-e', '--entry', required=True, multiple=True, help='Key-value pair in format key=value. Can be specified multiple times to set multiple values.')
 @praetorian_only
-def configuration(sdk, name, value):
+def configuration(sdk, name, entry):
     """ Add a configuration
 
-    This command adds a name-value configuration.
+    This command adds, or overwrites if exists, a name-value configuration.
 
     \b
     Example usages:
-        - praetorian chariot add configuration --name "nuclei" --value '{"extra-tags": "http,sql"}'
+        - praetorian chariot add configuration --name "nuclei" --entry extra-tags=http,sql --entry something=else
     """
-    sdk.configurations.add(name, value)
+    config_dict = {}
+    for item in entry:
+        if '=' not in item:
+            click.echo(f"Error: Entry '{item}' is not in the format key=value")
+            return
+
+        if item.count('=') > 1:
+            click.echo(f"Error: Entry '{item}' contains multiple '=' characters. Format should be key=value")
+            return
+
+        key, value = item.split('=', 1)
+
+        if not key:
+            click.echo("Error: Key cannot be empty")
+            return
+
+        if not value:
+            click.echo("Error: Value cannot be empty")
+            return
+
+        config_dict[key] = value
+
+    sdk.configurations.add(name, config_dict)

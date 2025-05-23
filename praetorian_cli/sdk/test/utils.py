@@ -46,7 +46,7 @@ def make_test_values(o):
     o.setting_value = f'test-setting-value-{epoch_micro()}'
     o.setting_key = setting_key(o.setting_name)
     o.configuration_name = f'test-configuration-name-{epoch_micro()}'
-    o.configuration_value = f'test-configuration-value-{epoch_micro()}'
+    o.configuration_value = {o.configuration_name: o.configuration_name}
     o.configuration_key = configuration_key(o.configuration_name)
     return o
 

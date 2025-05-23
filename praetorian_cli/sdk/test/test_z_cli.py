@@ -36,7 +36,7 @@ class TestZCli:
                     f'"status": "{Asset.FROZEN.value}"', f'#surface#internal'])
 
         self.verify(f'delete asset "{o.asset_key}"')
-        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.DELETED.value}"']) 
+        self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.DELETED.value}"'])
 
         clean_test_entities(self.sdk, o)
 
@@ -250,12 +250,12 @@ class TestZCli:
             # Configurations are limited to Praetorian engineers only and I don't know how to mock that
             pytest.skip("This test is only available to Praetorian engineers")
 
-        self.verify(f'add configuration --name "{o.configuration_name}" --value "{o.configuration_value}"')
+        self.verify(f'add configuration --name "{o.configuration_name}" --entry key1=value1 --entry key2=value2')
 
-        self.verify(f'get configuration "{o.configuration_key}"', expected_stdout=[o.configuration_key, o.configuration_name, o.configuration_value])
+        self.verify(f'get configuration "{o.configuration_key}"', expected_stdout=[o.configuration_key, o.configuration_name, '"key1"', '"value1"', '"key2"', '"value2"'])
 
         self.verify('list configurations', expected_stdout=[o.configuration_key])
-        self.verify('list configurations -d', expected_stdout=[o.configuration_key, o.configuration_name, o.configuration_value])
+        self.verify('list configurations -d', expected_stdout=[o.configuration_key, o.configuration_name, '"key1"', '"value1"', '"key2"', '"value2"'])
         self.verify(f'list configurations -f "{o.configuration_name}"', expected_stdout=[o.configuration_key])
 
         self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
