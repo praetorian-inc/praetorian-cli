@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.0
+
+- [New Feature] Add job now supports an inline JSON with the `--config` option
+- [New Feature] Configurations now support multiple `--entry` key-value pairs instead of `--value`
+
 ## 2.0.9
 
 - [New Feature] Added support for running the my() function with a raw JSON graph query.
