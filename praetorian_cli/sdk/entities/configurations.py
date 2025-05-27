@@ -12,10 +12,12 @@ class Configurations:
         if not self.api.is_praetorian_user():
             raise RuntimeError("This option is limited to Praetorian engineers only. Please contact your Praetorian representative for assistance.")
 
-    def add(self, name, value):
+    def add(self, name, value: dict):
         """ Add a new configuration """
         self._check_if_praetorian()
         return self.api.upsert('configuration', dict(name=name, value=value))
+
+
 
     def get(self, key):
         """ Get details of a configuration """
