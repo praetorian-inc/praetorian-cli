@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- [Bug fix] Fixed an unhandled exception (`NameError: name 'chariot' is
+  not defined`) that occurred when getting a non-200 HTTP response from
+  Chariot
+
 ## 2.1.0
 
 - [New Feature] Add job now supports an inline JSON with the `--config` option
