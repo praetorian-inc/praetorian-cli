@@ -59,7 +59,7 @@ def nmap_command(sdk, host):
         sdk.add('asset', dict(name=host, dns=host))
         print(f'Added asset {asset_key}')
         for l in lines[5:]:
-            match = re.match('^(\d+)/[a-z]+\s+open\s+([a-z]+)$', l)
+            match = re.match(r'^(\d+)/[a-z]+\s+open\s+([a-z]+)$', l)
             if match:
                 (port, protocol) = match.groups()
                 sdk.add('attribute', dict(key=asset_key, name=protocol, value=port))

@@ -6,6 +6,7 @@ import click
 import requests
 from packaging.version import Version
 
+from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.utils import error
 
 
@@ -17,7 +18,7 @@ def handle_error(func):
             return func(*args, **kwargs)
         except Exception as e:
             error(str(e), quit=False)
-            if ctx.obj.is_debug:
+            if chariot.is_debug:
                 click.echo(traceback.format_exc())
 
     return wrapper
