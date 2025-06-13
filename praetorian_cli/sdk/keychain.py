@@ -131,7 +131,7 @@ class Keychain:
 
     def has_api_key(self):
         """ Check if API key credentials are available """
-        return self.api_key_id() and self.api_key()
+        return bool(self.api_key_id() and self.api_key())
 
     def get_option(self, option_name):
         return self.load().config.get(self.profile, option_name, fallback=None)
