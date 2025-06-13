@@ -17,7 +17,9 @@ from praetorian_cli.sdk.keychain import Keychain, DEFAULT_API, DEFAULT_CLIENT_ID
               prompt='Enter the client ID', default=DEFAULT_CLIENT_ID)
 @click.option('--assume-role', help='Email address of the account to assume-role into', required=True,
               prompt='Enter the assume-role account, if any', default='')
+@click.option('--api-key-id', help='API Key ID for authentication', default='')
+@click.option('--api-key', help='API Key for authentication', default='', hide_input=True)
 @click.pass_context
-def configure(click_context, email, password, profile_name, url, client_id, assume_role):
+def configure(click_context, email, password, profile_name, url, client_id, assume_role, api_key_id, api_key):
     """ Configure the CLI """
-    Keychain.configure(email, password, profile_name, url, client_id, assume_role)
+    Keychain.configure(email, password, profile_name, url, client_id, assume_role, api_key_id, api_key)
