@@ -284,3 +284,22 @@ def configuration(sdk, name, entry):
         config_dict[key] = value
 
     sdk.configurations.add(name, config_dict)
+
+
+@add.command()
+@cli_handler
+@click.option('-n', '--name', required=True, help='Name of the API key')
+def key(sdk, name):
+    """ Add an API key
+
+    This command creates a new API key for authentication.
+
+    \b
+    Example usages:
+        - praetorian chariot add key --name "my-automation-key"
+        - praetorian chariot add key --name "ci-cd-key"
+    """
+    result = sdk.keys.add(name)
+    click.echo(f'API key created: {result.get("key", "N/A")}')
+    if 'secret' in result:
+        click.echo(f'Secret (save this, it will not be shown again): {result["secret"]}')
