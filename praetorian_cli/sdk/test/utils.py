@@ -5,7 +5,7 @@ from random import randint
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import Risk, Preseed
-from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key, seed_key, preseed_key, setting_key, configuration_key
+from praetorian_cli.sdk.model.utils import risk_key, asset_key, attribute_key, seed_key, preseed_key, setting_key, configuration_key, key_key
 
 
 def epoch_micro():
@@ -48,6 +48,8 @@ def make_test_values(o):
     o.configuration_name = f'test-configuration-name-{epoch_micro()}'
     o.configuration_value = {o.configuration_name: o.configuration_name}
     o.configuration_key = configuration_key(o.configuration_name)
+    o.key_name = f'test-key-name-{epoch_micro()}'
+    o.key_key = key_key(o.key_name)
     return o
 
 
@@ -60,6 +62,8 @@ def clean_test_entities(sdk, o):
     sdk.assets.delete(o.asset_key)
     sdk.settings.delete(o.setting_key)
     sdk.configurations.delete(o.configuration_key)
+    if hasattr(o, 'key_key'):
+        sdk.keys.delete(o.key_key)
 
 
 def setup_chariot():
