@@ -7,7 +7,7 @@ class Keys:
 
     def add(self, name):
         """ Add a new API key """
-        return self.api.upsert('key', dict(name=name))
+        return self.api.force_add('key', dict(name=name))
 
     def get(self, key):
         """ Get details of an API key """

@@ -64,8 +64,8 @@ class Keychain:
         if 'api' not in profile or 'client_id' not in profile:
             error(f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
 
-        self.load_env('username', 'PRAETORIAN_CLI_USERNAME')
-        self.load_env('password', 'PRAETORIAN_CLI_PASSWORD')
+        self.load_env('username', 'PRAETORIAN_CLI_USERNAME', required=False)
+        self.load_env('password', 'PRAETORIAN_CLI_PASSWORD', required=False)
         self.load_env('api_key_id', 'PRAETORIAN_CLI_API_KEY_ID', required=False)
         self.load_env('api_key', 'PRAETORIAN_CLI_API_KEY', required=False)
 
