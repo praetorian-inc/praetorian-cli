@@ -289,3 +289,24 @@ def configurations(chariot, filter, details, offset, page):
         - praetorian chariot list configurations --page all
     """
     render_list_results(chariot.configurations.list(filter, offset, pagination_size(page)), details)
+
+
+@list.command()
+@list_params('key name')
+def keys(chariot, filter, details, offset, page):
+    """ List API keys
+
+    Retrieve and display a list of API keys.
+
+    \b
+    Filtering options:
+        - Use the --filter option to filter on the name of the key.
+
+    \b
+    Example usages:
+        - praetorian chariot list keys
+        - praetorian chariot list keys --filter automation
+        - praetorian chariot list keys --details
+        - praetorian chariot list keys --page all
+    """
+    render_list_results(chariot.keys.list(filter, offset, pagination_size(page)), details)
