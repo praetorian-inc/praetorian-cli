@@ -17,7 +17,6 @@ class Keys:
         """ Delete an API key """
         return self.api.delete('key', dict(key=key), {})
 
-    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
-        """ List API keys, optionally prefix-filtered by the portion of the key after
-            '#key#' """
-        return self.api.search.by_key_prefix(f'#key#{prefix_filter}', offset, pages)
+    def list(self, offset=None, pages=100000) -> tuple:
+        """ List API keys """
+        return self.api.search.by_key_prefix('#key#', offset, pages)
