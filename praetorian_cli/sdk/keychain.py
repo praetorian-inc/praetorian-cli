@@ -67,7 +67,7 @@ class Keychain:
         self.load_env('username', 'PRAETORIAN_CLI_USERNAME', required=False)
         self.load_env('password', 'PRAETORIAN_CLI_PASSWORD', required=False)
         self.load_env('api_key_id', 'PRAETORIAN_CLI_API_KEY_ID', required=False)
-        self.load_env('api_key', 'PRAETORIAN_CLI_API_KEY', required=False)
+        self.load_env('api_key_secret', 'PRAETORIAN_CLI_API_KEY_SECRET', required=False)
 
         if self.account is None:
             self.account = self.config.get(self.profile, 'account', fallback=None)
@@ -127,7 +127,7 @@ class Keychain:
 
     def api_key(self):
         """ Get the api_key field from the keychain profile """
-        return self.get_option('api_key')
+        return self.get_option('api_key_secret')
 
     def has_api_key(self):
         """ Check if API key credentials are available """
