@@ -300,6 +300,8 @@ def key(sdk, name):
         - praetorian chariot add key --name "ci-cd-key"
     """
     result = sdk.keys.add(name)
+    if 'secret' not in result:
+        click.echo(f"Error: secret value was not present in the response")
+        return
     click.echo(f'API key created: {result.get("key", "N/A")}')
-    if 'secret' in result:
-        click.echo(f'Secret (save this, it will not be shown again): {result["secret"]}')
+    click.echo(f'Secret (save this, it will not be shown again): {result["secret"]}')
