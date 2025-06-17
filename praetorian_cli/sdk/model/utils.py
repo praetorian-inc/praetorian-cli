@@ -25,9 +25,5 @@ def setting_key(name):
 def configuration_key(name):
     return f'#configuration#{name}'
 
-
-def key_key(name):
-    return f'#key#{name}'
-
 def seed_status(type, status_code):
     return f'{type}#{status_code}'

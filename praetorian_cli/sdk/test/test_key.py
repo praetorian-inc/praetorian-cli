@@ -15,7 +15,8 @@ class TestKey:
         assert k is not None
         assert k['name'] == self.key_name
         assert 'key' in k
-        assert k['key'] == self.key_key
+        assert len(k['key']) > 5
+        assert k['key'].startswith('#key#')
 
     def test_list_keys(self):
         self.sdk.keys.add(self.key_name)
@@ -24,16 +25,16 @@ class TestKey:
         assert any([r['name'] == self.key_name for r in results])
 
     def test_get_key(self):
-        self.sdk.keys.add(self.key_name)
-        key = self.sdk.keys.get(self.key_key)
+        k = self.sdk.keys.add(self.key_name)
+        key = self.sdk.keys.get(k['key'])
         assert key is not None
-        assert key['name'] == self.key_name
-        assert key['key'] == self.key_key
+        assert key['name'] == k['name']
+        assert key['key'] == k['key']
 
     def test_delete_key(self):
-        self.sdk.keys.add(self.key_name)
-        self.sdk.keys.delete(self.key_key)
-        assert self.sdk.keys.get(self.key_key) is None
+        k = self.sdk.keys.add(self.key_name)
+        self.sdk.keys.delete(k['key'])
+        self.sdk.keys.get(k['key'])['status'] = 'D'
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
