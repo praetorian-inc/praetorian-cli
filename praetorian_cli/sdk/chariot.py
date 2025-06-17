@@ -10,6 +10,7 @@ from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
+from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.search import Search
@@ -43,6 +44,7 @@ class Chariot:
         self.agents = Agents(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
+        self.keys = Keys(self)
 
     def my(self, params: dict, pages=1) -> dict:
         final_resp = dict()

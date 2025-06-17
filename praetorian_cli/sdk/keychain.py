@@ -6,6 +6,7 @@ from time import time
 
 import boto3
 import click
+import requests
 
 from praetorian_cli.handlers.utils import error
 
@@ -63,31 +64,45 @@ class Keychain:
         if 'api' not in profile or 'client_id' not in profile:
             error(f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
 
-        self.load_env('username', 'PRAETORIAN_CLI_USERNAME')
-        self.load_env('password', 'PRAETORIAN_CLI_PASSWORD')
+        self.load_env('username', 'PRAETORIAN_CLI_USERNAME', required=False)
+        self.load_env('password', 'PRAETORIAN_CLI_PASSWORD', required=False)
+        self.load_env('api_key_id', 'PRAETORIAN_CLI_API_KEY_ID', required=False)
+        self.load_env('api_key', 'PRAETORIAN_CLI_API_KEY', required=False)
 
         if self.account is None:
             self.account = self.config.get(self.profile, 'account', fallback=None)
 
         return self
 
-    def load_env(self, config_name, env_name):
+    def load_env(self, config_name, env_name, required=True):
         if env_name in environ:
             # environment variable takes precedence
             self.config.set(self.profile, config_name, environ[env_name])
-        if not self.config.get(self.profile, config_name, fallback=None):
+        elif required and not self.config.get(self.profile, config_name, fallback=None):
             error(
                 f'{config_name} not in keychain file or the {env_name} environment variable. Run "praetorian configure" to fix. Or set the environment variable.')
 
     def token(self):
-        """ Authenticate to AWS Cognito and get the token. Cache the token until expiry. """
+        """ Authenticate using API key or AWS Cognito and get the token. Cache the token until expiry. """
         if not self.token_cache or time() >= (self.token_expiry - 10):
-            response = boto3.client('cognito-idp', region_name='us-east-2').initiate_auth(
-                AuthFlow='USER_PASSWORD_AUTH',
-                AuthParameters=dict(USERNAME=self.username(), PASSWORD=self.password()),
-                ClientId=self.client_id())
-            self.token_expiry = time() + response['AuthenticationResult']['ExpiresIn']
-            self.token_cache = response['AuthenticationResult']['IdToken']
+            if self.has_api_key():
+                response = requests.get(
+                    f"{self.base_url()}/token",
+                    params={'id': self.api_key_id(), 'key': self.api_key()}
+                )
+                if response.status_code != 200:
+                    error(f"API key authentication failed: {response.text}")
+                
+                token_data = response.json()
+                self.token_expiry = time() + 3600
+                self.token_cache = token_data.get('token') or token_data.get('IdToken')
+            else:
+                response = boto3.client('cognito-idp', region_name='us-east-2').initiate_auth(
+                    AuthFlow='USER_PASSWORD_AUTH',
+                    AuthParameters=dict(USERNAME=self.username(), PASSWORD=self.password()),
+                    ClientId=self.client_id())
+                self.token_expiry = time() + response['AuthenticationResult']['ExpiresIn']
+                self.token_cache = response['AuthenticationResult']['IdToken']
         return self.token_cache
 
     def base_url(self):
@@ -106,8 +121,20 @@ class Keychain:
         """ Get the client_id field from the keychain profile """
         return self.get_option('client_id')
 
+    def api_key_id(self):
+        """ Get the api_key_id field from the keychain profile """
+        return self.get_option('api_key_id')
+
+    def api_key(self):
+        """ Get the api_key field from the keychain profile """
+        return self.get_option('api_key')
+
+    def has_api_key(self):
+        """ Check if API key credentials are available """
+        return bool(self.api_key_id() and self.api_key())
+
     def get_option(self, option_name):
-        return self.load().config.get(self.profile, option_name)
+        return self.load().config.get(self.profile, option_name, fallback=None)
 
     def assume_role(self, account):
         """ Assume into another account """
@@ -119,7 +146,7 @@ class Keychain:
 
     @staticmethod
     def configure(username, password, profile=DEFAULT_PROFILE, api=DEFAULT_API, client_id=DEFAULT_CLIENT_ID,
-                  account=None):
+                  account=None, api_key_id=None, api_key=None):
         """ Update or insert a new profile to the keychain file at the default location.
             If the keychain file does not exist, create it. """
         new_profile = {
@@ -136,6 +163,12 @@ class Keychain:
 
         if account:
             new_profile['account'] = account
+
+        if api_key_id:
+            new_profile['api_key_id'] = api_key_id
+
+        if api_key:
+            new_profile['api_key'] = api_key
 
         config = ConfigParser()
         config.read(DEFAULT_KEYCHAIN_FILEPATH)

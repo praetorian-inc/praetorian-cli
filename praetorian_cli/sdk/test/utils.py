@@ -48,6 +48,7 @@ def make_test_values(o):
     o.configuration_name = f'test-configuration-name-{epoch_micro()}'
     o.configuration_value = {o.configuration_name: o.configuration_name}
     o.configuration_key = configuration_key(o.configuration_name)
+    o.key_name = f'test-key-name-{epoch_micro()}'
     return o
 
 
@@ -60,7 +61,6 @@ def clean_test_entities(sdk, o):
     sdk.assets.delete(o.asset_key)
     sdk.settings.delete(o.setting_key)
     sdk.configurations.delete(o.configuration_key)
-
 
 def setup_chariot():
     return Chariot(Keychain(os.environ.get('CHARIOT_TEST_PROFILE')))
