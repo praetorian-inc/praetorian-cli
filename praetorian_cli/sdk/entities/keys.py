@@ -5,9 +5,9 @@ class Keys:
     def __init__(self, api):
         self.api = api
 
-    def add(self, name):
+    def add(self, name, expires):
         """ Add a new API key """
-        return self.api.force_add('key', dict(name=name))
+        return self.api.force_add('key', dict(name=name, expires=expires))
 
     def get(self, key):
         """ Get details of an API key """
