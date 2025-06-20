@@ -63,8 +63,8 @@ use cases and security requirements, you can use one of the following methods:
 
 This method stores credentials in a keychain file.
 
-1. Run `praetorian configure` and follow the prompts. In most use cases, use the
-   default values for `profile name`, `URL of backend API`, and `client ID`.
+1. Run `praetorian configure` and follow the prompts to set up `email` authentication. 
+In most use cases, use the default values for `profile name`, `URL of backend API`, and `client ID`.
 2. It creates `~/.praetorian/keychain.ini`, which should read like this:
 
 ```
@@ -88,7 +88,7 @@ export PRAETORIAN_CLI_USERNAME=lara.lynch@acme.com
 export PRAETORIAN_CLI_PASSWORD=8epu9bQ2kqb8qwd.GR
 ```
 
-For more advanced configuration options, as well as SSO. See
+For more advanced configuration options like API Key authentication or manaing access in SSO organizations see
 [the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
 # Using the CLI
