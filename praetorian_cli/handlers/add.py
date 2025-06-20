@@ -1,3 +1,4 @@
+import datetime
 import os.path
 
 import click
@@ -289,7 +290,8 @@ def configuration(sdk, name, entry):
 @add.command()
 @cli_handler
 @click.option('-n', '--name', required=True, help='Name of the API key')
-def key(sdk, name):
+@click.option('-e', '--expires', required=True, help='Duration until key expiration, in days', type=int)
+def key(sdk, name, expires):
     """ Add an API key
 
     This command creates a new API key for authentication.
@@ -299,7 +301,9 @@ def key(sdk, name):
         - praetorian chariot add key --name "my-automation-key"
         - praetorian chariot add key --name "ci-cd-key"
     """
-    result = sdk.keys.add(name)
+
+    expiresT = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=expires)
+    result = sdk.keys.add(name, expires=expiresT.strftime('%Y-%m-%dT%H:%M:%SZ'))
     if 'secret' not in result:
         click.echo(f"Error: secret value was not present in the response")
         return
