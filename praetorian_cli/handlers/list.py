@@ -2,7 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import list_params, pagination, cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import render_offset, render_list_results, pagination_size, error
+from praetorian_cli.handlers.utils import render_offset, render_list_results, pagination_size, error, print_json
 
 
 @chariot.group()
@@ -307,3 +307,16 @@ def keys(chariot, details, offset, page):
         - praetorian chariot list keys --page all
     """
     render_list_results(chariot.keys.list(offset, pagination_size(page)), details)
+
+@list.command()
+@cli_handler
+@click.option('-n', '--name')
+@click.option('-t', '--target')
+@click.option('-e', '--executor')
+def capabilities(chariot, name, target, executor):
+    """ List capabilities
+
+    Example usage:
+        - praetorian chariot list capabilities --name nuclei --target attribute --executor chariot
+    """
+    print_json(chariot.capabilities.list(name, target, executor))

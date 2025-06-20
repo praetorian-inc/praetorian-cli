@@ -6,6 +6,7 @@ from praetorian_cli.sdk.entities.accounts import Accounts
 from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
+from praetorian_cli.sdk.entities.capabilities import Capabilities
 from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.integrations import Integrations
@@ -45,6 +46,7 @@ class Chariot:
         self.settings = Settings(self)
         self.configurations = Configurations(self)
         self.keys = Keys(self)
+        self.capabilities = Capabilities(self)
 
     def my(self, params: dict, pages=1) -> dict:
         final_resp = dict()
@@ -116,6 +118,11 @@ class Chariot:
 
     def put(self, type: str, body: dict, params: dict = {}) -> dict:
         resp = requests.put(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
+        process_failure(resp)
+        return resp.json()
+
+    def get(self, type: str, params: dict = {}) -> dict:
+        resp = requests.get(self.url(f'/{type}'), params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
