@@ -12,8 +12,6 @@ def configure(click_context):
         show_choices=True
     )
 
-    email = password = api_key_id = api_key = ""
-
     if auth_method.lower() == "email":
         email = click.prompt("Enter your email")
         password = click.prompt("Enter your password", hide_input=True)

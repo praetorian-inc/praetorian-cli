@@ -7,7 +7,7 @@ user credentials and update the keychain file located at `~/.praetorian/keychain
 
 The CLI supports two authentication methods:
 
-### API Key Authentication (Recommended)
+### API Key Authentication
 
 API key authentication provides secure, token-based access without exposing your password. To use API keys:
 
