@@ -122,7 +122,7 @@ class Chariot:
         return resp.json()
 
     def get(self, type: str, params: dict = {}) -> dict:
-        resp = requests.put(self.url(f'/{type}'), params=params, headers=self.keychain.headers())
+        resp = requests.get(self.url(f'/{type}'), params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
