@@ -39,7 +39,7 @@ class TestKey:
 
     def expires(self):
         expiresT = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=20)
-        return self.sdk.keys.add(self.key_name, expires=expiresT.strftime('%Y-%m-%dT%H:%M:%SZ'))
+        return expiresT.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)

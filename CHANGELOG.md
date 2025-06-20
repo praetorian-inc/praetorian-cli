@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 2.1.1
 
+- [New Feature] Added preliminary support for listing Chariot capabilities
+- [New Feature] Added preliminary support for API Keys
 - [Bug fix] Fixed an unhandled exception (`NameError: name 'chariot' is
   not defined`) that occurred when getting a non-200 HTTP response from
   Chariot
