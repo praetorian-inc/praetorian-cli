@@ -7,6 +7,8 @@ from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
 from praetorian_cli.sdk.entities.capabilities import Capabilities
+from praetorian_cli.sdk.entities.configurations import Configurations
+from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.integrations import Integrations
@@ -17,7 +19,6 @@ from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.settings import Settings
-from praetorian_cli.sdk.entities.configurations import Configurations
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
@@ -47,6 +48,7 @@ class Chariot:
         self.configurations = Configurations(self)
         self.keys = Keys(self)
         self.capabilities = Capabilities(self)
+        self.credentials = Credentials(self)
 
     def my(self, params: dict, pages=1) -> dict:
         final_resp = dict()
