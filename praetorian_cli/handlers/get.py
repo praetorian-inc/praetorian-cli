@@ -252,10 +252,10 @@ def configuration(chariot, key):
 @get.command()
 @cli_handler
 @click.argument('credential_id', required=True)
-@click.option('--category', required=True, help='The category of the credential (e.g., integration, cloud)')
-@click.option('--type', required=True, help='The type of credential (e.g., aws, gcp, azure, static, ssh_key, json)')
-@click.option('--format', required=True, help='The format of the credential response')
-@click.option('--parameters', help='Additional parameters as JSON string')
+@click.option('--category', default='env-integration', help='The category of the credential (e.g., integration, cloud)')
+@click.option('--type', default='default', help='The type of credential (e.g., aws, gcp, azure, static, ssh_key, json)')
+@click.option('--format', default='token', help='The format of the credential response')
+@click.option('--parameters', nargs=2, multiple=True, help='Additional parameters, as --parameters key value')
 def credential(chariot, credential_id, category, type, format, parameters):
     """ Get a specific credential
 

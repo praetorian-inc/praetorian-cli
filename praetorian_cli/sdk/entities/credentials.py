@@ -26,8 +26,6 @@ class Credentials:
         Arguments:
         credential_id: str
             The ID of the credential to retrieve
-        category: str
-            The category of the credential (e.g., 'integration', 'cloud')
         type: str
             The type of credential (e.g., 'aws', 'gcp', 'azure', 'static', 'ssh_key', 'json')
         format: str
