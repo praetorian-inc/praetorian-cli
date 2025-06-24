@@ -18,7 +18,7 @@ class Credentials:
         pages: int
             The number of pages of results to retrieve.
         """
-        return self.api.my('credentials', offset=offset, pages=pages)
+        return self.api.search.by_key_prefix('#credential', offset=offset, pages=pages)
 
     def get(self, credential_id, category, type, format, **parameters):
         """ Get a specific credential
