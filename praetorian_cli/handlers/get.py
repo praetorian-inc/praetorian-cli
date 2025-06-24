@@ -280,5 +280,5 @@ def credential(chariot, credential_id, category, type, format, parameters):
             click.echo("Error: Invalid JSON format for parameters")
             return
     
-    result = chariot.credentials.get(credential_id, category, type, format, **params)
+    result = chariot.credentials.get(credential_id, category, type, [format], **params)
     print_json(result)
