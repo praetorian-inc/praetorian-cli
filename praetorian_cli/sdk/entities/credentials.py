@@ -103,3 +103,17 @@ class Credentials:
             }
         
         return response
+
+    def format_output(self, result):
+        """ Format credential output based on type and return string to print """
+        import json
+        
+        if isinstance(result, dict) and 'files' in result:
+            output_lines = [result['message']]
+            for file_path in result['files']:
+                output_lines.append(f"  {file_path}")
+            return '\n'.join(output_lines)
+        elif isinstance(result, dict) and 'env_vars' in result:
+            return f"{result['message']}\n{result['source_format']}"
+        else:
+            return json.dumps(result, indent=2)

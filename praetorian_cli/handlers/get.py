@@ -281,13 +281,5 @@ def credential(chariot, credential_id, category, type, format, parameters):
             return
     
     result = chariot.credentials.get(credential_id, category, type, [format], **params)
-    
-    if isinstance(result, dict) and 'files' in result:
-        click.echo(result['message'])
-        for file_path in result['files']:
-            click.echo(f"  {file_path}")
-    elif isinstance(result, dict) and 'env_vars' in result:
-        click.echo(result['message'])
-        click.echo(result['source_format'])
-    else:
-        print_json(result)
+    output = chariot.credentials.format_output(result)
+    click.echo(output)
