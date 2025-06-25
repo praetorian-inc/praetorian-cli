@@ -54,8 +54,6 @@ class Credentials:
         format: str or list
             The format(s) requested for the credential
         """
-        import json
-        
         primary_format = format[0] if isinstance(format, list) else format
         
         if primary_format == 'token':
