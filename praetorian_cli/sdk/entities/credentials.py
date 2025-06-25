@@ -63,15 +63,15 @@ class Credentials:
         
         if primary_format == 'file':
             written_files = []
-            for cred_file in response['CredentialValueFiles']:
-                file_path = cred_file['CredentialFileLocation']
+            for cred_file in response['credentialValueFile']:
+                file_path = cred_file['credentialFileLocation']
                 
                 if file_path.startswith('~/'):
                     file_path = os.path.expanduser(file_path)
                 
                 Path(file_path).parent.mkdir(parents=True, exist_ok=True)
                 
-                content = cred_file['CredentialFileContent']
+                content = cred_file['credentialFileContent']
                 if isinstance(content, bytes):
                     content = content.decode('utf-8')
                 elif not isinstance(content, str):
@@ -91,8 +91,8 @@ class Credentials:
         
         if primary_format == 'env':
             env_vars = []
-            for key, value in response['CredentialValueEnv'].items():
-                env_vars.append(f"{key}={value}")
+            for key, value in response['credentialValueEnv'].items():
+                env_vars.append(f"export {key}={value}")
             
             return '\n'.join(env_vars)
         
