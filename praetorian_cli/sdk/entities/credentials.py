@@ -58,11 +58,10 @@ class Credentials:
         
         primary_format = format[0] if isinstance(format, list) else format
         
-        if primary_format == 'token' or 'CredentialValue' in response:
-            if response.get('CredentialValue'):
-                return response
+        if primary_format == 'token':
+            return response
         
-        if 'CredentialValueFiles' in response and response['CredentialValueFiles']:
+        if primary_format == 'file':
             written_files = []
             for cred_file in response['CredentialValueFiles']:
                 file_path = cred_file['CredentialFileLocation']
@@ -90,17 +89,12 @@ class Credentials:
                 'credential_response': response
             }
         
-        if 'CredentialValueEnv' in response and response['CredentialValueEnv']:
+        if primary_format == 'env':
             env_vars = []
             for key, value in response['CredentialValueEnv'].items():
                 env_vars.append(f"{key}={value}")
             
-            return {
-                'message': f'Environment variables for sourcing:',
-                'env_vars': env_vars,
-                'source_format': '\n'.join(env_vars),
-                'credential_response': response
-            }
+            return '\n'.join(env_vars)
         
         return response
 
@@ -113,7 +107,7 @@ class Credentials:
             for file_path in result['files']:
                 output_lines.append(f"  {file_path}")
             return '\n'.join(output_lines)
-        elif isinstance(result, dict) and 'env_vars' in result:
-            return f"{result['message']}\n{result['source_format']}"
+        elif isinstance(result, str):
+            return result
         else:
             return json.dumps(result, indent=2)

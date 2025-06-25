@@ -322,7 +322,7 @@ def credentials(chariot, filter, details, offset, page):
         - praetorian chariot list credentials --details
         - praetorian chariot list credentials --page all
     """
-    render_list_results(chariot.credentials.list(offset, pagination_size(page)), details)
+    print_json(chariot.credentials.list(offset, pagination_size(page)))
 
 
 @list.command()
