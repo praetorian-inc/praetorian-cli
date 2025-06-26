@@ -21,7 +21,6 @@ API key authentication provides secure, token-based access without exposing your
 
 ```
 $ praetorian configure
-Choose authentication method (email, api-key): api-key
 Enter your API Key ID: your-api-key-id-here
 Enter your API Key secret: [hidden]
 Enter the profile name to configure [United States]:
@@ -30,13 +29,12 @@ Enter the client ID [795dnnr45so7m17cppta0b295o]:
 Enter the assume-role account, if any []:
 ```
 
-### Email/Password Authentication
+### Email/Password Authentication (Praetorian Users only)
 
 Traditional username/password authentication:
 
 ```
-$ praetorian configure
-Choose authentication method (email, api-key): email
+$ praetorian configure --email
 Enter your email: your-email@example.com
 Enter your password: [hidden]
 Enter the profile name to configure [United States]:
@@ -90,47 +88,3 @@ existing profile name, it will update the fields in that profile. When you provi
 a new profile name, it will add a new section for the profile, without affecting other
 profiles.
 
-## Authentication in organizations that use SSO
-
-SSO-enabled accounts can use CLI by inviting password-based accounts as collaborators.
-These collaborator accounts can assume into the main account using the `--account` option
-in the CLI with the value of the email address of the main account.
-
-You can also set this in a profile in the keychain file. Run `praetorian configure` and
-answer the prompt `Enter assume-role account` with the email address of the main account.
-
-## Keychain File Examples
-
-### With API Key Authentication:
-```ini
-[United States]
-name = chariot
-client_id = 795dnnr45so7m17cppta0b295o
-api = https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot
-api_key_id = your-api-key-id-here
-api_key = your-api-key-secret-here
-account = security.team@acme.com
-```
-
-### With Email/Password Authentication:
-```ini
-[United States]
-name = chariot
-client_id = 795dnnr45so7m17cppta0b295o
-api = https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot
-username = lara.lynch@acme.com
-password = 8epu9bQ2kqb8qwd.GR
-account = security.team@acme.com
-```
-
-# Managing CLI Acces in SSO Organizations 
-
-There are two common approaches to manage CLI access in SSO organizations:
-
-1. Sign up a service account for CLI access, e.g. security.team+cli@acme.com. In the master
-   account, invite security-team+cli@acme.com as a collaborator. All CLI users share the
-   keychain for the service account.
-3. Add each CLI user as a collaborator in the master account. Every CLI user signs up using
-   password-based authentication.
-
-We recommend the first approach.
