@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.3
+
+- [New Feature] API Key authentication is now the primary authentication
+  - `praetorian configure` now prompts for API key authentication by default
+- [Bug fix] Fixed a bug with API key authentication
+
 ## 2.1.2
 
 - [New Feature] Added support for accessing Chariot credentials 
