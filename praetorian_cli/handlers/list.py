@@ -309,6 +309,21 @@ def keys(chariot, details, offset, page):
     render_list_results(chariot.keys.list(offset, pagination_size(page)), details)
 
 @list.command()
+@list_params('credential ID')
+def credentials(chariot, offset, page):
+    """ List credentials
+
+    Retrieve and display a list of credentials.
+
+    \b
+    Example usages:
+        - praetorian chariot list credentials
+        - praetorian chariot list credentials --page all
+    """
+    print_json(chariot.credentials.list(offset, pagination_size(page)))
+
+
+@list.command()
 @cli_handler
 @click.option('-n', '--name')
 @click.option('-t', '--target')

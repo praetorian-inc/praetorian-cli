@@ -247,3 +247,39 @@ def configuration(chariot, key):
         - praetorian chariot get configuration "#configuration#nuclei"
     """
     print_json(chariot.configurations.get(key))
+
+
+@get.command()
+@cli_handler
+@click.argument('credential_id', required=True)
+@click.option('--category', default='env-integration', help='The category of the credential (e.g., integration, cloud)')
+@click.option('--type', default='default', help='The type of credential (e.g., aws, gcp, azure, static, ssh_key, json)')
+@click.option('--format', default='token', help='The format of the credential response')
+@click.option('--parameters', nargs=2, multiple=True, help='Additional parameters, as --parameters key value')
+def credential(chariot, credential_id, category, type, format, parameters):
+    """ Get a specific credential
+
+    Retrieve a specific credential using the credential broker.
+
+    \b
+    Argument:
+        - CREDENTIAL_ID: the ID of the credential to retrieve
+
+    \b
+    Example usages:
+        - praetorian chariot get credential aws-prod --category integration --type aws --format json
+        - praetorian chariot get credential ssh-key-1 --category cloud --type ssh_key --format pem
+    """
+    import json
+    
+    params = {}
+    if parameters:
+        try:
+            params = json.loads(parameters)
+        except json.JSONDecodeError:
+            click.echo("Error: Invalid JSON format for parameters")
+            return
+    
+    result = chariot.credentials.get(credential_id, category, type, [format], **params)
+    output = chariot.credentials.format_output(result)
+    click.echo(output)

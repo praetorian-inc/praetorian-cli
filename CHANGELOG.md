@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.2
+
+- [New Feature] Added support for accessing Chariot credentials 
+  - See `chariot list credentials` and `chariot get credentials`
+  - Note: credentials are related to Chariot's Access Broker, not Chariot authentication.
+
 ## 2.1.1
 
 - [New Feature] Added preliminary support for listing Chariot capabilities
