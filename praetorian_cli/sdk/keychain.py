@@ -15,6 +15,10 @@ DEFAULT_CLIENT_ID = '795dnnr45so7m17cppta0b295o'
 DEFAULT_PROFILE = 'United States'
 DEFAULT_KEYCHAIN_FILEPATH = join(Path.home(), '.praetorian', 'keychain.ini')
 
+API_KEY_ID = 'api_key_id'
+API_KEY_SECRET = 'api_key_secret'
+    
+
 
 class Keychain:
 
@@ -66,8 +70,8 @@ class Keychain:
 
         self.load_env('username', 'PRAETORIAN_CLI_USERNAME', required=False)
         self.load_env('password', 'PRAETORIAN_CLI_PASSWORD', required=False)
-        self.load_env('api_key_id', 'PRAETORIAN_CLI_API_KEY_ID', required=False)
-        self.load_env('api_key_secret', 'PRAETORIAN_CLI_API_KEY_SECRET', required=False)
+        self.load_env(API_KEY_ID, 'PRAETORIAN_CLI_API_KEY_ID', required=False)
+        self.load_env(API_KEY_SECRET, 'PRAETORIAN_CLI_API_KEY_SECRET', required=False)
 
         if self.account is None:
             self.account = self.config.get(self.profile, 'account', fallback=None)
@@ -88,7 +92,7 @@ class Keychain:
             if self.has_api_key():
                 response = requests.get(
                     f"{self.base_url()}/token",
-                    params={'id': self.api_key_id(), 'key': self.api_key()}
+                    params={'id': self.api_key_id(), 'key': self.api_key_secret()}
                 )
                 if response.status_code != 200:
                     error(f"API key authentication failed: {response.text}")
@@ -123,15 +127,15 @@ class Keychain:
 
     def api_key_id(self):
         """ Get the api_key_id field from the keychain profile """
-        return self.get_option('api_key_id')
+        return self.get_option(API_KEY_ID)
 
-    def api_key(self):
+    def api_key_secret(self):
         """ Get the api_key field from the keychain profile """
-        return self.get_option('api_key_secret')
+        return self.get_option(API_KEY_SECRET)
 
     def has_api_key(self):
         """ Check if API key credentials are available """
-        return bool(self.api_key_id() and self.api_key())
+        return bool(self.api_key_id() and self.api_key_secret())
 
     def get_option(self, option_name):
         return self.load().config.get(self.profile, option_name, fallback=None)
@@ -146,7 +150,7 @@ class Keychain:
 
     @staticmethod
     def configure(username, password, profile=DEFAULT_PROFILE, api=DEFAULT_API, client_id=DEFAULT_CLIENT_ID,
-                  account=None, api_key_id=None, api_key=None):
+                  account=None, api_key_id=None, api_key_secret=None):
         """ Update or insert a new profile to the keychain file at the default location.
             If the keychain file does not exist, create it. """
         new_profile = {
@@ -165,10 +169,10 @@ class Keychain:
             new_profile['account'] = account
 
         if api_key_id:
-            new_profile['api_key_id'] = api_key_id
+            new_profile[API_KEY_ID] = api_key_id
 
-        if api_key:
-            new_profile['api_key'] = api_key
+        if api_key_secret:
+            new_profile[API_KEY_SECRET] = api_key_secret
 
         config = ConfigParser()
         config.read(DEFAULT_KEYCHAIN_FILEPATH)

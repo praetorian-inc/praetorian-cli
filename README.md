@@ -51,20 +51,26 @@ pip install praetorian-cli
 ## Signing up
 
 Register for an account for [Chariot](http://chariot.praetorian.com) using the instructions
-in [our documentation](https://docs.praetorian.com/hc/en-us/articles/25784233986587-Account-Creation-and-Attack-Surface-Setup).
+in [our documentation](https://docs.praetorian.com/hc/en-us/articles/38048335323547-Account-Creation-and-Attack-Surface-Setup).
 
 ## Authentication
 
-Once you have signed up and chosen your username and password, you will need to
-provide the credentials to the CLI for interacting with Chariot. Depending on your
-use cases and security requirements, you can use one of the following methods:
+Once you can properly access Chariot through the UI. You can obtain API credentials through the UI under
+Settings -> User Settings -> API Keys. Be sure to careful copy the API credentials you created as
+you will need to provide them to the CLI for interacting with Chariot. 
 
-### Using the keychain file
+**Note**: SSO Organizations should provision access through API Keys as well.
 
-This method stores credentials in a keychain file.
+### Using API Keys 
 
-1. Run `praetorian configure` and follow the prompts. In most use cases, use the
-   default values for `profile name`, `URL of backend API`, and `client ID`.
+This is the authentication method for CLI. You can authenticate using either a keychain file or environment variables.
+
+#### Using the keychain file
+
+This method stores your API key in a keychain file.
+
+1. Run `praetorian configure` and follow the prompts to set up authentication. 
+Use the default values for `profile name`, `URL of backend API`, and `client ID`.
 2. It creates `~/.praetorian/keychain.ini`, which should read like this:
 
 ```
@@ -72,23 +78,23 @@ This method stores credentials in a keychain file.
 name = chariot
 client_id = 795dnnr45so7m17cppta0b295o
 api = https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot
-username = lara.lynch@acme.com
-password = 8epu9bQ2kqb8qwd.GR
+api_key_id = your-api-key-id-here
+api_key_secret = your-api-key-here
 ```
 
-### Using environment variables
+#### Using environment variables
 
-This method uses in-memory environment variables to pass credentials to
-the CLI. There is no need for a keychain file on disk. This enables the users to choose
-a credential storage method suitable for their use cases. To use this method, set the
-following environment variables:
+This method uses in-memory environment variables to pass your API key to
+the CLI. There is no need for a keychain file on disk. This enables you to choose
+a credential storage method suitable for your use cases. To use this method, set the
+following environment variable:
 
 ```zsh
-export PRAETORIAN_CLI_USERNAME=lara.lynch@acme.com
-export PRAETORIAN_CLI_PASSWORD=8epu9bQ2kqb8qwd.GR
+export PRAETORIAN_CLI_API_KEY_ID=your-api-key-id-here
+export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-here
 ```
 
-For more advanced configuration options, as well as SSO. See
+For more advanced configuration options or managing access in SSO organizations see
 [the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
 # Using the CLI
