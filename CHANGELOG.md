@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.4
+
+- [Bug fix] Fixed `list credentials` argument error
+
 ## 2.1.3
 
 - [New Feature] API Key authentication is now the primary authentication
