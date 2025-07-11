@@ -328,8 +328,7 @@ def credentials(chariot, offset, page):
 @click.option('-n', '--name')
 @click.option('-t', '--target')
 @click.option('-e', '--executor')
-@click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')
-def capabilities(chariot, name, target, executor, details):
+def capabilities(chariot, name, target, executor):
     """ List capabilities
 
     Example usage:
