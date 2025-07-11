@@ -309,7 +309,7 @@ def keys(chariot, details, offset, page):
     render_list_results(chariot.keys.list(offset, pagination_size(page)), details)
 
 @list.command()
-@list_params('credential ID')
+@list_params('credential ID', has_details=False, has_filter=False)
 def credentials(chariot, offset, page):
     """ List credentials
 
