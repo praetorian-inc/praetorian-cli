@@ -52,11 +52,12 @@ def cli_handler(func):
     return func
 
 
-def list_params(filter_by, has_details=True):
+def list_params(filter_by, has_details=True, has_filter=True):
     def decorator(func):
-        func = click.option('-f', '--filter', default='', help=f'Filter by {filter_by}')(func)
         func = pagination(func)
         func = cli_handler(func)
+        if has_filter:
+            func = click.option('-f', '--filter', default='', help=f'Filter by {filter_by}')(func)
         if has_details:
             func = click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')(func)
         return func
