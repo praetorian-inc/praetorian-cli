@@ -52,7 +52,7 @@ def cli_handler(func):
     return func
 
 
-def list_params(filter_by, has_details=True, has_filter=True):
+def list_params(filter_by, has_details=True, has_filter=True, has_type=False):
     def decorator(func):
         func = pagination(func)
         func = cli_handler(func)
@@ -60,6 +60,8 @@ def list_params(filter_by, has_details=True, has_filter=True):
             func = click.option('-f', '--filter', default='', help=f'Filter by {filter_by}')(func)
         if has_details:
             func = click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')(func)
+        if has_type:
+            func = click.option('-t', '--type', "model_type", default='', help='Select only a subset by type')(func)
         return func
 
     return decorator
