@@ -78,7 +78,11 @@ class Assets:
         pages: int
             The number of pages of results to retrieve.
         """
-        return self.api.search.by_key_prefix(f'#asset#{prefix_filter}', offset, pages)
+        dns_prefix = ''
+        if prefix_filter:
+            dns_prefix = f'group:{prefix_filter}'
+        # return self.api.search.by_term(key_prefix, Kind.ASSET.value, offset, pages)
+        return self.api.search.by_term(dns_prefix, Kind.ASSET.value, offset, pages)
 
     def attributes(self, key):
         """ list associated attributes """

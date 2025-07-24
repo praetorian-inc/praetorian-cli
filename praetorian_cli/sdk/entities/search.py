@@ -44,6 +44,8 @@ class Search:
             params |= DESCENDING_FLAG
         if global_:
             params |= GLOBAL_FLAG
+        
+        print(params)
 
         results = self.api.my(params, pages)
 
