@@ -65,7 +65,7 @@ class Assets:
         """
         return self.api.delete_by_key('asset', key)
 
-    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
+    def list(self, prefix_filter='', asset_type='', offset=None, pages=100000) -> tuple:
         """ List assets
 
         Arguments:
@@ -81,7 +81,9 @@ class Assets:
         dns_prefix = ''
         if prefix_filter:
             dns_prefix = f'group:{prefix_filter}'
-        return self.api.search.by_term(dns_prefix, Kind.ASSET.value, offset, pages)
+        if asset_type == '':
+            asset_type = Kind.ASSET.value
+        return self.api.search.by_term(dns_prefix, asset_type, offset, pages)
 
     def attributes(self, key):
         """ list associated attributes """
