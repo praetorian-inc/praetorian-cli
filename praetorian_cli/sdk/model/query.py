@@ -21,6 +21,8 @@ class Filter:
 
     class Field(Enum):
         KEY = 'key'
+        GROUP = 'group'
+        IDENTIFIER = 'identifier'
         DNS = 'dns'
         NAME = 'name'
         VALUE = 'value'
@@ -196,7 +198,7 @@ def my_params_to_query(params: dict):
             return None
 
         field = Filter.Field(key.split(':')[0])
-        value = key.split(':')[1]
+        value = key.split(':', 1)[1]
         operator = Filter.Operator.STARTS_WITH
 
     filter = Filter(field, operator, value)

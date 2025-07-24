@@ -12,8 +12,8 @@ def list():
 
 
 @list.command()
-@list_params('DNS')
-def assets(chariot, filter, details, offset, page):
+@list_params('DNS', has_type=True)
+def assets(chariot, filter, model_type, details, offset, page):
     """ List assets
 
    	Retrieve and display a list of assets.
@@ -24,8 +24,9 @@ def assets(chariot, filter, details, offset, page):
         - praetorian chariot list assets --filter api.example.com
         - praetorian chariot list assets --details
         - praetorian chariot list assets --page all
+        - praetorian chariot list assets --type repository
     """
-    render_list_results(chariot.assets.list(filter, offset, pagination_size(page)), details)
+    render_list_results(chariot.assets.list(filter, model_type, offset, pagination_size(page)), details)
 
 
 @list.command()

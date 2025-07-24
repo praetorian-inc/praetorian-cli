@@ -6,7 +6,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error
-from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed
+from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
 
 
 @chariot.group()
@@ -18,11 +18,12 @@ def add():
 @add.command()
 @cli_handler
 @click.option('-d', '--dns', required=True, help='The DNS of the asset')
-@click.option('-n', '--name', required=False, help='The name of the asset, e.g, IP address, GitHub repo URL')
+@click.option('-n', '--name', required=False, help='The name of the asset, e.g, IP address')
+@click.option('-t', '--type', 'asset_type', required=False, help='The type of the asset (asset, repository, etc.)', default=Kind.ASSET.value)
 @click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), required=False,
               default=Asset.ACTIVE.value, help=f'Status of the asset', show_default=True)
 @click.option('-f', '--surface', required=False, default='', help=f'Attack surface of the asset', show_default=False)
-def asset(sdk, name, dns, status, surface):
+def asset(sdk, name, dns, asset_type, status, surface):
     """ Add an asset
 
     Add an asset to the Chariot database. This command requires a DNS name for the asset.
@@ -43,7 +44,7 @@ def asset(sdk, name, dns, status, surface):
     """
     if not name:
         name = dns
-    sdk.assets.add(dns, name, status, surface)
+    sdk.assets.add(dns, name, asset_type, status, surface)
 
 
 @add.command()
