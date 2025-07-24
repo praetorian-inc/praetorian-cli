@@ -28,7 +28,7 @@ from praetorian_cli.sdk.model.query import Query, my_params_to_query, DEFAULT_PA
 
 class Chariot:
 
-    def __init__(self, keychain: Keychain):
+    def __init__(self, keychain: Keychain, proxy: str=''):
         self.keychain = keychain
         self.assets = Assets(self)
         self.seeds = Seeds(self)
@@ -49,6 +49,23 @@ class Chariot:
         self.keys = Keys(self)
         self.capabilities = Capabilities(self)
         self.credentials = Credentials(self)
+        self.proxy = proxy
+
+        if self.proxy:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """
+        Centralized method to make HTTP requests with proxy configuration.
+        Automatically applies proxy settings and verify=False if proxy is defined.
+        """
+
+        if self.proxy:
+            kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
+            kwargs['verify'] = False
+
+        return requests.request(method, url, **kwargs)
 
     def my(self, params: dict, pages=1) -> dict:
         final_resp = dict()
@@ -60,7 +77,7 @@ class Chariot:
 
         # The search is on data in DynamoDB, which uses DynamoDB's native offset format.
         for _ in range(pages):
-            resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
+            resp = self._make_request('GET', self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
@@ -87,7 +104,7 @@ class Chariot:
         final_resp = dict()
 
         while pages > 0:
-            resp = requests.post(self.url('/my'), json=raw_query, params=params, headers=self.keychain.headers())
+            resp = self._make_request('POST', self.url('/my'), json=raw_query, params=params, headers=self.keychain.headers())
             if is_query_limit_failure(resp):
                 # In this block, the data size is too large for the number of records requested in raw_query['limit'].
                 # We need to halve the page size: LIMIT = LIMIT / 2
@@ -114,22 +131,22 @@ class Chariot:
         return final_resp
 
     def post(self, type: str, body: dict, params: dict = {}) -> dict:
-        resp = requests.post(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
+        resp = self._make_request('POST', self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def put(self, type: str, body: dict, params: dict = {}) -> dict:
-        resp = requests.put(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
+        resp = self._make_request('PUT', self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def get(self, type: str, params: dict = {}) -> dict:
-        resp = requests.get(self.url(f'/{type}'), params=params, headers=self.keychain.headers())
+        resp = self._make_request('GET', self.url(f'/{type}'), params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def delete(self, type: str, body: dict, params: dict) -> dict:
-        resp = requests.delete(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
+        resp = self._make_request('DELETE', self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
@@ -149,13 +166,13 @@ class Chariot:
         return self.put(type, body, params)
 
     def link_account(self, username: str, value: str = '', config: dict = {}) -> dict:
-        resp = requests.post(self.url(f'/account/{username}'), json=dict(config=config, value=value),
+        resp = self._make_request('POST', self.url(f'/account/{username}'), json=dict(config=config, value=value),
                              headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def unlink(self, username: str, value: str = '', config: dict = {}) -> dict:
-        resp = requests.delete(self.url(f'/account/{username}'), headers=self.keychain.headers(),
+        resp = self._make_request('DELETE', self.url(f'/account/{username}'), headers=self.keychain.headers(),
                                json=dict(value=value, config=config))
         process_failure(resp)
         return resp.json()
@@ -170,10 +187,10 @@ class Chariot:
     def _upload(self, chariot_filepath: str, content: str) -> dict:
         # It is a two-step upload. The PUT request to the /file endpoint is to get a presigned URL for S3.
         # There is no data transfer.
-        presigned_url = requests.put(self.url('/file'), params=dict(name=chariot_filepath),
+        presigned_url = self._make_request('PUT', self.url('/file'), params=dict(name=chariot_filepath),
                                      headers=self.keychain.headers())
         process_failure(presigned_url)
-        resp = requests.put(presigned_url.json()['url'], data=content)
+        resp = self._make_request('PUT', presigned_url.json()['url'], data=content)
         process_failure(resp)
         return resp
 
@@ -182,12 +199,12 @@ class Chariot:
         if global_:
             params |= GLOBAL_FLAG
 
-        resp = requests.get(self.url('/file'), params=params, allow_redirects=True, headers=self.keychain.headers())
+        resp = self._make_request('GET', self.url('/file'), params=params, allow_redirects=True, headers=self.keychain.headers())
         process_failure(resp)
         return resp.content
 
     def count(self, params: dict) -> dict:
-        resp = requests.get(self.url('/my/count'), params=params, headers=self.keychain.headers())
+        resp = self._make_request('GET', self.url('/my/count'), params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
@@ -196,11 +213,11 @@ class Chariot:
         return json.loads(self.download(f'enrichments/{type}/{filename}', True).decode('utf-8'))
 
     def purge(self):
-        requests.delete(self.url('/account/purge'), headers=self.keychain.headers())
+        self._make_request('DELETE', self.url('/account/purge'), headers=self.keychain.headers())
 
     def agent(self, agent: str, body: dict) -> dict:
         body = body | dict(agent=agent)
-        resp = requests.put(self.url('/agent'), json=body, headers=self.keychain.headers())
+        resp = self._make_request('PUT', self.url('/agent'), json=body, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
