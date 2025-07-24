@@ -25,13 +25,6 @@ from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
 from praetorian_cli.sdk.model.query import Query, my_params_to_query, DEFAULT_PAGE_SIZE
 
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-PROXIES = {
-    'http': 'http://localhost:8080',
-    'https': 'http://localhost:8080',
-}
 
 class Chariot:
 
@@ -67,7 +60,7 @@ class Chariot:
 
         # The search is on data in DynamoDB, which uses DynamoDB's native offset format.
         for _ in range(pages):
-            resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers(), proxies=PROXIES, verify=False)
+            resp = requests.get(self.url('/my'), params=params, headers=self.keychain.headers())
             process_failure(resp)
             resp = resp.json()
             extend(final_resp, resp)
@@ -126,7 +119,7 @@ class Chariot:
         return resp.json()
 
     def put(self, type: str, body: dict, params: dict = {}) -> dict:
-        resp = requests.put(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers(), proxies=PROXIES, verify=False)
+        resp = requests.put(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 

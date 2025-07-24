@@ -44,7 +44,7 @@ class Search:
             params |= DESCENDING_FLAG
         if global_:
             params |= GLOBAL_FLAG
-        
+
         results = self.api.my(params, pages)
 
         if 'offset' in results:
