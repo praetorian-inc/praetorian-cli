@@ -41,9 +41,43 @@ class TestAsset:
         assert self.get_asset()['status'] == Asset.DELETED.value
         deleted_assets, _ = self.sdk.search.by_status(Asset.DELETED.value, Kind.ASSET.value)
         assert any([a['group'] == self.asset_dns for a in deleted_assets])
+    
+    def test_add_ad_domain(self):
+        asset = self.sdk.assets.add(self.ad_domain_name, self.ad_domain_name, status=Asset.ACTIVE.value, surface='test-surface', type=Kind.ADDOMAIN.value)
+        assert asset['key'] == self.ad_domain_key
+        assert len(asset['surface']) == 1
+        assert asset['surface'][0] == 'test-surface'
+        assert asset['status'] == Asset.ACTIVE.value
+    
+    def test_get_ad_domain(self):
+        asset = self.sdk.assets.get(self.ad_domain_key)
+        assert asset['key'] == self.ad_domain_key
+        assert asset['name'] == self.ad_domain_name
+        assert asset['status'] == Asset.ACTIVE.value
+    
+    def test_list_ad_domain(self):
+        results, _ = self.sdk.assets.list(asset_type=Kind.ADDOMAIN.value)
+        assert len(results) > 0
+        assert any([a['group'] == self.ad_domain_name for a in results])
+    
+    def test_update_ad_domain(self):
+        self.sdk.assets.update(self.ad_domain_key, status=Asset.FROZEN.value)
+        assert self.get_ad_domain()['status'] == Asset.FROZEN.value
+        self.sdk.assets.update(self.ad_domain_key, surface='abc')
+        attributes = self.sdk.assets.attributes(self.ad_domain_key)
+        assert any([a['name'] == 'surface' and a['value'] == 'abc' for a in attributes])
+    
+    def test_delete_ad_domain(self):
+        self.sdk.assets.delete(self.ad_domain_key)
+        assert self.get_ad_domain()['status'] == Asset.DELETED.value
+        deleted_assets, _ = self.sdk.search.by_status(Asset.DELETED.value, Kind.ADDOMAIN.value)
+        assert any([a['key'] == self.ad_domain_key for a in deleted_assets])
 
     def get_asset(self):
         return self.sdk.assets.get(self.asset_key)
+    
+    def get_ad_domain(self):
+        return self.sdk.assets.get(self.ad_domain_key)
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)

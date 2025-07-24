@@ -16,7 +16,7 @@ class Assets:
         group: str
             The group (DNS, repository URL, etc.) of the asset
         identifier: str
-            The identifier (IP address, repository name, etc.)of the asset
+            The identifier (IP address, repository name, etc.) of the asset
         status: str
             The status of the asset
         surface: str

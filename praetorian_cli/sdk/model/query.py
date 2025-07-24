@@ -89,6 +89,9 @@ class Relationship:
 class Node:
     class Label(Enum):
         ASSET = 'Asset'
+        REPOSITORY = 'Repository'
+        INTEGRATION = 'Integration'
+        ADDOMAIN = 'Addomain'
         ATTRIBUTE = 'Attribute'
         RISK = 'Risk'
         PRESEED = 'Preseed'
@@ -151,6 +154,9 @@ KIND_TO_LABEL = {
     Kind.ATTRIBUTE.value: Node.Label.ATTRIBUTE,
     Kind.SEED.value: Node.Label.SEED,
     Kind.PRESEED.value: Node.Label.PRESEED,
+    Kind.REPOSITORY.value: Node.Label.REPOSITORY,
+    Kind.INTEGRATION.value: Node.Label.INTEGRATION,
+    Kind.ADDOMAIN.value: Node.Label.ADDOMAIN,
 }
 
 
@@ -199,7 +205,7 @@ def my_params_to_query(params: dict):
 
         field = Filter.Field(key.split(':')[0])
         value = key.split(':', 1)[1]
-        operator = Filter.Operator.STARTS_WITH
+        operator = Filter.Operator.CONTAINS
 
     filter = Filter(field, operator, value)
 
