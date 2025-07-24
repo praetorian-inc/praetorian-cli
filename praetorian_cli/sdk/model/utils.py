@@ -3,6 +3,14 @@
 def asset_key(dns, name):
     return f'#asset#{dns}#{name}'
 
+def ad_domain_key(dns, name):
+    return f'#addomain#{dns}#{name}'
+
+def repository_key(dns, name):
+    return f'#repository#{dns}#{name}'
+
+def integration_key(dns, name):
+    return f'#integration#{dns}#{name}'
 
 def risk_key(dns, name):
     return f'#risk#{dns}#{name}'
