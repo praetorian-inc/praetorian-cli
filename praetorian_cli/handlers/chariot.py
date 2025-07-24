@@ -10,6 +10,8 @@ def chariot(click_context):
     """ Command group for interacting with the Chariot product """
     # Replace the click context (previously a Keychain instance) with a Chariot
     # instance, after creating it using the Keychain instance.
-    keychain = click_context.obj
-    chariot = Chariot(keychain=keychain)
+    keychain = click_context.obj['keychain']
+    proxy = click_context.obj['proxy']
+
+    chariot = Chariot(keychain=keychain, proxy=proxy)
     click_context.obj = chariot

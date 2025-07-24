@@ -22,13 +22,14 @@ from praetorian_cli.sdk.keychain import Keychain
 @click.option('--profile', default='United States', help='The profile to use in the keychain file', show_default=True)
 @click.option('--account', default=None, help='Assume role into this account')
 @click.option('--debug', is_flag=True, default=False, help='Run the CLI in debug mode')
+@click.option('--proxy', default='', help='The proxy to use in the CLI')
 @click.pass_context
 @click.version_option()
-def main(click_context, profile, account, debug):
+def main(click_context, profile, account, debug, proxy):
     if debug:
         click.echo('Running in debug mode.')
     chariot.is_debug = debug
-    click_context.obj = Keychain(profile, account)
+    click_context.obj = {'keychain': Keychain(profile, account), 'proxy': proxy}
     praetorian_cli.handlers.script.load_dynamic_commands()
 
 
