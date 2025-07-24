@@ -187,7 +187,7 @@ class Chariot:
         # There is no data transfer.
         presigned_url = self._make_request('PUT', self.url('/file'), params=dict(name=chariot_filepath))
         process_failure(presigned_url)
-        resp = self._make_request('PUT', presigned_url.json()['url'], data=content)
+        resp = requests.put(presigned_url.json()['url'], data=content)
         process_failure(resp)
         return resp
 
