@@ -45,8 +45,6 @@ class Search:
         if global_:
             params |= GLOBAL_FLAG
         
-        print(params)
-
         results = self.api.my(params, pages)
 
         if 'offset' in results:

@@ -25,14 +25,6 @@ from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
 from praetorian_cli.sdk.model.query import Query, my_params_to_query, DEFAULT_PAGE_SIZE
 
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-
-PROXIES = {
-    'http': 'http://localhost:8080',
-    'https': 'http://localhost:8080',
-}
 
 class Chariot:
 
