@@ -25,6 +25,13 @@ from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
 from praetorian_cli.sdk.model.query import Query, my_params_to_query, DEFAULT_PAGE_SIZE
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+PROXIES = {
+    'http': 'http://localhost:8080',
+    'https': 'http://localhost:8080',
+}
 
 class Chariot:
 
@@ -87,7 +94,7 @@ class Chariot:
         final_resp = dict()
 
         while pages > 0:
-            resp = requests.post(self.url('/my'), json=raw_query, params=params, headers=self.keychain.headers(), proxies=PROXIES, verify=False)
+            resp = requests.post(self.url('/my'), json=raw_query, params=params, headers=self.keychain.headers())
             if is_query_limit_failure(resp):
                 # In this block, the data size is too large for the number of records requested in raw_query['limit'].
                 # We need to halve the page size: LIMIT = LIMIT / 2
@@ -114,7 +121,7 @@ class Chariot:
         return final_resp
 
     def post(self, type: str, body: dict, params: dict = {}) -> dict:
-        resp = requests.post(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers(), proxies=PROXIES, verify=False)
+        resp = requests.post(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
@@ -124,12 +131,12 @@ class Chariot:
         return resp.json()
 
     def get(self, type: str, params: dict = {}) -> dict:
-        resp = requests.get(self.url(f'/{type}'), params=params, headers=self.keychain.headers(), proxies=PROXIES, verify=False)
+        resp = requests.get(self.url(f'/{type}'), params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def delete(self, type: str, body: dict, params: dict) -> dict:
-        resp = requests.delete(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers(), proxies=PROXIES, verify=False)
+        resp = requests.delete(self.url(f'/{type}'), json=body, params=params, headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
@@ -150,13 +157,13 @@ class Chariot:
 
     def link_account(self, username: str, value: str = '', config: dict = {}) -> dict:
         resp = requests.post(self.url(f'/account/{username}'), json=dict(config=config, value=value),
-                             headers=self.keychain.headers(), proxies=PROXIES, verify=False)
+                             headers=self.keychain.headers())
         process_failure(resp)
         return resp.json()
 
     def unlink(self, username: str, value: str = '', config: dict = {}) -> dict:
         resp = requests.delete(self.url(f'/account/{username}'), headers=self.keychain.headers(),
-                               json=dict(value=value, config=config), proxies=PROXIES, verify=False)
+                               json=dict(value=value, config=config))
         process_failure(resp)
         return resp.json()
 

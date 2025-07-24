@@ -12,8 +12,7 @@ class TestAsset:
         make_test_values(self)
 
     def test_add_asset(self):
-        asset = self.sdk.assets.add(self.asset_dns, self.asset_name, Asset.ACTIVE.value, 'test-surface')
-        print(asset)
+        asset = self.sdk.assets.add(self.asset_dns, self.asset_name, status=Asset.ACTIVE.value, surface='test-surface')
         assert asset['key'] == self.asset_key
         assert len(asset['surface']) == 1
         assert asset['surface'][0] == 'test-surface'
@@ -21,14 +20,14 @@ class TestAsset:
 
     def test_get_asset(self):
         a = self.get_asset()
-        assert a['dns'] == self.asset_dns
-        assert a['name'] == self.asset_name
+        assert a['group'] == self.asset_dns
+        assert a['identifier'] == self.asset_name
         assert a['status'] == Asset.ACTIVE.value
 
     def test_list_asset(self):
         results, _ = self.sdk.assets.list()
         assert len(results) > 0
-        assert any([a['dns'] == self.asset_dns for a in results])
+        assert any([a['group'] == self.asset_dns for a in results])
 
     def test_update_asset(self):
         self.sdk.assets.update(self.asset_key, status=Asset.FROZEN.value)
@@ -41,7 +40,7 @@ class TestAsset:
         self.sdk.assets.delete(self.asset_key)
         assert self.get_asset()['status'] == Asset.DELETED.value
         deleted_assets, _ = self.sdk.search.by_status(Asset.DELETED.value, Kind.ASSET.value)
-        assert any([a['dns'] == self.asset_dns for a in deleted_assets])
+        assert any([a['group'] == self.asset_dns for a in deleted_assets])
 
     def get_asset(self):
         return self.sdk.assets.get(self.asset_key)

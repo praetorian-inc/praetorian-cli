@@ -35,17 +35,17 @@ class TestSearch:
     def test_search_by_status(self):
         hits, _ = self.sdk.search.by_status(Asset.ACTIVE.value, Kind.ASSET.value)
         assert len(hits) >= 1
-        assert any([h['dns'] == self.asset_dns for h in hits])
+        assert any([h['group'] == self.asset_dns for h in hits])
 
     def test_search_by_dns(self):
         hits, _ = self.sdk.search.by_dns(self.asset_dns, Kind.ASSET.value)
         assert len(hits) == 1
-        assert hits[0]['dns'] == self.asset_dns
+        assert hits[0]['group'] == self.asset_dns
 
     def test_search_by_name(self):
         hits, _ = self.sdk.search.by_name(self.asset_name, Kind.ASSET.value)
         assert len(hits) == 1
-        assert hits[0]['dns'] == self.asset_dns
+        assert hits[0]['group'] == self.asset_dns
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)

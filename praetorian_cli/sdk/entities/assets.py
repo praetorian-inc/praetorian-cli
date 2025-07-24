@@ -9,20 +9,20 @@ class Assets:
     def __init__(self, api):
         self.api = api
 
-    def add(self, dns, name, status=Asset.ACTIVE.value, surface=''):
+    def add(self, group, identifier, type=Kind.ASSET.value, status=Asset.ACTIVE.value, surface=''):
         """ Add an asset
 
         Arguments:
-        dns: str
-            The DNS name of the asset
-        name: str
-            The name of the asset
+        group: str
+            The group (DNS, repository URL, etc.) of the asset
+        identifier: str
+            The identifier (IP address, repository name, etc.)of the asset
         status: str
             The status of the asset
         surface: str
             The attack surface of the asset
         """
-        return self.api.upsert('asset', dict(dns=dns, name=name, status=status, surface=[surface]))[0]
+        return self.api.upsert('asset', dict(group=group, identifier=identifier, status=status, surface=[surface], type=type))[0]
 
     def get(self, key, details=False):
         """ Get details of an asset
