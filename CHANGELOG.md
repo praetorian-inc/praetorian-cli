@@ -1,5 +1,11 @@
 # Changelog
 
+# 2.1.5
+
+- [New feature] Added support for new Asset types like Repositories
+- [New feature] Added support for proxying all cli traffic
+  - Define a `proxy` entry in your keychain file.
+
 ## 2.1.4
 
 - [Bug fix] Fixed `list credentials` argument error
