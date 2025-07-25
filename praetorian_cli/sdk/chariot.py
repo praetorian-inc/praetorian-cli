@@ -1,6 +1,4 @@
-import json
-
-import requests
+import json, requests
 
 from praetorian_cli.sdk.entities.accounts import Accounts
 from praetorian_cli.sdk.entities.agents import Agents

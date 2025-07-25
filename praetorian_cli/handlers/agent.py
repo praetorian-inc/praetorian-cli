@@ -27,13 +27,30 @@ def affiliation(sdk, key):
     click.echo("Polling for the affiliation data for up to 3 minutes.")
     click.echo(sdk.agents.affiliation(key))
 
-@agent.command()
+@agent.group()
+def mcp():
+    """ Chariot's MCP server """
+    pass
+
+@mcp.command()
 @cli_handler
-def mcp(sdk):
+def start(sdk):
     """ Starts the Chariot MCP server
 
     \b
     Example usages:
-        - praetorian chariot agent mcp"
+        - praetorian chariot agent mcp start"
     """
     sdk.agents.start_mcp_server()
+
+@mcp.command()
+@cli_handler
+def tools(sdk):
+    """ Lists available mcp tools
+
+    \b
+    Example usages:
+        - praetorian chariot agent mcp tools"
+    """
+    for  tool in dict.keys(sdk.agents.list_mcp_tools()):
+        click.echo(tool)
