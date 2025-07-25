@@ -34,14 +34,18 @@ def mcp():
 
 @mcp.command()
 @cli_handler
-def start(sdk):
+@click.option('--allowed', '-a', type=str, multiple=True)
+def start(sdk, allowed):
     """ Starts the Chariot MCP server
 
     \b
     Example usages:
-        - praetorian chariot agent mcp start"
+        - praetorian chariot agent mcp start
+        - praetorian chariot agent mcp -a search.by_term -a risk.add
     """
-    sdk.agents.start_mcp_server()
+    if len(allowed) == 0:
+        allowed = None
+    sdk.agents.start_mcp_server(allowed)
 
 @mcp.command()
 @cli_handler

@@ -18,7 +18,6 @@ class MCPServer:
     def _discover_tools(self):
         excluded_methods = {'start_mcp_server', 'api'}
 
-        print(dir(self.chariot))
         for entity_name in dir(self.chariot):
             if entity_name.startswith('_'):
                 continue
@@ -38,10 +37,9 @@ class MCPServer:
                     
                 tool_name = f"{entity_name}.{method_name}"
 
-                print(tool_name)
                 if self.allowable_tools and tool_name not in self.allowable_tools:
                     continue
-                    
+
                 try:
                     sig = inspect.signature(method)
                     doc = inspect.getdoc(method) or ""
