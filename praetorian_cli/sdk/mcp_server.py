@@ -37,7 +37,8 @@ class MCPServer:
                     continue
                     
                 tool_name = f"{entity_name}.{method_name}"
-                
+
+                print(tool_name)
                 if self.allowable_tools and tool_name not in self.allowable_tools:
                     continue
                     
