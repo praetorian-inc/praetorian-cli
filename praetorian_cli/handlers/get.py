@@ -270,15 +270,10 @@ def credential(chariot, credential_id, category, type, format, parameters):
         - praetorian chariot get credential aws-prod --category integration --type aws --format json
         - praetorian chariot get credential ssh-key-1 --category cloud --type ssh_key --format pem
     """
-    import json
     
     params = {}
     if parameters:
-        try:
-            params = json.loads(parameters)
-        except json.JSONDecodeError:
-            click.echo("Error: Invalid JSON format for parameters")
-            return
+        params = {key: value for key, value in parameters}
     
     result = chariot.credentials.get(credential_id, category, type, [format], **params)
     output = chariot.credentials.format_output(result)
