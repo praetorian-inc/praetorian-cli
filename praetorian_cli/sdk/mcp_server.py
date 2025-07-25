@@ -58,6 +58,84 @@ class MCPServer:
     def _extract_parameters_from_doc(self, doc: str, signature: inspect.Signature) -> Dict[str, Any]:
         parameters = {}
         
+        for param_name, param in signature.parameters.items():
+            if param_name == 'self':
+                continue
+                
+            parameters[param_name] = {
+                "type": self._get_param_type(param),
+                "description": f"Parameter {param_name}",
+                "required": param.default == inspect.Parameter.empty
+            }
+        
+        sphinx_params = self._parse_sphinx_docstring(doc)
+        if sphinx_params:
+            for param_name, param_info in sphinx_params.items():
+                if param_name in parameters:
+                    if 'description' in param_info:
+                        parameters[param_name]['description'] = param_info['description']
+                    if 'type' in param_info:
+                        parameters[param_name]['type'] = param_info['type']
+        else:
+            arguments_params = self._parse_arguments_section(doc, signature)
+            for param_name, param_info in arguments_params.items():
+                if param_name in parameters:
+                    parameters[param_name]['description'] = param_info['description']
+                    parameters[param_name]['type'] = param_info['type']
+        
+        return parameters
+
+    def _parse_sphinx_docstring(self, doc: str) -> Dict[str, Dict[str, str]]:
+        """Parse Sphinx-style docstrings with :param: and :type: directives"""
+        import re
+        
+        parameters = {}
+        lines = doc.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            
+            param_match = re.match(r':param\s+(\w+):\s*(.*)', line)
+            if param_match:
+                param_name = param_match.group(1)
+                description = param_match.group(2)
+                if param_name not in parameters:
+                    parameters[param_name] = {}
+                parameters[param_name]['description'] = description
+                continue
+            
+            type_match = re.match(r':type\s+(\w+):\s*(.*)', line)
+            if type_match:
+                param_name = type_match.group(1)
+                param_type = self._sphinx_type_to_json_type(type_match.group(2))
+                if param_name not in parameters:
+                    parameters[param_name] = {}
+                parameters[param_name]['type'] = param_type
+                continue
+        
+        return parameters if parameters else None
+
+    def _sphinx_type_to_json_type(self, sphinx_type: str) -> str:
+        """Convert Sphinx type annotations to JSON schema types"""
+        sphinx_type = sphinx_type.lower().strip()
+        
+        if sphinx_type in ['str', 'string']:
+            return "string"
+        elif sphinx_type in ['int', 'integer']:
+            return "number"
+        elif sphinx_type in ['bool', 'boolean']:
+            return "boolean"
+        elif sphinx_type in ['list', 'array']:
+            return "array"
+        elif sphinx_type in ['dict', 'object']:
+            return "object"
+        else:
+            return "string"
+
+    def _parse_arguments_section(self, doc: str, signature: inspect.Signature) -> Dict[str, Any]:
+        """Parse legacy Arguments: section format for backward compatibility"""
+        parameters = {}
+        
         lines = doc.split('\n')
         in_arguments_section = False
         current_param = None
@@ -114,15 +192,6 @@ class MCPServer:
                 "description": ' '.join(current_description).strip(),
                 "required": param.default == inspect.Parameter.empty
             }
-        
-        for param_name, param in signature.parameters.items():
-            if param_name not in parameters and param_name != 'self':
-                param_type = self._get_param_type(param)
-                parameters[param_name] = {
-                    "type": param_type,
-                    "description": f"Parameter {param_name}",
-                    "required": param.default == inspect.Parameter.empty
-                }
         
         return parameters
 
