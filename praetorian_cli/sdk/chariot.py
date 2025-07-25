@@ -224,6 +224,20 @@ class Chariot:
     def is_praetorian_user(self) -> bool:
         return self.keychain.username().endswith('@praetorian.com')
 
+    def start_mcp_server(self, allowable_tools=None):
+        """ Start MCP server exposing SDK methods as tools
+        
+        Arguments:
+        allowable_tools: list
+            Optional list of tool names to expose. If None, all tools are exposed.
+            Tool names should be in format 'entity.method' (e.g., 'assets.add', 'risks.list')
+        """
+        from praetorian_cli.sdk.mcp_server import MCPServer
+        import asyncio
+        
+        server = MCPServer(self, allowable_tools)
+        return asyncio.run(server.start())
+
 
 def is_query_limit_failure(response: requests.Response) -> bool:
     return response.status_code == 413 and 'reduce page size' in response.text
