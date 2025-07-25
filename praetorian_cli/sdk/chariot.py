@@ -233,10 +233,10 @@ class Chariot:
             Tool names should be in format 'entity.method' (e.g., 'assets.add', 'risks.list')
         """
         from praetorian_cli.sdk.mcp_server import MCPServer
-        import asyncio
+        import anyio
         
         server = MCPServer(self, allowable_tools)
-        return asyncio.run(server.start())
+        return anyio.run(server.start)
 
 
 def is_query_limit_failure(response: requests.Response) -> bool:

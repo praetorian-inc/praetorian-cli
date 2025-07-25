@@ -1,8 +1,8 @@
 import inspect
 import json
-import asyncio
+import anyio
 from typing import Any, Dict, List, Optional, Callable
-from mcp.server import Server
+from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
