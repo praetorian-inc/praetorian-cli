@@ -12,13 +12,13 @@ class MCPServer:
         self.chariot = chariot_instance
         self.allowable_tools = allowable_tools
         self.server = Server("praetorian-cli")
-        self._discovered_tools = {}
+        self.discovered_tools = {}
         self._discover_tools()
         self._register_tools()
 
     def _discover_tools(self):
         excluded_methods = {'start_mcp_server', 'api'}
-        
+
         for entity_name in dir(self.chariot):
             if entity_name.startswith('_'):
                 continue
@@ -37,15 +37,15 @@ class MCPServer:
                     continue
                     
                 tool_name = f"{entity_name}.{method_name}"
-                
+
                 if self.allowable_tools and tool_name not in self.allowable_tools:
                     continue
-                    
+
                 try:
                     sig = inspect.signature(method)
                     doc = inspect.getdoc(method) or ""
                     
-                    self._discovered_tools[tool_name] = {
+                    self.discovered_tools[tool_name] = {
                         'method': method,
                         'signature': sig,
                         'doc': doc,
@@ -157,7 +157,7 @@ class MCPServer:
         @self.server.list_tools()
         async def list_tools() -> List[Tool]:
             tools = []
-            for tool_name, tool_info in self._discovered_tools.items():
+            for tool_name, tool_info in self.discovered_tools.items():
                 parameters = self._extract_parameters_from_doc(tool_info['doc'], tool_info['signature'])
                 
                 properties = {}
@@ -196,10 +196,10 @@ class MCPServer:
             return tools
 
     async def _call_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-        if name not in self._discovered_tools:
+        if name not in self.discovered_tools:
             return [TextContent(type="text", text=f"Tool {name} not found")]
         
-        tool_info = self._discovered_tools[name]
+        tool_info = self.discovered_tools[name]
         method = tool_info['method']
         
         try:

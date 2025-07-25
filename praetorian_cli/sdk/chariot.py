@@ -1,6 +1,4 @@
-import json
-
-import requests
+import json, requests
 
 from praetorian_cli.sdk.entities.accounts import Accounts
 from praetorian_cli.sdk.entities.agents import Agents
@@ -237,8 +235,6 @@ class Chariot:
         
         server = MCPServer(self, allowable_tools)
         return anyio.run(server.start)
-
-
 def is_query_limit_failure(response: requests.Response) -> bool:
     return response.status_code == 413 and 'reduce page size' in response.text
 

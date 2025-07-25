@@ -1,6 +1,8 @@
 from time import sleep, time
+import asyncio
 
 from praetorian_cli.sdk.model.globals import AgentType
+from praetorian_cli.sdk.mcp_server import MCPServer
 
 
 class Agents:
@@ -33,3 +35,11 @@ class Agents:
 
     def affiliation_result(self, key: str) -> dict:
         return self.api.files.get_utf8(self.affiliation_filename(AgentType.AFFILIATION.value, key))
+
+    def start_mcp_server(self, allowable_tools=None):
+        server = MCPServer(self.api, allowable_tools)
+        return asyncio.run(server.start())
+
+    def list_mcp_tools(self):
+        server = MCPServer(self.api)
+        return server.discovered_tools
