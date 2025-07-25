@@ -36,7 +36,7 @@ class MCPServer:
                 if not callable(method):
                     continue
                     
-                tool_name = f"{entity_name}.{method_name}"
+                tool_name = f"{entity_name}_{method_name}"
 
                 if self.allowable_tools and tool_name not in self.allowable_tools:
                     continue
