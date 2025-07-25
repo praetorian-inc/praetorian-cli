@@ -1,6 +1,7 @@
 import inspect
 import json
 import anyio
+import re
 from typing import Any, Dict, List, Optional, Callable
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
@@ -67,34 +68,11 @@ class MCPServer:
                 "description": f"Parameter {param_name}",
                 "required": param.default == inspect.Parameter.empty
             }
-        
-        sphinx_params = self._parse_sphinx_docstring(doc)
-        if sphinx_params:
-            for param_name, param_info in sphinx_params.items():
-                if param_name in parameters:
-                    if 'description' in param_info:
-                        parameters[param_name]['description'] = param_info['description']
-                    if 'type' in param_info:
-                        parameters[param_name]['type'] = param_info['type']
-        else:
-            arguments_params = self._parse_arguments_section(doc, signature)
-            for param_name, param_info in arguments_params.items():
-                if param_name in parameters:
-                    parameters[param_name]['description'] = param_info['description']
-                    parameters[param_name]['type'] = param_info['type']
-        
-        return parameters
 
-    def _parse_sphinx_docstring(self, doc: str) -> Dict[str, Dict[str, str]]:
-        """Parse Sphinx-style docstrings with :param: and :type: directives"""
-        import re
-        
-        parameters = {}
         lines = doc.split('\n')
-        
         for line in lines:
             line = line.strip()
-            
+
             param_match = re.match(r':param\s+(\w+):\s*(.*)', line)
             if param_match:
                 param_name = param_match.group(1)
@@ -103,7 +81,7 @@ class MCPServer:
                     parameters[param_name] = {}
                 parameters[param_name]['description'] = description
                 continue
-            
+
             type_match = re.match(r':type\s+(\w+):\s*(.*)', line)
             if type_match:
                 param_name = type_match.group(1)
@@ -112,8 +90,8 @@ class MCPServer:
                     parameters[param_name] = {}
                 parameters[param_name]['type'] = param_type
                 continue
-        
-        return parameters if parameters else None
+
+        return parameters
 
     def _sphinx_type_to_json_type(self, sphinx_type: str) -> str:
         """Convert Sphinx type annotations to JSON schema types"""
@@ -131,69 +109,6 @@ class MCPServer:
             return "object"
         else:
             return "string"
-
-    def _parse_arguments_section(self, doc: str, signature: inspect.Signature) -> Dict[str, Any]:
-        """Parse legacy Arguments: section format for backward compatibility"""
-        parameters = {}
-        
-        lines = doc.split('\n')
-        in_arguments_section = False
-        current_param = None
-        current_description = []
-        
-        for line in lines:
-            line = line.strip()
-            
-            if line.lower().startswith('arguments:'):
-                in_arguments_section = True
-                continue
-                
-            if in_arguments_section:
-                if line == '' and current_param:
-                    if current_param in signature.parameters:
-                        param = signature.parameters[current_param]
-                        param_type = self._get_param_type(param)
-                        parameters[current_param] = {
-                            "type": param_type,
-                            "description": ' '.join(current_description).strip(),
-                            "required": param.default == inspect.Parameter.empty
-                        }
-                    current_param = None
-                    current_description = []
-                elif ':' in line and not line.startswith(' '):
-                    if current_param:
-                        if current_param in signature.parameters:
-                            param = signature.parameters[current_param]
-                            param_type = self._get_param_type(param)
-                            parameters[current_param] = {
-                                "type": param_type,
-                                "description": ' '.join(current_description).strip(),
-                                "required": param.default == inspect.Parameter.empty
-                            }
-                    
-                    parts = line.split(':', 1)
-                    current_param = parts[0].strip()
-                    if len(parts) > 1:
-                        current_description = [parts[1].strip()]
-                    else:
-                        current_description = []
-                elif current_param and line:
-                    current_description.append(line)
-                elif not line:
-                    continue
-                else:
-                    break
-        
-        if current_param and current_param in signature.parameters:
-            param = signature.parameters[current_param]
-            param_type = self._get_param_type(param)
-            parameters[current_param] = {
-                "type": param_type,
-                "description": ' '.join(current_description).strip(),
-                "required": param.default == inspect.Parameter.empty
-            }
-        
-        return parameters
 
     def _get_param_type(self, param: inspect.Parameter) -> str:
         if param.annotation != inspect.Parameter.empty:

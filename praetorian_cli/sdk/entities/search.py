@@ -33,6 +33,12 @@ class Search:
 
     def by_term(self, search_term, kind=None, offset=None, pages=100000, exact=False, descending=False,
                 global_=False) -> tuple:
+        """
+        Search for a given kind by term.
+
+        :param search_term: Either an entity key, starting with #, or a column:value pair, ie dns:praetorian.com
+        :param kind: Kind of the entity, ie Asset
+        """
         params = dict(key=search_term)
         if kind:
             params |= dict(label=kind)
