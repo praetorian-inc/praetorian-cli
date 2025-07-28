@@ -6,16 +6,40 @@ class Definitions:
         of Chariot. """
 
     def __init__(self, api):
+        """
+        Initialize the Definitions entity manager.
+
+        :param api: The API client instance for making requests
+        :type api: object
+        """
         self.api = api
 
     def add(self, local_filepath, definition_name=None):
-        """ upload a risk definition file """
+        """
+        Upload a risk definition file to the definitions folder.
+
+        :param local_filepath: The local file path of the definition file to upload (must be in Markdown format)
+        :type local_filepath: str
+        :param definition_name: The name to use for the definition (defaults to the basename of the local file)
+        :type definition_name: str or None
+        :return: The result from the file upload operation
+        :rtype: dict
+        """
         if not definition_name:
             definition_name = os.path.basename(local_filepath)
         return self.api.files.add(local_filepath, f'definitions/{definition_name}')
 
     def get(self, definition_name, download_directory=os.getcwd()):
-        """ download a risk definition file """
+        """
+        Download a risk definition file from the definitions folder.
+
+        :param definition_name: The name of the definition file to download
+        :type definition_name: str
+        :param download_directory: The directory to save the downloaded file (defaults to current working directory)
+        :type download_directory: str
+        :return: The local file path where the definition was saved
+        :rtype: str
+        """
         content = self.api.files.get_utf8(f'definitions/{definition_name}')
         download_path = os.path.join(download_directory, definition_name)
         with open(download_path, 'w') as file:
@@ -23,7 +47,18 @@ class Definitions:
         return download_path
 
     def list(self, name_filter='', offset=None, pages=100000) -> tuple:
-        """ List the definition names, optionally prefix-filtered by a definition name """
+        """
+        List the definition names, optionally prefix-filtered by a definition name.
+
+        :param name_filter: The prefix filter to apply to definition names (empty string returns all definitions)
+        :type name_filter: str
+        :param offset: The offset of the page you want to retrieve results
+        :type offset: str or None
+        :param pages: The number of pages of results to retrieve
+        :type pages: int
+        :return: A tuple containing (list of definition names, next page offset)
+        :rtype: tuple
+        """
         definitions, next_offset = self.api.search.by_key_prefix(f'#file#definitions/{name_filter}', offset, pages)
         names = [d['name'][12:] for d in definitions]
         return names, next_offset
