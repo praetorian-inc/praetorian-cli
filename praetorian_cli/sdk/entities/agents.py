@@ -40,6 +40,6 @@ class Agents:
         server = MCPServer(self.api, allowable_tools)
         return asyncio.run(server.start())
 
-    def list_mcp_tools(self):
-        server = MCPServer(self.api)
+    def list_mcp_tools(self, allowable_tools=None):
+        server = MCPServer(self.api, allowable_tools)
         return server.discovered_tools

@@ -41,20 +41,23 @@ def start(sdk, allowed):
     \b
     Example usages:
         - praetorian chariot agent mcp start
-        - praetorian chariot agent mcp -a search_by_term -a risk_add
+        - praetorian chariot agent mcp start -a search_by_term -a risk_add
+        - praetorian chariot agent mcp start -a search_* -a risk_add
     """
     if len(allowed) == 0:
         allowed = None
     sdk.agents.start_mcp_server(allowed)
 
 @mcp.command()
+@click.option('--allowed', '-a', type=str, multiple=True)
 @cli_handler
-def tools(sdk):
+def tools(sdk, allowed):
     """ Lists available mcp tools
 
     \b
     Example usages:
-        - praetorian chariot agent mcp tools"
+        - praetorian chariot agent mcp tools
+        - praetorian chariot agent mcp tools -a search_* -a risk_add
     """
-    for  tool in dict.keys(sdk.agents.list_mcp_tools()):
+    for  tool in dict.keys(sdk.agents.list_mcp_tools(allowed)):
         click.echo(tool)
