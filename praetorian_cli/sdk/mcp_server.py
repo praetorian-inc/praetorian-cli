@@ -2,6 +2,7 @@ import inspect
 import json
 import anyio
 import re
+import fnmatch
 from typing import Any, Dict, List, Optional, Callable
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
@@ -16,6 +17,16 @@ class MCPServer:
         self.discovered_tools = {}
         self._discover_tools()
         self._register_tools()
+
+    def _is_tool_allowed(self, tool_name: str) -> bool:
+        """Check if tool_name matches any of the allowed patterns using wildcards"""
+        if not self.allowable_tools:
+            return True
+        
+        for pattern in self.allowable_tools:
+            if fnmatch.fnmatch(tool_name, pattern):
+                return True
+        return False
 
     def _discover_tools(self):
         excluded_methods = {'start_mcp_server', 'api'}
@@ -39,7 +50,7 @@ class MCPServer:
                     
                 tool_name = f"{entity_name}_{method_name}"
 
-                if self.allowable_tools and tool_name not in self.allowable_tools:
+                if not self._is_tool_allowed(tool_name):
                     continue
 
                 try:
