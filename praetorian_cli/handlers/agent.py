@@ -41,7 +41,7 @@ def start(sdk, allowed):
     \b
     Example usages:
         - praetorian chariot agent mcp start
-        - praetorian chariot agent mcp -a search.by_term -a risk.add
+        - praetorian chariot agent mcp -a search_by_term -a risk_add
     """
     if len(allowed) == 0:
         allowed = None
