@@ -34,7 +34,7 @@ def mcp():
 
 @mcp.command()
 @cli_handler
-@click.option('--allowed', '-a', type=str, multiple=True)
+@click.option('--allowed', '-a', type=str, multiple=True, default=['search_*', '*_list', '*_get'])
 def start(sdk, allowed):
     """ Starts the Chariot MCP server
 
@@ -49,7 +49,7 @@ def start(sdk, allowed):
     sdk.agents.start_mcp_server(allowed)
 
 @mcp.command()
-@click.option('--allowed', '-a', type=str, multiple=True)
+@click.option('--allowed', '-a', type=str, multiple=True, default=['search_*', '*_list', '*_get'])
 @cli_handler
 def tools(sdk, allowed):
     """ Lists available mcp tools
