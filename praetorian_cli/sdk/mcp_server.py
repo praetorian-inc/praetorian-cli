@@ -20,6 +20,9 @@ class MCPServer:
 
     def _is_tool_allowed(self, tool_name: str) -> bool:
         """Check if tool_name matches any of the allowed patterns using wildcards"""
+        if fnmatch.fnmatch(tool_name, "*accounts*"):
+            return False
+
         if not self.allowable_tools:
             return True
         
