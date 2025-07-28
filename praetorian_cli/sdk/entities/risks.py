@@ -10,31 +10,34 @@ class Risks:
         self.api = api
 
     def add(self, asset_key, name, status, comment=None, capability=''):
-        """ Add a risk
+        """
+        Add a risk to an existing asset.
 
-        Arguments:
-        asset_key:
-            The key of an existing asset to associate this risk with
-        name: str
-            The name of this risk
-        status: str
-            See globals.py for list of valid statuses
-        comment: str
-            Optional comment
-        capability: str
-            Optional capability that discovered this risk
+        :param asset_key: The key of an existing asset to associate this risk with
+        :type asset_key: str
+        :param name: The name of this risk
+        :type name: str
+        :param status: Risk status from Risk enum (e.g., Risk.TRIAGE_HIGH.value, Risk.OPEN_CRITICAL.value). See globals.py for complete list of valid statuses
+        :type status: str
+        :param comment: Optional comment for the risk
+        :type comment: str or None
+        :param capability: Optional capability that discovered this risk
+        :type capability: str
+        :return: The created risk object
+        :rtype: dict
         """
         return self.api.upsert('risk', dict(key=asset_key, name=name, status=status, comment=comment, source=capability))['risks'][0]
 
     def get(self, key, details=False):
-        """ Get details of a risk
+        """
+        Get details of a risk by its exact key.
 
-        Arguments:
-        key: str
-            The exact key of an risk.
-        details: bool
-            Specify whether to also retrieve more details about this risk. This will make more API calls
-            to get the risk attributes and the affected assets.
+        :param key: The exact key of a risk (format: #risk#{asset_dns}#{risk_name})
+        :type key: str
+        :param details: Whether to also retrieve more details about this risk. This will make additional API calls to get the risk attributes and affected assets
+        :type details: bool
+        :return: The matching risk object or None if not found
+        :rtype: dict or None
         """
         risk = self.api.search.by_exact_key(key, details)
         if risk and details:
@@ -42,16 +45,17 @@ class Risks:
         return risk
 
     def update(self, key, status=None, comment=None):
-        """ Update a risk
+        """
+        Update a risk's status and/or comment.
 
-        Arguments:
-        key: str
-            The key of the risk. If you supply a prefix that matches multiple risks,
-            all of them will be updated.
-        status: str
-            See globals.py for list of valid statuses
-        comment: str
-            Comment for the risk
+        :param key: The key of the risk. If you supply a prefix that matches multiple risks, all of them will be updated
+        :type key: str
+        :param status: New risk status from Risk enum (e.g., Risk.OPEN_HIGH.value, Risk.REMEDIATED_CRITICAL.value). See globals.py for complete list of valid statuses
+        :type status: str or None
+        :param comment: Comment for the risk update
+        :type comment: str or None
+        :return: API response containing update results
+        :rtype: dict
         """
         params = dict(key=key)
         if status:
@@ -62,14 +66,17 @@ class Risks:
         return self.api.upsert('risk', params)
 
     def delete(self, key, status, comment=None):
-        """ Delete a risk.
+        """
+        Delete a risk by setting it to a deleted status.
 
-        Arguments:
-        key: str
-            The key of the risk. If you supply a prefix that matches multiple risks,
-            all of them will be deleted.
-        comment: str
-            Optionally, provide a comment for this operation.
+        :param key: The key of the risk. If you supply a prefix that matches multiple risks, all of them will be deleted
+        :type key: str
+        :param status: Deletion status from Risk enum (e.g., Risk.DELETED_DUPLICATE_CRITICAL.value, Risk.DELETED_FALSE_POSITIVE_HIGH.value)
+        :type status: str
+        :param comment: Optional comment for this deletion operation
+        :type comment: str or None
+        :return: API response containing deletion results
+        :rtype: dict
         """
         body = dict(status=status)
 
@@ -79,27 +86,44 @@ class Risks:
         return self.api.delete_by_key('risk', key, body)
 
     def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
-        """ List risks
+        """
+        List risks with optional filtering and pagination.
 
-        Arguments:
-        prefix_filter: str
-            Supply this to perform prefix-filtering of the risk keys after the "#risk#"
-            portion of the key. Risk keys read '#risk#{asset_dns}#{risk_name}'
-
-        offset: str
-            The offset of the page you want to retrieve results. If this is not supplied,
-            this function retrieves from the first page.
-        pages: int
-            The number of pages of results to retrieve.
+        :param prefix_filter: Prefix filter to apply after the "#risk#" portion of the key. Risk keys follow format '#risk#{asset_dns}#{risk_name}'
+        :type prefix_filter: str
+        :param offset: The offset of the page you want to retrieve results. If not supplied, retrieves from the first page
+        :type offset: str or None
+        :param pages: The number of pages of results to retrieve
+        :type pages: int
+        :return: A tuple containing (list of matching risks, next page offset)
+        :rtype: tuple
         """
         return self.api.search.by_key_prefix(f'#risk#{prefix_filter}', offset, pages)
 
     def attributes(self, key):
-        """ list associated attributes """
+        """
+        List attributes associated with a risk.
+
+        :param key: The key of the risk to get attributes for
+        :type key: str
+        :return: List of attribute objects associated with the risk
+        :rtype: list
+        """
         attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
         return attributes
 
     def affected_assets(self, key):
+        """
+        Get all assets affected by a risk.
+
+        This method finds assets that are directly linked to the risk via HAS_VULNERABILITY
+        relationships, as well as assets indirectly linked via attributes that have the risk.
+
+        :param key: The key of the risk to get affected assets for
+        :type key: str
+        :return: List of asset objects affected by the risk (both directly and indirectly linked)
+        :rtype: list
+        """
         # assets directly linked to the risk
         to_this = Relationship(Relationship.Label.HAS_VULNERABILITY, target=risk_of_key(key))
         query = Query(Node(ASSET_NODE, relationships=[to_this]))
