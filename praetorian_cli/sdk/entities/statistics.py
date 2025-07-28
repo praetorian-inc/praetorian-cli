@@ -51,15 +51,44 @@ class Util:
 
 
 class Statistics:
-    """ The methods in this class are to be assessed from sdk.statistics, where sdk is an instance
-    of Chariot. """
+    """
+    Statistics entity manager for retrieving and analyzing statistical data from Chariot.
+
+    This class provides methods to query various types of statistics including risk counts,
+    asset statistics, event data, and other analytical information. Statistics can be
+    filtered by date ranges and various criteria.
+
+    The methods in this class are accessed from sdk.statistics, where sdk is an instance
+    of Chariot.
+    """
 
     def __init__(self, api):
+        """
+        Initialize the Statistics entity manager.
+
+        :param api: The API client instance for making requests
+        :type api: object
+        """
         self.api = api
         self.util = Util
 
     def list(self, prefix_filter='', from_date=None, to_date=None, offset=None, pages=100000) -> tuple:
-        """ List statistics with optional date range filtering """
+        """
+        List statistics with optional date range filtering.
+
+        :param prefix_filter: The filter prefix for statistics. Common values include 'risks', 'risk_events', 'assets_by_status', 'assets_by_class', 'seeds', or custom filters like 'my#status:O#H'
+        :type prefix_filter: str
+        :param from_date: Start date for filtering in YYYY-MM-DD format
+        :type from_date: str or None
+        :param to_date: End date for filtering in YYYY-MM-DD format
+        :type to_date: str or None
+        :param offset: The offset of the page you want to retrieve results
+        :type offset: str or None
+        :param pages: The number of pages of results to retrieve
+        :type pages: int
+        :return: A tuple containing (list of statistics, next page offset)
+        :rtype: tuple
+        """
         # Handle the shorthands
         if prefix_filter == self.util.RISKS:
             all_stats = []
@@ -86,7 +115,22 @@ class Statistics:
             return self._query_single(prefix_filter, from_date, to_date, offset, pages)
 
     def _query_single(self, prefix_filter, from_date, to_date, offset, pages):
-        """ Make a single query with the given parameters """
+        """
+        Make a single query with the given parameters.
+
+        :param prefix_filter: The filter prefix for the statistics query
+        :type prefix_filter: str
+        :param from_date: Start date for filtering in YYYY-MM-DD format
+        :type from_date: str or None
+        :param to_date: End date for filtering in YYYY-MM-DD format
+        :type to_date: str or None
+        :param offset: The offset of the page you want to retrieve results
+        :type offset: str or None
+        :param pages: The number of pages of results to retrieve
+        :type pages: int
+        :return: A tuple containing (list of statistics, next page offset)
+        :rtype: tuple
+        """
         params = {}
 
         if from_date or to_date:
@@ -112,6 +156,14 @@ class Statistics:
         return stats, next_offset
 
     def _flatten_results(self, results):
+        """
+        Flatten nested results into a single list.
+
+        :param results: The results to flatten, can be a list or dictionary
+        :type results: list or dict
+        :return: A flattened list of results
+        :rtype: list
+        """
         if isinstance(results, list):
             return results
         flattened = []
