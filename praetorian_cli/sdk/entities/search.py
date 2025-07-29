@@ -1,4 +1,4 @@
-from praetorian_cli.sdk.model.query import Query, Node, Filter
+from praetorian_cli.sdk.model.query import Query
 from praetorian_cli.sdk.model.globals import EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, Kind
 class Search:
 

@@ -72,7 +72,7 @@ class Chariot:
         if query:
             # The search is on data in Neo4j, which uses NoahQL.
             return self.my_by_query(query, pages)
-        
+
         # The search is on data in DynamoDB, which uses DynamoDB's native offset format.
         for _ in range(pages):
             resp = self._make_request('GET', self.url('/my'), params=params)
