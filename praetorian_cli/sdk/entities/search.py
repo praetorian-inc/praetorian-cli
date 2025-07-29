@@ -18,13 +18,13 @@ class Search:
 
     def by_key_prefix(self, key_prefix, offset=None, pages=100000) -> tuple:
         """
-        Search for entities by key prefix.
+        Search for entities by key prefix. <mcp>If the response is too large, make your query more specific.<mcp>
 
         :param key_prefix: The prefix of the entity key to search for
         :type key_prefix: str
         :param offset: The offset of the page you want to retrieve results
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple
@@ -51,7 +51,7 @@ class Search:
 
     def by_source(self, source, kind, offset=None, pages=100000) -> tuple:
         """
-        Search for entities by source key.
+        Search for entities by source key. <mcp>If the response is too large, make your query more specific.<mcp>
 
         :param source: The source key to search for
         :type source: str
@@ -59,7 +59,7 @@ class Search:
         :type kind: str
         :param offset: The offset of the page you want to retrieve results
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple
@@ -68,7 +68,7 @@ class Search:
 
     def by_status(self, status_prefix, kind, offset=None, pages=100000) -> tuple:
         """
-        Search for entities by status prefix.
+        Search for entities by status prefix. <mcp>If the response is too large, make your query more specific.<mcp>
 
         :param status_prefix: The status prefix to search for (e.g., 'OH', 'TH')
         :type status_prefix: str
@@ -76,7 +76,7 @@ class Search:
         :type kind: str
         :param offset: The offset of the page you want to retrieve results
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple
@@ -85,7 +85,7 @@ class Search:
 
     def by_name(self, name_prefix, kind, offset=None, pages=100000) -> tuple:
         """
-        Search for entities by name prefix.
+        Search for entities by name prefix. <mcp>If the response is too large, make your query more specific.<mcp>
 
         :param name_prefix: The name prefix to search for
         :type name_prefix: str
@@ -93,7 +93,7 @@ class Search:
         :type kind: str
         :param offset: The offset of the page you want to retrieve results
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple
@@ -102,7 +102,7 @@ class Search:
 
     def by_dns(self, dns_prefix, kind, offset=None, pages=100000) -> tuple:
         """
-        Search for entities by DNS prefix.
+        Search for entities by DNS prefix. <mcp>If the response is too large, make your query more specific.<mcp>
 
         :param dns_prefix: The DNS prefix to search for
         :type dns_prefix: str
@@ -110,7 +110,7 @@ class Search:
         :type kind: str
         :param offset: The offset of the page you want to retrieve results
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple
@@ -128,7 +128,7 @@ class Search:
         :type kind: str or None
         :param offset: The offset of the page you want to retrieve results
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :param exact: Whether to perform exact key matching
         :type exact: bool
@@ -171,7 +171,7 @@ class Search:
 
         :param query: The graph query object to execute
         :type query: Query
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple

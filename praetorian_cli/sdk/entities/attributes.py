@@ -72,7 +72,7 @@ class Attributes:
         :type source_key: str or None
         :param offset: The offset of the page you want to retrieve results
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching attributes, next page offset)
         :rtype: tuple

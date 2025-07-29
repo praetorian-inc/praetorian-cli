@@ -60,7 +60,7 @@ class Settings:
         :type prefix_filter: str
         :param offset: The offset of the page you want to retrieve results from
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching settings, next page offset)
         :rtype: tuple

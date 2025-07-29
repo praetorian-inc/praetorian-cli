@@ -93,7 +93,7 @@ class Risks:
         :type prefix_filter: str
         :param offset: The offset of the page you want to retrieve results. If not supplied, retrieves from the first page
         :type offset: str or None
-        :param pages: The number of pages of results to retrieve
+        :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching risks, next page offset)
         :rtype: tuple
