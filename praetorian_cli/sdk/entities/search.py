@@ -1,4 +1,4 @@
-from praetorian_cli.sdk.model.query import Query
+from praetorian_cli.sdk.model.query import Query, Node, Filter
 from praetorian_cli.sdk.model.globals import EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, Kind
 class Search:
 
@@ -161,7 +161,7 @@ class Search:
 
         return flatten_results(results), offset
 
-    def by_query(self, query: Query, pages=100000) -> tuple:
+    def by_query(self, query: Query, pages=100000, offset=None) -> tuple:
         """
         Search for entities using a graph query.
 

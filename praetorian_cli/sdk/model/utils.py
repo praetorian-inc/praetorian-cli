@@ -33,5 +33,5 @@ def setting_key(name):
 def configuration_key(name):
     return f'#configuration#{name}'
 
-def seed_status(type, status_code):
-    return f'{type}#{status_code}'
+def generic_key(*items):
+    return '#' + '#'.join(items)

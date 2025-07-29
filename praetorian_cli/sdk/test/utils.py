@@ -4,8 +4,8 @@ from random import randint
 
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
-from praetorian_cli.sdk.model.globals import Risk, Preseed
-from praetorian_cli.sdk.model.utils import risk_key, asset_key, ad_domain_key, attribute_key, seed_key, preseed_key, setting_key, configuration_key
+from praetorian_cli.sdk.model.globals import Risk, Preseed, Kind
+from praetorian_cli.sdk.model.utils import risk_key, asset_key, ad_domain_key, attribute_key, seed_key, preseed_key, setting_key, configuration_key, generic_key
 
 
 def epoch_micro():
@@ -34,7 +34,11 @@ def make_test_values(o):
     o.ad_domain_name = random_ad_domain()
     o.ad_domain_key = ad_domain_key(o.ad_domain_name, o.ad_domain_name)
     o.seed_dns = random_dns()
-    o.seed_key = seed_key('domain', o.seed_dns)
+    o.seed_ip = random_ip()
+    o.seed_ad_domain = random_ad_domain()
+    o.seed_dns_key = generic_key(Kind.DOMAINSEED.value, "domain", o.seed_dns)
+    o.seed_ip_key = generic_key(Kind.IPSEED.value, "ip", o.seed_ip)
+    o.seed_ad_domain_key = generic_key(Kind.ADDOMAINSEED.value, "ad", o.seed_ad_domain)
     o.risk_name = f'test-risk-name-{epoch_micro()}'
     o.risk_key = risk_key(o.asset_dns, o.risk_name)
     o.comment = f'Test comment {epoch_micro()}'
@@ -68,7 +72,7 @@ def clean_test_entities(sdk, o):
     sdk.configurations.delete(o.configuration_key)
 
 def setup_chariot():
-    return Chariot(Keychain(os.environ.get('CHARIOT_TEST_PROFILE')))
+    return Chariot(Keychain(os.environ.get('CHARIOT_TEST_PROFILE')), proxy=os.environ.get('CHARIOT_TEST_PROXY'))
 
 
 def email_address():
