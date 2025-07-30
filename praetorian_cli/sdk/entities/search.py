@@ -161,7 +161,7 @@ class Search:
 
         return flatten_results(results), offset
 
-    def by_query(self, query: Query, pages=100000) -> tuple:
+    def by_query(self, query: Query, pages=100000, offset=None) -> tuple:
         """
         Search for entities using a graph query.
 

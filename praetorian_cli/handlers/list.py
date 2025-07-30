@@ -3,7 +3,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import list_params, pagination, cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import render_offset, render_list_results, pagination_size, error, print_json
-
+from praetorian_cli.sdk.model.globals import Kind
 
 @chariot.group()
 def list():
@@ -162,8 +162,8 @@ def attributes(chariot, filter, key, details, offset, page):
 
 @list.command()
 @list_params('DNS')
-@click.option('-t', '--type', type=click.Choice(['ip', 'domain']), help=f'Filter by type of the seeds')
-def seeds(chariot, type, filter, details, offset, page):
+@click.option('-t', '--type', 'seed_type', default='seed', help=f'Filter by type of the seeds', required=True)
+def seeds(chariot, seed_type, filter, details, offset, page):
     """ List seeds
 
    	Retrieve and display a list of seeds.
@@ -176,10 +176,8 @@ def seeds(chariot, type, filter, details, offset, page):
         - praetorian chariot list seeds --details
         - praetorian chariot list seeds --page all
     """
-    if filter and not type:
-        error('When the DNS filter is specified, you also need to specify the type of the filter: ip or domain.')
 
-    render_list_results(chariot.seeds.list(type, filter, offset, pagination_size(page)), details)
+    render_list_results(chariot.seeds.list(seed_type, filter, offset, pagination_size(page)), details)
 
 
 @list.command()

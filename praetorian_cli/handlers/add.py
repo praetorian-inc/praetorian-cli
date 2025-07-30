@@ -196,10 +196,11 @@ def attribute(sdk, key, name, value):
 
 @add.command()
 @cli_handler
-@click.option('-d', '--dns', required=True, help='The DNS of the asset')
+@click.option('-v', '--value', required=True, help='The value of the seed')
+@click.option('-t', '--type', 'seed_type', help='The type of the seed (ip, cidr, domain, addomain)', required=True)
 @click.option('-s', '--status', type=click.Choice([s.value for s in Seed]),
               default=Seed.PENDING.value, help='The status of the seed', show_default=True)
-def seed(sdk, dns, status):
+def seed(sdk, value, seed_type, status):
     """ Add a seed
 
     Add a seed to the Chariot database. This command requires DNS of the seed to be
@@ -207,10 +208,10 @@ def seed(sdk, dns, status):
 
     \b
     Example usages:
-        - praetorian chariot add seed --dns example.com
-        - praetorian chariot add seed --dns example.com --status A
+        - praetorian chariot add seed --value example.com
+        - praetorian chariot add seed --value example.com --status A
     """
-    sdk.seeds.add(dns, status)
+    sdk.seeds.add(value, seed_type, status)
 
 
 @add.command()

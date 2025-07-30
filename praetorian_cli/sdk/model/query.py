@@ -93,6 +93,10 @@ class Node:
         INTEGRATION = 'Integration'
         ADDOMAIN = 'Addomain'
         ATTRIBUTE = 'Attribute'
+        DOMAINSEED = 'Domainseed'
+        IPSEED = 'Ipseed'
+        CIDRSEED = 'Cidrseed'
+        ADDOMAINSEED = 'Addomainseed'
         RISK = 'Risk'
         PRESEED = 'Preseed'
         SEED = 'Seed'
@@ -107,7 +111,7 @@ class Node:
     def to_dict(self):
         ret = dict()
         if self.labels:
-            ret |= dict(labels=[x.value for x in self.labels])
+            ret |= dict(labels=[x.value.title() for x in self.labels])
         if self.filters:
             ret |= dict(filters=[x.to_dict() for x in self.filters])
         if self.relationships:
@@ -117,13 +121,14 @@ class Node:
 
 class Query:
     def __init__(self, node: Node = None, page: int = 0, limit: int = DEFAULT_PAGE_SIZE, order_by: str = None,
-                 descending: bool = False, global_: bool = False):
+                 descending: bool = False, global_: bool = False, offset: int = 0):
         self.node = node
         self.page = page
         self.limit = limit
         self.order_by = order_by
         self.descending = descending
         self.global_ = global_
+        self.offset = offset
 
     def to_dict(self):
         ret = dict()
@@ -140,7 +145,9 @@ class Query:
         return ret
 
     def params(self):
-        return GLOBAL_FLAG if self.global_ else dict()
+        globals = GLOBAL_FLAG if self.global_ else dict()
+        offsets = dict(offset=self.offset) if self.offset else dict()
+        return {**globals, **offsets}
 
 
 # helpers for building graph queries

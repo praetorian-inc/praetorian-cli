@@ -15,6 +15,7 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 def test(chariot, key, suite):
     """ Run integration test suite """
     os.environ['CHARIOT_TEST_PROFILE'] = chariot.keychain.profile
+    os.environ['CHARIOT_TEST_PROXY'] = chariot.proxy
     command = [test_module.__path__[0]]
     if key:
         command.extend(['-k', key])
