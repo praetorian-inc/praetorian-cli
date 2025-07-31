@@ -1,3 +1,4 @@
+import json
 from praetorian_cli.sdk.model.query import Query
 from praetorian_cli.sdk.model.globals import EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, Kind
 class Search:
@@ -161,7 +162,7 @@ class Search:
 
         return flatten_results(results), offset
 
-    def by_query(self, query: Query, pages=100000) -> tuple:
+    def by_query(self, query, pages=100000) -> tuple:
         """
         Search for entities using a graph query.
 
@@ -170,7 +171,6 @@ class Search:
         relationships between assets, vulnerabilities, attributes, and other entities.
 
         :param query: The graph query object to execute
-        :type query: Query
         :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of matching entities, next page offset)
@@ -406,7 +406,10 @@ class Search:
 
         7. **Order results**: Use ``orderBy`` and ``descending`` parameters to control result ordering.
         """
-        results = self.api.my_by_query(query, pages)
+        if type(query) == Query:
+            results = self.api.my_by_query(query, pages)
+        else:
+            results = self.api.my_by_raw_query(json.loads(query), pages)
 
         if 'offset' in results:
             offset = results['offset']

@@ -180,9 +180,13 @@ class MCPServer:
                 
                 if required:
                     tool_schema["required"] = required
-                
-                description = tool_info['doc'].split('\n')[0] if tool_info['doc'] else f"Execute {tool_name}"
-                
+
+                parts = tool_info["doc"].split("\n")
+                description = parts[0]
+                if len(parts) > 1:
+                    description += "\n"
+                    description += "\t".join(parts[1:])
+
                 tool = Tool(
                     name=tool_name,
                     description=description,
