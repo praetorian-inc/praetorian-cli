@@ -1,5 +1,11 @@
 # Changelog
 
+# 2.2.0
+
+- [New feature] Chariot MCP server
+- [New feature] Inline documentation for entities in the SDK
+
+
 # 2.1.5
 
 - [New feature] Added support for new Asset types like Repositories
