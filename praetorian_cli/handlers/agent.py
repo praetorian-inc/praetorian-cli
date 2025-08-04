@@ -43,6 +43,14 @@ def start(sdk, allowed):
         - praetorian chariot agent mcp start
         - praetorian chariot agent mcp start -a search_by_term -a risk_add
         - praetorian chariot agent mcp start -a search_* -a risk_add
+
+    \b
+    Claude code configuration/usage:
+        - claude mcp add chariot -- praetorian chariot agent mcp start # read-only
+        - claude mcp add chariot -- praetorian chariot agent mcp start -a search_by_query -a risk_add -a asset_add # select write tools
+        - claude "show me my chariot assets from the example.com domain"
+        - claude "show me my chariot assets with port 22 open"
+        - claude "run a portscan on every discovered ip for example.com"
     """
     if len(allowed) == 0:
         allowed = None
