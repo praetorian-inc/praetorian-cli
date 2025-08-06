@@ -145,6 +145,15 @@ class Jobs:
         return self.api.search.by_key_prefix(f'#job#{prefix_filter}',
                                              offset, pages)
 
+    def delete(self, key):
+        """
+        Delete (cancel) a job.
+
+        :param key: Job key. Must match the target job's key exactly
+        :type key: str
+        """
+        return self.api.delete_by_key('job', key)
+
     def is_failed(self, job):
         """
         Check if a job has failed during execution.
