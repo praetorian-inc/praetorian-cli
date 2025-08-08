@@ -224,6 +224,7 @@ class AegisMenu:
             else:
                 tunnel_status = Text("⚬ NONE", style=f"{self.colors['dim']}")
                 actions = f"[{self.colors['dim']}]shell[/{self.colors['dim']}], tasks, info"
+                agent['health_check'] = {'cloudflared_status': False}
             
             table.add_row(
                 f"[bold]{i:02d}[/bold]",
