@@ -208,9 +208,10 @@ class AegisMenu:
             last_seen = agent.get('last_seen_at', 0)
             
             # Professional status indicators
-            if last_seen > 0:
+            current_time = datetime.now().timestamp()
+            last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
+            if last_seen > 0 and (current_time - last_seen_seconds) < 60:
                 status = Text("● ONLINE", style=f"bold {self.colors['success']}")
-                last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
                 last_seen_str = datetime.fromtimestamp(last_seen_seconds).strftime("%m/%d %H:%M")
             else:
                 status = Text("○ OFFLINE", style=f"bold {self.colors['error']}")
