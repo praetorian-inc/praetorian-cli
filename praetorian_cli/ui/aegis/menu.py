@@ -30,6 +30,9 @@ class AegisMenu:
         self.console = Console()
         self.agents = []
         self.selected_agent = None  # Currently selected agent
+        self.ssh_count = 0
+        self.last_agent_fetch = 0  # timestamp of last API call for caching
+        self.agent_cache_duration = 60  # cache duration in seconds
         
         # Get user information using the centralized, reliable method
         self.user_email, self.username = self.sdk.get_current_user()
@@ -135,20 +138,119 @@ class AegisMenu:
         """Clear the screen"""
         os.system('clear' if os.name == 'posix' else 'cls')
     
-    def load_agents(self):
-        """Load agents quickly"""
+    def load_agents(self, force_refresh=False):
+        """Load agents with 60-second caching and compute status properties"""
+        current_time = datetime.now().timestamp()
+        
+        # Check cache - only fetch if more than 60 seconds have passed
+        if current_time - self.last_agent_fetch < self.agent_cache_duration and self.agents and not force_refresh:
+            # Use cached agents but still show the list
+            self.show_agents_list()
+            return
+            
         try:
             with self.console.status("[dim]Loading agents...[/dim]"):
                 agents_data, _ = self.sdk.aegis.list()
                 self.agents = agents_data or []
+                       # Update SSH count
+                
+                self.last_agent_fetch = current_time
+                
+                # Compute status properties for each agent
+                self._compute_agent_properties()
+                self.show_agents_list()
                 
         except Exception as e:
             self.console.print(f"[red]Error loading agents: {e}[/red]")
             self.agents = []
     
+    def _compute_agent_properties(self):
+        """Compute and cache status properties for all agents"""
+        current_time = datetime.now().timestamp()
+        
+        for agent in self.agents:
+            last_seen = agent.get('last_seen_at', 0)
+            
+            # Compute agent online/offline status
+            last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
+            if last_seen > 0 and (current_time - last_seen_seconds) < 60:
+                agent['computed_status'] = Text("● ONLINE", style=f"bold {self.colors['success']}")
+                agent['computed_last_seen_str'] = datetime.fromtimestamp(last_seen_seconds).strftime("%m/%d %H:%M")
+            else:
+                agent['computed_status'] = Text("○ OFFLINE", style=f"bold {self.colors['error']}")
+                agent['computed_last_seen_str'] = "Never"
+            
+            # Compute tunnel status and actions
+            health = agent.get('health_check', {})
+            if health and health.get('cloudflared_status'):
+                agent['computed_tunnel_status'] = Text("🔗 ACTIVE", style=f"bold {self.colors['warning']}")
+                agent['computed_actions'] = f"[{self.colors['success']}]shell[/{self.colors['success']}], tasks, info"
+            else:
+                agent['computed_tunnel_status'] = Text("⚬ NONE", style=f"{self.colors['dim']}")
+                agent['computed_actions'] = f"[{self.colors['dim']}]shell[/{self.colors['dim']}], tasks, info"
+                # Ensure health_check exists
+                agent['health_check'] = {'cloudflared_status': False}
+       
+        self.ssh_count = sum(1 for agent in self.agents 
+                            if agent.get('health_check', {}).get('cloudflared_status'))
+    
+ 
+    def show_agents_list(self):
+        """Compose and display the agents table using pre-computed properties"""
+        if not self.agents:
+            no_agents_panel = Panel(
+                Align.center(f"[{self.colors['warning']}]No agents currently available[/{self.colors['warning']}]\n\n[dim]Use 'r' to reload or 'q' to quit[/dim]"),
+                border_style=self.colors['warning'],
+                padding=(2, 4)
+            )
+            self.console.print(no_agents_panel)
+            return
+        
+        # Professional agents table
+        table = Table(
+            title=f"[bold {self.colors['primary']}]Aegis Agents[/bold {self.colors['primary']}] [dim]({len(self.agents)} total)[/dim]",
+            show_header=True, 
+            header_style=f"bold {self.colors['accent']}",
+            border_style=self.colors['secondary'],
+            title_style=f"bold {self.colors['primary']}",
+            show_lines=True
+        )
+        table.add_column("ID", style=f"{self.colors['accent']}", width=4, justify="center")
+        table.add_column("Hostname", style="bold white", min_width=16)
+        table.add_column("Operating System", style=f"{self.colors['info']}", width=18)
+        table.add_column("Status", width=10, justify="center")
+        table.add_column("Tunnel", width=10, justify="center") 
+        table.add_column("Last Contact", style=f"{self.colors['dim']}", width=14)
+        table.add_column("Available Actions", style=f"{self.colors['secondary']}", min_width=16)
+        
+        for i, agent in enumerate(self.agents, 1):
+            hostname = agent.get('hostname', 'Unknown')
+            os_full = agent.get('os', 'unknown').title()
+            os_version = agent.get('os_version', '')
+            os_display = f"{os_full} {os_version}"[:18]
+            
+            # Use pre-computed properties from load_agents()/_compute_agent_properties()
+            status = agent.get('computed_status', Text("○ OFFLINE", style=f"bold {self.colors['error']}"))
+            tunnel_status = agent.get('computed_tunnel_status', Text("⚬ NONE", style=f"{self.colors['dim']}"))
+            last_seen_str = agent.get('computed_last_seen_str', "Never")
+            actions = agent.get('computed_actions', f"[{self.colors['dim']}]shell[/{self.colors['dim']}], tasks, info")
+            
+            table.add_row(
+                f"[bold]{i:02d}[/bold]",
+                hostname,
+                os_display,
+                status,
+                tunnel_status,
+                last_seen_str,
+                actions
+            )
+        
+        self.console.print(table)
+        self.console.print()
+
     def show_main_menu(self):
         """Show the main interface"""
-        self.clear_screen()
+        #self.clear_screen()
         
         # Professional header without ASCII art
         current_account = self.sdk.keychain.account
@@ -174,75 +276,7 @@ class AegisMenu:
         
         self.console.print()
         
-        if not self.agents:
-            no_agents_panel = Panel(
-                Align.center(f"[{self.colors['warning']}]No agents currently available[/{self.colors['warning']}]\n\n[dim]Use 'r' to reload or 'q' to quit[/dim]"),
-                border_style=self.colors['warning'],
-                padding=(2, 4)
-            )
-            self.console.print(no_agents_panel)
-            return
         
-        # Professional agents table
-        table = Table(
-            title=f"[bold {self.colors['primary']}]Active Agents[/bold {self.colors['primary']}] [dim]({len(self.agents)} total)[/dim]",
-            show_header=True, 
-            header_style=f"bold {self.colors['accent']}",
-            border_style=self.colors['secondary'],
-            title_style=f"bold {self.colors['primary']}",
-            show_lines=True
-        )
-        table.add_column("ID", style=f"{self.colors['accent']}", width=4, justify="center")
-        table.add_column("Hostname", style="bold white", min_width=16)
-        table.add_column("Operating System", style=f"{self.colors['info']}", width=18)
-        table.add_column("Status", width=10, justify="center")
-        table.add_column("Tunnel", width=10, justify="center") 
-        table.add_column("Last Contact", style=f"{self.colors['dim']}", width=14)
-        table.add_column("Available Actions", style=f"{self.colors['secondary']}", min_width=16)
-        
-        for i, agent in enumerate(self.agents, 1):
-            hostname = agent.get('hostname', 'Unknown')
-            os_full = agent.get('os', 'unknown').title()
-            os_version = agent.get('os_version', '')
-            os_display = f"{os_full} {os_version}"[:18]
-            last_seen = agent.get('last_seen_at', 0)
-            
-            # Professional status indicators
-            current_time = datetime.now().timestamp()
-            last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
-            if last_seen > 0 and (current_time - last_seen_seconds) < 60:
-                status = Text("● ONLINE", style=f"bold {self.colors['success']}")
-                last_seen_str = datetime.fromtimestamp(last_seen_seconds).strftime("%m/%d %H:%M")
-            else:
-                status = Text("○ OFFLINE", style=f"bold {self.colors['error']}")
-                last_seen_str = "Never"
-            
-            # Tunnel status with professional indicators
-            health = agent.get('health_check', {})
-            if health and health.get('cloudflared_status'):
-                tunnel_status = Text("🔗 ACTIVE", style=f"bold {self.colors['warning']}")
-                actions = f"[{self.colors['success']}]shell[/{self.colors['success']}], tasks, info"
-            else:
-                tunnel_status = Text("⚬ NONE", style=f"{self.colors['dim']}")
-                actions = f"[{self.colors['dim']}]shell[/{self.colors['dim']}], tasks, info"
-                agent['health_check'] = {'cloudflared_status': False}
-            
-            table.add_row(
-                f"[bold]{i:02d}[/bold]",
-                hostname,
-                os_display,
-                status,
-                tunnel_status,
-                last_seen_str,
-                actions
-            )
-        
-        self.console.print(table)
-        self.console.print()
-        
-        # Count SSH-capable agents
-        ssh_count = sum(1 for agent in self.agents 
-                       if agent.get('health_check', {}).get('cloudflared_status'))
         
         # Selected agent info
         selected_info = ""
@@ -255,7 +289,7 @@ class AegisMenu:
 
         # Modern command reference with clear syntax
         cmd_panel = Panel(
-            f"""[bold {self.colors['primary']}]Available Commands[/bold {self.colors['primary']}] [dim]({ssh_count}/{len(self.agents)} agents have SSH capability)[/dim]
+            f"""[bold {self.colors['primary']}]Available Commands[/bold {self.colors['primary']}] [dim]({self.ssh_count}/{len(self.agents)} agents have SSH capability)[/dim]
 {selected_info}
 
 [bold {self.colors['success']}]🔗 Agent Selection & Actions:[/bold {self.colors['success']}]
@@ -318,7 +352,7 @@ class AegisMenu:
             return False
             
         elif command in ['r', 'reload']:
-            self.load_agents()
+            self.load_agents(force_refresh=True)
             self.console.print("[green]Agent list reloaded![/green]")
             
         elif command == 'clear':
@@ -328,8 +362,7 @@ class AegisMenu:
             self.show_help()
             
         elif command == 'list':
-            # Just refresh the main view to show agents
-            pass
+            self.show_agents_list()
             
         elif command == 'set':
             if len(args) < 2:
@@ -853,7 +886,7 @@ class AegisMenu:
         # Full agent data dump
         import json
         self.console.print(Panel(
-            json.dumps(agent, indent=2),
+            json.dumps(agent, default=str, indent=2),
             title="Raw Agent Data",
             border_style="dim"
         ))
