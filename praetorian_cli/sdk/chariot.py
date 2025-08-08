@@ -1,6 +1,7 @@
 import json, requests
 
 from praetorian_cli.sdk.entities.accounts import Accounts
+from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
@@ -41,6 +42,7 @@ class Chariot:
         self.search = Search(self)
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
+        self.aegis = Aegis(self)
         self.agents = Agents(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
@@ -235,6 +237,43 @@ class Chariot:
         
         server = MCPServer(self, allowable_tools)
         return anyio.run(server.start)
+
+    def get_current_user(self) -> tuple:
+        """
+        Get current user information for Aegis functionality.
+        
+        Returns:
+            tuple: (user_email, username) where user_email is the login email
+                   and username is the SSH username derived from the email
+        """
+        # Try to get username from keychain first (for username/password auth)
+        user_email = self.keychain.username()
+        
+        # If no username in keychain (API key auth), try to get it from JWT token
+        if not user_email and self.keychain.has_api_key():
+            try:
+                import json
+                import base64
+                
+                # Get the JWT token and decode the payload to extract user info
+                token = self.keychain.token()
+                # JWT tokens have 3 parts: header.payload.signature
+                payload_part = token.split('.')[1]
+                # Add padding if needed for base64 decoding
+                payload_part += '=' * (4 - len(payload_part) % 4)
+                payload = json.loads(base64.b64decode(payload_part))
+                
+                # Extract email from the 'email' field in the JWT payload
+                user_email = payload.get('email')
+            except Exception:
+                # If JWT decoding fails, fall back to the account parameter
+                user_email = self.keychain.account
+        
+        # Extract username from email (part before @) for SSH access
+        username = user_email.split('@')[0] if user_email and '@' in user_email else user_email
+        return user_email, username
+
+
 def is_query_limit_failure(response: requests.Response) -> bool:
     return response.status_code == 413 and 'reduce page size' in response.text
 
