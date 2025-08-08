@@ -6,14 +6,36 @@ Command-driven approach with tab completion and intuitive UX
 
 import os
 import sys
-import readline
 import shlex
+
+# Handle readline import for different platforms
+try:
+    # Try to import gnureadline first (better compatibility on macOS)
+    import gnureadline as readline
+    print("✅ Using GNU readline for enhanced completion")
+except ImportError:
+    try:
+        # Fallback to standard readline
+        import readline
+        print("⚠️  Using standard readline (limited completion on macOS)")
+    except ImportError:
+        # Create a dummy readline for systems without it
+        class DummyReadline:
+            def set_completer(self, func): pass
+            def parse_and_bind(self, string): pass
+            def get_line_buffer(self): return ""
+            def get_begidx(self): return 0
+            def get_endidx(self): return 0
+        
+        readline = DummyReadline()
+        print("❌ No readline available - tab completion disabled")
 
 from rich.console import Console
 from rich.prompt import Prompt
 
 from .commands import SetCommand, SSHCommand, InfoCommand, ListCommand, HelpCommand, TasksCommand
 from .menus import AegisStyle, MainMenu, AgentMenu
+from .completion import CompletionManager
 
 
 class AegisMenu:
@@ -50,65 +72,158 @@ class AegisMenu:
         self.help_cmd = HelpCommand(self)
         self.tasks_cmd = TasksCommand(self)
         
+        # Initialize enhanced completion system
+        self.completion_manager = CompletionManager(self)
+        
         # Setup tab completion
         self.setup_tab_completion()
     
     def setup_tab_completion(self):
-        """Setup readline tab completion for commands and agent identifiers"""
+        """Setup enhanced readline tab completion using CompletionManager"""
+        # Check if we have a real readline implementation
+        if hasattr(readline, '__name__') and 'DummyReadline' in str(type(readline)):
+            print("⚠️  Tab completion disabled - no readline support")
+            return
+        
+        # Store completions to avoid regenerating them for each state
+        self._cached_completions = []
+        self._last_completion_line = ""
+        
         def completer(text, state):
-            options = []
-            
-            # Get the current line to understand context
-            line = readline.get_line_buffer()
-            words = line.split()
-            
-            if not words or (len(words) == 1 and not line.endswith(' ')):
-                # Completing the first word (command)
-                options = [cmd for cmd in self.commands if cmd.startswith(text)]
-            elif len(words) >= 1:
-                command = words[0].lower()
-                if command == 'set' and len(words) <= 2:
-                    # Completing agent ID or number for set command
-                    options = []
-                    for i, agent in enumerate(self.agents):
-                        agent_num = str(i + 1)
-                        client_id = agent.get('client_id', '')
-                        hostname = agent.get('hostname', '')
-                        
-                        # Add numeric options
-                        if agent_num.startswith(text):
-                            options.append(agent_num)
-                        # Add client ID options
-                        if client_id.startswith(text):
-                            options.append(client_id)
-                        # Add hostname options
-                        if hostname.startswith(text):
-                            options.append(hostname)
-                            
-                elif command == 'ssh':
-                    # SSH command completion
-                    ssh_options = ['-D', '-L', '-R', '-u', '-i']
-                    if text.startswith('-'):
-                        # Completing SSH options
-                        options = [opt for opt in ssh_options if opt.startswith(text)]
-                    elif len(words) >= 2 and words[-2] in ['-D']:
-                        # Common SOCKS proxy ports
-                        common_ports = ['1080', '8080', '9050']
-                        options = [port for port in common_ports if port.startswith(text)]
-                    elif len(words) >= 2 and words[-2] in ['-u']:
-                        # Common usernames
-                        common_users = ['root', 'admin', 'user', self.username or '']
-                        options = [user for user in common_users if user and user.startswith(text)]
-            
             try:
-                return options[state]
-            except IndexError:
+                # Get the current line and cursor position
+                line = readline.get_line_buffer()
+                begidx = readline.get_begidx()
+                endidx = readline.get_endidx()
+                
+                # Only regenerate completions if line has changed
+                if line != self._last_completion_line or state == 0:
+                    self._cached_completions = self.completion_manager.get_completions(text, line, begidx, endidx)
+                    self._last_completion_line = line
+                
+                # Return the appropriate completion for this state
+                if state < len(self._cached_completions):
+                    completion = self._cached_completions[state]
+                    # Extract just the completion part (before any # comment)
+                    return completion.split('  #')[0].strip()
+                return None
+                
+            except Exception:
+                # Fallback to basic command completion on error
+                if state == 0:
+                    basic_options = [cmd for cmd in self.commands if cmd.startswith(text)]
+                    return basic_options[0] if basic_options else None
                 return None
         
+        # Set up readline completion
         readline.set_completer(completer)
-        readline.parse_and_bind("tab: complete")
-        # Enable case-insensitive completion
-        readline.parse_and_bind("set completion-ignore-case on")
+        
+        # Set up colored completion display
+        self._setup_colored_completion_display()
+        
+        # Detect readline type and configure accordingly
+        self._configure_readline_for_platform()
+    
+    def _setup_colored_completion_display(self):
+        """Setup custom colored completion display"""
+        try:
+            # Check if we have a real readline implementation
+            if hasattr(readline, '__name__') and 'DummyReadline' in str(type(readline)):
+                return
+            
+            # Set completion display hook for colored output
+            if hasattr(readline, 'set_completion_display_matches_hook'):
+                def colored_completion_display(substitution, matches, longest_match_length):
+                    """Custom completion display with colors"""
+                    _ = substitution, longest_match_length  # Suppress unused parameter warnings
+                    print()  # New line for cleaner display
+                    
+                    for match in matches:
+                        # Parse the match to separate suggestion from description
+                        if '  #' in match:
+                            suggestion, description = match.split('  #', 1)
+                            suggestion = suggestion.strip()
+                            description = description.strip()
+                            
+                            # Apply colors using ANSI codes
+                            colored_suggestion = f"\033[1m\033[38;5;61m{suggestion}\033[0m"
+                            colored_description = f"\033[38;5;145m# {description}\033[0m"
+                            
+                            print(f"  {colored_suggestion}  {colored_description}")
+                        else:
+                            # Just the suggestion without description
+                            suggestion = match.strip()
+                            colored_suggestion = f"\033[1m\033[38;5;61m{suggestion}\033[0m"
+                            print(f"  {colored_suggestion}")
+                    
+                    print()  # Add spacing after completions
+                    
+                    # Redraw the prompt
+                    print(readline.get_line_buffer(), end='', flush=True)
+                
+                readline.set_completion_display_matches_hook(colored_completion_display)
+                print("✅ Custom colored completion display enabled")
+                
+        except Exception as e:
+            print(f"⚠️  Could not enable colored completion display: {e}")
+    
+    def _configure_readline_for_platform(self):
+        """Configure readline settings based on platform and readline type"""
+        import platform
+        
+        system = platform.system()
+        is_gnu_readline = hasattr(readline, '__name__') and 'gnu' in readline.__name__.lower()
+        
+        try:
+            # Essential tab completion binding (works on all platforms)
+            readline.parse_and_bind("tab: complete")
+            
+            if is_gnu_readline or system == "Linux":
+                # GNU readline settings (Linux, or macOS with gnureadline)
+                readline.parse_and_bind("set completion-ignore-case on")
+                readline.parse_and_bind("set show-all-if-ambiguous on")
+                readline.parse_and_bind("set show-all-if-unmodified on")
+                readline.parse_and_bind("set page-completions off")
+                readline.parse_and_bind("set completion-display-width 0")
+                
+                # Enable colored completions
+                try:
+                    readline.parse_and_bind("set colored-completion-prefix on")
+                    readline.parse_and_bind("set colored-stats on")
+                    readline.parse_and_bind("set visible-stats on")
+                    print("✅ Tab completion configured with GNU readline features + colors")
+                except:
+                    print("✅ Tab completion configured with GNU readline features")
+                
+            elif system == "Darwin":  # macOS with BSD readline
+                # BSD readline has limited configuration options
+                try:
+                    readline.parse_and_bind("set completion-ignore-case on")
+                except:
+                    pass
+                print("✅ Tab completion configured for macOS BSD readline")
+                
+            else:
+                # Generic readline settings for other platforms
+                try:
+                    readline.parse_and_bind("set completion-ignore-case on")
+                except:
+                    pass
+                print(f"✅ Tab completion configured for {system}")
+                
+        except Exception:
+            # Minimal fallback configuration
+            try:
+                readline.parse_and_bind("tab: complete")
+                print("⚠️  Basic tab completion enabled (limited features)")
+            except:
+                print("❌ Failed to configure tab completion")
+        
+        # Set completion delimiters (characters that separate completion tokens)
+        try:
+            readline.set_completer_delims(' \t\n`~!@#$%^&*()=+[{]}\\|;:\'",<>?')
+        except:
+            pass
     
     def run(self):
         """Main interface loop"""
@@ -134,6 +249,8 @@ class AegisMenu:
     def reload_agents(self, force_refresh=True):
         """Load agents with 60-second caching and compute status properties"""
         self.list_cmd.load_agents(force_refresh=force_refresh)
+        # Refresh completion data when agents change
+        self.completion_manager.refresh_completions()
 
     def show_main_menu(self):
         """Show the main interface"""
@@ -206,20 +323,37 @@ class AegisMenu:
             self.clear_screen()
             
         elif command in ['h', 'help']:
-            self.help_cmd.execute()
+            # Check for specific help requests (e.g., "help ssh", "ssh --help")
+            if len(args) > 1:
+                help_topic = args[1].lower()
+                help_text = self.completion_manager.get_help_text(help_topic)
+                self.console.print(help_text)
+                self.pause()
+            else:
+                self.help_cmd.execute()
             
         elif command == 'list':
             self.list_cmd.execute()
             
         elif command == 'set':
-            if len(args) < 2:
+            if len(args) >= 2 and (args[1] == '--help' or args[1] == '-h'):
+                help_text = self.completion_manager.get_help_text('set')
+                self.console.print(help_text)
+                self.pause()
+            elif len(args) < 2:
                 self.set_cmd.execute([])
             else:
                 self.set_cmd.execute([args[1]])
                 
         elif command == 'ssh':
             ssh_args = args[1:] if len(args) > 1 else []
-            self.ssh_cmd.execute(ssh_args)
+            # Handle --help flag
+            if '--help' in ssh_args or '-h' in ssh_args:
+                help_text = self.completion_manager.get_help_text('ssh')
+                self.console.print(help_text)
+                self.pause()
+            else:
+                self.ssh_cmd.execute(ssh_args)
             
         elif command == 'info':
             self.info_cmd.execute()
