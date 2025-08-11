@@ -14,6 +14,7 @@ from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
+from praetorian_cli.sdk.entities.scanners import Scanners
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.settings import Settings
@@ -39,6 +40,7 @@ class Chariot:
         self.definitions = Definitions(self)
         self.attributes = Attributes(self)
         self.search = Search(self)
+        self.scanners = Scanners(self)
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
         self.agents = Agents(self)

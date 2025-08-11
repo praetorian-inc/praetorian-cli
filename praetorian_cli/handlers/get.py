@@ -278,3 +278,20 @@ def credential(chariot, credential_id, category, type, format, parameters):
     result = chariot.credentials.get(credential_id, category, type, [format], **params)
     output = chariot.credentials.format_output(result)
     click.echo(output)
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+def scanner(chariot, key):
+    """ Get scanner details
+
+    \b
+    Argument:
+        - KEY: the key of an existing scanner record
+
+    \b
+    Example usage:
+        - praetorian chariot get scanner "#scanner#127.0.0.1"
+    """
+    print_json(chariot.scanners.get(key))

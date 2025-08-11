@@ -336,3 +336,20 @@ def capabilities(chariot, name, target, executor):
         - praetorian chariot list capabilities --name nuclei --target attribute --executor chariot
     """
     print_json(chariot.capabilities.list(name, target, executor))
+
+
+@list.command()
+@list_params('IP address')
+def scanners(chariot, filter, details, offset, page):
+    """ List scanners
+
+    Retrieve and display a list of scanner records that track IP addresses used by chariot.
+
+    \b
+    Example usages:
+        - praetorian chariot list scanners
+        - praetorian chariot list scanners --filter 127.0.0.1
+        - praetorian chariot list scanners --details
+        - praetorian chariot list scanners --page all
+    """
+    render_list_results(chariot.scanners.list(filter, offset, pagination_size(page)), details)
