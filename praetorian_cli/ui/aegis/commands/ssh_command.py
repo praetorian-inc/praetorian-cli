@@ -19,17 +19,15 @@ class SSHCommand(BaseCommand):
     def handle_ssh_command(self, ssh_args=None):
         """Handle SSH command for selected agent with optional arguments"""
         if not self.selected_agent:
-            self.console.print("[red]No agent selected! Use 'set <id>' first[/red]")
-            self.pause()
+            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
             return
         
         # Check if SSH is available
         health = self.selected_agent.get('health_check', {})
         if not (health and health.get('cloudflared_status')):
             hostname = self.selected_agent.get('hostname', 'Unknown')
-            self.console.print(f"[red]SSH not available for {hostname}[/red]")
-            self.console.print("[dim]This agent doesn't have an active Cloudflare tunnel.[/dim]")
-            self.pause()
+            self.console.print(f"\n  SSH not available for {hostname}")
+            self.console.print(f"  [{self.colors['dim']}]This agent doesn't have an active tunnel[/{self.colors['dim']}]\n")
             return
         
         # Parse SSH arguments
@@ -61,7 +59,8 @@ class SSHCommand(BaseCommand):
             'dynamic_forward': None,
             'key': None,
             'ssh_opts': None,
-            'user': None
+            'user': None,
+            'passthrough': []  # collect unknown flags to pass through
         }
         
         i = 0
@@ -72,7 +71,6 @@ class SSHCommand(BaseCommand):
                 if i + 1 >= len(args):
                     self.console.print("[red]Error: -L requires a port forwarding specification[/red]")
                     self.console.print("[dim]Example: ssh -L 8080:localhost:80[/dim]")
-                    self.pause()
                     return None
                 options['local_forward'].append(args[i + 1])
                 i += 2
@@ -81,7 +79,6 @@ class SSHCommand(BaseCommand):
                 if i + 1 >= len(args):
                     self.console.print("[red]Error: -R requires a port forwarding specification[/red]")
                     self.console.print("[dim]Example: ssh -R 9090:localhost:3000[/dim]")
-                    self.pause()
                     return None
                 options['remote_forward'].append(args[i + 1])
                 i += 2
@@ -90,7 +87,6 @@ class SSHCommand(BaseCommand):
                 if i + 1 >= len(args):
                     self.console.print("[red]Error: -D requires a port number[/red]")
                     self.console.print("[dim]Example: ssh -D 1080[/dim]")
-                    self.pause()
                     return None
                 try:
                     port = int(args[i + 1])
@@ -100,7 +96,6 @@ class SSHCommand(BaseCommand):
                 except ValueError:
                     self.console.print(f"[red]Error: Invalid port number '{args[i + 1]}'[/red]")
                     self.console.print("[dim]Port must be a number between 1 and 65535[/dim]")
-                    self.pause()
                     return None
                 i += 2
                 
@@ -123,14 +118,16 @@ class SSHCommand(BaseCommand):
                 i += 2
                 
             elif arg.startswith('-'):
-                self.console.print(f"[red]Error: Unknown SSH option '{arg}'[/red]")
-                self.console.print("[dim]Supported options: -L, -R, -D, -i, -u[/dim]")
-                self.console.print("[dim]Type 'help' for examples[/dim]")
-                self.pause()
-                return None
+                # Collect unknown options and their arguments if any
+                options['passthrough'].append(arg)
+                # If next token is a value and current looks like expects arg (heuristic), include it
+                if i + 1 < len(args) and not args[i + 1].startswith('-'):
+                    options['passthrough'].append(args[i + 1])
+                    i += 2
+                else:
+                    i += 1
             else:
                 self.console.print(f"[red]Error: Unexpected argument '{arg}'[/red]")
-                self.pause()
                 return None
             
         return options
@@ -143,7 +140,6 @@ class SSHCommand(BaseCommand):
         health = agent.get('health_check', {})
         if not (health and health.get('cloudflared_status')):
             self.console.print(f"[red]No Cloudflare tunnel available for {hostname}[/red]")
-            self.pause()
             return
         
         # Get tunnel information
@@ -154,32 +150,29 @@ class SSHCommand(BaseCommand):
         
         if not public_hostname:
             self.console.print(f"[red]No public hostname found in tunnel configuration for {hostname}[/red]")
-            self.pause()
             return
         
         # Determine SSH user
         ssh_user = options.get('user') or self.username
         
-        # Show connection info
-        self.console.print(f"[green]Connecting to {hostname} via {public_hostname}...[/green]")
-        self.console.print(f"[dim]Tunnel: {tunnel_name}[/dim]")
-        self.console.print(f"[dim]SSH user: {ssh_user}[/dim]")
+        # Minimal connection info
+        self.console.print()
+        self.console.print(f"  [{self.colors['success']}]Connecting to {hostname}[/{self.colors['success']}]")
+        self.console.print(f"  [{self.colors['dim']}]via {public_hostname} • user: {ssh_user}[/{self.colors['dim']}]")
         
-        # Show port forwarding info
+        # Show port forwarding if configured
         if options['local_forward']:
-            self.console.print(f"[dim]Local forwarding: {', '.join(options['local_forward'])}[/dim]")
+            for fwd in options['local_forward']:
+                self.console.print(f"  [{self.colors['warning']}]Local forward: {fwd}[/{self.colors['warning']}]")
+        
         if options['remote_forward']:
-            self.console.print(f"[dim]Remote forwarding: {', '.join(options['remote_forward'])}[/dim]")
+            for fwd in options['remote_forward']:
+                self.console.print(f"  [{self.colors['warning']}]Remote forward: {fwd}[/{self.colors['warning']}]")
+        
         if options['dynamic_forward']:
-            self.console.print(f"[dim]SOCKS proxy: localhost:{options['dynamic_forward']}[/dim]")
+            self.console.print(f"  [{self.colors['warning']}]SOCKS proxy: port {options['dynamic_forward']}[/{self.colors['warning']}]")
         
-        # Show authorized users if configured
-        if authorized_users:
-            users_list = [u.strip() for u in authorized_users.split(',')]
-            self.console.print(f"[dim]Authorized users: {', '.join(users_list)}[/dim]")
-        
-        self.console.print("\n[bold yellow]Starting SSH session...[/bold yellow]")
-        self.console.print("[dim]Press Ctrl+C to return to menu[/dim]")
+        self.console.print(f"\n  [{self.colors['dim']}]Starting session... (Ctrl+C to exit)[/{self.colors['dim']}]")
         
         # Build SSH command directly (like original handle_shell)
         ssh_command = ['ssh']
@@ -200,6 +193,10 @@ class SSHCommand(BaseCommand):
         if options['dynamic_forward']:
             ssh_command.extend(['-D', options['dynamic_forward']])
         
+        # Add passthrough options
+        if options['passthrough']:
+            ssh_command.extend(options['passthrough'])
+
         # Add the target
         ssh_command.append(f'{ssh_user}@{public_hostname}')
         
@@ -215,7 +212,6 @@ class SSHCommand(BaseCommand):
             
         except Exception as e:
             self.console.print(f"[red]Error executing SSH command: {e}[/red]")
-            self.pause()
     
     def handle_shell(self, agent: dict):
         """Handle simple shell connection without options"""
@@ -240,18 +236,16 @@ class SSHCommand(BaseCommand):
             self.pause()
             return
         
-        # Show connection info
-        self.console.print(f"[green]Connecting to {hostname} via {public_hostname}...[/green]")
-        self.console.print(f"[dim]Tunnel: {tunnel_name}[/dim]")
-        self.console.print(f"[dim]SSH user: {self.username}[/dim]")
+        # Minimal connection info for simple SSH
+        self.console.print()
+        self.console.print(f"  [{self.colors['success']}]Connecting to {hostname}[/{self.colors['success']}]")
+        self.console.print(f"  [{self.colors['dim']}]via {public_hostname} • user: {self.username}[/{self.colors['dim']}]")
         
-        # Show authorized users if configured
         if authorized_users:
             users_list = [u.strip() for u in authorized_users.split(',')]
-            self.console.print(f"[dim]Authorized users: {', '.join(users_list)}[/dim]")
+            self.console.print(f"  [{self.colors['dim']}]authorized: {', '.join(users_list)}[/{self.colors['dim']}]")
         
-        self.console.print("\n[bold yellow]Starting SSH session...[/bold yellow]")
-        self.console.print("[dim]Press Ctrl+C to return to menu[/dim]")
+        self.console.print(f"\n  [{self.colors['dim']}]Starting session... (Ctrl+C to exit)[/{self.colors['dim']}]")
         
         # Build SSH command using the current user's username
         ssh_command = ['ssh', f'{self.username}@{public_hostname}']

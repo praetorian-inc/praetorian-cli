@@ -8,16 +8,21 @@ import os
 import sys
 import shlex
 
+# Verbosity setting for Aegis UI (quiet by default)
+VERBOSE = os.getenv('CHARIOT_AEGIS_VERBOSE') == '1'
+
 # Handle readline import for different platforms
 try:
     # Try to import gnureadline first (better compatibility on macOS)
     import gnureadline as readline
-    print("✅ Using GNU readline for enhanced completion")
+    if VERBOSE:
+        print("Using GNU readline for enhanced completion")
 except ImportError:
     try:
         # Fallback to standard readline
         import readline
-        print("⚠️  Using standard readline (limited completion on macOS)")
+        if VERBOSE:
+            print("Using standard readline (limited completion on macOS)")
     except ImportError:
         # Create a dummy readline for systems without it
         class DummyReadline:
@@ -28,12 +33,16 @@ except ImportError:
             def get_endidx(self): return 0
         
         readline = DummyReadline()
-        print("❌ No readline available - tab completion disabled")
+        if VERBOSE:
+            print("No readline available - tab completion disabled")
 
+from datetime import datetime
 from rich.console import Console
 from rich.prompt import Prompt
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.live import Live
 
-from .commands import SetCommand, SSHCommand, InfoCommand, ListCommand, HelpCommand, TasksCommand
+from .commands import SetCommand, SSHCommand, InfoCommand, ListCommand, HelpCommand, TasksCommand, JobCommand
 from .menus import AegisStyle, MainMenu, AgentMenu
 from .completion import CompletionManager
 
@@ -44,11 +53,13 @@ class AegisMenu:
     def __init__(self, sdk):
         self.sdk = sdk
         self.console = Console()
+        self.verbose = VERBOSE
         self.agents = []
         self.selected_agent = None  # Currently selected agent
         self.ssh_count = 0
         self.last_agent_fetch = 0  # timestamp of last API call for caching
         self.agent_cache_duration = 60  # cache duration in seconds
+        self._first_render = True
         
         # Get user information using the centralized, reliable method
         self.user_email, self.username = self.sdk.get_current_user()
@@ -61,7 +72,7 @@ class AegisMenu:
         
         # Available commands for tab completion
         self.commands = [
-            'set', 'ssh', 'info', 'list', 'reload', 'clear', 'help', 'quit', 'exit'
+            'set', 'ssh', 'info', 'list', 'job', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
         
         # Initialize command handlers
@@ -71,6 +82,7 @@ class AegisMenu:
         self.list_cmd = ListCommand(self)
         self.help_cmd = HelpCommand(self)
         self.tasks_cmd = TasksCommand(self)
+        self.job_cmd = JobCommand(self)
         
         # Initialize enhanced completion system
         self.completion_manager = CompletionManager(self)
@@ -82,7 +94,8 @@ class AegisMenu:
         """Setup enhanced readline tab completion using CompletionManager"""
         # Check if we have a real readline implementation
         if hasattr(readline, '__name__') and 'DummyReadline' in str(type(readline)):
-            print("⚠️  Tab completion disabled - no readline support")
+            if self.verbose:
+                print("Tab completion disabled - no readline support")
             return
         
         # Store completions to avoid regenerating them for each state
@@ -162,10 +175,12 @@ class AegisMenu:
                     print(readline.get_line_buffer(), end='', flush=True)
                 
                 readline.set_completion_display_matches_hook(colored_completion_display)
-                print("✅ Custom colored completion display enabled")
+                if self.verbose:
+                    print("Custom colored completion display enabled")
                 
         except Exception as e:
-            print(f"⚠️  Could not enable colored completion display: {e}")
+            if self.verbose:
+                print(f"Could not enable colored completion display: {e}")
     
     def _configure_readline_for_platform(self):
         """Configure readline settings based on platform and readline type"""
@@ -191,9 +206,11 @@ class AegisMenu:
                     readline.parse_and_bind("set colored-completion-prefix on")
                     readline.parse_and_bind("set colored-stats on")
                     readline.parse_and_bind("set visible-stats on")
-                    print("✅ Tab completion configured with GNU readline features + colors")
+                    if self.verbose:
+                        print("Tab completion configured with GNU readline features + colors")
                 except:
-                    print("✅ Tab completion configured with GNU readline features")
+                    if self.verbose:
+                        print("Tab completion configured with GNU readline features")
                 
             elif system == "Darwin":  # macOS with BSD readline
                 # BSD readline has limited configuration options
@@ -201,7 +218,8 @@ class AegisMenu:
                     readline.parse_and_bind("set completion-ignore-case on")
                 except:
                     pass
-                print("✅ Tab completion configured for macOS BSD readline")
+                if self.verbose:
+                    print("Tab completion configured for macOS BSD readline")
                 
             else:
                 # Generic readline settings for other platforms
@@ -209,15 +227,18 @@ class AegisMenu:
                     readline.parse_and_bind("set completion-ignore-case on")
                 except:
                     pass
-                print(f"✅ Tab completion configured for {system}")
+                if self.verbose:
+                    print(f"Tab completion configured for {system}")
                 
         except Exception:
             # Minimal fallback configuration
             try:
                 readline.parse_and_bind("tab: complete")
-                print("⚠️  Basic tab completion enabled (limited features)")
+                if self.verbose:
+                    print("Basic tab completion enabled (limited features)")
             except:
-                print("❌ Failed to configure tab completion")
+                if self.verbose:
+                    print("Failed to configure tab completion")
         
         # Set completion delimiters (characters that separate completion tokens)
         try:
@@ -253,35 +274,31 @@ class AegisMenu:
         self.completion_manager.refresh_completions()
 
     def show_main_menu(self):
-        """Show the main interface"""
-        # Show header
-        current_account = self.sdk.keychain.account
-        header_panel = self.main_menu.get_header_panel(
-            self.user_email, 
-            self.username, 
-            current_account
-        )
-        self.console.print(header_panel)
-        self.console.print()
-        
-        # Show commands panel
-        selected_info = self.main_menu.get_selected_agent_info(self.selected_agent)
-        cmd_panel = self.main_menu.get_commands_panel(
-            self.ssh_count, 
-            len(self.agents), 
-            selected_info
-        )
-        self.console.print(cmd_panel)
+        """Show the main interface with reduced noise"""
+        # Only show header on first render
+        if self._first_render:
+            current_account = self.sdk.keychain.account
+            header = self.main_menu.get_enhanced_header(
+                self.user_email, 
+                self.username, 
+                current_account
+            )
+            self.console.print(header)
+            
+            # Show simple help hint
+            self.console.print(f"  [{self.colors['dim']}]hint: tab for completion • help for commands[/{self.colors['dim']}]\n")
+        self._first_render = False
     
     def get_input(self) -> str:
-        """Get user input with tab completion support"""
+        """Get user input with minimal context-aware prompt"""
         try:
-            # Build prompt with selected agent info
+            # Build minimal prompt
             if self.selected_agent:
                 hostname = self.selected_agent.get('hostname', 'Unknown')
-                prompt = f"aegis({hostname})> "
+                # Don't truncate - just show hostname
+                prompt = f"{hostname}> "
             else:
-                prompt = "aegis> "
+                prompt = "> "
             
             # Set readline prompt for proper display
             readline.set_startup_hook(lambda: readline.insert_text(""))
@@ -317,7 +334,7 @@ class AegisMenu:
             
         elif command in ['r', 'reload']:
             self.reload_agents(force_refresh=True)
-            self.console.print("[green]Agent list reloaded![/green]")
+            # No output - just refresh
             
         elif command == 'clear':
             self.clear_screen()
@@ -333,7 +350,8 @@ class AegisMenu:
                 self.help_cmd.execute()
             
         elif command == 'list':
-            self.list_cmd.execute()
+            list_args = args[1:] if len(args) > 1 else []
+            self.list_cmd.execute(list_args)
             
         elif command == 'set':
             if len(args) >= 2 and (args[1] == '--help' or args[1] == '-h'):
@@ -356,7 +374,11 @@ class AegisMenu:
                 self.ssh_cmd.execute(ssh_args)
             
         elif command == 'info':
-            self.info_cmd.execute()
+            self.info_cmd.execute(args[1:] if len(args) > 1 else [])
+            
+        elif command == 'job':
+            job_args = args[1:] if len(args) > 1 else []
+            self.job_cmd.execute(job_args)
             
         # Legacy support for direct numbers (backwards compatibility)
         elif command.isdigit():
@@ -364,14 +386,14 @@ class AegisMenu:
             if 1 <= agent_num <= len(self.agents):
                 self.selected_agent = self.agents[agent_num - 1]
                 hostname = self.selected_agent.get('hostname', 'Unknown')
-                self.console.print(f"[green]Selected agent: {hostname}[/green]")
+                # No output - prompt will show selection
             else:
-                self.console.print(f"[red]Invalid agent number: {agent_num}[/red]")
+                self.console.print(f"\n  Invalid agent number: {agent_num}\n")
                 self.pause()
                 
         else:
-            self.console.print(f"[red]Unknown command: {command}[/red]")
-            self.console.print("[dim]Type 'help' for available commands[/dim]")
+            self.console.print(f"\n  Unknown command: {command}")
+            self.console.print(f"  [{self.colors['dim']}]Type 'help' for available commands[/{self.colors['dim']}]\n")
             self.pause()
         
         return True
@@ -413,7 +435,9 @@ class AegisMenu:
 
     def pause(self):
         """Professional pause with styling"""
-        Prompt.ask(f"\n[{self.colors['dim']}]Press Enter to continue...[/{self.colors['dim']}]", default="")
+        if self.verbose:
+            Prompt.ask(f"\n[{self.colors['dim']}]Press Enter to continue...[/{self.colors['dim']}]")
+        # Quiet mode: do not block
 
 
 def run_aegis_menu(sdk):

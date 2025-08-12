@@ -37,14 +37,14 @@ def ssh(sdk, client_id, user, local_forward, remote_forward, dynamic_forward, ke
     
     \b
     Example usages:
-        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA                    # SSH as your username
-        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA--user root         # SSH as specific user
-        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA-L 8080:localhost:80 # With port forwarding
-        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA-R 9090:localhost:3000
-        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA-D 1080             # SOCKS proxy
-        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA-L 8080:web:80 -L 9000:db:5432
-        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA-i ~/.ssh/my_key    # Custom SSH key
-        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA--ssh-opts "-v"    # SSH options
+        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA                      # SSH as your username
+        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA --user root          # SSH as specific user
+        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA -L 8080:localhost:80 # With port forwarding
+        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA -R 9090:localhost:3000
+        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA -D 1080              # SOCKS proxy
+        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA -L 8080:web:80 -L 9000:db:5432
+        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA -i ~/.ssh/my_key     # Custom SSH key
+        - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA --ssh-opts "-v"     # SSH options
     """
     try:
         # Determine SSH username using the centralized method

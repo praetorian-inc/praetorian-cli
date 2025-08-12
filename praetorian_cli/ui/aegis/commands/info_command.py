@@ -8,6 +8,9 @@ from typing import List
 from rich.table import Table
 from rich.panel import Panel
 from rich.align import Align
+from rich.text import Text
+from rich.box import MINIMAL
+from rich.columns import Columns
 from .base_command import BaseCommand
 
 
@@ -16,33 +19,122 @@ class InfoCommand(BaseCommand):
     
     def execute(self, args: List[str] = None):
         """Execute info command"""
-        self.handle_info_command()
+        args = args or []
+        raw = ('--raw' in args) or ('-r' in args)
+        self.handle_info_command(raw=raw)
     
-    def handle_info_command(self):
+    def handle_info_command(self, raw: bool = False):
         """Handle info command for selected agent"""
         if not self.selected_agent:
-            self.console.print("[red]No agent selected! Use 'set <id>' first[/red]")
+            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
             self.pause()
             return
         
-        self.handle_info(self.selected_agent)
+        self.handle_info(self.selected_agent, raw=raw)
     
-    def handle_info(self, agent: dict):
-        """Show detailed agent info"""
+    def handle_info(self, agent: dict, raw: bool = False):
+        """Show detailed agent info with minimal design"""
         self.clear_screen()
         hostname = agent.get('hostname', 'Unknown')
         
-        self.console.print(Panel(
-            f"[bold]Detailed Info: {hostname}[/bold]",
-            style=f"on {self.colors['info']}"
-        ))
+        # Simple header
+        self.console.print()
+        self.console.print(f"  [{self.colors['primary']}]Agent Details[/{self.colors['primary']}]")
+        self.console.print()
+
+        if raw:
+            # Raw JSON dump with minimal styling
+            self.console.print(f"  [{self.colors['dim']}]Raw agent data:[/{self.colors['dim']}]")
+            self.console.print()
+            # Format JSON with indentation
+            json_lines = json.dumps(agent, default=str, indent=2).split('\n')
+            for line in json_lines:
+                self.console.print(f"  {line}")
+            self.pause()
+            return
         
-        # Full agent data dump
-        self.console.print(Panel(
-            json.dumps(agent, default=str, indent=2),
-            title="Raw Agent Data",
-            border_style="dim"
-        ))
+        # Gather agent info
+        os_info = agent.get('os', 'unknown').lower()
+        os_version = agent.get('os_version', '')
+        architecture = agent.get('architecture', 'Unknown')
+        fqdn = agent.get('fqdn', 'N/A')
+        client_id = agent.get('client_id', 'N/A')
+        last_seen = agent.get('last_seen_at', 0)
+        health = agent.get('health_check', {}) or {}
+        cf_status = health.get('cloudflared_status') or {}
+        
+        # Get network interfaces and extract IP addresses
+        network_interfaces = agent.get('network_interfaces', [])
+        ip_info = []
+        
+        # Extract IPs from network interfaces
+        if network_interfaces:
+            for interface in network_interfaces:
+                if isinstance(interface, dict):
+                    # Get interface name
+                    iface_name = interface.get('name', '')
+                    
+                    # Get IP addresses from the ip_addresses field (it's a list)
+                    ip_addresses = interface.get('ip_addresses', [])
+                    
+                    # Add each IP with interface name
+                    for ip in ip_addresses:
+                        if ip:  # Skip empty strings
+                            if iface_name and iface_name != 'lo':  # Skip loopback
+                                ip_info.append(f"{ip} ({iface_name})")
+                            elif iface_name != 'lo':
+                                ip_info.append(ip)
+        
+        # Compute status
+        current_time = datetime.now().timestamp()
+        if last_seen > 0:
+            last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
+            is_online = (current_time - last_seen_seconds) < 60
+            last_seen_str = datetime.fromtimestamp(last_seen_seconds).strftime("%Y-%m-%d %H:%M:%S")
+            if is_online:
+                status_text = f"[{self.colors['success']}]● online[/{self.colors['success']}]"
+            else:
+                status_text = f"[{self.colors['error']}]○ offline[/{self.colors['error']}]"
+        else:
+            last_seen_str = "never"
+            status_text = f"[{self.colors['error']}]○ offline[/{self.colors['error']}]"
+            is_online = False
+
+        # Simple, clean output
+        self.console.print(f"  [bold white]{hostname}[/bold white]  {status_text}")
+        self.console.print(f"  [{self.colors['dim']}]{fqdn}[/{self.colors['dim']}]")
+        self.console.print()
+        
+        # System info
+        self.console.print(f"  [{self.colors['dim']}]System[/{self.colors['dim']}]")
+        self.console.print(f"    OS:           {os_info} {os_version}")
+        self.console.print(f"    Architecture: {architecture}")
+        if ip_info:
+            if len(ip_info) == 1:
+                self.console.print(f"    IP:           {ip_info[0]}")
+            else:
+                self.console.print(f"    IPs:          {ip_info[0]}")
+                for ip in ip_info[1:]:
+                    self.console.print(f"                  {ip}")
+        self.console.print(f"    Client ID:    {client_id[:40]}...")
+        self.console.print(f"    Last seen:    {last_seen_str}")
+        self.console.print()
+        
+        # Tunnel info
+        if cf_status:
+            tunnel_name = cf_status.get('tunnel_name', 'N/A')
+            public_hostname = cf_status.get('hostname', 'N/A')
+            authorized_users = cf_status.get('authorized_users', '')
+            
+            self.console.print(f"  [{self.colors['warning']}]Tunnel active[/{self.colors['warning']}]")
+            self.console.print(f"    Name:      {tunnel_name}")
+            self.console.print(f"    Public:    {public_hostname}")
+            
+            if authorized_users:
+                users_list = [u.strip() for u in authorized_users.split(',')]
+                self.console.print(f"    Authorized: {', '.join(users_list)}")
+        else:
+            self.console.print(f"  [{self.colors['dim']}]No tunnel configured[/{self.colors['dim']}]")
         
         self.pause()
     

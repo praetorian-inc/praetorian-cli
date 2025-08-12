@@ -9,6 +9,7 @@ from .info_command import InfoCommand
 from .list_command import ListCommand
 from .help_command import HelpCommand
 from .tasks_command import TasksCommand
+from .job_command import JobCommand
 
 __all__ = [
     'BaseCommand',
@@ -17,5 +18,6 @@ __all__ = [
     'InfoCommand',
     'ListCommand',
     'HelpCommand',
-    'TasksCommand'
+    'TasksCommand',
+    'JobCommand'
 ]

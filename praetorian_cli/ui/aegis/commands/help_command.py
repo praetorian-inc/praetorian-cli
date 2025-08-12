@@ -19,19 +19,26 @@ class HelpCommand(BaseCommand):
         agent_count = len(self.agents)
         completion_stats = getattr(self.menu, 'completion_manager', None)
         
-        help_text = f"""[bold {self.colors['primary']}]CHARIOT AEGIS - Enhanced Command Reference[/bold {self.colors['primary']}]
+        help_text = f"""[bold {self.colors['primary']}]CHARIOT AEGIS - Command Reference[/bold {self.colors['primary']}]
 
-[bold {self.colors['success']}]🎯 Agent Selection:[/bold {self.colors['success']}]
+[bold {self.colors['success']}]Agent Selection:[/bold {self.colors['success']}]
   [bold {self.colors['success']}]set <id>[/bold {self.colors['success']}]           Set current agent by number (1-{agent_count}), client ID, or hostname
                      [dim]Examples: set 1, set C.abc123, set kali-unit42[/dim]
                      [dim]💡 Use TAB to see all available agents with descriptions[/dim]
 
-[bold {self.colors['success']}]🔗 Agent Actions:[/bold {self.colors['success']}] [dim](require selected agent)[/dim]
+[bold {self.colors['success']}]Agent Actions:[/bold {self.colors['success']}] [dim](require selected agent)[/dim]
   [bold {self.colors['success']}]ssh [options][/bold {self.colors['success']}]      Connect to selected agent via SSH (requires tunnel)
-                     [dim]💡 Use TAB after 'ssh -' to see all SSH options with help[/dim]
+                     [dim]Use TAB after 'ssh -' to see all SSH options with help[/dim]
   [bold {self.colors['info']}]info[/bold {self.colors['info']}]              Show detailed system information for selected agent
+  [bold {self.colors['warning']}]job <subcommand>[/bold {self.colors['warning']}]  Manage and run jobs on selected agent
 
-[bold {self.colors['accent']}]⚙️  Enhanced SSH Options:[/bold {self.colors['accent']}] [dim](use --help for full details)[/dim]
+[bold {self.colors['accent']}]Job Commands:[/bold {self.colors['accent']}]
+  [bold]job list[/bold]          List recent jobs for selected agent
+  [bold]job run <cap>[/bold]     Run capability on agent [dim](e.g. process-list)[/dim]
+  [bold]job status <id>[/bold]   Check job status
+  [bold]job capabilities[/bold]  List available Aegis capabilities
+
+[bold {self.colors['accent']}]SSH Options:[/bold {self.colors['accent']}] [dim](use --help for full details)[/dim]
   [bold {self.colors['warning']}]-D <port>[/bold {self.colors['warning']}]         SOCKS proxy [dim](try: -D 1080)[/dim]
   [bold {self.colors['warning']}]-L <spec>[/bold {self.colors['warning']}]         Local forwarding [dim](try: -L 8080:localhost:80)[/dim]
   [bold {self.colors['warning']}]-R <spec>[/bold {self.colors['warning']}]         Remote forwarding [dim](try: -R 9090:localhost:3000)[/dim]
@@ -39,21 +46,22 @@ class HelpCommand(BaseCommand):
   [bold {self.colors['warning']}]-u <user>[/bold {self.colors['warning']}]         Username [dim](TAB shows common users)[/dim]
   [bold {self.colors['warning']}]-p <port>[/bold {self.colors['warning']}]         Remote port [dim](default: 22)[/dim]
 
-[bold {self.colors['accent']}]🛠️  System Commands:[/bold {self.colors['accent']}]
-  [bold]list[/bold]             Show all agents with status and capabilities
+[bold {self.colors['accent']}]System Commands:[/bold {self.colors['accent']}]
+  [bold]list[/bold]             Show online agents only (default)
+  [bold]list --all[/bold]       Show all agents including offline
   [bold {self.colors['warning']}]reload[/bold {self.colors['warning']}]           Refresh agent list from server
   [bold]clear[/bold]            Clear terminal screen
   [bold]help <cmd>[/bold]       Show help for specific command
   [bold {self.colors['error']}]quit[/bold {self.colors['error']}] / [bold {self.colors['error']}]exit[/bold {self.colors['error']}]     Exit Aegis console
 
-[bold {self.colors['info']}]⌨️  Smart Completion Features:[/bold {self.colors['info']}]
+[bold {self.colors['info']}]Completion Features:[/bold {self.colors['info']}]
   • [bold]TAB completion[/bold] with contextual help and descriptions
   • [bold]Intelligent suggestions[/bold] based on current agent list
   • [bold]SSH option help[/bold] with examples and common values
   • [bold]Real-time validation[/bold] and error prevention
   • [bold]Command help[/bold] via --help flag (e.g., ssh --help)
   
-[bold {self.colors['warning']}]🎨 Enhanced Examples:[/bold {self.colors['warning']}]
+[bold {self.colors['warning']}]Examples:[/bold {self.colors['warning']}]
   [dim]# Set agent by various methods[/dim]
   set 1                        [dim]→ Select first agent[/dim]
   set kali-unit42              [dim]→ Select by hostname (TAB completes)[/dim]
@@ -81,7 +89,7 @@ class HelpCommand(BaseCommand):
             help_text,
             border_style=self.colors['accent'],
             padding=(1, 2),
-            title="[bold]Enhanced Help System[/bold]",
+            title="[bold]Help[/bold]",
             title_align="left"
         ))
         self.pause()
