@@ -12,25 +12,29 @@ from praetorian_cli.sdk.entities.generic import Generic
 from praetorian_cli.sdk.model.utils import get_dict_from_entries
 
 
-@chariot.group(invoke_without_command=True)
-@cli_handler
-@click.pass_context
-@click.option('-l', '--label', required=False, help='Label/type of entity to add')
-@click.option('-e', '--entries', required=False, help='JSON string or file path containing entity data')
-def add(ctx, chariot, label, entries):
-    """ Add an entity to Chariot """
-    if ctx.invoked_subcommand is None:
-        if not label or not entries:
-            print("Both --label and --entries must be provided")
-            return
-        
-        entries_data = get_dict_from_entries(entries)
+class FallbackGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
 
-        try:
-            results = chariot.generic.add(label, entries_data)
-            print_json(results)
-        except Exception as e:
-            error(f"Failed to add entity: {e}")
+        # Return a dynamic command that adds entities with the label=cmd_name
+        @click.command(name=cmd_name)
+        @click.option('-e', '--entries', required=True, help='JSON string or file path containing entity data')
+        @cli_handler
+        def _dynamic(chariot, entries):  # noqa: ARG002
+            entries_data = get_dict_from_entries(entries)
+            try:
+                results = chariot.generic.add(cmd_name, entries_data)
+                print_json(results)
+            except Exception as e:
+                error(f"Failed to add entity: {e}")
+        return _dynamic
+
+@chariot.group(cls=FallbackGroup)
+def add():
+    """ Add an entity to Chariot (known subcommands or generic entities) """
+    pass
 
 
 @add.command()

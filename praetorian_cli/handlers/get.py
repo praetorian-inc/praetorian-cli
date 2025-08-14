@@ -5,22 +5,41 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import print_json
-from praetorian_cli.sdk.entities.generic import Generic
 
 
-@chariot.group(invoke_without_command=True)
-@cli_handler
-@click.pass_context
-@click.option('-k', '--key', required=False, help='The key of the entity to retrieve')
-def get(ctx, chariot, key):
-    """ Get entity by key or list entities by label from Chariot """
-    if ctx.invoked_subcommand is None:
-        if key == "":
-            print("No key provided")
-            return
-        generic = Generic(chariot)
-        result = generic.get(key)
-        print_json(result) 
+class FallbackGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+
+        @click.command(name=cmd_name)
+        @click.argument('entity_key', required=True)
+        @click.option('-f', '--filter', required=False, help='Additional filters')
+        @cli_handler
+        def _dynamic(chariot, entity_key, filter):  # noqa: ARG002
+            result = chariot.generic.get(entity_key)
+            if result:
+                print_json(result)
+            else:
+                # If that fails, try searching by label for entities with this key
+                results, _ = chariot.generic.list(cmd_name, filter_text=entity_key, pages=1)
+                if results:
+                    # Find exact key match
+                    for item in results:
+                        if item.get('key') == entity_key:
+                            print_json(item)
+                            return
+                    # If no exact match, return first result
+                    print_json(results[0])
+                else:
+                    print_json(None)
+        return _dynamic
+
+@chariot.group(cls=FallbackGroup)
+def get():
+    """ Get entity by key (known subcommands or generic entities) """
+    pass 
         
 
 

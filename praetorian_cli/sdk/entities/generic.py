@@ -31,12 +31,14 @@ class Generic:
         results, _ = self.api.search.by_query(query)
         return results[0] if results else None
 
-    def list(self, label, filters=None, offset=None, pages=100000):
+    def list(self, label, filter_text=None, filters=None, offset=None, pages=100000):
         """
         List entities by label with optional filters using graph queries.
 
         :param label: Label/type of entities to search for
         :type label: str
+        :param filter_text: Text filter to search within entity names/values
+        :type filter_text: str or None
         :param filters: Additional search filters as dict of field:value pairs
         :type filters: dict or None
         :param offset: The offset for pagination
@@ -48,6 +50,26 @@ class Generic:
         """
         query_filters = []
         
+        # Add text filter if provided
+        if filter_text:
+            # Try key field first since it contains the full entity identifier
+            try:
+                field_enum = Filter.Field.KEY
+                query_filters.append(Filter(field_enum, Filter.Operator.CONTAINS, filter_text))
+            except ValueError:
+                # Fallback to group field
+                try:
+                    field_enum = Filter.Field.GROUP
+                    query_filters.append(Filter(field_enum, Filter.Operator.CONTAINS, filter_text))
+                except ValueError:
+                    # Final fallback to name field
+                    try:
+                        field_enum = Filter.Field.NAME
+                        query_filters.append(Filter(field_enum, Filter.Operator.CONTAINS, filter_text))
+                    except ValueError:
+                        pass
+        
+        # Add additional filters if provided
         if filters:
             for field, value in filters.items():
                 try:
