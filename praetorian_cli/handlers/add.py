@@ -1,18 +1,36 @@
 import datetime
 import os.path
+import json
 
 import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import error
+from praetorian_cli.handlers.utils import error, print_json
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
+from praetorian_cli.sdk.entities.generic import Generic
+from praetorian_cli.sdk.model.utils import get_dict_from_entries
 
 
-@chariot.group()
-def add():
+@chariot.group(invoke_without_command=True)
+@cli_handler
+@click.pass_context
+@click.option('-l', '--label', required=False, help='Label/type of entity to add')
+@click.option('-e', '--entries', required=False, help='JSON string or file path containing entity data')
+def add(ctx, chariot, label, entries):
     """ Add an entity to Chariot """
-    pass
+    if ctx.invoked_subcommand is None:
+        if not label or not entries:
+            print("Both --label and --entries must be provided")
+            return
+        
+        entries_data = get_dict_from_entries(entries)
+
+        try:
+            results = chariot.generic.add(label, entries_data)
+            print_json(results)
+        except Exception as e:
+            error(f"Failed to add entity: {e}")
 
 
 @add.command()

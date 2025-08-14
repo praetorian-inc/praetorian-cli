@@ -5,12 +5,24 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.sdk.entities.generic import Generic
 
 
-@chariot.group()
-def get():
-    """ Get entity details from Chariot """
-    pass
+@chariot.group(invoke_without_command=True)
+@cli_handler
+@click.pass_context
+@click.option('-k', '--key', required=False, help='The key of the entity to retrieve')
+def get(ctx, chariot, key):
+    """ Get entity by key or list entities by label from Chariot """
+    if ctx.invoked_subcommand is None:
+        if key == "":
+            print("No key provided")
+            return
+        generic = Generic(chariot)
+        result = generic.get(key)
+        print_json(result) 
+        
+
 
 
 @get.command()

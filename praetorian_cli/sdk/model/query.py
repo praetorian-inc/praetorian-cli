@@ -98,7 +98,7 @@ class Node:
         SEED = 'Seed'
         TTL = 'TTL'
 
-    def __init__(self, labels: list[Label] = None, filters: list[Filter] = None,
+    def __init__(self, labels: list[str] = None, filters: list[Filter] = None,
                  relationships: list[Relationship] = None):
         self.labels = labels
         self.filters = filters
@@ -107,7 +107,7 @@ class Node:
     def to_dict(self):
         ret = dict()
         if self.labels:
-            ret |= dict(labels=[x.value for x in self.labels])
+            ret |= dict(labels=self.labels)
         if self.filters:
             ret |= dict(filters=[x.to_dict() for x in self.filters])
         if self.relationships:
@@ -165,11 +165,11 @@ def key_equals(key: str):
 
 
 def risk_of_key(key: str):
-    return Node(RISK_NODE, filters=key_equals(key))
+    return Node([label.value for label in RISK_NODE], filters=key_equals(key))
 
 
 def asset_of_key(key: str):
-    return Node(ASSET_NODE, filters=key_equals(key))
+    return Node([label.value for label in ASSET_NODE], filters=key_equals(key))
 
 
 def get_graph_kind(key: str):
@@ -213,7 +213,7 @@ def my_params_to_query(params: dict):
     if not label:
         return None
 
-    node = Node(labels=[label], filters=[filter])
+    node = Node(labels=[label.value], filters=[filter])
 
     page = int(params.get('offset', 0))
     global_ = bool(params.get('global', False))

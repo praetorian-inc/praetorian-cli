@@ -22,12 +22,14 @@ from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
 from praetorian_cli.sdk.model.query import Query, my_params_to_query, DEFAULT_PAGE_SIZE
+from praetorian_cli.sdk.entities.generic import Generic
 
 
 class Chariot:
 
     def __init__(self, keychain: Keychain, proxy: str=''):
         self.keychain = keychain
+        self.generic = Generic(self)
         self.assets = Assets(self)
         self.seeds = Seeds(self)
         self.preseeds = Preseeds(self)

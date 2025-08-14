@@ -5,10 +5,31 @@ from praetorian_cli.handlers.cli_decorators import list_params, pagination, cli_
 from praetorian_cli.handlers.utils import render_offset, render_list_results, pagination_size, error, print_json
 
 
-@chariot.group()
-def list():
+@chariot.group(invoke_without_command=True)
+@cli_handler  
+@click.pass_context
+@click.argument('label', required=True)
+@click.option('-k', '--key-prefix', required=False, help='Key prefix to search for')
+@click.option('-d', '--details', is_flag=True, help='Show detailed information')
+@pagination
+def list(ctx, chariot, label, key_prefix, details, offset, page):
     """ Get a list of entities from Chariot """
-    pass
+    if label in ctx.command.commands:
+        return ctx.invoke(ctx.command.commands[label])
+        
+    if not label and not key_prefix:
+        print("No label or key prefix provided")
+        return
+    
+    if label and key_prefix:
+        print("Cannot specify both --label and --key-prefix")
+        return
+    
+    if label:
+        results, next_offset = chariot.generic.list(label, offset=offset, pages=pagination_size(page))
+    else:
+        results, next_offset = chariot.search.by_key_prefix(key_prefix, offset, pagination_size(page))
+    render_list_results((results, next_offset), details)
 
 
 @list.command()
