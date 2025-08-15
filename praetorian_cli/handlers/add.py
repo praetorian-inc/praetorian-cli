@@ -22,7 +22,7 @@ class FallbackGroup(click.Group):
         @click.command(name=cmd_name)
         @click.option('-e', '--entries', required=True, help='JSON string or file path containing entity data')
         @cli_handler
-        def _dynamic(chariot, entries):  # noqa: ARG002
+        def _dynamic(chariot, entries): 
             entries_data = get_dict_from_entries(entries)
             try:
                 results = chariot.generic.add(cmd_name, entries_data)
@@ -33,7 +33,7 @@ class FallbackGroup(click.Group):
 
 @chariot.group(cls=FallbackGroup)
 def add():
-    """ Add an entity to Chariot (known subcommands or generic entities) """
+    """ Add an entity to Chariot """
     pass
 
 

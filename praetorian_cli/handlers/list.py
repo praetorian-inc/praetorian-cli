@@ -16,9 +16,8 @@ class FallbackGroup(click.Group):
         @click.option('-d', '--details', is_flag=True, help='Show detailed information')
         @pagination
         @cli_handler
-        def _dynamic(chariot, filter, details, offset, page):  # noqa: ARG002
-            results, next_offset = chariot.generic.list(cmd_name, filter_text=filter, offset=offset, pages=pagination_size(page))
-            render_list_results((results, next_offset), details)
+        def _dynamic(chariot, filter, details, offset, page): 
+            render_list_results(chariot.generic.list(cmd_name, filter_text=filter, offset=offset, pages=pagination_size(page)), details)
         return _dynamic
 
 @chariot.group(cls=FallbackGroup)

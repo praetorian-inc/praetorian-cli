@@ -15,25 +15,9 @@ class FallbackGroup(click.Group):
 
         @click.command(name=cmd_name)
         @click.argument('entity_key', required=True)
-        @click.option('-f', '--filter', required=False, help='Additional filters')
         @cli_handler
-        def _dynamic(chariot, entity_key, filter):  # noqa: ARG002
-            result = chariot.generic.get(entity_key)
-            if result:
-                print_json(result)
-            else:
-                # If that fails, try searching by label for entities with this key
-                results, _ = chariot.generic.list(cmd_name, filter_text=entity_key, pages=1)
-                if results:
-                    # Find exact key match
-                    for item in results:
-                        if item.get('key') == entity_key:
-                            print_json(item)
-                            return
-                    # If no exact match, return first result
-                    print_json(results[0])
-                else:
-                    print_json(None)
+        def _dynamic(chariot, entity_key): 
+            print_json(chariot.generic.get(entity_key))
         return _dynamic
 
 @chariot.group(cls=FallbackGroup)
