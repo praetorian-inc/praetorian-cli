@@ -22,7 +22,7 @@ class FallbackGroup(click.Group):
 
 @chariot.group(cls=FallbackGroup)
 def get():
-    """ Get entity by key (known subcommands or generic entities) """
+    """ Get entity details from Chariot """
     pass 
 
 

@@ -17,7 +17,7 @@ class FallbackGroup(click.Group):
 
         # Return a dynamic command that adds entities with the label=cmd_name
         @click.command(name=cmd_name)
-        @click.option('-e', '--entries', required=True, help='JSON string or file path containing entity data')
+        @click.option('-e', '--entries', required=True, help='key value pairs that make up the object')
         @cli_handler
         def _dynamic(chariot, entries):
             try:
@@ -328,6 +328,7 @@ def key(sdk, name, expires):
         return
     click.echo(f'API key created: {result.get("key", "N/A")}')
     click.echo(f'Secret (save this, it will not be shown again): {result["secret"]}')
+
 
 def get_dict_from_entries(entry):
     config_dict = {}

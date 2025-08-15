@@ -28,10 +28,10 @@ def schema(chariot, details, entity_type):
     if not schema_data:
         error(f"Entity type '{entity_type}' not found")
 
-    if not details:
-        show_keys(schema_data)
-    else:
+    if details:
         print_json(schema_data)
+    else:
+        show_keys(schema_data)
 
 def show_keys(data):
     for type_name in sorted(data.keys()):
