@@ -1,4 +1,4 @@
-from praetorian_cli.sdk.model.query import Query, Node, Filter, KIND_TO_LABEL
+# Imports moved to search.by_label_with_filter method
 
 class Generic:
 
@@ -33,13 +33,13 @@ class Generic:
 
     def list(self, label, filter_text=None, filters=None, offset=None, pages=100000):
         """
-        List entities by label with optional filters using graph queries.
+        List entities by label with optional filters.
 
         :param label: Label/type of entities to search for
         :type label: str
-        :param filter_text: Text filter to search within entity names/values
+        :param filter_text: Text filter to search within entity keys
         :type filter_text: str or None
-        :param filters: Additional search filters as dict of field:value pairs
+        :param filters: Additional search filters as dict of field:value pairs (not yet implemented)
         :type filters: dict or None
         :param offset: The offset for pagination
         :type offset: str or None
@@ -48,48 +48,9 @@ class Generic:
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple
         """
-        query_filters = []
-        
-        # Add text filter if provided
-        if filter_text:
-            # Try key field first since it contains the full entity identifier
-            try:
-                field_enum = Filter.Field.KEY
-                query_filters.append(Filter(field_enum, Filter.Operator.CONTAINS, filter_text))
-            except ValueError:
-                # Fallback to group field
-                try:
-                    field_enum = Filter.Field.GROUP
-                    query_filters.append(Filter(field_enum, Filter.Operator.CONTAINS, filter_text))
-                except ValueError:
-                    # Final fallback to name field
-                    try:
-                        field_enum = Filter.Field.NAME
-                        query_filters.append(Filter(field_enum, Filter.Operator.CONTAINS, filter_text))
-                    except ValueError:
-                        pass
-        
-        # Add additional filters if provided
-        if filters:
-            for field, value in filters.items():
-                try:
-                    field_enum = Filter.Field(field)
-                    query_filters.append(Filter(field_enum, Filter.Operator.EQUAL, value))
-                except ValueError:
-                    continue
-        
-        # Use enum value if available, otherwise use string directly
-        node_label = KIND_TO_LABEL.get(label)
-        if node_label:
-            labels = [node_label.value]
-        else:
-            labels = [label]
-        
-        node = Node(labels=labels, filters=query_filters if query_filters else None)
-        query = Query(node=node)
-        results, offset = self.api.search.by_query(query, pages)
-        
-        return results, offset
+        # Build the key prefix like risks does: #label#{filter}
+        key_prefix = f"#{label.lower()}#{filter_text or ''}"
+        return self.api.search.by_key_prefix(key_prefix, offset, pages)
 
     def add(self, label, entries):
         """
