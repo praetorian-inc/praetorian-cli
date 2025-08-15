@@ -1,4 +1,4 @@
-import json, requests
+import json, requests, os
 
 from praetorian_cli.sdk.entities.accounts import Accounts
 from praetorian_cli.sdk.entities.agents import Agents
@@ -49,6 +49,9 @@ class Chariot:
         self.credentials = Credentials(self)
         self.proxy = proxy
 
+        if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):
+            self.proxy = os.environ.get('CHARIOT_PROXY')
+
         if self.proxy:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -62,8 +65,26 @@ class Chariot:
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
             kwargs['verify'] = False
+        
+        self._add_beta_filter(method, kwargs)
 
         return requests.request(method, url, headers=self.keychain.headers(), **kwargs)
+
+    def _add_beta_filter(self, method: str, kwargs: dict):
+        if method == 'GET' or method == 'DELETE':
+            self._add_beta_url_param(kwargs)
+        else:
+            self._add_beta_json_param(kwargs)
+
+    def _add_beta_url_param(self, kwargs: dict):
+        if 'params' in kwargs:
+            kwargs['params']['beta'] = 'true'
+        else:
+            kwargs['params'] = {'beta': 'true'}
+
+    def _add_beta_json_param(self, kwargs: dict):
+        if 'json' in kwargs:
+            kwargs['json']['beta'] = True
 
     def my(self, params: dict, pages=1) -> dict:
         final_resp = dict()
