@@ -1,6 +1,5 @@
 import datetime
 import os.path
-import json
 
 import click
 
@@ -332,3 +331,26 @@ def key(sdk, name, expires):
         return
     click.echo(f'API key created: {result.get("key", "N/A")}')
     click.echo(f'Secret (save this, it will not be shown again): {result["secret"]}')
+
+def get_dict_from_entries(entry):
+    config_dict = {}
+    for item in entry:
+        if '=' not in item:
+            click.echo(f"Error: Entry '{item}' is not in the format key=value")
+            return
+
+        if item.count('=') > 1:
+            click.echo(f"Error: Entry '{item}' contains multiple '=' characters. Format should be key=value")
+            return
+
+        key, value = item.split('=', 1)
+
+        if not key:
+            click.echo("Error: Key cannot be empty")
+            return
+
+        if not value:
+            click.echo("Error: Value cannot be empty")
+            return
+
+        config_dict[key] = value
