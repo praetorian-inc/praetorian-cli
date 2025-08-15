@@ -71,11 +71,36 @@ class Generic:
             entry_with_type = entry.copy()
             entry_with_type['type'] = label
             
-            # Use the API to upsert the entity
-            result = self.api.upsert(label, entry_with_type)
+            # Use the /model endpoint for adding entities
+            result = self.api.upsert('model', entry_with_type)
             if isinstance(result, list):
                 results.extend(result)
             else:
                 results.append(result)
         
         return results
+
+    def get_schema(self, entity_type: str = None) -> dict:
+        """Get schema information for entity types
+        
+        Args:
+            entity_type: Optional specific entity type, if None returns all schemas
+            
+        Returns:
+            dict: Schema information
+        """
+        result = self.api.get('schema')
+        if entity_type:
+            if entity_type not in result:
+                return {}
+            return {entity_type: result[entity_type]}
+        return result
+    
+    def get_available_entity_types(self) -> list:
+        """Get list of all available entity types
+        
+        Returns:
+            list: Available entity type names
+        """
+        schema_data = self.get_schema()
+        return list(schema_data.keys()) if isinstance(schema_data, dict) else []

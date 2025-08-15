@@ -7,8 +7,6 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error, print_json
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
-from praetorian_cli.sdk.entities.generic import Generic
-from praetorian_cli.sdk.model.utils import get_dict_from_entries
 
 
 class FallbackGroup(click.Group):
