@@ -44,8 +44,8 @@ class MainMenu:
     def get_selected_agent_info(self, selected_agent=None) -> str:
         """Get selected agent information text"""
         if selected_agent:
-            hostname = selected_agent.get('hostname', 'Unknown')
-            client_id = selected_agent.get('client_id', 'Unknown')
+            hostname = selected_agent.hostname or 'Unknown'
+            client_id = selected_agent.client_id or 'Unknown'
             return f"[bold {self.colors['success']}]Selected Agent:[/bold {self.colors['success']}] {hostname} ({client_id})"
         else:
             return f"[{self.colors['dim']}]No agent selected - use 'set <id>' to choose an agent[/{self.colors['dim']}]"
@@ -102,7 +102,7 @@ class MainMenu:
         
         # Selected agent
         if selected_agent:
-            hostname = selected_agent.get('hostname', 'Unknown')
+            hostname = selected_agent.hostname or 'Unknown'
             status_items.append(f"[{self.colors['accent']}]Agent: {hostname}[/{self.colors['accent']}]")
         else:
             status_items.append(f"[{self.colors['dim']}]No Agent Selected[/{self.colors['dim']}]")

@@ -1,5 +1,4 @@
 import click
-import subprocess
 import sys
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
@@ -15,6 +14,48 @@ def aegis(ctx, sdk):
         from praetorian_cli.ui.aegis.menu import run_aegis_menu
         run_aegis_menu(sdk)
 
+
+
+@aegis.command()
+@cli_handler
+@click.option('--details', is_flag=True, help='Show detailed capability descriptions')
+@click.option('--filter', help='Filter agents by hostname or other properties')
+def list_agents(sdk, details, filter):
+    """List Aegis agents with optional details"""
+    result = sdk.aegis.format_agents_list(details=details, filter_text=filter)
+    
+    if result.get('success'):
+        click.echo(result['output'])
+    else:
+        click.echo(f"Error: {result.get('message', 'Unknown error')}", err=True)
+        sys.exit(1)
+
+
+def _ssh_to_agent(sdk, client_id, user=None, local_forward=None, remote_forward=None, dynamic_forward=None, key=None, ssh_opts=None, exit_on_completion=True):
+    """Thin wrapper around SDK SSH method for backward compatibility"""
+    try:
+        exit_code = sdk.aegis.ssh_to_agent(
+            client_id=client_id,
+            user=user,
+            local_forward=local_forward or [],
+            remote_forward=remote_forward or [],
+            dynamic_forward=dynamic_forward,
+            key=key,
+            ssh_opts=ssh_opts,
+            display_info=True
+        )
+        
+        if exit_on_completion:
+            sys.exit(exit_code)
+        else:
+            return exit_code
+            
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        if exit_on_completion:
+            sys.exit(1)
+        else:
+            return 1
 
 
 @aegis.command()
@@ -46,97 +87,46 @@ def ssh(sdk, client_id, user, local_forward, remote_forward, dynamic_forward, ke
         - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA -i ~/.ssh/my_key     # Custom SSH key
         - praetorian chariot aegis ssh C.6e012baaaaaaa-AAAAA --ssh-opts "-v"     # SSH options
     """
-    try:
-        # Determine SSH username using the centralized method
-        if not user:
-            _, user = sdk.get_current_user()
-        
-        # Get agent details
-        agent = sdk.aegis.get_by_client_id(client_id)
-        if not agent:
-            click.echo(f"Error: No Aegis instance found with client ID: {client_id}", err=True)
-            sys.exit(1)
-        
-        hostname = agent.get('hostname', 'Unknown')
-        health = agent.get('health_check', {})
-        
-        # Check if Cloudflare tunnel is available
-        if not (health and health.get('cloudflared_status')):
-            click.echo(f"Error: No Cloudflare tunnel available for {hostname} ({client_id})", err=True)
-            click.echo("SSH access requires an active Cloudflare tunnel.", err=True)
-            sys.exit(1)
-        
-        # Get tunnel information
-        cf_status = health['cloudflared_status']
-        public_hostname = cf_status.get('hostname')
-        authorized_users = cf_status.get('authorized_users', '')
-        tunnel_name = cf_status.get('tunnel_name', 'N/A')
-        
-        if not public_hostname:
-            click.echo(f"Error: No public hostname found in tunnel configuration for {hostname}", err=True)
-            sys.exit(1)
-        
-        # Check if user is authorized (if authorization is configured)
-        if authorized_users:
-            users_list = [u.strip() for u in authorized_users.split(',')]
-            if user not in users_list:
-                click.echo(f"Warning: User '{user}' may not be authorized for this tunnel.", err=True)
-                click.echo(f"Authorized users: {', '.join(users_list)}", err=True)
-                click.echo("Proceeding anyway...", err=True)
-        
-        # Build SSH command
-        ssh_command = ['ssh']
-        
-        # Add SSH key if specified
-        if key:
-            ssh_command.extend(['-i', key])
-        
-        # Add local port forwarding (-L)
-        for forward in local_forward:
-            ssh_command.extend(['-L', forward])
-        
-        # Add remote port forwarding (-R)
-        for forward in remote_forward:
-            ssh_command.extend(['-R', forward])
-        
-        # Add dynamic port forwarding (-D)
-        if dynamic_forward:
-            ssh_command.extend(['-D', dynamic_forward])
-        
-        # Add additional SSH options
-        if ssh_opts:
-            import shlex
-            ssh_command.extend(shlex.split(ssh_opts))
-        
-        # Add the target
-        ssh_command.append(f'{user}@{public_hostname}')
-        
-        # Execute SSH command
-        click.echo(f"Connecting to {hostname} via {public_hostname}...")
-        click.echo(f"Tunnel: {tunnel_name}")
-        click.echo(f"SSH user: {user}")
-        
-        # Show active port forwarding
-        if local_forward:
-            click.echo(f"Local forwarding: {', '.join(local_forward)}")
-        if remote_forward:
-            click.echo(f"Remote forwarding: {', '.join(remote_forward)}")
-        if dynamic_forward:
-            click.echo(f"SOCKS proxy: localhost:{dynamic_forward}")
-        
-        click.echo("")
-        
-        try:
-            # Use subprocess.run with direct terminal interaction
-            result = subprocess.run(ssh_command)
-            sys.exit(result.returncode)
-        except KeyboardInterrupt:
-            click.echo("\nSSH connection interrupted.")
-            sys.exit(130)
-        except FileNotFoundError:
-            click.echo("Error: SSH command not found. Please ensure SSH is installed and in your PATH.", err=True)
-            sys.exit(1)
-            
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
+    _ssh_to_agent(sdk, client_id, user, local_forward, remote_forward, dynamic_forward, key, ssh_opts)
+
+
+@aegis.command()
+@cli_handler
+@click.argument('client_id', required=True)
+@click.option('-c', '--capability', 'capabilities', multiple=True, help='Capability to run (e.g., windows-smb-snaffler)')
+@click.option('--config', help='JSON configuration string for the job')
+def job(sdk, client_id, capabilities, config):
+    """Run a job on an Aegis agent
+    
+    Schedule security scanning jobs for the specified Aegis agent. Jobs run
+    capabilities against the target asset or domain.
+    
+    \\b
+    Arguments:
+        CLIENT_ID: The client ID of the Aegis agent (e.g., C.6e012b467f9faf82-OG9F0)
+    
+    \\b
+    Example usages:
+        - praetorian chariot aegis job C.6e012b467f9faf82-OG9F0 -c windows-smb-snaffler
+        - praetorian chariot aegis job C.6e012b467f9faf82-OG9F0 -c windows-domain-collection
+        - praetorian chariot aegis job C.6e012b467f9faf82-OG9F0 -c linux-filesystem-scan
+        - praetorian chariot aegis job C.6e012b467f9faf82-OG9F0 --config '{"Username":"admin","Password":"secret"}'
+    """
+    result = sdk.aegis.run_job(client_id, list(capabilities) if capabilities else None, config)
+    
+    if 'capabilities' in result:
+        # Show available capabilities
+        click.echo("Available capabilities:")
+        for cap in result['capabilities']:
+            name = cap.get('name', 'unknown')
+            desc = cap.get('description', '')[:50]
+            click.echo(f"  {name:<25} {desc}")
+    elif result.get('success'):
+        # Job was queued successfully
+        click.echo(f"✓ Job queued successfully")
+        click.echo(f"  Job ID: {result.get('job_id', 'unknown')}")
+        click.echo(f"  Status: {result.get('status', 'unknown')}")
+    else:
+        # Error occurred
+        click.echo(f"Error: {result.get('message', 'Unknown error')}", err=True)
         sys.exit(1)

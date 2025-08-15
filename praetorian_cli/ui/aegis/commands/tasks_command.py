@@ -20,7 +20,7 @@ class TasksCommand(BaseCommand):
     
     def handle_tasks(self, agent: dict):
         """Handle agent tasks"""
-        hostname = agent.get('hostname', 'unknown')
+        hostname = agent.hostname or 'unknown'
         self.console.print(f"[blue]Task management for {hostname}[/blue]")
         self.console.print("[dim]Task system implementation pending...[/dim]")
         self.pause()

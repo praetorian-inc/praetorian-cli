@@ -17,6 +17,10 @@ from .base_command import BaseCommand
 class ListCommand(BaseCommand):
     """Handle agent listing and loading"""
     
+    def __init__(self, menu_instance):
+        super().__init__(menu_instance)
+        self.agent_computed_data = {}
+    
     def execute(self, args: List[str] = None):
         """Execute list command"""
         args = args or []
@@ -61,11 +65,10 @@ class ListCommand(BaseCommand):
         
         # Sort: online with tunnel first, then online, then offline
         def agent_sort_key(agent):
-            health = agent.get('health_check', {}) or {}
-            has_tunnel = bool(health.get('cloudflared_status'))
-            last_seen = agent.get('last_seen_at', 0)
+            has_tunnel = agent.has_tunnel
+            last_seen = agent.last_seen_at or 0
             last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
-            is_online = last_seen > 0 and (current_time - last_seen_seconds) < 60
+            is_online = agent.is_online
             # negative sorting (True first)
             return (
                 0 if (is_online and has_tunnel) else (1 if is_online else 2),
@@ -75,37 +78,31 @@ class ListCommand(BaseCommand):
         # Apply in-place stable sort for display order
         self.agents.sort(key=agent_sort_key)
 
-        for agent in self.agents:
-            last_seen = agent.get('last_seen_at', 0)
+        # Compute derived data for display - store in separate structures
+        self.agent_computed_data = {}
+        for i, agent in enumerate(self.agents):
+            last_seen = agent.last_seen_at or 0
             
             # Compute agent online/offline status
             last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
-            if last_seen > 0 and (current_time - last_seen_seconds) < 60:
-                agent['computed_last_seen_str'] = self._relative_time(last_seen_seconds, current_time)
-                agent['is_online'] = True
-            else:
-                agent['computed_last_seen_str'] = "—"
-                agent['is_online'] = False
-            
-            # Compute tunnel status
-            health = agent.get('health_check', {})
-            if health and health.get('cloudflared_status'):
-                agent['has_tunnel'] = True
-            else:
-                agent['has_tunnel'] = False
-                # Ensure health_check exists
-                agent['health_check'] = {'cloudflared_status': False}
+            computed_last_seen_str = (self._relative_time(last_seen_seconds, current_time) 
+                                    if agent.is_online else "—")
             
             # Add group category for visual separation
-            if agent.get('is_online') and agent.get('has_tunnel'):
-                agent['group'] = 'active_tunnel'
-            elif agent.get('is_online'):
-                agent['group'] = 'online'
+            if agent.is_online and agent.has_tunnel:
+                group = 'active_tunnel'
+            elif agent.is_online:
+                group = 'online'
             else:
-                agent['group'] = 'offline'
+                group = 'offline'
+            
+            # Store computed data separately
+            self.agent_computed_data[i] = {
+                'computed_last_seen_str': computed_last_seen_str,
+                'group': group
+            }
        
-        self.menu.ssh_count = sum(1 for agent in self.agents 
-                            if agent.get('health_check', {}).get('cloudflared_status'))
+        self.menu.ssh_count = sum(1 for agent in self.agents if agent.has_tunnel)
     
     def show_agents_list(self, show_offline=False):
         """Compose and display the agents table using pre-computed properties"""
@@ -119,9 +116,9 @@ class ListCommand(BaseCommand):
             return
         
         # Count agents by status
-        active_tunnel_agents = [a for a in self.agents if a.get('group') == 'active_tunnel']
-        online_agents = [a for a in self.agents if a.get('group') == 'online']
-        offline_agents = [a for a in self.agents if a.get('group') == 'offline']
+        active_tunnel_agents = [(i, a) for i, a in enumerate(self.agents) if self.agent_computed_data.get(i, {}).get('group') == 'active_tunnel']
+        online_agents = [(i, a) for i, a in enumerate(self.agents) if self.agent_computed_data.get(i, {}).get('group') == 'online']
+        offline_agents = [(i, a) for i, a in enumerate(self.agents) if self.agent_computed_data.get(i, {}).get('group') == 'offline']
         
         # Filter out offline agents unless explicitly requested
         if not show_offline:
@@ -182,19 +179,22 @@ class ListCommand(BaseCommand):
         table.add_column("SEEN", style=f"{self.colors['dim']}", width=10, justify="right", no_wrap=True)
         
         # Simplified row display
-        for i, agent in enumerate(display_agents, 1):
-            hostname = agent.get('hostname', 'Unknown')
-            os_full = agent.get('os', 'unknown').lower()
-            os_version = agent.get('os_version', '')
+        for i, (agent_idx, agent) in enumerate(display_agents, 1):
+            hostname = agent.hostname or 'Unknown'
+            os_full = (agent.os or 'unknown').lower()
+            os_version = agent.os_version or ''
             os_display = f"{os_full} {os_version}".strip()[:18]
             
+            computed_data = self.agent_computed_data.get(agent_idx, {})
+            agent_group = computed_data.get('group', 'offline')
+            
             # Simplified status indicators
-            if agent.get('group') == 'active_tunnel':
+            if agent_group == 'active_tunnel':
                 status = Text("online", style=f"{self.colors['success']}")
                 tunnel = Text("active", style=f"{self.colors['warning']}")
                 idx_style = f"{self.colors['warning']}"
                 hostname_style = "bold white"
-            elif agent.get('group') == 'online':
+            elif agent_group == 'online':
                 status = Text("online", style=f"{self.colors['success']}")
                 tunnel = Text("—", style=f"{self.colors['dim']}")
                 idx_style = f"{self.colors['success']}"
@@ -205,7 +205,7 @@ class ListCommand(BaseCommand):
                 idx_style = f"{self.colors['dim']}"
                 hostname_style = f"{self.colors['dim']}"
             
-            last_seen = agent.get('computed_last_seen_str', "—")
+            last_seen = computed_data.get('computed_last_seen_str', "—")
             if isinstance(last_seen, Text):
                 last_seen = last_seen.plain
             

@@ -31,14 +31,14 @@ class SetCommand(BaseCommand):
         # If not found by number, try by client ID or hostname
         if not selected_agent:
             for agent in self.agents:
-                if (agent.get('client_id', '').lower() == identifier.lower() or 
-                    agent.get('hostname', '').lower() == identifier.lower()):
+                if ((agent.client_id or '').lower() == identifier.lower() or 
+                    (agent.hostname or '').lower() == identifier.lower()):
                     selected_agent = agent
                     break
         
         if selected_agent:
             self.selected_agent = selected_agent
-            hostname = selected_agent.get('hostname', 'Unknown')
+            hostname = selected_agent.hostname or 'Unknown'
             # No output - the new prompt will show the selection
         else:
             self.console.print(f"\n  Agent not found: {identifier}")

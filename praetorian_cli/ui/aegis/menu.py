@@ -294,7 +294,7 @@ class AegisMenu:
         try:
             # Build minimal prompt
             if self.selected_agent:
-                hostname = self.selected_agent.get('hostname', 'Unknown')
+                hostname = self.selected_agent.hostname or 'Unknown'
                 # Don't truncate - just show hostname
                 prompt = f"{hostname}> "
             else:
@@ -385,7 +385,7 @@ class AegisMenu:
             agent_num = int(command)
             if 1 <= agent_num <= len(self.agents):
                 self.selected_agent = self.agents[agent_num - 1]
-                hostname = self.selected_agent.get('hostname', 'Unknown')
+                hostname = self.selected_agent.hostname or 'Unknown'
                 # No output - prompt will show selection
             else:
                 self.console.print(f"\n  Invalid agent number: {agent_num}\n")
@@ -412,8 +412,7 @@ class AegisMenu:
         self.info_cmd.show_agent_details(agent)
         
         # Show actions panel
-        health = agent.get('health_check', {})
-        shell_available = health and health.get('cloudflared_status')
+        shell_available = agent.has_tunnel
         
         actions_panel = self.agent_menu.get_actions_panel(shell_available)
         self.console.print(actions_panel)

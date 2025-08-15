@@ -35,7 +35,7 @@ class InfoCommand(BaseCommand):
     def handle_info(self, agent: dict, raw: bool = False):
         """Show detailed agent info with minimal design"""
         self.clear_screen()
-        hostname = agent.get('hostname', 'Unknown')
+        hostname = agent.hostname or 'Unknown'
         
         # Simple header
         self.console.print()
@@ -54,28 +54,28 @@ class InfoCommand(BaseCommand):
             return
         
         # Gather agent info
-        os_info = agent.get('os', 'unknown').lower()
-        os_version = agent.get('os_version', '')
-        architecture = agent.get('architecture', 'Unknown')
-        fqdn = agent.get('fqdn', 'N/A')
-        client_id = agent.get('client_id', 'N/A')
-        last_seen = agent.get('last_seen_at', 0)
-        health = agent.get('health_check', {}) or {}
-        cf_status = health.get('cloudflared_status') or {}
+        os_info = (agent.os or 'unknown').lower()
+        os_version = agent.os_version or ''
+        architecture = agent.architecture or 'Unknown'
+        fqdn = agent.fqdn or 'N/A'
+        client_id = agent.client_id or 'N/A'
+        last_seen = agent.last_seen_at or 0
+        health = agent.health_check
+        cf_status = health.cloudflared_status if health else None
         
         # Get network interfaces and extract IP addresses
-        network_interfaces = agent.get('network_interfaces', [])
+        network_interfaces = agent.network_interfaces or []
         ip_info = []
         
         # Extract IPs from network interfaces
         if network_interfaces:
             for interface in network_interfaces:
-                if isinstance(interface, dict):
+                if hasattr(interface, 'name'):  # NetworkInterface object
                     # Get interface name
-                    iface_name = interface.get('name', '')
+                    iface_name = interface.name or ''
                     
                     # Get IP addresses from the ip_addresses field (it's a list)
-                    ip_addresses = interface.get('ip_addresses', [])
+                    ip_addresses = interface.ip_addresses or []
                     
                     # Add each IP with interface name
                     for ip in ip_addresses:
@@ -122,9 +122,9 @@ class InfoCommand(BaseCommand):
         
         # Tunnel info
         if cf_status:
-            tunnel_name = cf_status.get('tunnel_name', 'N/A')
-            public_hostname = cf_status.get('hostname', 'N/A')
-            authorized_users = cf_status.get('authorized_users', '')
+            tunnel_name = cf_status.tunnel_name or 'N/A'
+            public_hostname = cf_status.hostname or 'N/A'
+            authorized_users = cf_status.authorized_users or ''
             
             self.console.print(f"  [{self.colors['warning']}]Tunnel active[/{self.colors['warning']}]")
             self.console.print(f"    Name:      {tunnel_name}")
@@ -140,13 +140,13 @@ class InfoCommand(BaseCommand):
     
     def show_agent_details(self, agent: dict):
         """Show professional agent details"""
-        hostname = agent.get('hostname', 'Unknown')
-        os_info = agent.get('os', 'unknown').title()
-        os_version = agent.get('os_version', '')
-        architecture = agent.get('architecture', 'Unknown')
-        fqdn = agent.get('fqdn', 'N/A')
-        client_id = agent.get('client_id', 'N/A')
-        last_seen = agent.get('last_seen_at', 0)
+        hostname = agent.hostname or 'Unknown'
+        os_info = (agent.os or 'unknown').title()
+        os_version = agent.os_version or ''
+        architecture = agent.architecture or 'Unknown'
+        fqdn = agent.fqdn or 'N/A'
+        client_id = agent.client_id or 'N/A'
+        last_seen = agent.last_seen_at or 0
         
         # Status
         if last_seen > 0:
@@ -177,12 +177,12 @@ class InfoCommand(BaseCommand):
         system_table.add_row("Last Contact", last_seen_str)
         
         # Tunnel info
-        health = agent.get('health_check', {})
-        if health and health.get('cloudflared_status'):
-            cf_status = health['cloudflared_status']
-            tunnel_name = cf_status.get('tunnel_name', 'N/A')
-            public_hostname = cf_status.get('hostname', 'N/A')
-            authorized_users = cf_status.get('authorized_users', '').replace(',', ', ')
+        health = agent.health_check
+        if health and health.cloudflared_status:
+            cf_status = health.cloudflared_status
+            tunnel_name = cf_status.tunnel_name or 'N/A'
+            public_hostname = cf_status.hostname or 'N/A'
+            authorized_users = (cf_status.authorized_users or '').replace(',', ', ')
             
             system_table.add_row("", "")  # Spacer
             system_table.add_row("Tunnel Status", f"[{self.colors['warning']}]🔗 ACTIVE[/{self.colors['warning']}]")
