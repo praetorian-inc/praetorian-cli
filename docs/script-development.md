@@ -55,7 +55,7 @@ def register(script_group: click.MultiCommand):
 
 ## Debugging
 
-The CLI skips loading scripts that have compilation errors. If you script does not
+The CLI skips loading scripts that have compilation errors. If your script does not
 appear in `praetorian chariot script --help`, run the CLI with the `--debug` flag to
 see the compilation errors.
 
