@@ -33,5 +33,8 @@ def setting_key(name):
 def configuration_key(name):
     return f'#configuration#{name}'
 
+def scanner_key(ip_address):
+    return f'#scanner#{ip_address}'
+
 def seed_status(type, status_code):
     return f'{type}#{status_code}'
