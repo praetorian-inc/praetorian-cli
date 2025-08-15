@@ -5,7 +5,7 @@ from random import randint
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import Risk, Preseed
-from praetorian_cli.sdk.model.utils import risk_key, asset_key, ad_domain_key, attribute_key, seed_key, preseed_key, setting_key, configuration_key
+from praetorian_cli.sdk.model.utils import risk_key, asset_key, ad_domain_key, attribute_key, seed_key, preseed_key, setting_key, configuration_key, scanner_key
 
 
 def epoch_micro():
@@ -54,6 +54,8 @@ def make_test_values(o):
     o.configuration_value = {o.configuration_name: o.configuration_name}
     o.configuration_key = configuration_key(o.configuration_name)
     o.key_name = f'test-key-name-{epoch_micro()}'
+    o.scanner_ip = random_ip()
+    o.scanner_key = scanner_key(o.scanner_ip)
     return o
 
 
