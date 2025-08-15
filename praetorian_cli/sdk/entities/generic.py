@@ -1,5 +1,4 @@
-# Imports moved to search.by_label_with_filter method
-
+from praetorian_cli.sdk.model.query import Query, Node, Filter
 class Generic:
 
     def __init__(self, api):

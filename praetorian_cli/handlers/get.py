@@ -24,8 +24,6 @@ class FallbackGroup(click.Group):
 def get():
     """ Get entity by key (known subcommands or generic entities) """
     pass 
-        
-
 
 
 @get.command()

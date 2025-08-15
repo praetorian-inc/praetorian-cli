@@ -22,7 +22,7 @@ class FallbackGroup(click.Group):
 
 @chariot.group(cls=FallbackGroup)
 def list():
-    """List entities (known subcommands or generic labels)."""
+    """ Get a list of entities from Chariot """
     pass
 
 

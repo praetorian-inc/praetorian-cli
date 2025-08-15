@@ -21,11 +21,10 @@ class FallbackGroup(click.Group):
         @click.command(name=cmd_name)
         @click.option('-e', '--entries', required=True, help='JSON string or file path containing entity data')
         @cli_handler
-        def _dynamic(chariot, entries): 
-            entries_data = get_dict_from_entries(entries)
+        def _dynamic(chariot, entries):
             try:
-                results = chariot.generic.add(cmd_name, entries_data)
-                print_json(results)
+                entries_data = get_dict_from_entries(entries)
+                print_json(chariot.generic.add(cmd_name, entries_data))
             except Exception as e:
                 error(f"Failed to add entity: {e}")
         return _dynamic
@@ -334,23 +333,23 @@ def key(sdk, name, expires):
 
 def get_dict_from_entries(entry):
     config_dict = {}
-    for item in entry:
+    for idx, item in enumerate(entry, start=1):
         if '=' not in item:
-            click.echo(f"Error: Entry '{item}' is not in the format key=value")
+            error(f"Entry #{idx} ('{item}') is not in the format key=value")
             return
 
         if item.count('=') > 1:
-            click.echo(f"Error: Entry '{item}' contains multiple '=' characters. Format should be key=value")
+            error(f"Entry #{idx} ('{item}') contains multiple '=' characters. Format should be key=value")
             return
 
         key, value = item.split('=', 1)
 
         if not key:
-            click.echo("Error: Key cannot be empty")
+            error(f"Key #{idx} cannot be empty")
             return
 
         if not value:
-            click.echo("Error: Value cannot be empty")
+            error(f"Value for key #{idx} cannot be empty")
             return
 
         config_dict[key] = value
