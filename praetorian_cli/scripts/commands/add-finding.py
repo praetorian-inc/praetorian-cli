@@ -18,7 +18,7 @@ from difflib import SequenceMatcher
 import click
 
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.sdk.model.globals import Risk, AddRisk, Asset
+from praetorian_cli.sdk.model.globals import Risk, AddRisk, Asset, Kind
 
 try:
     from prompt_toolkit import prompt
@@ -168,6 +168,139 @@ def select_definition_with_fuzzy_prompt(definitions):
     except Exception as e:
         click.echo(f"Error with fuzzy definition selection: {e}")
         return None
+
+
+class ManualAssetParser:
+    """
+    Parser class for handling different types of manual asset creation.
+    Provides specific logic for different asset types.
+    """
+    
+    ASSET_TYPES = {
+        'dns-ip': 'DNS + IP Address',
+        'aws': 'AWS Resource (ARN)'
+    }
+    
+    def __init__(self):
+        pass
+    
+    def get_asset_type(self):
+        """
+        Prompt user to select the type of asset they want to create.
+        
+        :return: Selected asset type key or None if cancelled
+        """
+        click.echo("\nSelect the type of asset you want to create:")
+        for key, description in self.ASSET_TYPES.items():
+            click.echo(f"  {key}: {description}")
+        
+        while True:
+            asset_type = click.prompt("Enter asset type", type=click.Choice(list(self.ASSET_TYPES.keys())))
+            if asset_type in self.ASSET_TYPES:
+                return asset_type
+            click.echo("Invalid asset type. Please try again.")
+    
+    def parse_dns_ip_asset(self):
+        """
+        Handle DNS + IP asset creation.
+        Asks for DNS record as asset name, then IP.
+        
+        :return: Dict with asset creation parameters
+        """
+        click.echo(f"\n📡 Creating DNS + IP asset:")
+        
+        dns_record = click.prompt("Enter DNS record (asset name)", type=str).strip()
+        if not dns_record:
+            click.echo("DNS record cannot be empty.")
+            return None
+        
+        ip_address = click.prompt("Enter IP address", type=str).strip()
+        if not ip_address:
+            click.echo("IP address cannot be empty.")
+            return None
+        
+        # Basic IP validation (simple regex)
+        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+        if not re.match(ip_pattern, ip_address):
+            click.echo("⚠ Warning: IP address format may be invalid")
+        
+        surface = click.prompt("Enter surface classification", 
+                             type=click.Choice(['external', 'internal', 'web', 'api', 'cloud']),
+                             default='external')
+        
+        return {
+            'name': dns_record,
+            'identifier': ip_address,  # IP as the identifier
+            'surface': surface,
+            'status': Asset.ACTIVE.value,
+            'type': Kind.ASSET.value,
+            'expected_key': f"#asset#{dns_record}#{ip_address}"
+        }
+    
+    def parse_aws_asset(self):
+        """
+        Handle AWS asset creation.
+        Asks for ARN, parses last colon field as asset name and full ARN as identifier.
+        
+        :return: Dict with asset creation parameters
+        """
+        click.echo(f"\n☁️ Creating AWS asset:")
+        
+        arn = click.prompt("Enter AWS ARN", type=str).strip()
+        if not arn:
+            click.echo("ARN cannot be empty.")
+            return None
+        
+        # Basic ARN validation
+        if not arn.startswith('arn:aws:'):
+            click.echo("⚠ Warning: ARN should start with 'arn:aws:'")
+        
+        # Parse ARN to extract asset name (last colon field)
+        arn_parts = arn.split(':')
+        if len(arn_parts) < 6:
+            click.echo("❌ Invalid ARN format. Expected format: arn:aws:service:region:account:resource")
+            return None
+        
+        # Last colon field becomes the asset name
+        asset_name = arn_parts[-1]
+        if not asset_name:
+            click.echo("❌ Could not extract asset name from ARN (last colon field is empty)")
+            return None
+        
+        surface = click.prompt("Enter surface classification", 
+                             type=click.Choice(['external', 'internal', 'web', 'api', 'cloud']),
+                             default='cloud')
+        
+        click.echo(f"💡 Parsed ARN:")
+        click.echo(f"   Asset Name: {asset_name}")
+        click.echo(f"   Full ARN: {arn}")
+        
+        return {
+            'name': asset_name,
+            'identifier': arn,  # Full ARN as identifier
+            'surface': surface,
+            'status': Asset.ACTIVE.value,
+            'type': Kind.ASSET.value,
+            'expected_key': f"#asset#{asset_name}#{arn}"
+        }
+    
+    def create_manual_asset(self):
+        """
+        Main method to create a manual asset by determining type and calling appropriate parser.
+        
+        :return: Dict with asset creation parameters or None if cancelled
+        """
+        asset_type = self.get_asset_type()
+        if not asset_type:
+            return None
+        
+        if asset_type == 'dns-ip':
+            return self.parse_dns_ip_asset()
+        elif asset_type == 'aws':
+            return self.parse_aws_asset()
+        else:
+            click.echo(f"❌ Unsupported asset type: {asset_type}")
+            return None
 
 
 def prompt_for_risk_id():
@@ -388,28 +521,15 @@ def collect_assets_for_risk(sdk):
                     asset_exists = False
         
         if not asset_exists:
-            # Cache new asset creation - collect fields but don't create yet
-            click.echo("\nNew asset details - please provide the following information:")
+            # Use ManualAssetParser to handle different asset types
+            parser = ManualAssetParser()
+            new_asset_data = parser.create_manual_asset()
             
-            group = click.prompt("Enter DNS/group identifier (e.g., example.com)", type=str).strip()
-            identifier = click.prompt("Enter specific identifier (e.g., IP, hostname)", type=str).strip()
-            surface = click.prompt("Enter surface classification", 
-                                 type=click.Choice(['external', 'internal', 'web', 'api', 'cloud']),
-                                 default='external')
-            
-            # Generate expected asset key for display purposes
-            expected_key = f"#asset#{group}#{identifier}"
-            
-            # Cache the asset creation parameters
-            new_asset_data = {
-                'group': group,
-                'identifier': identifier,
-                'surface': surface,
-                'status': Asset.ACTIVE.value,
-                'expected_key': expected_key
-            }
-            new_assets_to_create.append(new_asset_data)
-            click.echo(f"✓ Cached new asset creation: {expected_key}")
+            if new_asset_data:
+                new_assets_to_create.append(new_asset_data)
+                click.echo(f"✓ Cached new asset creation: {new_asset_data['expected_key']}")
+            else:
+                click.echo("❌ Asset creation cancelled or failed")
         
         # Ask if user wants to add more assets
         if not click.confirm("Add another asset to this risk?"):
@@ -464,7 +584,7 @@ def associate_assets_with_risk(sdk, risk_id, definition_name, existing_assets, n
     if new_assets_to_create:
         click.echo(f"  New assets to create and associate ({len(new_assets_to_create)}):")
         for asset_data in new_assets_to_create:
-            click.echo(f"    - {asset_data['expected_key']} (DNS: {asset_data['group']}, ID: {asset_data['identifier']}, Surface: {asset_data['surface']})")
+            click.echo(f"    - {asset_data['expected_key']} (DNS: {asset_data['name']}, ID: {asset_data['identifier']}, Surface: {asset_data['surface']})")
     
     if not click.confirm("\nProceed with applying these changes?"):
         click.echo("Operation cancelled by user.")
@@ -480,7 +600,7 @@ def associate_assets_with_risk(sdk, risk_id, definition_name, existing_assets, n
         for asset_data in new_assets_to_create:
             try:
                 asset = sdk.assets.add(
-                    asset_data['group'], 
+                    asset_data['name'],
                     asset_data['identifier'], 
                     surface=asset_data['surface'], 
                     status=asset_data['status']
