@@ -162,24 +162,23 @@ def attributes(chariot, filter, key, details, offset, page):
 
 @list.command()
 @list_params('DNS')
-@click.option('-t', '--type', type=click.Choice(['ip', 'domain']), help=f'Filter by type of the seeds')
+@click.option('-t', '--type', help='Filter by asset type (e.g., asset, addomain)')
 def seeds(chariot, type, filter, details, offset, page):
     """ List seeds
 
-   	Retrieve and display a list of seeds.
+   	Retrieve and display a list of seeds. Seeds are now assets with the 'Seed' label.
 
     \b
     Example usages:
         - praetorian chariot list seeds
-        - praetorian chariot list seeds --type ip
-        - praetorian chariot list seeds --type domain --filter example.com
+        - praetorian chariot list seeds --type asset
+        - praetorian chariot list seeds --type addomain
+        - praetorian chariot list seeds --type asset --filter example.com
         - praetorian chariot list seeds --details
         - praetorian chariot list seeds --page all
     """
-    if filter and not type:
-        error('When the DNS filter is specified, you also need to specify the type of the filter: ip or domain.')
-
-    render_list_results(chariot.seeds.list(type, filter, offset, pagination_size(page)), details)
+    # Note: filter restriction removed since we're using different key format now
+    render_list_results(chariot.seeds.list(type, filter, pagination_size(page)), details)
 
 
 @list.command()

@@ -88,11 +88,12 @@ def seed(chariot, key):
 
     \b
     Arguments:
-        - KEY: the key of an existing seed
+        - KEY: the key of an existing seed (now uses asset key format)
 
     \b
     Example usage:
-        - praetorian chariot delete seed "#seed#domain#example.com"
+        - praetorian chariot delete seed "#asset#domain#example.com"
+        - praetorian chariot delete seed "#addomain#corp.local"
     """
     chariot.seeds.delete(key)
 

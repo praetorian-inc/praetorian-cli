@@ -196,21 +196,39 @@ def attribute(sdk, key, name, value):
 
 @add.command()
 @cli_handler
-@click.option('-d', '--dns', required=True, help='The DNS of the asset')
+@click.option('-t', '--type', 'seed_type', default='asset', help='Asset type (e.g., asset, addomain)')
 @click.option('-s', '--status', type=click.Choice([s.value for s in Seed]),
               default=Seed.PENDING.value, help='The status of the seed', show_default=True)
-def seed(sdk, dns, status):
+@click.option('-f', '--field', 'field_list', multiple=True, 
+              help='Field in format name:value (can be specified multiple times)')
+def seed(sdk, seed_type, status, field_list):
     """ Add a seed
 
-    Add a seed to the Chariot database. This command requires DNS of the seed to be
-    specified. When status is not specified, the seed is added as PENDING.
+    Add a seed to the Chariot database. Seeds are now assets with special labeling.
+    You can specify the asset type and provide dynamic fields using --fields.
 
     \b
     Example usages:
-        - praetorian chariot add seed --dns example.com
-        - praetorian chariot add seed --dns example.com --status A
+        - praetorian chariot add seed --type asset --field dns:example.com
+        - praetorian chariot add seed --type asset --field dns:example.com --status A
+        - praetorian chariot add seed --type asset --field dns:example.com --field name:1.2.3.4
+        - praetorian chariot add seed --type addomain --field name:corp.local --field netbios_name:CORP
     """
-    sdk.seeds.add(dns, status)
+    # Collect dynamic fields from the --fields option
+    dynamic_fields = {}
+    
+    # Parse field_list entries (name:value format)
+    for field in field_list:
+        if ':' in field:
+            # Split only once to allow colons in the value
+            name, value = field.split(':', 1)
+            dynamic_fields[name] = value
+        else:
+            error(f"Field '{field}' is not in the format name:value")
+            return
+    
+    # Call the updated add method with type and dynamic fields
+    sdk.seeds.add(status=status, seed_type=seed_type, **dynamic_fields)
 
 
 @add.command()

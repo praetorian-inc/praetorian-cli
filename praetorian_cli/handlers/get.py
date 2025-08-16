@@ -186,11 +186,12 @@ def seed(chariot, key):
 
     \b
     Argument:
-        - KEY: the key of an existing pre-seed
+        - KEY: the key of an existing seed (now uses asset key format)
 
     \b
     Example usages:
-        - praetorian chariot get preseed "#preseed#domain#example.com"
+        - praetorian chariot get seed "#asset#domain#example.com"
+        - praetorian chariot get seed "#addomain#corp.local"
     """
     print_json(chariot.seeds.get(key))
 
