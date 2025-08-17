@@ -1,40 +1,16 @@
 #!/usr/bin/env python3
 """
-Aegis Menu Interface - Ultra-fast, clean operator interface
+Aegis Menu Interface - Clean operator interface
 Command-driven approach with tab completion and intuitive UX
 """
 
 import os
 import sys
 import shlex
+import gnureadline as readline
 
 # Verbosity setting for Aegis UI (quiet by default)
 VERBOSE = os.getenv('CHARIOT_AEGIS_VERBOSE') == '1'
-
-# Handle readline import for different platforms
-try:
-    # Try to import gnureadline first (better compatibility on macOS)
-    import gnureadline as readline
-    if VERBOSE:
-        print("Using GNU readline for enhanced completion")
-except ImportError:
-    try:
-        # Fallback to standard readline
-        import readline
-        if VERBOSE:
-            print("Using standard readline (limited completion on macOS)")
-    except ImportError:
-        # Create a dummy readline for systems without it
-        class DummyReadline:
-            def set_completer(self, func): pass
-            def parse_and_bind(self, string): pass
-            def get_line_buffer(self): return ""
-            def get_begidx(self): return 0
-            def get_endidx(self): return 0
-        
-        readline = DummyReadline()
-        if VERBOSE:
-            print("No readline available - tab completion disabled")
 
 from datetime import datetime
 from rich.console import Console
@@ -42,13 +18,13 @@ from rich.prompt import Prompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.live import Live
 
-from .commands import SetCommand, SSHCommand, InfoCommand, ListCommand, HelpCommand, TasksCommand, JobCommand
+from .commands import SetCommand, SSHCommand, InfoCommand, ListCommand, HelpCommand, JobCommand
 from .menus import AegisStyle, MainMenu, AgentMenu
 from .completion import CompletionManager
 
 
 class AegisMenu:
-    """Ultra-fast Aegis menu interface with modern command-driven UX"""
+    """Aegis menu interface with modern command-driven UX"""
     
     def __init__(self, sdk):
         self.sdk = sdk
@@ -81,7 +57,6 @@ class AegisMenu:
         self.info_cmd = InfoCommand(self)
         self.list_cmd = ListCommand(self)
         self.help_cmd = HelpCommand(self)
-        self.tasks_cmd = TasksCommand(self)
         self.job_cmd = JobCommand(self)
         
         # Initialize enhanced completion system
@@ -421,8 +396,6 @@ class AegisMenu:
         
         if choice == 's' and shell_available:
             self.ssh_cmd.handle_shell(agent)
-        elif choice == 't':
-            self.tasks_cmd.handle_tasks(agent)
         elif choice == 'i':
             self.info_cmd.handle_info(agent)
         elif choice in ['b', 'back', '']:

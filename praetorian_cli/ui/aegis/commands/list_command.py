@@ -108,7 +108,7 @@ class ListCommand(BaseCommand):
         """Compose and display the agents table using pre-computed properties"""
         if not self.agents:
             no_agents_panel = Panel(
-                Align.center(f"[{self.colors['warning']}]No agents available[/{self.colors['warning']}]\n[dim]Press 'r' to reload[/dim]"),
+                Align.center(f"[{self.colors['warning']}]No agents available[/{self.colors['warning']}]\n[dim]Press 'r <Enter>' to reload[/dim]"),
                 border_style=self.colors['warning'],
                 padding=(1, 2)
             )

@@ -1,95 +1,166 @@
 """
-Help command for displaying command reference
+Help command using Click's built-in help system
 """
 
+import click
 from typing import List
 from rich.panel import Panel
 from .base_command import BaseCommand
+from praetorian_cli.interface_adapters.aegis_commands import aegis_shared, AegisContext
 
 
 class HelpCommand(BaseCommand):
-    """Handle help information display"""
+    """Handle help information display using Click's help system"""
     
     def execute(self, args: List[str] = None):
         """Execute help command"""
-        self.show_help()
+        command_name = args[0] if args else None
+        self.show_help(command_name)
     
-    def show_help(self):
-        """Show detailed help information with completion features"""
-        agent_count = len(self.agents)
-        completion_stats = getattr(self.menu, 'completion_manager', None)
+    def show_help(self, command_name: str = None):
+        """Show help information using Click's built-in system"""
+        if command_name:
+            # Show help for specific command
+            self.show_command_help(command_name)
+        else:
+            # Show overall help
+            self.show_general_help()
+    
+    def show_command_help(self, command_name: str):
+        """Show help for a specific command using Click"""
+        try:
+            # Create TUI context
+            tui_state = type('obj', (), {})()  # Simple object to hold state
+            tui_state.selected_agent = self.selected_agent
+            aegis_ctx = AegisContext(self.sdk, self.console, tui_state)
+            
+            # Get the command from shared commands
+            cmd = aegis_shared.get_command(None, command_name)
+            if cmd:
+                # Create Click context and get help
+                ctx = click.Context(cmd)
+                ctx.obj = aegis_ctx
+                help_text = ctx.get_help()
+                
+                # Format for Rich display
+                self.console.print(Panel(
+                    f"[bold]{command_name.upper()}[/bold]\n\n{help_text}",
+                    border_style=self.colors['accent'],
+                    padding=(1, 2),
+                    title=f"[bold]Help: {command_name}[/bold]",
+                    title_align="left"
+                ))
+            else:
+                # Handle non-shared commands (system commands)
+                self.show_system_command_help(command_name)
+                
+        except Exception as e:
+            self.console.print(f"[red]Error showing help for '{command_name}': {e}[/red]")
         
-        help_text = f"""[bold {self.colors['primary']}]CHARIOT AEGIS - Command Reference[/bold {self.colors['primary']}]
+        self.pause()
+    
+    def show_system_command_help(self, command_name: str):
+        """Show help for system commands not handled by shared Click commands"""
+        system_helps = {
+            'reload': {
+                'description': 'Refresh agent list from server',
+                'usage': 'reload',
+                'examples': ['reload  # Fetch latest agent information']
+            },
+            'clear': {
+                'description': 'Clear terminal screen',
+                'usage': 'clear',
+                'examples': ['clear  # Clear the console display']
+            },
+            'quit': {
+                'description': 'Exit Aegis console',
+                'usage': 'quit',
+                'examples': ['quit  # Exit the TUI', 'exit  # Also exits']
+            },
+            'exit': {
+                'description': 'Exit Aegis console',
+                'usage': 'exit', 
+                'examples': ['exit  # Exit the TUI', 'quit  # Also exits']
+            }
+        }
+        
+        if command_name in system_helps:
+            help_info = system_helps[command_name]
+            help_text = f"""[bold]{help_info['description']}[/bold]
 
-[bold {self.colors['success']}]Agent Selection:[/bold {self.colors['success']}]
-  [bold {self.colors['success']}]set <id>[/bold {self.colors['success']}]           Set current agent by number (1-{agent_count}), client ID, or hostname
-                     [dim]Examples: set 1, set C.abc123, set kali-unit42[/dim]
-                     [dim]💡 Use TAB to see all available agents with descriptions[/dim]
+Usage: {help_info['usage']}
 
-[bold {self.colors['success']}]Agent Actions:[/bold {self.colors['success']}] [dim](require selected agent)[/dim]
-  [bold {self.colors['success']}]ssh [options][/bold {self.colors['success']}]      Connect to selected agent via SSH (requires tunnel)
-                     [dim]Use TAB after 'ssh -' to see all SSH options with help[/dim]
-  [bold {self.colors['info']}]info[/bold {self.colors['info']}]              Show detailed system information for selected agent
-  [bold {self.colors['warning']}]job <subcommand>[/bold {self.colors['warning']}]  Manage and run jobs on selected agent
+Examples:
+"""
+            for example in help_info['examples']:
+                help_text += f"  {example}\n"
+                
+            self.console.print(Panel(
+                help_text.strip(),
+                border_style=self.colors['accent'],
+                padding=(1, 2),
+                title=f"[bold]Help: {command_name}[/bold]",
+                title_align="left"
+            ))
+        else:
+            self.console.print(f"[red]Unknown command: {command_name}[/red]")
+    
+    def show_general_help(self):
+        """Show general help using Click's help plus TUI-specific additions"""
+        try:
+            # Create TUI context
+            tui_state = type('obj', (), {})()  # Simple object to hold state
+            tui_state.selected_agent = self.selected_agent
+            aegis_ctx = AegisContext(self.sdk, self.console, tui_state)
+            
+            # Get overall help from Click group
+            ctx = click.Context(aegis_shared)
+            ctx.obj = aegis_ctx
+            click_help = ctx.get_help()
+            
+            # Add TUI-specific information
+            agent_count = len(self.agents)
+            completion_stats = getattr(self.menu, 'completion_manager', None)
+            
+            tui_additions = f"""
 
-[bold {self.colors['accent']}]Job Commands:[/bold {self.colors['accent']}]
-  [bold]job list[/bold]          List recent jobs for selected agent
-  [bold]job run <cap>[/bold]     Run capability on agent [dim](e.g. process-list)[/dim]
-  [bold]job status <id>[/bold]   Check job status
-  [bold]job capabilities[/bold]  List available Aegis capabilities
-
-[bold {self.colors['accent']}]SSH Options:[/bold {self.colors['accent']}] [dim](use --help for full details)[/dim]
-  [bold {self.colors['warning']}]-D <port>[/bold {self.colors['warning']}]         SOCKS proxy [dim](try: -D 1080)[/dim]
-  [bold {self.colors['warning']}]-L <spec>[/bold {self.colors['warning']}]         Local forwarding [dim](try: -L 8080:localhost:80)[/dim]
-  [bold {self.colors['warning']}]-R <spec>[/bold {self.colors['warning']}]         Remote forwarding [dim](try: -R 9090:localhost:3000)[/dim]
-  [bold {self.colors['warning']}]-i <keyfile>[/bold {self.colors['warning']}]      SSH key file [dim](TAB shows ~/.ssh/ keys)[/dim]
-  [bold {self.colors['warning']}]-u <user>[/bold {self.colors['warning']}]         Username [dim](TAB shows common users)[/dim]
-  [bold {self.colors['warning']}]-p <port>[/bold {self.colors['warning']}]         Remote port [dim](default: 22)[/dim]
-
-[bold {self.colors['accent']}]System Commands:[/bold {self.colors['accent']}]
-  [bold]list[/bold]             Show online agents only (default)
-  [bold]list --all[/bold]       Show all agents including offline
-  [bold {self.colors['warning']}]reload[/bold {self.colors['warning']}]           Refresh agent list from server
-  [bold]clear[/bold]            Clear terminal screen
+[bold {self.colors['accent']}]TUI-Specific Commands:[/bold {self.colors['accent']}]
+  [bold]reload[/bold]           Refresh agent list from server
+  [bold]clear[/bold]            Clear terminal screen  
   [bold]help <cmd>[/bold]       Show help for specific command
   [bold {self.colors['error']}]quit[/bold {self.colors['error']}] / [bold {self.colors['error']}]exit[/bold {self.colors['error']}]     Exit Aegis console
 
-[bold {self.colors['info']}]Completion Features:[/bold {self.colors['info']}]
-  • [bold]TAB completion[/bold] with contextual help and descriptions
-  • [bold]Intelligent suggestions[/bold] based on current agent list
-  • [bold]SSH option help[/bold] with examples and common values
-  • [bold]Real-time validation[/bold] and error prevention
-  • [bold]Command help[/bold] via --help flag (e.g., ssh --help)
-  
-[bold {self.colors['warning']}]Examples:[/bold {self.colors['warning']}]
-  [dim]# Set agent by various methods[/dim]
-  set 1                        [dim]→ Select first agent[/dim]
-  set kali-unit42              [dim]→ Select by hostname (TAB completes)[/dim]
-  
-  [dim]# SSH with port forwarding[/dim]
-  ssh -D 1080                  [dim]→ SOCKS proxy on port 1080[/dim]
-  ssh -L 8080:localhost:80     [dim]→ Forward local 8080 to remote 80[/dim]
-  ssh -u root -i ~/.ssh/mykey  [dim]→ Connect as root with specific key[/dim]
-  
-  [dim]# Get detailed help[/dim]
-  ssh --help                   [dim]→ Full SSH options reference[/dim]
-  set --help                   [dim]→ Agent selection guide[/dim]
+[bold {self.colors['info']}]TUI Features:[/bold {self.colors['info']}]
+  • Commands work without client_id (uses selected agent)
+  • TAB completion with contextual help and descriptions
+  • Real-time validation and error prevention
+  • Rich formatting and interactive prompts
+
+[bold {self.colors['warning']}]Quick Examples:[/bold {self.colors['warning']}]
+  set 1                        [dim]→ Select first agent ({agent_count} available)[/dim]
+  ssh -D 1080                  [dim]→ SSH with SOCKS proxy[/dim]
+  job -c windows-smb-snaffler  [dim]→ Run capability on selected agent[/dim]
+  list --details               [dim]→ Show detailed agent information[/dim]
 
 [bold {self.colors['info']}]💡 Pro Tips:[/bold {self.colors['info']}]
-  • Use TAB at any point to see available completions
-  • Completion shows descriptions and examples inline
-  • Commands validate inputs and show helpful error messages
-  • Type partial commands and TAB to see suggestions"""
+  • Use 'help <command>' for detailed command help
+  • Use '--help' flag on any command (e.g., 'ssh --help')
+  • TAB completion shows all available options and examples"""
 
-        if completion_stats:
-            stats = completion_stats.get_completion_statistics()
-            help_text += f"\n\n[dim]Completion System: {stats['completable_commands']}/{stats['total_commands']} commands enhanced[/dim]"
+            if completion_stats:
+                stats = completion_stats.get_completion_statistics()
+                tui_additions += f"\n\n[dim]Completion System: {stats['completable_commands']}/{stats['total_commands']} commands enhanced[/dim]"
 
-        self.console.print(Panel(
-            help_text,
-            border_style=self.colors['accent'],
-            padding=(1, 2),
-            title="[bold]Help[/bold]",
-            title_align="left"
-        ))
-        self.pause()
+            # Combine Click help with TUI additions
+            full_help = f"[bold {self.colors['primary']}]CHARIOT AEGIS - Interactive Console[/bold {self.colors['primary']}]\n\n{click_help}{tui_additions}"
+            
+            self.console.print(Panel(
+                full_help,
+                border_style=self.colors['accent'],
+                padding=(1, 2),
+                title="[bold]Help[/bold]",
+                title_align="left"
+            ))
+            
+        except Exception as e:
+            self.console.print(f"[red]Error showing help: {e}[/red]")
