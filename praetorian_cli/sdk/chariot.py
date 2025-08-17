@@ -251,27 +251,53 @@ class Chariot:
         
         # If no username in keychain (API key auth), try to get it from JWT token
         if not user_email and self.keychain.has_api_key():
-            try:
-                import json
-                import base64
-                
-                # Get the JWT token and decode the payload to extract user info
-                token = self.keychain.token()
-                # JWT tokens have 3 parts: header.payload.signature
-                payload_part = token.split('.')[1]
-                # Add padding if needed for base64 decoding
-                payload_part += '=' * (4 - len(payload_part) % 4)
-                payload = json.loads(base64.b64decode(payload_part))
-                
+            token = self.keychain.token()
+            payload = decode_jwt_payload(token)
+            if payload:
                 # Extract email from the 'email' field in the JWT payload
                 user_email = payload.get('email')
-            except Exception:
+            else:
                 # If JWT decoding fails, fall back to the account parameter
-                user_email = self.keychain.account
+                raise Exception("Failed to decode JWT token")
         
         # Extract username from email (part before @) for SSH access
         username = user_email.split('@')[0] if user_email and '@' in user_email else user_email
         return user_email, username
+
+
+def decode_jwt_payload(token: str) -> dict | None:
+    """
+    Decode the payload from a JWT token.
+    
+    Args:
+        token: JWT token string in format header.payload.signature
+        
+    Returns:
+        dict: Decoded payload contents, or None if decoding fails
+        
+    Example:
+        >>> token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20ifQ.signature"
+        >>> payload = decode_jwt_payload(token)
+        >>> print(payload.get('email'))
+        user@example.com
+    """
+    try:
+        import json
+        import base64
+        
+        # JWT tokens have 3 parts: header.payload.signature
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+            
+        payload_part = parts[1]
+        # Add padding if needed for base64 decoding
+        payload_part += '=' * (4 - len(payload_part) % 4)
+        payload = json.loads(base64.b64decode(payload_part))
+        
+        return payload
+    except Exception:
+        return None
 
 
 def is_query_limit_failure(response: requests.Response) -> bool:
