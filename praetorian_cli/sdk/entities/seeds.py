@@ -1,6 +1,6 @@
 from praetorian_cli.handlers.utils import error
 from praetorian_cli.sdk.model.globals import Seed, Kind
-from praetorian_cli.sdk.model.query import Query, Node, Filter
+from praetorian_cli.sdk.model.query import Query, Node, Filter, KIND_TO_LABEL
 
 
 class Seeds:
@@ -114,27 +114,31 @@ class Seeds:
         else:
             error(f'Seed {key} not found.')
 
-    def list(self, type=Kind.SEED.value, key_prefix='', pages=100000) -> tuple:
+    def list(self, seed_type=Kind.SEED.value, key_prefix='', pages=100000) -> tuple:
         """
         List seeds by querying assets with 'Seed' label.
         
-        :param type: Optional asset type filter (e.g., 'asset', 'addomain')
-        :type type: str or None
+        :param seed_type: Optional asset seed_type filter (e.g., 'asset', 'addomain')
+        :seed_type seed_type: str or None
         :param key_prefix: Filter by key prefix
-        :type key_prefix: str
+        :seed_type key_prefix: str
         :param offset: The offset of the page you want to retrieve results. If this is not supplied, this function retrieves from the first page
-        :type offset: str or None
+        :seed_type offset: str or None
         :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
-        :type pages: int
+        :seed_type pages: int
         :return: A tuple containing (list of seeds, next page offset)
-        :rtype: tuple
+        :rseed_type: tuple
         """
-        if not type:
-            type = Kind.SEED.value
 
-        # Create a Node with Seed label and key filter
+        if seed_type in KIND_TO_LABEL:
+            seed_type = KIND_TO_LABEL[seed_type]
+        elif not seed_type:
+            seed_type = Node.Label.SEED
+        else:
+            seed_type = Node.Label.NOSUCHTYPE
+                    
         node = Node(
-            labels=[type],
+            labels=[seed_type],
             filters=[]
         )
 
