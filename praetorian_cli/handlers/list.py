@@ -162,7 +162,7 @@ def attributes(chariot, filter, key, details, offset, page):
 
 @list.command()
 @list_params('DNS')
-@click.option('-t', '--type', help='Filter by asset type (e.g., asset, addomain)')
+@click.option('-t', '--type', help='Filter by seed type (e.g., asset, addomain)')
 def seeds(chariot, type, filter, details, offset, page):
     """ List seeds
 

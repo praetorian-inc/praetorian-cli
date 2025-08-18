@@ -71,7 +71,6 @@ def seed(chariot, key, status):
     
     chariot.seeds.update(key, status)
 
-
 @update.command()
 @cli_handler
 @click.argument('key', required=True)

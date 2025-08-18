@@ -60,12 +60,14 @@ class Seeds:
         query = Query(node=node)
         
         # Call by_query with the constructed Query object
-        results = self.api.search.by_query(query)
+        results_tuple = self.api.search.by_query(query)
+        if not results_tuple:
+            return None
         
-        # Return the first result if found, otherwise None
-        if results and len(results) > 0:
-            return results[0]
-        return None
+        results, _ = results_tuple
+        if len(results) == 0:
+            return None
+        return results[0]
 
     def update(self, key, status=None, **kwargs):
         """
@@ -112,7 +114,7 @@ class Seeds:
         else:
             error(f'Seed {key} not found.')
 
-    def list(self, type=None, key_prefix='', pages=100000) -> tuple:
+    def list(self, type=Kind.SEED.value, key_prefix='', pages=100000) -> tuple:
         """
         List seeds by querying assets with 'Seed' label.
         
@@ -127,9 +129,13 @@ class Seeds:
         :return: A tuple containing (list of seeds, next page offset)
         :rtype: tuple
         """
+        if not type:
+            type = Kind.SEED.value
+
         # Create a Node with Seed label and key filter
         node = Node(
-            labels=[Node.Label.SEED]
+            labels=[type],
+            filters=[]
         )
 
         key_filter = Filter(
