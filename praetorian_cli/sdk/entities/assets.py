@@ -26,7 +26,7 @@ class Assets:
         :return: The asset that was added
         :rtype: dict
         """
-        return self.api.upsert('asset', dict(group=group, identifier=identifier, status=status, surface=[surface], type=type))[0]
+        return self.api.upsert('asset', dict(group=group, identifier=identifier, status=status, attackSurface=[surface], type=type))[0]
 
     def get(self, key, details=False):
         """
@@ -58,9 +58,7 @@ class Assets:
         :rtype: None
         """
         if status:
-            self.api.upsert('asset', dict(key=key, status=status))
-        if surface:
-            self.api.attributes.add(key, 'surface', surface)
+            self.api.upsert('asset', dict(key=key, status=status, attackSurface=[surface]))
 
     def delete(self, key):
         """
