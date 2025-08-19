@@ -44,6 +44,22 @@ class BaseCommand(ABC):
         """Clear screen"""
         self.menu.clear_screen()
     
+    def get_agent_context(self):
+        """Get the full agent context from menu"""
+        return self.menu.get_selected_agent_context()
+    
+    def require_selected_agent(self):
+        """Return selected agent or display error and return None"""
+        return self.menu.require_selected_agent()
+    
+    def has_selected_agent(self):
+        """Check if an agent is currently selected"""
+        return self.menu.has_selected_agent()
+    
+    def call_sdk_with_agent(self, method_path, *args, **kwargs):
+        """Call SDK method using the selected agent context"""
+        return self.menu.call_sdk_with_agent(method_path, *args, **kwargs)
+    
     @abstractmethod
     def execute(self, args: List[str] = None):
         """Execute the command with given arguments"""

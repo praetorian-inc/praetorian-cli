@@ -25,12 +25,12 @@ class InfoCommand(BaseCommand):
     
     def handle_info_command(self, raw: bool = False):
         """Handle info command for selected agent"""
-        if not self.selected_agent:
-            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+        agent = self.require_selected_agent()
+        if not agent:
             self.pause()
             return
         
-        self.handle_info(self.selected_agent, raw=raw)
+        self.handle_info(agent, raw=raw)
     
     def handle_info(self, agent: dict, raw: bool = False):
         """Show detailed agent info with minimal design"""

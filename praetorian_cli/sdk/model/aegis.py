@@ -55,12 +55,12 @@ class HealthCheck:
 @dataclass
 class Agent:
     """Represents an Aegis agent"""
-    client_id: str
-    hostname: str
-    fqdn: Optional[str] = None
-    os: Optional[str] = None
-    os_version: Optional[str] = None
-    architecture: Optional[str] = None
+    client_id: str = 'N/A'
+    hostname: str = 'Unknown'
+    fqdn: str = 'N/A'
+    os: str = 'unknown'
+    os_version: str = ''
+    architecture: str = 'Unknown'
     last_seen_at: Optional[int] = None
     network_interfaces: List[NetworkInterface] = None
     health_check: Optional[HealthCheck] = None
@@ -82,12 +82,12 @@ class Agent:
         health_check = HealthCheck.from_dict(health_data) if health_data else None
         
         return cls(
-            client_id=data.get('client_id', ''),
-            hostname=data.get('hostname', ''),
-            fqdn=data.get('fqdn'),
-            os=data.get('os'),
-            os_version=data.get('os_version'),
-            architecture=data.get('architecture'),
+            client_id=data.get('client_id', 'N/A'),
+            hostname=data.get('hostname', 'Unknown'),
+            fqdn=data.get('fqdn', 'N/A'),
+            os=data.get('os', 'unknown'),
+            os_version=data.get('os_version', ''),
+            architecture=data.get('architecture', 'Unknown'),
             last_seen_at=data.get('last_seen_at'),
             network_interfaces=network_interfaces,
             health_check=health_check,
@@ -123,3 +123,34 @@ class Agent:
             if iface.name != 'lo':  # Skip loopback
                 ips.extend(iface.ip_addresses)
         return [ip for ip in ips if ip]  # Filter empty strings
+    
+    def __str__(self) -> str:
+        """Return a simple string representation of the agent"""
+        status = "🔗" if self.has_tunnel else "○"
+        return f"{status} {self.hostname} ({self.client_id})"
+    
+    def to_detailed_string(self) -> str:
+        """Return a detailed string representation of the agent"""
+        os_info = f"{self.os} {self.os_version}".strip()
+        
+        lines = [
+            f"\n{self.hostname} ({self.client_id})",
+            f"  OS: {os_info}",
+            f"  Architecture: {self.architecture}",
+            f"  FQDN: {self.fqdn}"
+        ]
+        
+        if self.has_tunnel:
+            cf_status = self.health_check.cloudflared_status
+            lines.append(f"  Tunnel: {cf_status.tunnel_name}")
+            lines.append(f"  Public hostname: {cf_status.hostname}")
+            if cf_status.authorized_users:
+                lines.append(f"  Authorized users: {cf_status.authorized_users}")
+        else:
+            lines.append("  Tunnel: Not configured")
+        
+        ips = self.ip_addresses
+        if ips:
+            lines.append(f"  IP addresses: {', '.join(ips)}")
+        
+        return '\n'.join(lines)

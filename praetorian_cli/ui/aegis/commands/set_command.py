@@ -19,28 +19,33 @@ class SetCommand(BaseCommand):
         self.handle_select(args[0])
     
     def handle_select(self, identifier: str):
-        """Handle agent selection by number, client ID, or hostname"""
+        """Handle agent selection by number, client ID, or hostname - calls SDK directly"""
         selected_agent = None
+        
+        # Get fresh agent list from SDK
+        agents_data = self.sdk.aegis.list()
         
         # Try by agent number first
         if identifier.isdigit():
             agent_num = int(identifier)
-            if 1 <= agent_num <= len(self.agents):
-                selected_agent = self.agents[agent_num - 1]
+            if 1 <= agent_num <= len(agents_data):
+                selected_agent = agents_data[agent_num - 1]
         
         # If not found by number, try by client ID or hostname
         if not selected_agent:
-            for agent in self.agents:
+            for agent in agents_data:
                 if ((agent.client_id or '').lower() == identifier.lower() or 
                     (agent.hostname or '').lower() == identifier.lower()):
                     selected_agent = agent
                     break
         
         if selected_agent:
+            # Update TUI context directly
             self.selected_agent = selected_agent
             hostname = selected_agent.hostname or 'Unknown'
-            # No output - the new prompt will show the selection
+            client_id = selected_agent.client_id or 'N/A'
+            self.console.print(f"[green]Selected agent: {hostname} ({client_id})[/green]")
         else:
             self.console.print(f"\n  Agent not found: {identifier}")
-            self.console.print(f"  [{self.colors['dim']}]Use agent number (1-{len(self.agents)}), client ID, or hostname[/{self.colors['dim']}]\n")
+            self.console.print(f"  [{self.colors['dim']}]Use agent number (1-{len(agents_data)}), client ID, or hostname[/{self.colors['dim']}]\n")
             # No pause; return to prompt

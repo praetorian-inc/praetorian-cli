@@ -6,7 +6,7 @@ import click
 from typing import List
 from rich.panel import Panel
 from .base_command import BaseCommand
-from praetorian_cli.interface_adapters.aegis_commands import aegis_shared, AegisContext
+from praetorian_cli.interface_adapters.aegis_commands import AegisContext
 
 
 class HelpCommand(BaseCommand):
@@ -35,7 +35,7 @@ class HelpCommand(BaseCommand):
             aegis_ctx = AegisContext(self.sdk, self.console, tui_state)
             
             # Get the command from shared commands
-            cmd = aegis_shared.get_command(None, command_name)
+            cmd = self.sdk.aegis.get_command(None, command_name)    
             if cmd:
                 # Create Click context and get help
                 ctx = click.Context(cmd)
@@ -114,7 +114,7 @@ Examples:
             aegis_ctx = AegisContext(self.sdk, self.console, tui_state)
             
             # Get overall help from Click group
-            ctx = click.Context(aegis_shared)
+            ctx = click.Context(self.sdk.aegis) 
             ctx.obj = aegis_ctx
             click_help = ctx.get_help()
             

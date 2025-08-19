@@ -44,7 +44,7 @@ class ListCommand(BaseCommand):
                 spinner="dots",
                 spinner_style=f"{self.colors['primary']}"
             ):
-                agents_data, _ = self.sdk.aegis.list()
+                agents_data = self.sdk.aegis.list()
                 self.menu.agents = agents_data or []
                 
                 self.menu.last_agent_fetch = current_time
@@ -108,7 +108,7 @@ class ListCommand(BaseCommand):
         """Compose and display the agents table using pre-computed properties"""
         if not self.agents:
             no_agents_panel = Panel(
-                Align.center(f"[{self.colors['warning']}]No agents available[/{self.colors['warning']}]\n[dim]Press 'r <Enter>' to reload[/dim]"),
+                Align.center(f"[{self.colors['warning']}]No agents available[/{self.colors['warning']}]\n[dim]Please reload[/dim]"),
                 border_style=self.colors['warning'],
                 padding=(1, 2)
             )
@@ -116,9 +116,10 @@ class ListCommand(BaseCommand):
             return
         
         # Count agents by status
-        active_tunnel_agents = [(i, a) for i, a in enumerate(self.agents) if self.agent_computed_data.get(i, {}).get('group') == 'active_tunnel']
-        online_agents = [(i, a) for i, a in enumerate(self.agents) if self.agent_computed_data.get(i, {}).get('group') == 'online']
-        offline_agents = [(i, a) for i, a in enumerate(self.agents) if self.agent_computed_data.get(i, {}).get('group') == 'offline']
+        agent_groups = [self.agent_computed_data.get(i, {}).get('group') for i in range(len(self.agents))]
+        active_tunnel_agents = [(i, a) for i, a in enumerate(self.agents) if agent_groups[i] == 'active_tunnel']
+        online_agents = [(i, a) for i, a in enumerate(self.agents) if agent_groups[i] == 'online']
+        offline_agents = [(i, a) for i, a in enumerate(self.agents) if agent_groups[i] == 'offline']
         
         # Filter out offline agents unless explicitly requested
         if not show_offline:
@@ -180,9 +181,9 @@ class ListCommand(BaseCommand):
         
         # Simplified row display
         for i, (agent_idx, agent) in enumerate(display_agents, 1):
-            hostname = agent.hostname or 'Unknown'
-            os_full = (agent.os or 'unknown').lower()
-            os_version = agent.os_version or ''
+            hostname = agent.hostname
+            os_full = agent.os.lower()
+            os_version = agent.os_version
             os_display = f"{os_full} {os_version}".strip()[:18]
             
             computed_data = self.agent_computed_data.get(agent_idx, {})

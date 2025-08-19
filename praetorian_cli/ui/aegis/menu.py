@@ -247,6 +247,40 @@ class AegisMenu:
         self.list_cmd.load_agents(force_refresh=force_refresh)
         # Refresh completion data when agents change
         self.completion_manager.refresh_completions()
+    
+    def get_selected_agent_context(self):
+        """Get the selected agent context for commands"""
+        return {
+            'agent': self.selected_agent,
+            'sdk': self.sdk,
+            'client_id': self.selected_agent.client_id if self.selected_agent else None,
+            'hostname': self.selected_agent.hostname if self.selected_agent else None
+        }
+    
+    def has_selected_agent(self):
+        """Check if an agent is currently selected"""
+        return self.selected_agent is not None
+    
+    def require_selected_agent(self):
+        """Return selected agent or display error message if none selected"""
+        if not self.selected_agent:
+            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+            return None
+        return self.selected_agent
+    
+    def call_sdk_with_agent(self, method_path, *args, **kwargs):
+        """Call an SDK method using the selected agent context"""
+        agent = self.require_selected_agent()
+        if not agent:
+            return None
+        
+        # Get the method from the SDK
+        method = self.sdk
+        for attr in method_path.split('.'):
+            method = getattr(method, attr)
+        
+        # Call with agent context
+        return method(agent, *args, **kwargs)
 
     def show_main_menu(self):
         """Show the main interface with reduced noise"""

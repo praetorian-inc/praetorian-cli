@@ -21,12 +21,12 @@ class SSHCommand(BaseCommand):
     
     def handle_ssh_command(self, ssh_args=None):
         """Handle SSH command for selected agent with optional arguments"""
-        if not self.selected_agent:
-            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+        agent = self.require_selected_agent()
+        if not agent:
             return
         
         # Check if SSH is available using shared utility
-        if not self.ssh_parser.validate_agent_ssh_availability(self.selected_agent):
+        if not self.ssh_parser.validate_agent_ssh_availability(agent):
             self.console.print()  # Add spacing after error messages
             return
         
@@ -38,10 +38,10 @@ class SSHCommand(BaseCommand):
         # Check if any SSH options were actually provided
         if self.ssh_parser.has_ssh_options(ssh_options):
             # Use the new options-based handler
-            self.handle_shell_with_options(self.selected_agent, ssh_options)
+            self.handle_shell_with_options(agent, ssh_options)
         else:
             # Fall back to the original simple SSH handler
-            self.handle_shell(self.selected_agent)
+            self.handle_shell(agent)
     
     
     def handle_shell_with_options(self, agent, options):
@@ -56,9 +56,9 @@ class SSHCommand(BaseCommand):
         hostname = agent.hostname or 'unknown'
         
         try:
-            # Call the SDK SSH method directly
+            # Use the SDK's SSH method with agent object
             exit_code = self.sdk.aegis.ssh_to_agent(
-                client_id=client_id,
+                agent=agent,
                 user=options.get('user'),
                 local_forward=options.get('local_forward', []),
                 remote_forward=options.get('remote_forward', []), 
@@ -87,9 +87,9 @@ class SSHCommand(BaseCommand):
         hostname = agent.hostname or 'unknown'
         
         try:
-            # Call the SDK SSH method directly
+            # Use the SDK's SSH method with agent object
             exit_code = self.sdk.aegis.ssh_to_agent(
-                client_id=client_id,
+                agent=agent,
                 user=None,  # Will auto-detect from SDK
                 local_forward=[],
                 remote_forward=[],

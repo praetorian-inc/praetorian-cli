@@ -49,11 +49,11 @@ class JobCommand(BaseCommand):
     
     def list_jobs(self):
         """List recent jobs for the selected agent"""
-        if not self.selected_agent:
-            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+        agent = self.require_selected_agent()
+        if not agent:
             return
         
-        hostname = self.selected_agent.hostname or 'Unknown'
+        hostname = agent.hostname or 'Unknown'
         
         try:
             # Get recent jobs for this agent
@@ -86,8 +86,8 @@ class JobCommand(BaseCommand):
     
     def list_capabilities(self):
         """List available capabilities"""
-        if not self.selected_agent:
-            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+        agent = self.require_selected_agent()
+        if not agent:
             return
         
         try:
@@ -111,11 +111,11 @@ class JobCommand(BaseCommand):
     
     def run_job(self, args: List[str]):
         """Run a job on the selected agent"""
-        if not self.selected_agent:
-            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+        agent = self.require_selected_agent()
+        if not agent:
             return
         
-        hostname = self.selected_agent.hostname or 'Unknown'
+        hostname = agent.hostname or 'Unknown'
         
         # Always use interactive picker for better UX, but pre-select if capability provided
         suggested_capability = args[0] if args else None
@@ -152,8 +152,8 @@ class JobCommand(BaseCommand):
                 password = Prompt.ask("  Password", password=True)
                 credentials = {"Username": username, "Password": password}
         
-        # Create job configuration using SDK
-        config = self.sdk.aegis.create_job_config(self.selected_agent, credentials)
+        # Create job configuration using SDK method with agent
+        config = self.sdk.aegis.create_job_config(agent, credentials)
         
         # Confirm job execution
         if not Confirm.ask(f"\n  Run '{capability}' on {target_display}?"):
@@ -252,10 +252,11 @@ class JobCommand(BaseCommand):
     
     def _detect_agent_os(self):
         """Detect the operating system of the selected agent"""
-        if not self.selected_agent:
+        if not self.has_selected_agent():
             return None
             
-        os_field = (self.selected_agent.os or '').lower()
+        agent = self.selected_agent  # Use property accessor
+        os_field = (agent.os or '').lower()
         
         if os_field:
             if 'linux' in os_field or os_field in ['ubuntu', 'centos', 'debian', 'rhel', 'fedora', 'suse']:

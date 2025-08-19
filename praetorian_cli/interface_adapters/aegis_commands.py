@@ -20,6 +20,9 @@ class AegisContext:
         self.tui_state = tui_state  # TUI state (selected_agent, etc.)
         self.is_tui = console is not None
     
+    def error(self, message):
+        self.echo(message, err=True, color='red')
+    
     def echo(self, message, err=False, color=None):
         """Output message appropriate for context (CLI or TUI)"""
         if self.is_tui and self.console:
@@ -47,113 +50,12 @@ class AegisContext:
         """Set the currently selected agent (TUI only)"""
         if self.tui_state and hasattr(self.tui_state, 'selected_agent'):
             self.tui_state.selected_agent = agent
-
-
-# Create a Click group for Aegis commands
-@click.group(invoke_without_command=True)
-@click.pass_context  
-def aegis_shared(ctx):
-    """Aegis agent management commands"""
-    if ctx.invoked_subcommand is None:
-        # When no subcommand, show help
-        click.echo(ctx.get_help())
-
-
-@aegis_shared.command('list')
-@click.option('--details', is_flag=True, help='Show detailed agent information')
-@click.option('--filter', help='Filter agents by hostname or other properties')
-@click.pass_context
-def list_agents(ctx, details, filter):
-    """List Aegis agents with optional details
     
-    Shows all available Aegis agents with their status and basic information.
-    Use --details for comprehensive system information including network interfaces,
-    tunnel status, and health check data.
-    
-    Examples:
-        list                    # Show basic agent list
-        list --details          # Show detailed information  
-        list --filter windows   # Filter by OS or hostname
-        list --filter C.abc123  # Filter by client ID
-    """
-    aegis_ctx = ctx.obj
-    
-    try:
-        result = aegis_ctx.sdk.aegis.format_agents_list(details=details, filter_text=filter)
-        
-        if result.get('success'):
-            aegis_ctx.echo(result['output'])
-        else:
-            aegis_ctx.echo(f"Error: {result.get('message', 'Unknown error')}", err=True, color='red')
-            if not aegis_ctx.is_tui:
-                sys.exit(1)
-                
-    except Exception as e:
-        aegis_ctx.echo(f"Error: {e}", err=True, color='red')
-        if not aegis_ctx.is_tui:
-            sys.exit(1)
+    def list_agents(self, details, filter):
+        """List Aegis agents with optional details"""
+        self.echo(self.sdk.aegis.format_agents_list(details=details, filter_text=filter))
 
 
-@aegis_shared.command('set')
-@click.argument('identifier')
-@click.pass_context
-def set_agent(ctx, identifier):
-    """Set current agent by number, client ID, or hostname
-    
-    Selects an agent as the target for subsequent operations like SSH and jobs.
-    The identifier can be an agent number (1-N), client ID, or hostname.
-    
-    Examples:
-        set 1                   # Select first agent by number
-        set C.6e012b467f9faf82  # Select by client ID
-        set kali-vm             # Select by hostname
-    """
-    aegis_ctx = ctx.obj
-    
-    # This command only makes sense in TUI context
-    if not aegis_ctx.is_tui:
-        aegis_ctx.echo("The 'set' command is only available in the TUI interface.", err=True, color='red')
-        return
-    
-    try:
-        agents_data, _ = aegis_ctx.sdk.aegis.list()
-        selected_agent = None
-        
-        # Try by agent number first
-        if identifier.isdigit():
-            agent_num = int(identifier)
-            if 1 <= agent_num <= len(agents_data):
-                selected_agent = agents_data[agent_num - 1]
-        
-        # Try by client ID or hostname
-        if not selected_agent:
-            for agent in agents_data:
-                if (agent.client_id == identifier or 
-                    (agent.hostname and agent.hostname.lower() == identifier.lower())):
-                    selected_agent = agent
-                    break
-        
-        if selected_agent:
-            aegis_ctx.set_selected_agent(selected_agent)
-            hostname = selected_agent.hostname or 'Unknown'
-            client_id = selected_agent.client_id or 'N/A'
-            aegis_ctx.echo(f"Selected agent: {hostname} ({client_id})", color='green')
-        else:
-            aegis_ctx.echo(f"Agent not found: {identifier}", err=True, color='red')
-            
-    except Exception as e:
-        aegis_ctx.echo(f"Error: {e}", err=True, color='red')
-
-
-@aegis_shared.command('ssh')
-@click.option('-D', '--dynamic-forward', help='Dynamic port forwarding/SOCKS proxy (e.g., 1080)')
-@click.option('-L', '--local-forward', multiple=True, help='Local port forwarding (e.g., 8080:localhost:80)')
-@click.option('-R', '--remote-forward', multiple=True, help='Remote port forwarding (e.g., 9090:localhost:3000)')
-@click.option('-u', '--user', help='SSH username (default: auto-detected from email)')
-@click.option('-i', '--key', help='SSH private key file')
-@click.option('--ssh-opts', help='Additional SSH options (e.g., "-o StrictHostKeyChecking=no")')
-@click.argument('client_id', required=False)
-@click.pass_context
 def ssh_command(ctx, dynamic_forward, local_forward, remote_forward, user, key, ssh_opts, client_id):
     """Connect to an Aegis agent via SSH
     
@@ -209,12 +111,6 @@ def ssh_command(ctx, dynamic_forward, local_forward, remote_forward, user, key, 
         if not aegis_ctx.is_tui:
             sys.exit(1)
 
-
-@aegis_shared.command('job')
-@click.option('-c', '--capability', 'capabilities', multiple=True, help='Capability to run (e.g., windows-smb-snaffler)')
-@click.option('--config', help='JSON configuration string for the job')
-@click.argument('client_id', required=False)
-@click.pass_context
 def job_command(ctx, capabilities, config, client_id):
     """Run a job on an Aegis agent
     
@@ -278,10 +174,6 @@ def job_command(ctx, capabilities, config, client_id):
         if not aegis_ctx.is_tui:
             sys.exit(1)
 
-
-@aegis_shared.command('info')
-@click.argument('client_id', required=False)
-@click.pass_context
 def info_command(ctx, client_id):
     """Show detailed information for an agent
     

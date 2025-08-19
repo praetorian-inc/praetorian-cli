@@ -11,7 +11,7 @@ class Aegis:
     def __init__(self, api):
         self.api = api
 
-    def list(self) -> tuple:
+    def list(self) -> list[Agent]:
         """
         List all Aegis agents.
 
@@ -19,8 +19,8 @@ class Aegis:
         objects with detailed information including system specs, network
         interfaces, and tunnel connectivity status.
 
-        :return: A tuple containing (list of Agent objects, None for compatibility)
-        :rtype: tuple
+        :return: A list of Agent objects
+        :rtype: list
 
         **Example Usage:**
             >>> # List all Aegis agents
@@ -41,18 +41,14 @@ class Aegis:
             - has_tunnel: Boolean indicating if Cloudflare tunnel is active
             - is_online: Boolean indicating if agent is currently online
         """
-        try:
-            # Aegis agents use a different API endpoint
-            agents_data = self.api.get('/aegis/agent')
-            
-            # Return Agent objects
-            agents = []
-            for agent_data in agents_data:
-                agent = Agent.from_dict(agent_data)
-                agents.append(agent)
-            return agents, None
-        except Exception as e:
-            raise Exception(f"Failed to list Aegis agents: {e}")
+        agents_data = self.api.get('/aegis/agent')
+        
+        # Return Agent objects
+        agents = []
+        for agent_data in agents_data:
+            agent = Agent.from_dict(agent_data)
+            agents.append(agent)
+        return agents
     
     def get_by_client_id(self, client_id: str):
         """
@@ -262,7 +258,7 @@ class Aegis:
         except Exception as e:
             raise Exception(f"Failed to get available domains: {e}")
     
-    def ssh_to_agent(self, client_id: str, user: str = None, 
+    def ssh_to_agent(self, agent: Agent, user: str = None, 
                      local_forward: List[str] = None, remote_forward: List[str] = None, 
                      dynamic_forward: str = None, key: str = None, ssh_opts: str = None,
                      display_info: bool = True) -> int:
@@ -270,7 +266,7 @@ class Aegis:
         SSH to an Aegis agent using Cloudflare tunnel
         
         Args:
-            client_id: The client ID of the Aegis agent
+            agent: The Aegis agent object
             user: SSH username (auto-detected if not provided)
             local_forward: List of local port forwarding specs (e.g., ['8080:localhost:80'])
             remote_forward: List of remote port forwarding specs
@@ -291,10 +287,7 @@ class Aegis:
         if not user:
             _, user = self.api.get_current_user()
         
-        # Get agent details
-        agent = self.get_by_client_id(client_id)
-        if not agent:
-            raise Exception(f"No Aegis instance found with client ID: {client_id}")
+        # Agent object is already provided as parameter
         
         # Validate agent for SSH
         is_valid, error_msg = validate_agent_for_ssh(agent)
@@ -370,7 +363,7 @@ class Aegis:
         except Exception as e:
             raise Exception(f"SSH connection failed: {e}")
     
-    def run_job(self, client_id: str, capabilities: list = None, config: str = None):
+    def run_job(self, agent: Agent, capabilities: list = None, config: str = None):
         """
         Run a job on an Aegis agent.
 
@@ -379,8 +372,8 @@ class Aegis:
         Automatically determines the correct target key format based on capability
         requirements (asset vs addomain targets).
 
-        :param client_id: The client ID of the Aegis agent
-        :type client_id: str
+        :param agent: The Aegis agent object
+        :type agent: Agent
         :param capabilities: List of capability names to execute
         :type capabilities: list or None
         :param config: Optional JSON configuration string for the job
@@ -389,19 +382,20 @@ class Aegis:
         :rtype: dict
 
         **Example Usage:**
+            >>> # Get agent first
+            >>> agent = sdk.aegis.get_by_client_id("C.6e012b467f9faf82-OG9F0")
+            
             >>> # List available capabilities
-            >>> result = sdk.aegis.run_job("C.6e012b467f9faf82-OG9F0")
+            >>> result = sdk.aegis.run_job(agent)
             >>> print(result['capabilities'])
             
             >>> # Run specific capability
-            >>> result = sdk.aegis.run_job("C.6e012b467f9faf82-OG9F0", 
-            ...                           ["windows-smb-snaffler"])
+            >>> result = sdk.aegis.run_job(agent, ["windows-smb-snaffler"])
             >>> print(f"Job queued: {result['job_id']}")
             
             >>> # Run with configuration
             >>> config = '{"Username": "admin", "Password": "secret"}'
-            >>> result = sdk.aegis.run_job("C.6e012b467f9faf82-OG9F0",
-            ...                           ["windows-domain-collection"], config)
+            >>> result = sdk.aegis.run_job(agent, ["windows-domain-collection"], config)
 
         **Return Values:**
             When capabilities are provided:
@@ -415,13 +409,7 @@ class Aegis:
             - capabilities: List of available capability dictionaries
             - message: Informational message
         """
-        # Get the agent to determine target key
-        agent = self.get_by_client_id(client_id)
-        if not agent:
-            return {
-                'success': False,
-                'message': f"No Aegis agent found with client ID: {client_id}"
-            }
+        # Agent object is already provided as parameter
         
         # If no capabilities specified, return available ones
         if not capabilities:
@@ -486,100 +474,33 @@ class Aegis:
         :param filter_text: Filter agents by hostname, client_id, or OS (case-insensitive)
         :type filter_text: str or None
         :return: Formatted agent list information
-        :rtype: dict
+        :rtype: str
 
         **Example Usage:**
             >>> # Simple agent list
             >>> result = sdk.aegis.format_agents_list()
-            >>> print(result['output'])
+            >>> print(result)
             
             >>> # Detailed agent list with filtering
             >>> result = sdk.aegis.format_agents_list(details=True, filter_text="windows")
-            >>> print(result['output'])
-
-        **Return Values:**
-            - success: Boolean indicating if operation succeeded
-            - count: Number of agents found (after filtering)
-            - output: Formatted string ready for CLI display
-            - message: Error message if success is False
+            >>> print(result)
         """
-        try:
-            agents_data, _ = self.list()
-            
-            if not agents_data:
-                return {
-                    'success': True,
-                    'count': 0,
-                    'output': "No agents found.",
-                    'message': "No agents found"
-                }
-            
-            # Apply filter if provided
-            if filter_text:
-                filter_lower = filter_text.lower()
-                agents_data = [agent for agent in agents_data 
-                              if filter_lower in (agent.hostname or '').lower() or
-                                 filter_lower in (agent.client_id or '').lower() or
-                                 filter_lower in (agent.os or '').lower()]
-            
-            if not agents_data:
-                return {
-                    'success': True,
-                    'count': 0,
-                    'output': f"No agents found matching filter: {filter_text}",
-                    'message': f"No agents found matching filter: {filter_text}"
-                }
-            
-            output_lines = []
-            
-            if details:
-                # Show detailed information
-                for agent in agents_data:
-                    hostname = agent.hostname or 'Unknown'
-                    client_id = agent.client_id or 'N/A'
-                    os_info = f"{agent.os or 'unknown'} {agent.os_version or ''}".strip()
-                    
-                    output_lines.append(f"\n{hostname} ({client_id})")
-                    output_lines.append(f"  OS: {os_info}")
-                    output_lines.append(f"  Architecture: {agent.architecture or 'Unknown'}")
-                    output_lines.append(f"  FQDN: {agent.fqdn or 'N/A'}")
-                    
-                    # Health check details
-                    if agent.has_tunnel:
-                        cf_status = agent.health_check.cloudflared_status
-                        output_lines.append(f"  Tunnel: {cf_status.tunnel_name or 'N/A'}")
-                        output_lines.append(f"  Public hostname: {cf_status.hostname or 'N/A'}")
-                        if cf_status.authorized_users:
-                            output_lines.append(f"  Authorized users: {cf_status.authorized_users}")
-                    else:
-                        output_lines.append("  Tunnel: Not configured")
-                        
-                    # Network interfaces
-                    ips = agent.ip_addresses
-                    if ips:
-                        output_lines.append(f"  IP addresses: {', '.join(ips)}")
-            else:
-                # Simple list format
-                for agent in agents_data:
-                    hostname = agent.hostname or 'Unknown'
-                    client_id = agent.client_id or 'N/A'
-                    
-                    # Status indicator
-                    status = "🔗" if agent.has_tunnel else "○"
-                        
-                    output_lines.append(f"{status} {hostname} ({client_id})")
-            
-            return {
-                'success': True,
-                'count': len(agents_data),
-                'output': '\n'.join(output_lines),
-                'message': f"Found {len(agents_data)} agents"
-            }
-            
-        except Exception as e:
-            return {
-                'success': False,
-                'count': 0,
-                'output': '',
-                'message': f"Failed to format agents list: {e}"
-            }
+        agents_data = self.list()
+        
+        if not agents_data:
+            return "No agents found."
+        
+        if filter_text:
+            filter_lower = filter_text.lower()
+            agents_data = [agent for agent in agents_data 
+                            if filter_lower in agent.hostname.lower() or
+                                filter_lower in agent.client_id.lower() or
+                                filter_lower in agent.os.lower()]
+
+        if not agents_data:
+            return f"No agents found matching filter: {filter_text}"
+        
+        if details:
+            return '\n'.join(agent.to_detailed_string() for agent in agents_data)
+        else:
+            return '\n'.join(str(agent) for agent in agents_data)

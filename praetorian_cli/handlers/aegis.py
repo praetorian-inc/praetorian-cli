@@ -1,7 +1,6 @@
 import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.interface_adapters.aegis_commands import aegis_shared, AegisContext
 
 
 @chariot.group(invoke_without_command=True)
@@ -25,13 +24,7 @@ def aegis(ctx, sdk):
 @click.pass_context
 def list_agents(ctx, sdk, details, filter):
     """List Aegis agents with optional details"""
-    # Create CLI context and invoke shared command
-    aegis_ctx = AegisContext(sdk)
-    ctx.obj = aegis_ctx
-    
-    # Get the shared command and invoke it
-    shared_cmd = aegis_shared.get_command(ctx, 'list')
-    ctx.invoke(shared_cmd, details=details, filter=filter)
+    click.echo(sdk.aegis.format_agents_list(details=details, filter_text=filter))
 
 
 @aegis.command('ssh')
@@ -46,14 +39,21 @@ def list_agents(ctx, sdk, details, filter):
 @click.pass_context
 def ssh(ctx, sdk, dynamic_forward, local_forward, remote_forward, user, key, ssh_opts, client_id):
     """Connect to an Aegis agent via SSH"""
-    # Create CLI context and invoke shared command
-    aegis_ctx = AegisContext(sdk)
-    ctx.obj = aegis_ctx
+    agent = sdk.aegis.get_by_client_id(client_id)
+    if not agent:
+        click.echo(f"Agent not found: {client_id}", err=True)
+        return
     
-    # Get the shared command and invoke it
-    shared_cmd = aegis_shared.get_command(ctx, 'ssh')
-    ctx.invoke(shared_cmd, dynamic_forward=dynamic_forward, local_forward=local_forward,
-               remote_forward=remote_forward, user=user, key=key, ssh_opts=ssh_opts, client_id=client_id)
+    sdk.aegis.ssh_to_agent(
+        agent=agent,
+        user=user,
+        local_forward=list(local_forward),
+        remote_forward=list(remote_forward),
+        dynamic_forward=dynamic_forward,
+        key=key,
+        ssh_opts=ssh_opts,
+        display_info=True
+    )
 
 
 @aegis.command('job')
@@ -64,13 +64,29 @@ def ssh(ctx, sdk, dynamic_forward, local_forward, remote_forward, user, key, ssh
 @click.pass_context
 def job(ctx, sdk, capabilities, config, client_id):
     """Run a job on an Aegis agent"""
-    # Create CLI context and invoke shared command
-    aegis_ctx = AegisContext(sdk)
-    ctx.obj = aegis_ctx
+    agent = sdk.aegis.get_by_client_id(client_id)
+    if not agent:
+        click.echo(f"Agent not found: {client_id}", err=True)
+        return
     
-    # Get the shared command and invoke it
-    shared_cmd = aegis_shared.get_command(ctx, 'job')
-    ctx.invoke(shared_cmd, capabilities=capabilities, config=config, client_id=client_id)
+    result = sdk.aegis.run_job(
+        agent, 
+        list(capabilities) if capabilities else None, 
+        config
+    )
+    
+    if 'capabilities' in result:
+        click.echo("Available capabilities:")
+        for cap in result['capabilities']:
+            name = cap.get('name', 'unknown')
+            desc = cap.get('description', '')[:50]
+            click.echo(f"  {name:<25} {desc}")
+    elif result.get('success'):
+        click.echo(f"✓ Job queued successfully")
+        click.echo(f"  Job ID: {result.get('job_id', 'unknown')}")
+        click.echo(f"  Status: {result.get('status', 'unknown')}")
+    else:
+        click.echo(f"Error: {result.get('message', 'Unknown error')}", err=True)
 
 
 @aegis.command('info')
@@ -79,39 +95,9 @@ def job(ctx, sdk, capabilities, config, client_id):
 @click.pass_context
 def info(ctx, sdk, client_id):
     """Show detailed information for an agent"""
-    # Create CLI context and invoke shared command
-    aegis_ctx = AegisContext(sdk)
-    ctx.obj = aegis_ctx
+    agent = sdk.aegis.get_by_client_id(client_id)
+    if not agent:
+        click.echo(f"Agent not found: {client_id}", err=True)
+        return
     
-    # Get the shared command and invoke it
-    shared_cmd = aegis_shared.get_command(ctx, 'info')
-    ctx.invoke(shared_cmd, client_id=client_id)
-
-
-# Keep the backward compatibility function for now
-def _ssh_to_agent(sdk, client_id, user=None, local_forward=None, remote_forward=None, dynamic_forward=None, key=None, ssh_opts=None, exit_on_completion=True):
-    """Thin wrapper around SDK SSH method for backward compatibility"""
-    import sys
-    try:
-        exit_code = sdk.aegis.ssh_to_agent(
-            client_id=client_id,
-            user=user,
-            local_forward=local_forward or [],
-            remote_forward=remote_forward or [],
-            dynamic_forward=dynamic_forward,
-            key=key,
-            ssh_opts=ssh_opts,
-            display_info=True
-        )
-        
-        if exit_on_completion:
-            sys.exit(exit_code)
-        else:
-            return exit_code
-            
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        if exit_on_completion:
-            sys.exit(1)
-        else:
-            return 1
+    click.echo(agent.to_detailed_string())
