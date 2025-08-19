@@ -57,8 +57,13 @@ class Assets:
         :return: None
         :rtype: None
         """
+        params = dict(key=key)
         if status:
-            self.api.upsert('asset', dict(key=key, status=status, attackSurface=[surface]))
+            params = params | dict(status=status)
+        if surface:
+            params = params | dict(attackSurface=[surface])
+            
+        return self.api.upsert('asset', params)
 
     def delete(self, key):
         """
