@@ -27,16 +27,12 @@ def random_dns():
 def random_ad_domain():
     return f'test-{epoch_micro()}.local'
 
-def random_ad_sid():
-    return f'S-{epoch_micro()}'
-
 def make_test_values(o):
     o.asset_dns = random_dns()
     o.asset_name = random_ip()
     o.asset_key = asset_key(o.asset_dns, o.asset_name)
     o.ad_domain_name = random_ad_domain()
-    o.ad_domain_sid = random_ad_sid()
-    o.ad_domain_key = ad_domain_key(o.ad_domain_name, o.ad_domain_sid)
+    o.ad_domain_key = ad_domain_key(o.ad_domain_name, o.ad_domain_name)
     o.seed_dns = random_dns()
     o.seed_key = seed_key('domain', o.seed_dns)
     o.risk_name = f'test-risk-name-{epoch_micro()}'
