@@ -262,7 +262,7 @@ class ManualAssetParser:
             return None
         
         # Last colon field becomes the asset name
-        asset_name = arn_parts[-1]
+        asset_name = ':'.join(arn_parts[5:])
         if not asset_name:
             click.echo("❌ Could not extract asset name from ARN (last colon field is empty)")
             return None
