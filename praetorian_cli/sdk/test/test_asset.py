@@ -14,8 +14,8 @@ class TestAsset:
     def test_add_asset(self):
         asset = self.sdk.assets.add(self.asset_dns, self.asset_name, status=Asset.ACTIVE.value, surface='test-surface')
         assert asset['key'] == self.asset_key
-        assert len(asset['surface']) == 1
-        assert asset['surface'][0] == 'test-surface'
+        assert len(asset['attackSurface']) == 1
+        assert 'test-surface' in asset['attackSurface']
         assert asset['status'] == Asset.ACTIVE.value
 
     def test_get_asset(self):
@@ -30,11 +30,10 @@ class TestAsset:
         assert any([a['group'] == self.asset_dns for a in results])
 
     def test_update_asset(self):
-        self.sdk.assets.update(self.asset_key, status=Asset.FROZEN.value)
-        assert self.get_asset()['status'] == Asset.FROZEN.value
-        self.sdk.assets.update(self.asset_key, surface='abc')
-        attributes = self.sdk.assets.attributes(self.asset_key)
-        assert any([a['name'] == 'surface' and a['value'] == 'abc' for a in attributes])
+        self.sdk.assets.update(self.asset_key, status=Asset.FROZEN.value, surface='abc')
+        asset = self.get_asset()
+        assert asset['status'] == Asset.FROZEN.value
+        assert 'abc' in asset['attackSurface']
 
     def test_delete_asset(self):
         self.sdk.assets.delete(self.asset_key)
@@ -45,8 +44,8 @@ class TestAsset:
     def test_add_ad_domain(self):
         asset = self.sdk.assets.add(self.ad_domain_name, self.ad_domain_name, status=Asset.ACTIVE.value, surface='test-surface', type=Kind.ADDOMAIN.value)
         assert asset['key'] == self.ad_domain_key
-        assert len(asset['surface']) == 1
-        assert asset['surface'][0] == 'test-surface'
+        assert len(asset['attackSurface']) == 1
+        assert 'test-surface' in asset['attackSurface']
         assert asset['status'] == Asset.ACTIVE.value
     
     def test_get_ad_domain(self):
@@ -61,11 +60,10 @@ class TestAsset:
         assert any([a['group'] == self.ad_domain_name for a in results])
     
     def test_update_ad_domain(self):
-        self.sdk.assets.update(self.ad_domain_key, status=Asset.FROZEN.value)
-        assert self.get_ad_domain()['status'] == Asset.FROZEN.value
-        self.sdk.assets.update(self.ad_domain_key, surface='abc')
-        attributes = self.sdk.assets.attributes(self.ad_domain_key)
-        assert any([a['name'] == 'surface' and a['value'] == 'abc' for a in attributes])
+        self.sdk.assets.update(self.ad_domain_key, status=Asset.FROZEN.value, surface='abc')
+        ad_domain = self.get_ad_domain()
+        assert ad_domain['status'] == Asset.FROZEN.value
+        assert 'abc' in ad_domain['attackSurface']
     
     def test_delete_ad_domain(self):
         self.sdk.assets.delete(self.ad_domain_key)
