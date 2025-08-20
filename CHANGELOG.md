@@ -1,5 +1,9 @@
 # Changelog
 
+# 2.2.1
+
+- [Bug fix] Fixed an issue for filtering by an asset's attack surface
+
 # 2.2.0
 
 - [New feature] Chariot MCP server
