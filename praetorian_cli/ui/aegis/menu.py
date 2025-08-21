@@ -332,6 +332,17 @@ class AegisMenu:
             )
             self.console.print(header)
             
+            # Show agents table if available
+            if self.agents:
+                self.console.print("  Available agents:")
+                self.console.print()
+                agents_table = self.create_agents_table()
+                self.console.print(agents_table)
+                self.console.print()
+                self.console.print(f"  [{self.colors['dim']}]Use 'set <ID>' to select an agent for operations[/{self.colors['dim']}]")
+            else:
+                self.console.print(f"  [{self.colors['warning']}]No agents found. Check your connection and try 'reload'[/{self.colors['warning']}]")
+            
             # Show simple help hint
             self.console.print(f"  [{self.colors['dim']}]hint: tab for completion • help for commands[/{self.colors['dim']}]\n")
         self._first_render = False
