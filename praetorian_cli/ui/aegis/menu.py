@@ -288,6 +288,37 @@ class AegisMenu:
         
         # Call with agent context
         return method(agent, *args, **kwargs)
+    
+    def create_agents_table(self) -> Table:
+        """Create a nicely formatted table of agents"""
+        table = Table(show_header=True, header_style=f"bold {self.colors['primary']}")
+        table.add_column("ID", style=f"{self.colors['accent']}", width=3)
+        table.add_column("Hostname", style="bold white", width=20)
+        table.add_column("Client ID", style=f"{self.colors['dim']}", width=12)
+        table.add_column("OS", style=f"{self.colors['info']}", width=15)
+        table.add_column("Status", width=8)
+        table.add_column("Tunnel", width=6)
+        
+        for i, agent in enumerate(self.agents, 1):
+            status_icon = "🟢" if agent.is_online else "🔴"
+            tunnel_icon = "🔗" if agent.has_tunnel else "○"
+            
+            # Truncate long values for table display
+            hostname = agent.hostname[:18] + '..' if len(agent.hostname) > 20 else agent.hostname
+            client_id = agent.client_id[:10] + '..' if len(agent.client_id) > 12 else agent.client_id
+            os_display = f"{agent.os} {agent.os_version}".strip()
+            os_display = os_display[:13] + '..' if len(os_display) > 15 else os_display
+            
+            table.add_row(
+                str(i),
+                hostname,
+                client_id,
+                os_display,
+                status_icon,
+                tunnel_icon
+            )
+        
+        return table
 
     def show_main_menu(self):
         """Show the main interface with reduced noise"""
