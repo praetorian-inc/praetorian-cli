@@ -18,7 +18,6 @@ from rich.prompt import Prompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.live import Live
 
-from .commands import SetCommand, SSHCommand, InfoCommand, ListCommand, HelpCommand, JobCommand
 from .menus import AegisStyle, MainMenu, AgentMenu
 from .completion import CompletionManager
 
