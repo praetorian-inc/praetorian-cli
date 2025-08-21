@@ -107,14 +107,9 @@ class SetCompleter(BaseCompleter):
         
         return suggestions
     
-    def _get_agent_status(self, agent: dict) -> str:
+    def _get_agent_status(self, agent) -> str:
         """Get agent status string"""
-        if 'computed_status' in agent:
-            status_obj = agent['computed_status']
-            if hasattr(status_obj, 'plain'):
-                return status_obj.plain
-            return str(status_obj)
-        return "Unknown"
+        return "Online" if agent.is_online else "Offline"
     
     def get_help_text(self, command: str, flag: Optional[str] = None) -> str:
         """Get help text for SET command"""
