@@ -501,6 +501,17 @@ class Aegis:
             return f"No agents found matching filter: {filter_text}"
         
         if details:
-            return '\n'.join(agent.to_detailed_string() for agent in agents_data)
+            detailed_lines = []
+            for i, agent in enumerate(agents_data, 1):
+                agent_details = agent.to_detailed_string()
+                # Add agent number to the first line
+                lines = agent_details.split('\n')
+                if lines:
+                    lines[0] = f"[{i:2d}] {lines[0].lstrip()}"
+                detailed_lines.append('\n'.join(lines))
+            return '\n\n'.join(detailed_lines)
         else:
-            return '\n'.join(str(agent) for agent in agents_data)
+            lines = []
+            for i, agent in enumerate(agents_data, 1):
+                lines.append(f"[{i:2d}] {str(agent)}")
+            return '\n'.join(lines)
