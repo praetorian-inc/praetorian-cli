@@ -132,8 +132,8 @@ Examples:
 Current Selection:"""
         
         if self.selected_agent:
-            hostname = self.selected_agent.get('hostname', 'Unknown')
-            client_id = self.selected_agent.get('client_id', 'Unknown')
+            hostname = getattr(self.selected_agent, 'hostname', 'Unknown')
+            client_id = getattr(self.selected_agent, 'client_id', 'Unknown')
             help_text += f"\n  ✓ {hostname} ({client_id})"
         else:
             help_text += "\n  ✗ No agent selected"
