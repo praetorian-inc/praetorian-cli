@@ -156,12 +156,12 @@ Current Selection:"""
         
         # Try client ID match
         for agent in self.agents:
-            if agent.get('client_id', '').lower() == identifier.lower():
+            if getattr(agent, 'client_id', '').lower() == identifier.lower():
                 return agent
         
         # Try hostname match  
         for agent in self.agents:
-            if agent.get('hostname', '').lower() == identifier.lower():
+            if getattr(agent, 'hostname', '').lower() == identifier.lower():
                 return agent
         
         return None
