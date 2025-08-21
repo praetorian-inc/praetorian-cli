@@ -420,12 +420,19 @@ class AegisMenu:
                 self.pause()
         else:
             # Try to find by client_id
-            agent = self.sdk.aegis.get_by_client_id(selection)
-            if agent:
-                self.selected_agent = agent
-                self.console.print(f"\n  Selected: {agent.hostname}\n")
-            else:
-                self.console.print(f"\n  Agent not found: {selection}\n")
+            try:
+                agent = self.sdk.aegis.get_by_client_id(selection)
+                if agent:
+                    self.selected_agent = agent
+                    self.console.print(f"\n  Selected: {agent.hostname}\n")
+                else:
+                    self.console.print(f"\n[red]  Agent not found:[/red] {selection}")
+                    self.console.print(f"[dim]  Use 'list' to see available agents or 'set' without arguments for options[/dim]\n")
+                    self.pause()
+            except Exception as e:
+                self.console.print(f"\n[red]  Error selecting agent:[/red] {selection}")
+                self.console.print(f"[red]  {str(e)}[/red]")
+                self.console.print(f"[dim]  Use 'list' to see available agents or 'set' without arguments for options[/dim]\n")
                 self.pause()
     
     def handle_help(self, args):
