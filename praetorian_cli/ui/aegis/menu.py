@@ -580,38 +580,6 @@ class AegisMenu:
             self.console.print(f"[red]Job error: {e}[/red]")
             self.pause()
     
-    def show_agent_menu(self, agent: dict):
-        """Show individual agent menu"""
-        self.clear_screen()
-        
-        hostname = agent.get('hostname', 'Unknown')
-        
-        # Show agent header
-        header_panel = self.agent_menu.get_agent_header_panel(hostname)
-        self.console.print(header_panel)
-        
-        # Agent details
-        self.info_cmd.show_agent_details(agent)
-        
-        # Show actions panel
-        shell_available = agent.has_tunnel
-        
-        actions_panel = self.agent_menu.get_actions_panel(shell_available)
-        self.console.print(actions_panel)
-        
-        choice = self.get_input()
-        
-        if choice == 's' and shell_available:
-            self.ssh_cmd.handle_shell(agent)
-        elif choice == 'i':
-            self.info_cmd.handle_info(agent)
-        elif choice in ['b', 'back', '']:
-            return
-        else:
-            self.console.print(f"[red]Invalid choice: {choice}[/red]")
-            self.pause()
-            self.show_agent_menu(agent)  # Recurse
-
     def pause(self):
         """Professional pause with styling"""
         if self.verbose:
