@@ -235,7 +235,12 @@ class AegisMenu:
     
     def reload_agents(self, force_refresh=True):
         """Load agents with 60-second caching and compute status properties"""
-        self.list_cmd.load_agents(force_refresh=force_refresh)
+        try:
+            self.agents = self.sdk.aegis.list()
+        except Exception as e:
+            self.console.print(f"[red]Error loading agents: {e}[/red]")
+            self.agents = []
+        
         # Refresh completion data when agents change
         self.completion_manager.refresh_completions()
     
