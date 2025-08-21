@@ -68,18 +68,15 @@ class SetCompleter(BaseCompleter):
         
         return suggestions
     
-    def _format_last_seen(self, agent: dict) -> str:
+    def _format_last_seen(self, agent) -> str:
         """Format last seen information for display"""
-        last_seen_at = agent.get('last_seen_at', 0)
+        last_seen_at = getattr(agent, 'last_seen_at', 0)
         if not last_seen_at:
             return "Never seen"
         
-        # Check if we have computed properties
-        if 'computed_last_seen_str' in agent:
-            status_text = "Online" if "ONLINE" in str(agent.get('computed_status', '')) else "Offline"
-            return f"Last seen: {agent['computed_last_seen_str']} ({status_text})"
-        
-        return "Status unknown"
+        # Use the is_online property from the Agent class
+        status_text = "Online" if agent.is_online else "Offline"
+        return f"{status_text}"
     
     def get_agent_suggestions_by_type(self) -> Dict[str, List[Dict[str, Any]]]:
         """Get agent suggestions with combined ID and hostname information"""
