@@ -320,7 +320,7 @@ class AegisMenu:
             return "quit"
     
     def handle_choice(self, choice: str) -> bool:
-        """Handle user choice with modern command parsing"""
+        """Dead simple command dispatch"""
         if not choice:
             return True  # Just refresh
         
@@ -335,67 +335,43 @@ class AegisMenu:
         if not args:
             return True
         
-        command = args[0].lower()  # Only convert command name to lowercase, preserve argument case
+        command = args[0].lower()
+        cmd_args = args[1:] if len(args) > 1 else []
         
-        # Handle commands
+        # Built-in TUI commands
         if command in ['q', 'quit', 'exit']:
             return False
             
         elif command in ['r', 'reload']:
             self.reload_agents(force_refresh=True)
-            # No output - just refresh
             
         elif command == 'clear':
             self.clear_screen()
             
-        elif command in ['h', 'help']:
-            # Check for specific help requests (e.g., "help ssh", "ssh --help")
-            if len(args) > 1:
-                help_topic = args[1].lower()
-                help_text = self.completion_manager.get_help_text(help_topic)
-                self.console.print(help_text)
-                self.pause()
-            else:
-                self.help_cmd.execute()
-            
-        elif command == 'list':
-            list_args = args[1:] if len(args) > 1 else []
-            self.list_cmd.execute(list_args)
-            
         elif command == 'set':
-            if len(args) >= 2 and (args[1] == '--help' or args[1] == '-h'):
-                help_text = self.completion_manager.get_help_text('set')
-                self.console.print(help_text)
-                self.pause()
-            elif len(args) < 2:
-                self.set_cmd.execute([])
-            else:
-                self.set_cmd.execute([args[1]])
-                
+            self.handle_set(cmd_args)
+            
+        elif command in ['h', 'help']:
+            self.handle_help(cmd_args)
+            
+        # CLI command delegation - direct SDK calls
+        elif command == 'list':
+            self.handle_list(cmd_args)
+            
         elif command == 'ssh':
-            ssh_args = args[1:] if len(args) > 1 else []
-            # Handle --help flag
-            if '--help' in ssh_args or '-h' in ssh_args:
-                help_text = self.completion_manager.get_help_text('ssh')
-                self.console.print(help_text)
-                self.pause()
-            else:
-                self.ssh_cmd.execute(ssh_args)
+            self.handle_ssh(cmd_args)
             
         elif command == 'info':
-            self.info_cmd.execute(args[1:] if len(args) > 1 else [])
+            self.handle_info(cmd_args)
             
         elif command == 'job':
-            job_args = args[1:] if len(args) > 1 else []
-            self.job_cmd.execute(job_args)
+            self.handle_job(cmd_args)
             
         # Legacy support for direct numbers (backwards compatibility)
         elif command.isdigit():
             agent_num = int(command)
             if 1 <= agent_num <= len(self.agents):
                 self.selected_agent = self.agents[agent_num - 1]
-                hostname = self.selected_agent.hostname or 'Unknown'
-                # No output - prompt will show selection
             else:
                 self.console.print(f"\n  Invalid agent number: {agent_num}\n")
                 self.pause()
