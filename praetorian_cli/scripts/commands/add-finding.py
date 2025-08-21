@@ -447,10 +447,22 @@ def collect_assets_for_risk(sdk):
         if asset_exists:
             # Perform asset search with fuzzy matching
             try:
-                # Get all assets (load more pages for better selection)
-                all_assets, _ = sdk.assets.list(pages=5)  # Get more assets for better fzf experience
+                # Ask if user wants to filter assets by DNS prefix to reduce search space
+                dns_filter = ""
+                use_dns_filter = click.confirm("Would you like to filter assets by DNS hostname before searching? (Recommended for accounts with many assets)")
+                if use_dns_filter:
+                    dns_filter = click.prompt("Enter DNS hostname prefix to filter by (e.g., 'example.com' or 'api.')", type=str, default="").strip()
+                    if dns_filter:
+                        click.echo(f"💡 Filtering assets by DNS prefix: '{dns_filter}'")
+                
+                # Get assets with optional DNS filtering (load more pages for better selection)
+                all_assets, _ = sdk.assets.list(prefix_filter=dns_filter, pages=5)  # Get more assets for better fzf experience
                 if not all_assets:
-                    click.echo("No assets found in your account.")
+                    if dns_filter:
+                        click.echo(f"No assets found matching DNS filter: '{dns_filter}'")
+                    else:
+                        click.echo("No assets found in your account.")
+                    
                     if click.confirm("Would you like to create a new asset instead?"):
                         asset_exists = False
                     else:
