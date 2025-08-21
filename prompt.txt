@@ -1,0 +1,123 @@
+  # Praetorian CLI Refactoring Continuation
+
+  You are working on a Python CLI/TUI application for the Praetorian security platform. The codebase has already undergone significant
+  refactoring to improve maintainability and eliminate code duplication. Your task is to continue simplifying and refactoring the code to make
+  it even cleaner, more maintainable, and easier to extend.
+
+  ## Current Architecture State
+
+  The codebase has been refactored with these improvements:
+  - ✅ **Interface adapters eliminated** - Removed unnecessary abstraction layer
+  - ✅ **Command core pattern** - Shared business logic in `AegisCommandCore`
+  - ✅ **Plugin architecture** - Auto-discovery system for commands
+  - ✅ **Strongly-typed help system** - `CommandHelpInfo` dataclass replacing dictionaries
+  - ✅ **Distributed help ownership** - Each command owns its help text
+
+  ### Key Files & Structure:
+  praetorian_cli/
+  ├── handlers/
+  │   └── aegis.py                    # CLI handlers with auto-plugin registration
+  ├── commands/
+  │   ├── aegis_command_core.py       # Shared business logic
+  │   ├── result.py                   # Result pattern for error handling
+  │   └── help_info.py                # Strongly-typed help system
+  ├── plugins/                        # Plugin architecture (built but may need refinement)
+  │   ├── aegis_plugin_interface.py
+  │   ├── aegis_plugin_registry.py
+  │   └── builtin/
+  ├── sdk/entities/aegis.py           # Business logic and API calls
+  ├── ui/aegis/
+  │   ├── commands/                   # TUI command classes
+  │   │   ├── base_command.py        # Base class with CommandHelpInfo
+  │   │   ├── ssh_command.py         # Uses command core
+  │   │   ├── job_command.py         # Uses command core│   │   ├── list_command.py        # Uses command core
+  │   │   ├── info_command.py        # Uses command core
+  │   │   ├── set_command.py         # Uses command core
+  │   │   └── help_command.py        # Aggregates help from all commands
+  │   └── menu.py                    # TUI menu system
+
+  ## Your Refactoring Goals
+
+  Continue simplifying and improving the architecture with these priorities:
+
+  ### 1. **Command Pattern Consolidation**
+  - Look for remaining duplication between CLI handlers and TUI commands
+  - Consider if the plugin architecture is actually being used effectively or if it's over-engineering
+  - Simplify the command registration and discovery mechanisms
+  - Evaluate if `AegisCommandCore` can be further streamlined
+
+  ### 2. **SDK Layer Optimization**
+  - Review `sdk/entities/aegis.py` for opportunities to simplify business logic
+  - Look for methods that could be consolidated or eliminated
+  - Check if the Result pattern is being used consistently throughout
+  - Consider moving more formatting logic to the SDK layer
+
+  ### 3. **TUI/UI Simplification**
+  - Examine if the TUI command classes can be further simplified
+  - Look for common patterns that could be extracted to base classes
+  - Check if menu.py has unnecessary complexity
+  - Consider if completion system and other UI features are overly complex
+
+  ### 4. **Configuration and Settings**
+  - Look for hardcoded values that should be configurable
+  - Consider centralizing configuration management
+  - Check for inconsistent error handling patterns
+
+  ### 5. **Testing and Validation**
+  - Identify areas where the code could be more testable
+  - Look for complex methods that should be broken down
+  - Consider if type hints and validation could be improved
+
+  ## Specific Areas to Investigate
+
+  ### High Priority:
+  1. **Plugin System Evaluation**: Is the plugin architecture actually needed, or is it over-engineering? Could command registration be simpler?
+
+  2. **Command Core Usage**: Review how `AegisCommandCore` is being used - is it providing real value or just adding indirection?
+
+  3. **TUI Command Duplication**: Check if there's still duplication between TUI command classes that could be eliminated.
+
+  4. **Error Handling Consistency**: Ensure the Result pattern is used consistently and error handling is unified.
+
+  ### Medium Priority:
+  5. **SDK Method Consolidation**: Look for similar methods in the SDK that could be combined.
+
+  6. **Configuration Management**: Centralize settings and configuration.
+
+  7. **Helper Method Extraction**: Look for repeated patterns that could become utility functions.
+
+  ## Refactoring Principles
+
+  Follow these principles:
+  - **Favor composition over inheritance** where appropriate
+  - **Single Responsibility Principle** - each class/method should have one clear purpose
+  - **DRY (Don't Repeat Yourself)** - eliminate any remaining duplication
+  - **KISS (Keep It Simple, Stupid)** - prefer simple solutions over complex ones
+  - **You Aren't Gonna Need It (YAGNI)** - remove unused or over-engineered features
+
+  ## Expected Deliverables
+
+  Provide a detailed analysis and implementation plan covering:
+
+  1. **Architecture Assessment**: What can be simplified or eliminated?
+  2. **Specific Refactoring Recommendations**: Concrete steps to improve the code
+  3. **Code Changes**: Actual implementations of the most impactful improvements
+  4. **Testing Strategy**: How to validate that refactoring doesn't break functionality
+  5. **Migration Path**: If breaking changes are needed, how to implement them safely
+
+  ## Context Notes
+
+  - This is a security CLI tool, so reliability and clarity are more important than clever abstractions
+  - The codebase serves both CLI and TUI interfaces - maintain compatibility with both
+  - Developer experience is important - the code should be easy to understand and extend
+  - Performance is generally not a primary concern for this CLI application
+
+  Focus on making the code as simple, readable, and maintainable as possible while preserving all current functionality.
+
+  This prompt provides Claude-flow with:
+  - Complete context about the current state
+  - Clear refactoring goals and priorities
+  - Specific areas to investigate
+  - Guiding principles
+  - Expected deliverables
+  - Important context about the application

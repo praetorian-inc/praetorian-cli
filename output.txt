@@ -1,0 +1,21 @@
+[3J[H[2JUsing GNU readline for enhanced completion
+Custom colored completion display enabled
+Tab completion configured with GNU readline features + colors
+
+  2 tunneled   1 online
+
+         ╷                             ╷                    ╷            ╷           ╷               
+         │  HOSTNAME                   │  OS                │  STATUS    │  TUNNEL   │          SEEN 
+╶────────┼─────────────────────────────┼────────────────────┼────────────┼───────────┼──────────────╴
+      1  │  aegis-vm-AMRVPFZWIN22      │  linux debian12.…  │  online    │  active   │      just now 
+      2  │  darkstar                   │  linux debiankal…  │  online    │  active   │      just now 
+      3  │  AMRVPFZWIN22               │  windows Microso…  │  online    │  —        │      just now 
+         ╵                             ╵                    ╵            ╵           ╵               
+
+
+  AEGIS  evan.leleux@praetorian.com • ssh: evan.leleux
+  account: chariot+pfizer@praetorian.com
+
+  hint: tab for completion • help for commands
+
+> 
