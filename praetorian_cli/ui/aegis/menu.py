@@ -237,8 +237,18 @@ class AegisMenu:
         """Load agents with 60-second caching and compute status properties"""
         try:
             self.agents = self.sdk.aegis.list()
+            if self.verbose:
+                self.console.print(f"[green]Loaded {len(self.agents)} agents successfully[/green]")
         except Exception as e:
-            self.console.print(f"[red]Error loading agents: {e}[/red]")
+            self.console.print(f"\n[red]Failed to load agents:[/red]")
+            self.console.print(f"[red]  Error: {str(e)}[/red]")
+            if 'network' in str(e).lower() or 'connection' in str(e).lower():
+                self.console.print(f"[dim]  Check your network connection and API credentials[/dim]")
+            elif 'auth' in str(e).lower():
+                self.console.print(f"[dim]  Verify your authentication credentials[/dim]")
+            else:
+                self.console.print(f"[dim]  Try running 'reload' to retry[/dim]")
+            self.console.print()
             self.agents = []
         
         # Refresh completion data when agents change
