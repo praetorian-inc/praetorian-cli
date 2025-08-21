@@ -215,7 +215,7 @@ class AegisMenu:
     def run(self):
         """Main interface loop"""
         self.clear_screen()
-        self.list_cmd.load_agents()
+        self.reload_agents()
         
         while True:
             try:
