@@ -38,9 +38,9 @@ class SetCompleter(BaseCompleter):
         
         for i, agent in enumerate(self.agents, 1):
             agent_num = str(i)
-            hostname = agent.get('hostname', 'Unknown')
-            client_id = agent.get('client_id', 'Unknown')
-            os_info = agent.get('os', 'unknown').title()
+            hostname = getattr(agent, 'hostname', 'Unknown')
+            client_id = getattr(agent, 'client_id', 'Unknown')
+            os_info = getattr(agent, 'os', 'unknown').title()
             
             # Create the combined format: {NUMERIC} - {HOSTNAME} - {OS}
             combined_format = f"{agent_num} - {hostname} - {os_info}"
