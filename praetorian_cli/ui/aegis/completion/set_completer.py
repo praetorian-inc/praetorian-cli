@@ -88,9 +88,9 @@ class SetCompleter(BaseCompleter):
         }
         
         for i, agent in enumerate(self.agents, 1):
-            hostname = agent.get('hostname', 'Unknown')
-            client_id = agent.get('client_id', 'Unknown')
-            os_info = agent.get('os', 'unknown').title()
+            hostname = getattr(agent, 'hostname', 'Unknown')
+            client_id = getattr(agent, 'client_id', 'Unknown')
+            os_info = getattr(agent, 'os', 'unknown').title()
             status = self._get_agent_status(agent)
             
             # Create combined suggestion with multiple access patterns
