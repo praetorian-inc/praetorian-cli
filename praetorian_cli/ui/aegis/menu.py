@@ -379,6 +379,207 @@ class AegisMenu:
         
         return True
     
+    # Simple handler methods - direct SDK calls
+    def handle_set(self, args):
+        """Handle set command - select an agent"""
+        if not args:
+            # Show available agents
+            if not self.agents:
+                self.console.print("\n  No agents available.\n")
+                self.pause()
+                return
+            
+            self.console.print("\n  Available agents:")
+            for i, agent in enumerate(self.agents, 1):
+                status = "🟢" if agent.is_online else "🔴"
+                tunnel = "🔗" if agent.has_tunnel else ""
+                self.console.print(f"    {i:2d}. {agent.hostname:<20} [{agent.client_id}] {status} {tunnel}")
+            self.console.print()
+            self.pause()
+            return
+        
+        # Handle selection by client_id or number
+        selection = args[0]
+        if selection.isdigit():
+            agent_num = int(selection)
+            if 1 <= agent_num <= len(self.agents):
+                self.selected_agent = self.agents[agent_num - 1]
+                self.console.print(f"\n  Selected: {self.selected_agent.hostname}\n")
+            else:
+                self.console.print(f"\n  Invalid agent number: {agent_num}\n")
+                self.pause()
+        else:
+            # Try to find by client_id
+            agent = self.sdk.aegis.get_by_client_id(selection)
+            if agent:
+                self.selected_agent = agent
+                self.console.print(f"\n  Selected: {agent.hostname}\n")
+            else:
+                self.console.print(f"\n  Agent not found: {selection}\n")
+                self.pause()
+    
+    def handle_help(self, args):
+        """Handle help command"""
+        if args and args[0] in ['ssh', 'list', 'info', 'job', 'set']:
+            help_text = self.completion_manager.get_help_text(args[0])
+            self.console.print(help_text)
+            self.pause()
+        else:
+            self.console.print("\n  Available commands:")
+            self.console.print("    set <id>        - Select an agent")
+            self.console.print("    list [--details] [--filter <text>] - List agents")
+            self.console.print("    ssh [options]   - SSH to selected agent")
+            self.console.print("    info            - Show selected agent info")
+            self.console.print("    job [capabilities] - Run job on selected agent")
+            self.console.print("    reload          - Refresh agent list")
+            self.console.print("    help            - Show this help")
+            self.console.print("    quit/exit       - Exit")
+            self.console.print()
+            self.pause()
+    
+    def handle_list(self, args):
+        """Handle list command - direct SDK call"""
+        details = '--details' in args
+        filter_text = None
+        
+        # Simple argument parsing
+        if '--filter' in args:
+            try:
+                idx = args.index('--filter')
+                if idx + 1 < len(args):
+                    filter_text = args[idx + 1]
+            except (IndexError, ValueError):
+                pass
+        
+        try:
+            result = self.sdk.aegis.format_agents_list(details=details, filter_text=filter_text)
+            self.console.print(result)
+            self.console.print()
+            self.pause()
+        except Exception as e:
+            self.console.print(f"[red]Error listing agents: {e}[/red]")
+            self.pause()
+    
+    def handle_ssh(self, args):
+        """Handle ssh command - direct SDK call"""
+        if not self.selected_agent:
+            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+            self.pause()
+            return
+        
+        # Parse SSH options
+        user = None
+        local_forward = []
+        remote_forward = []
+        dynamic_forward = None
+        key = None
+        ssh_opts = None
+        
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg in ['-u', '--user'] and i + 1 < len(args):
+                user = args[i + 1]
+                i += 2
+            elif arg in ['-L', '--local-forward'] and i + 1 < len(args):
+                local_forward.append(args[i + 1])
+                i += 2
+            elif arg in ['-R', '--remote-forward'] and i + 1 < len(args):
+                remote_forward.append(args[i + 1])
+                i += 2
+            elif arg in ['-D', '--dynamic-forward'] and i + 1 < len(args):
+                dynamic_forward = args[i + 1]
+                i += 2
+            elif arg in ['-i', '--key'] and i + 1 < len(args):
+                key = args[i + 1]
+                i += 2
+            elif arg == '--ssh-opts' and i + 1 < len(args):
+                ssh_opts = args[i + 1]
+                i += 2
+            else:
+                i += 1
+        
+        try:
+            self.sdk.aegis.ssh_to_agent(
+                agent=self.selected_agent,
+                user=user,
+                local_forward=local_forward,
+                remote_forward=remote_forward,
+                dynamic_forward=dynamic_forward,
+                key=key,
+                ssh_opts=ssh_opts,
+                display_info=True
+            )
+        except Exception as e:
+            self.console.print(f"[red]SSH error: {e}[/red]")
+            self.pause()
+    
+    def handle_info(self, args):
+        """Handle info command - direct SDK call"""
+        if not self.selected_agent:
+            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+            self.pause()
+            return
+        
+        try:
+            self.console.print(self.selected_agent.to_detailed_string())
+            self.console.print()
+            self.pause()
+        except Exception as e:
+            self.console.print(f"[red]Error getting agent info: {e}[/red]")
+            self.pause()
+    
+    def handle_job(self, args):
+        """Handle job command - direct SDK call"""
+        if not self.selected_agent:
+            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
+            self.pause()
+            return
+        
+        # Parse capabilities and config
+        capabilities = []
+        config = None
+        
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg in ['-c', '--capability'] and i + 1 < len(args):
+                capabilities.append(args[i + 1])
+                i += 2
+            elif arg == '--config' and i + 1 < len(args):
+                config = args[i + 1]
+                i += 2
+            else:
+                # Treat as capability if no flag
+                capabilities.append(arg)
+                i += 1
+        
+        try:
+            result = self.sdk.aegis.run_job(
+                agent=self.selected_agent,
+                capabilities=capabilities if capabilities else None,
+                config=config
+            )
+            
+            if 'capabilities' in result:
+                self.console.print("Available capabilities:")
+                for cap in result['capabilities']:
+                    name = cap.get('name', 'unknown')
+                    desc = cap.get('description', '')[:50]
+                    self.console.print(f"  {name:<25} {desc}")
+            elif result.get('success'):
+                self.console.print(f"✓ Job queued successfully")
+                self.console.print(f"  Job ID: {result.get('job_id', 'unknown')}")
+                self.console.print(f"  Status: {result.get('status', 'unknown')}")
+            else:
+                self.console.print(f"Error: {result.get('message', 'Unknown error')}")
+            
+            self.console.print()
+            self.pause()
+        except Exception as e:
+            self.console.print(f"[red]Job error: {e}[/red]")
+            self.pause()
+    
     def show_agent_menu(self, agent: dict):
         """Show individual agent menu"""
         self.clear_screen()
