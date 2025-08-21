@@ -4,6 +4,7 @@ Set command for agent selection
 
 from typing import List
 from .base_command import BaseCommand
+from .help_info import CommandHelpInfo
 
 
 class SetCommand(BaseCommand):
@@ -49,3 +50,15 @@ class SetCommand(BaseCommand):
             self.console.print(f"\n  Agent not found: {identifier}")
             self.console.print(f"  [{self.colors['dim']}]Use agent number (1-{len(agents_data)}), client ID, or hostname[/{self.colors['dim']}]\n")
             # No pause; return to prompt
+    
+    def get_help_info(self) -> CommandHelpInfo:
+        """Get help information for Set command"""
+        return CommandHelpInfo(
+            name='set',
+            description='Select an agent for operations',
+            usage='set <agent_id_or_number>',
+            examples=[
+                'set 1                  # Select first agent by number',
+                'set C.6e012b467f9faf82  # Select by client ID'
+            ]
+        )

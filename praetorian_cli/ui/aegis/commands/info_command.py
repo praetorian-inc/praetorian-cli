@@ -12,6 +12,7 @@ from rich.text import Text
 from rich.box import MINIMAL
 from rich.columns import Columns
 from .base_command import BaseCommand
+from .help_info import CommandHelpInfo
 
 
 class InfoCommand(BaseCommand):
@@ -199,3 +200,18 @@ class InfoCommand(BaseCommand):
             padding=(1, 2)
         )
         self.console.print(system_panel)
+    
+    def get_help_info(self) -> CommandHelpInfo:
+        """Get help information for Info command"""
+        return CommandHelpInfo(
+            name='info',
+            description='Show detailed information for selected agent',
+            usage='info [options]',
+            options=[
+                '--raw, -r             Show raw JSON output'
+            ],
+            examples=[
+                'info                   # Show formatted agent info',
+                'info --raw             # Show raw JSON data'
+            ]
+        )

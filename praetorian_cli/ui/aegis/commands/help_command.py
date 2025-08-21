@@ -1,16 +1,15 @@
 """
-Help command using Click's built-in help system
+Help command for TUI interface
 """
 
-import click
-from typing import List
+from typing import List, Optional
 from rich.panel import Panel
 from .base_command import BaseCommand
-from praetorian_cli.interface_adapters.aegis_commands import AegisContext
+from .help_info import CommandHelpInfo
 
 
 class HelpCommand(BaseCommand):
-    """Handle help information display using Click's help system"""
+    """Handle help information display"""
     
     def execute(self, args: List[str] = None):
         """Execute help command"""
@@ -27,37 +26,34 @@ class HelpCommand(BaseCommand):
             self.show_general_help()
     
     def show_command_help(self, command_name: str):
-        """Show help for a specific command using Click"""
-        try:
-            # Create TUI context
-            tui_state = type('obj', (), {})()  # Simple object to hold state
-            tui_state.selected_agent = self.selected_agent
-            aegis_ctx = AegisContext(self.sdk, self.console, tui_state)
+        """Show help for a specific command by getting it from the command itself"""
+        # Try to get help from command objects first
+        command_help = self._get_command_help(command_name)
+        
+        if command_help:
+            # Use the CommandHelpInfo object's built-in formatting method
+            help_text = command_help.to_formatted_text(self.colors)
             
-            # Get the command from shared commands
-            cmd = self.sdk.aegis.get_command(None, command_name)    
-            if cmd:
-                # Create Click context and get help
-                ctx = click.Context(cmd)
-                ctx.obj = aegis_ctx
-                help_text = ctx.get_help()
-                
-                # Format for Rich display
-                self.console.print(Panel(
-                    f"[bold]{command_name.upper()}[/bold]\n\n{help_text}",
-                    border_style=self.colors['accent'],
-                    padding=(1, 2),
-                    title=f"[bold]Help: {command_name}[/bold]",
-                    title_align="left"
-                ))
-            else:
-                # Handle non-shared commands (system commands)
-                self.show_system_command_help(command_name)
-                
-        except Exception as e:
-            self.console.print(f"[red]Error showing help for '{command_name}': {e}[/red]")
+            self.console.print(Panel(
+                help_text,
+                border_style=self.colors['accent'],
+                padding=(1, 2),
+                title=f"[bold]Help: {command_name}[/bold]",
+                title_align="left"
+            ))
+        else:
+            # Handle system commands
+            self.show_system_command_help(command_name)
         
         self.pause()
+    
+    def _get_command_help(self, command_name: str) -> Optional[CommandHelpInfo]:
+        """Get help information from the command object itself"""
+        # Get the command object from the menu's command registry
+        if hasattr(self.menu, 'commands') and command_name in self.menu.commands:
+            command_obj = self.menu.commands[command_name]
+            return command_obj.get_help_info()
+        return None
     
     def show_system_command_help(self, command_name: str):
         """Show help for system commands not handled by shared Click commands"""
@@ -106,28 +102,27 @@ Examples:
             self.console.print(f"[red]Unknown command: {command_name}[/red]")
     
     def show_general_help(self):
-        """Show general help using Click's help plus TUI-specific additions"""
-        try:
-            # Create TUI context
-            tui_state = type('obj', (), {})()  # Simple object to hold state
-            tui_state.selected_agent = self.selected_agent
-            aegis_ctx = AegisContext(self.sdk, self.console, tui_state)
-            
-            # Get overall help from Click group
-            ctx = click.Context(self.sdk.aegis) 
-            ctx.obj = aegis_ctx
-            click_help = ctx.get_help()
-            
-            # Add TUI-specific information
-            agent_count = len(self.agents)
-            completion_stats = getattr(self.menu, 'completion_manager', None)
-            
-            tui_additions = f"""
+        """Show general help for TUI interface by aggregating from all commands"""
+        # Get agent count for display
+        agent_count = len(self.agents)
+        selected_status = "selected" if self.selected_agent else "none selected"
+        
+        # Build commands section dynamically from all available commands
+        commands_section = ""
+        if hasattr(self.menu, 'commands'):
+            for cmd_name, cmd_obj in self.menu.commands.items():
+                if cmd_name != 'help':  # Skip help command itself
+                    help_info = cmd_obj.get_help_info()
+                    commands_section += f"  [bold]{help_info.name}[/bold]              {help_info.description}\n"
+        
+        help_text = f"""[bold {self.colors['primary']}]CHARIOT AEGIS - Interactive Console[/bold {self.colors['primary']}]
 
-[bold {self.colors['accent']}]TUI-Specific Commands:[/bold {self.colors['accent']}]
+[bold {self.colors['accent']}]Available Commands:[/bold {self.colors['accent']}]
+{commands_section}
+[bold {self.colors['accent']}]System Commands:[/bold {self.colors['accent']}]
   [bold]reload[/bold]           Refresh agent list from server
-  [bold]clear[/bold]            Clear terminal screen  
-  [bold]help <cmd>[/bold]       Show help for specific command
+  [bold]clear[/bold]            Clear terminal screen
+  [bold]help <cmd>[/bold]       Show help for specific command  
   [bold {self.colors['error']}]quit[/bold {self.colors['error']}] / [bold {self.colors['error']}]exit[/bold {self.colors['error']}]     Exit Aegis console
 
 [bold {self.colors['info']}]TUI Features:[/bold {self.colors['info']}]
@@ -139,28 +134,37 @@ Examples:
 [bold {self.colors['warning']}]Quick Examples:[/bold {self.colors['warning']}]
   set 1                        [dim]→ Select first agent ({agent_count} available)[/dim]
   ssh -D 1080                  [dim]→ SSH with SOCKS proxy[/dim]
-  job -c windows-smb-snaffler  [dim]→ Run capability on selected agent[/dim]
+  job run windows-smb-snaffler [dim]→ Run capability on selected agent[/dim]
   list --details               [dim]→ Show detailed agent information[/dim]
+
+[bold {self.colors['info']}]Current Status:[/bold {self.colors['info']}]
+  • Agents available: {agent_count}
+  • Selected agent: {selected_status}
 
 [bold {self.colors['info']}]💡 Pro Tips:[/bold {self.colors['info']}]
   • Use 'help <command>' for detailed command help
   • Use '--help' flag on any command (e.g., 'ssh --help')
   • TAB completion shows all available options and examples"""
 
-            if completion_stats:
-                stats = completion_stats.get_completion_statistics()
-                tui_additions += f"\n\n[dim]Completion System: {stats['completable_commands']}/{stats['total_commands']} commands enhanced[/dim]"
-
-            # Combine Click help with TUI additions
-            full_help = f"[bold {self.colors['primary']}]CHARIOT AEGIS - Interactive Console[/bold {self.colors['primary']}]\n\n{click_help}{tui_additions}"
-            
-            self.console.print(Panel(
-                full_help,
-                border_style=self.colors['accent'],
-                padding=(1, 2),
-                title="[bold]Help[/bold]",
-                title_align="left"
-            ))
-            
-        except Exception as e:
-            self.console.print(f"[red]Error showing help: {e}[/red]")
+        self.console.print(Panel(
+            help_text,
+            border_style=self.colors['accent'],
+            padding=(1, 2),
+            title="[bold]Help[/bold]",
+            title_align="left"
+        ))
+        
+        self.pause()
+    
+    def get_help_info(self) -> CommandHelpInfo:
+        """Get help information for Help command"""
+        return CommandHelpInfo(
+            name='help',
+            description='Show help information for commands',
+            usage='help [command]',
+            examples=[
+                'help                   # Show general help',
+                'help ssh               # Show help for SSH command',
+                'help job               # Show help for job command'
+            ]
+        )

@@ -4,6 +4,7 @@ Base command class for Aegis commands
 
 from abc import ABC, abstractmethod
 from typing import List
+from .help_info import CommandHelpInfo
 
 
 class BaseCommand(ABC):
@@ -64,3 +65,18 @@ class BaseCommand(ABC):
     def execute(self, args: List[str] = None):
         """Execute the command with given arguments"""
         pass
+    
+    def get_help_info(self) -> CommandHelpInfo:
+        """
+        Get help information for this command.
+        Each command should override this to provide their specific help.
+        
+        Returns:
+            CommandHelpInfo instance with command help information
+        """
+        command_name = self.__class__.__name__.replace('Command', '').lower()
+        return CommandHelpInfo.create_minimal(
+            name=command_name,
+            description='No description available',
+            usage=f'{command_name} [options]'
+        )

@@ -12,6 +12,7 @@ from rich.box import SIMPLE, MINIMAL, Box
 from rich.layout import Layout
 from rich.columns import Columns
 from .base_command import BaseCommand
+from .help_info import CommandHelpInfo
 
 
 class ListCommand(BaseCommand):
@@ -244,3 +245,21 @@ class ListCommand(BaseCommand):
         if weeks < 4:
             return f"{weeks}w"
         return "long ago"
+    
+    def get_help_info(self) -> CommandHelpInfo:
+        """Get help information for List command"""
+        return CommandHelpInfo(
+            name='list',
+            description='List Aegis agents',
+            usage='list [options]',
+            options=[
+                '--details, -d         Show detailed information',
+                '--all, -a             Show all agents including offline',
+                '--filter <text>       Filter agents by hostname'
+            ],
+            examples=[
+                'list                   # Show online agents',
+                'list --details         # Show detailed information',
+                'list --filter windows  # Filter for Windows agents'
+            ]
+        )

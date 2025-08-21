@@ -6,6 +6,7 @@ import json
 from typing import List
 from rich.prompt import Prompt, Confirm
 from .base_command import BaseCommand
+from .help_info import CommandHelpInfo
 
 
 class JobCommand(BaseCommand):
@@ -309,3 +310,21 @@ class JobCommand(BaseCommand):
         except Exception as e:
             self.console.print(f"  [{self.colors['dim']}]Error during domain selection: {e}[/{self.colors['dim']}]")
             return Prompt.ask("  Enter domain name (e.g., contoso.com, example.local)")
+    
+    def get_help_info(self) -> CommandHelpInfo:
+        """Get help information for Job command"""
+        return CommandHelpInfo(
+            name='job',
+            description='Run a job on an Aegis agent',
+            usage='job <subcommand> [options]',
+            options=[
+                'run                    Run capabilities on selected agent',
+                'list                   Show recent jobs',
+                'caps                   List available capabilities'
+            ],
+            examples=[
+                'job run                # Show available capabilities',
+                'job caps               # List all capabilities',
+                'job run windows-smb-snaffler  # Run specific capability'
+            ]
+        )

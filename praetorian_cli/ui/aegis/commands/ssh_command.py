@@ -4,6 +4,7 @@ SSH command for agent connections
 
 from typing import List
 from .base_command import BaseCommand
+from .help_info import CommandHelpInfo
 from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
 
 
@@ -110,3 +111,25 @@ class SSHCommand(BaseCommand):
             self.console.print(f"\n[red]SSH connection failed: {e}[/red]")
         
         self.pause()
+    
+    def get_help_info(self) -> CommandHelpInfo:
+        """Get help information for SSH command"""
+        return CommandHelpInfo(
+            name='ssh',
+            description='Connect to an Aegis agent via SSH',
+            usage='ssh [options]',
+            options=[
+                '-D <port>      Dynamic port forwarding/SOCKS proxy',
+                '-L <spec>      Local port forwarding (e.g., 8080:localhost:80)',
+                '-R <spec>      Remote port forwarding (e.g., 9090:localhost:3000)',
+                '-u <username>  SSH username',
+                '-i <keyfile>   SSH private key file',
+                '--ssh-opts     Additional SSH options'
+            ],
+            examples=[
+                'ssh                    # Basic SSH connection',
+                'ssh -u root            # SSH as specific user',
+                'ssh -D 1080            # With SOCKS proxy',
+                'ssh -L 8080:web:80     # With port forwarding'
+            ]
+        )
