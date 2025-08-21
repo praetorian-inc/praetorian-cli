@@ -50,14 +50,6 @@ class AegisMenu:
             'set', 'ssh', 'info', 'list', 'job', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
         
-        # Initialize command handlers
-        self.set_cmd = SetCommand(self)
-        self.ssh_cmd = SSHCommand(self)
-        self.info_cmd = InfoCommand(self)
-        self.list_cmd = ListCommand(self)
-        self.help_cmd = HelpCommand(self)
-        self.job_cmd = JobCommand(self)
-        
         # Initialize enhanced completion system
         self.completion_manager = CompletionManager(self)
         
