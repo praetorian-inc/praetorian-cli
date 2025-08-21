@@ -17,6 +17,7 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.live import Live
+from rich.table import Table
 
 from .menus import AegisStyle, MainMenu, AgentMenu
 from .completion import CompletionManager
