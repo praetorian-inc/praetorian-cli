@@ -135,7 +135,7 @@ class Seeds:
         elif not seed_type:
             seed_type = Node.Label.SEED
         else:
-            seed_type = Node.Label.NOSUCHTYPE
+            error(f'Invalid seed type: {seed_type}')
                     
         node = Node(
             labels=[seed_type],

@@ -97,7 +97,6 @@ class Node:
         PRESEED = 'Preseed'
         SEED = 'Seed'
         TTL = 'TTL'
-        NOSUCHTYPE = 'Nosuchtype'
 
     def __init__(self, labels: list[Label] = None, filters: list[Filter] = None,
                  relationships: list[Relationship] = None):
