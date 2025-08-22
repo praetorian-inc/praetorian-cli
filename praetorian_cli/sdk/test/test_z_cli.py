@@ -50,7 +50,7 @@ class TestZCli:
         self.verify(f'list seeds -t asset -f "#asset#{o.seed_asset_dns}" -p first', [o.seed_asset_key])
         self.verify(f'list seeds -t asset -f "#asset#{o.seed_asset_dns}" -p all', [o.seed_asset_key])
         self.verify(f'list seeds -t asset -f "#asset#{o.seed_asset_dns}" -d', [o.seed_asset_dns, '"key"', '"data"'])
-        self.verify(f'list seeds -t notatype -f "#asset#{o.seed_asset_dns}"')
+        self.verify(f'list seeds -t notatype -f "#asset#{o.seed_asset_dns}"', [], ['Invalid seed type: notatype'])
         self.verify(f'list seeds -f "#asset#{o.seed_asset_dns}"', [o.seed_asset_key])
 
         self.verify(f'list seeds -t asset -f {epoch_micro()}')
