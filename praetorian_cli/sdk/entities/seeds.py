@@ -136,7 +136,7 @@ class Seeds:
             seed_type = Node.Label.SEED
         else:
             error(f'Invalid seed type: {seed_type}')
-                    
+            return ([], None)
         node = Node(
             labels=[seed_type],
             filters=[]
