@@ -37,7 +37,7 @@ class Seeds:
         """
         Get details of a seed by key.
 
-        :param key: Entity key (e.g., '#asset#example.com#1.2.3.4')
+        :param key: Entity key (e.g., '#asset#example.com#example.com')
         :type key: str
         :return: The seed matching the specified key, or None if not found
         :rtype: dict or None
