@@ -1,22 +1,25 @@
-import argparse
-
-
-def _build_parser():
-    parser = argparse.ArgumentParser(prog='ssh', add_help=False)
-    parser.add_argument('-u', '--user', help='Remote user name')
-    parser.add_argument('-L', '--local-forward', action='append', default=[], metavar='[bind_address:]port:host:hostport', help='Local port forward (repeatable)')
-    parser.add_argument('-R', '--remote-forward', action='append', default=[], metavar='[bind_address:]port:host:hostport', help='Remote port forward (repeatable)')
-    parser.add_argument('-D', '--dynamic-forward', metavar='[bind_address:]port', help='Dynamic SOCKS proxy port')
-    parser.add_argument('-i', '--key', metavar='IDENTITY_FILE', help='Identity (private key) file')
-    parser.add_argument('--ssh-opts', metavar='OPTS', help='Extra ssh options string')
-    parser.add_argument('-h', '--help', action='store_true', help='Show ssh options')
-    return parser
-
-
 def _print_help(menu):
-    parser = _build_parser()
-    usage = parser.format_help()
-    menu.console.print(f"\n{usage}")
+    help_text = """
+  SSH Command
+
+  Pass native ssh flags directly; we tunnel the host.
+  Username: use '-u/--user <user>' or native '-l <user>'.
+
+  Common options (forwarded to ssh):
+    -L [bind_address:]port:host:hostport   Local port forward (repeatable)
+    -R [bind_address:]port:host:hostport   Remote port forward (repeatable)
+    -D [bind_address:]port                 Dynamic SOCKS proxy
+    -i IDENTITY_FILE                       Identity (private key) file
+    -l USER                                Remote username (alternative to -u/--user)
+    -o OPTION=VALUE                        Extra ssh config option
+    -p PORT                                SSH port
+    -v/-vv/-vvv                            Verbose output
+
+  Examples:
+    ssh -L 8080:localhost:80 -D 1080 -i ~/.ssh/id_ed25519
+    ssh -l admin -o StrictHostKeyChecking=no
+"""
+    menu.console.print(f"\n{help_text}")
 
 
 def handle_ssh(menu, args):
@@ -32,28 +35,54 @@ def handle_ssh(menu, args):
         menu.pause()
         return
 
-    parser = _build_parser()
-    try:
-        ns, _ = parser.parse_known_args(args)
-    except SystemExit:
-        menu.console.print("[red]Invalid ssh arguments[/red]")
-        menu.pause()
-        return
-
-    if ns.help:
+    # Also support '-h/--help'
+    if any(a in ('-h', '--help') for a in args):
         _print_help(menu)
         menu.pause()
         return
 
+    # Extract '-u/--user' from args while passing the rest through to ssh
+    user = None
+    options = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == '-u' or a == '--user':
+            if i + 1 < len(args):
+                user = args[i + 1]
+                i += 2
+                continue
+        elif a.startswith('--user='):
+            user = a.split('=', 1)[1]
+            i += 1
+            continue
+        elif a.startswith('-u') and a != '-u':
+            # support '-uadmin' form
+            user = a[2:]
+            i += 1
+            continue
+        options.append(a)
+        i += 1
+
+    # If user provided via -u/--user, strip any '-l <name>' occurrences to avoid conflicts
+    if user:
+        filtered = []
+        skip_next = False
+        for j, tok in enumerate(options):
+            if skip_next:
+                skip_next = False
+                continue
+            if tok == '-l' and j + 1 < len(options):
+                skip_next = True
+                continue
+            filtered.append(tok)
+        options = filtered
+
     try:
         menu.sdk.aegis.ssh_to_agent(
             agent=menu.selected_agent,
-            user=ns.user,
-            local_forward=ns.local_forward,
-            remote_forward=ns.remote_forward,
-            dynamic_forward=ns.dynamic_forward,
-            key=ns.key,
-            ssh_opts=ns.ssh_opts,
+            options=options,
+            user=user,
             display_info=True
         )
     except Exception as e:
@@ -62,13 +91,5 @@ def handle_ssh(menu, args):
 
 
 def complete(menu, text, tokens):
-    opts = [
-        '-u', '--user',
-        '-L', '--local-forward',
-        '-R', '--remote-forward',
-        '-D', '--dynamic-forward',
-        '-i', '--key',
-        '--ssh-opts',
-        '-h', '--help', 'help'
-    ]
+    opts = ['help', '-h', '--help', '-u', '--user', '-l', '-i', '-L', '-R', '-D', '-o', '-F', '-p', '-v', '-vv', '-vvv', '-4', '-6', '-A', '-a', '-C', '-N', '-T', '-q']
     return [o for o in opts if o.startswith(text)]

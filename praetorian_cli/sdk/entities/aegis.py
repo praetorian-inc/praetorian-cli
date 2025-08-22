@@ -1,7 +1,22 @@
-from typing import List
+from typing import List, Optional
 import subprocess
-import shlex
 from praetorian_cli.sdk.model.aegis import Agent
+
+
+def normalize_to_list(value, item_keys: List[str] = None) -> List:
+    keys = item_keys or ["items", "data", "capabilities", "assets"]
+    if value is None:
+        return []
+    if isinstance(value, tuple) and value:
+        value = value[0]
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        for k in keys:
+            if k in value and isinstance(value[k], list):
+                return value[k]
+        return []
+    return []
 
 
 class Aegis:
@@ -11,7 +26,8 @@ class Aegis:
     def __init__(self, api):
         self.api = api
 
-    def list(self) -> list[Agent]:
+
+    def list(self) -> List[Agent]:
         """
         List all Aegis agents.
 
@@ -20,11 +36,11 @@ class Aegis:
         interfaces, and tunnel connectivity status.
 
         :return: A list of Agent objects
-        :rtype: list
+        :rtype: list[Agent]
 
         **Example Usage:**
             >>> # List all Aegis agents
-            >>> agents, _ = sdk.aegis.list()
+            >>> agents = sdk.aegis.list()
             
             >>> # Check agent properties
             >>> for agent in agents:
@@ -50,7 +66,7 @@ class Aegis:
             agents.append(agent)
         return agents
     
-    def get_by_client_id(self, client_id: str):
+    def get_by_client_id(self, client_id: str) -> Optional[Agent]:
         """
         Get a specific Aegis agent by client ID.
 
@@ -67,7 +83,7 @@ class Aegis:
             >>>     print(f"Tunnel status: {agent.has_tunnel}")
         """
         try:
-            agents_data, _ = self.list()
+            agents_data = self.list()
             for agent in agents_data:
                 if agent.client_id == client_id:
                     return agent
@@ -75,7 +91,7 @@ class Aegis:
         except Exception as e:
             raise Exception(f"Failed to get agent {client_id}: {e}")
     
-    def get_capabilities(self, surface_filter: str = None, agent_os: str = None):
+    def get_capabilities(self, surface_filter: str = None, agent_os: str = None) -> List[dict]:
         """
         Get Aegis capabilities with optional filtering.
 
@@ -107,41 +123,21 @@ class Aegis:
             - surface: Attack surface ('internal', 'external')
             - parameters: List of configurable parameters
         """
-        try:
-            capabilities_response = self.api.capabilities.list(executor='aegis')
-            
-            # Handle different response formats
-            if isinstance(capabilities_response, tuple):
-                all_capabilities, _ = capabilities_response
-            elif isinstance(capabilities_response, list):
-                all_capabilities = capabilities_response
-            elif isinstance(capabilities_response, dict):
-                all_capabilities = capabilities_response.get('capabilities', 
-                                                           capabilities_response.get('data', 
-                                                                                   capabilities_response.get('items', [])))
-            else:
-                all_capabilities = []
-            
-            # Apply surface filter
-            if surface_filter:
-                all_capabilities = [
-                    cap for cap in all_capabilities 
-                    if isinstance(cap, dict) and cap.get('surface', '').lower() == surface_filter.lower()
-                ]
-            
-            # Apply OS filter
-            if agent_os:
-                all_capabilities = [
-                    cap for cap in all_capabilities
-                    if isinstance(cap, dict) and cap.get('name', '').lower().startswith(f'{agent_os.lower()}-')
-                ]
-            
-            return all_capabilities
-            
-        except Exception as e:
-            raise Exception(f"Failed to get Aegis capabilities: {e}")
+        raw = self.api.capabilities.list(executor='aegis')
+        caps = normalize_to_list(raw, ["capabilities", "data", "items"]) or []
+        caps = [c for c in caps if isinstance(c, dict)]
+
+        if surface_filter:
+            sf = surface_filter.lower()
+            caps = [c for c in caps if str(c.get("surface", "")).lower() == sf]
+
+        if agent_os:
+            os_prefix = f"{agent_os.lower()}-"
+            caps = [c for c in caps if str(c.get("name", "")).lower().startswith(os_prefix)]
+
+        return caps
     
-    def validate_capability(self, capability_name: str):
+    def validate_capability(self, capability_name: str) -> Optional[dict]:
         """
         Validate and get capability information by name.
 
@@ -157,14 +153,12 @@ class Aegis:
             >>>     print(f"Valid capability: {cap_info['name']}")
             >>>     print(f"Target type: {cap_info['target']}")
         """
-        try:
-            caps = self.get_capabilities()
-            for cap in caps:
-                if isinstance(cap, dict) and cap.get('name', '').lower() == capability_name.lower():
-                    return cap
-            return None
-        except Exception:
-            return None
+        caps = self.get_capabilities()
+        target = capability_name.lower()
+        for cap in caps:
+            if str(cap.get("name", "")).lower() == target:
+                return cap
+        return None
     
     def create_job_config(self, agent, credentials=None):
         """
@@ -196,7 +190,7 @@ class Aegis:
             
         return config
     
-    def get_available_ad_domains(self):
+    def get_available_ad_domains(self) -> List[str]:
         """
         Get available Active Directory domains from assets.
 
@@ -220,246 +214,103 @@ class Aegis:
             - Asset DNS field (primary method)
             - Asset key field format: #addomain#domain.com#domain.com (fallback)
         """
-        domains = []
-        try:
-            assets_resp = self.api.assets.list(asset_type='addomain')
-            
-            # Handle different response formats
-            if isinstance(assets_resp, tuple):
-                assets, _ = assets_resp
-            else:
-                assets = assets_resp
-            
-            if isinstance(assets, dict):
-                assets = assets.get('assets', assets.get('data', assets.get('items', [])))
-            elif isinstance(assets, list):
-                pass  # assets is already a list
-            else:
-                assets = []
-            
-            for asset in (assets or []):
-                if isinstance(asset, dict):
-                    dns = asset.get('dns', '')
-                    key = asset.get('key', '')
-                    
-                    # Try DNS field first
-                    if dns and dns not in domains:
-                        domains.append(dns)
-                    # If no DNS, try to extract from key format: #addomain#domain.com#domain.com
-                    elif key and '#addomain#' in key:
-                        parts = key.split('#')
-                        if len(parts) >= 3 and parts[1] == 'addomain':
-                            domain = parts[2]
-                            if domain and domain not in domains:
-                                domains.append(domain)
-            
-            return sorted(domains)
-            
-        except Exception as e:
-            raise Exception(f"Failed to get available domains: {e}")
+        domains: List[str] = []
+        raw = self.api.assets.list(asset_type='addomain')
+        assets = normalize_to_list(raw, ["assets", "data", "items"]) or []
+
+        for asset in assets:
+            if not isinstance(asset, dict):
+                continue
+            dns = asset.get("dns", "")
+            key = asset.get("key", "")
+
+            if dns and dns not in domains:
+                domains.append(dns)
+            elif key and "#addomain#" in key:
+                parts = key.split("#")
+                if len(parts) >= 3 and parts[1] == "addomain":
+                    domain = parts[2]
+                    if domain and domain not in domains:
+                        domains.append(domain)
+
+        return sorted(domains)
     
-    def ssh_to_agent(self, agent: Agent, user: str = None, 
-                     local_forward: List[str] = None, remote_forward: List[str] = None, 
-                     dynamic_forward: str = None, key: str = None, ssh_opts: str = None,
-                     display_info: bool = True) -> int:
-        """
-        SSH to an Aegis agent using Cloudflare tunnel
-        
-        Args:
-            agent: The Aegis agent object
-            user: SSH username (auto-detected if not provided)
-            local_forward: List of local port forwarding specs (e.g., ['8080:localhost:80'])
-            remote_forward: List of remote port forwarding specs
-            dynamic_forward: Dynamic port forwarding port (e.g., '1080')
-            key: SSH private key file path
-            ssh_opts: Additional SSH options string
-            display_info: Whether to display connection info
-            
-        Returns:
-            SSH process exit code
-        """
+    def ssh_to_agent(self, agent: Agent, options: List[str] = None, user: str = None, display_info: bool = True) -> int:
+        """SSH to an Aegis agent using Cloudflare tunnel."""
         from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
+
+        options = options or []
+        # Do not auto-populate user if None; allow '-l' or ssh config to set it
         
-        local_forward = local_forward or []
-        remote_forward = remote_forward or []
-        
-        # Determine SSH username using the centralized method
-        if not user:
-            _, user = self.api.get_current_user()
-        
-        # Agent object is already provided as parameter
-        
-        # Validate agent for SSH
         is_valid, error_msg = validate_agent_for_ssh(agent)
         if not is_valid:
             raise Exception(error_msg)
         
-        # Get tunnel information (we know it's valid from validation above)
         hostname = agent.hostname or 'Unknown'
         cf_status = agent.health_check.cloudflared_status
         public_hostname = cf_status.hostname
         authorized_users = cf_status.authorized_users or ''
         tunnel_name = cf_status.tunnel_name or 'N/A'
         
-        # Check if user is authorized (if authorization is configured)
-        if authorized_users:
+        if authorized_users and user:
             users_list = [u.strip() for u in authorized_users.split(',')]
             if user not in users_list:
-                import warnings
-                warnings.warn(f"User '{user}' may not be authorized for tunnel. Authorized users: {', '.join(users_list)}")
+                print(f"User '{user}' may not be authorized for tunnel. Authorized users: {', '.join(users_list)}")
         
-        # Build SSH command with performance optimizations
         ssh_command = ['ssh', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=30']
+        ssh_command.extend(options)
+        dest = f'{user}@{public_hostname}' if user else public_hostname
+        ssh_command.append(dest)
         
-        # Add SSH key if specified
-        if key:
-            ssh_command.extend(['-i', key])
-        
-        # Add local port forwarding (-L)
-        for forward in local_forward:
-            ssh_command.extend(['-L', forward])
-        
-        # Add remote port forwarding (-R)
-        for forward in remote_forward:
-            ssh_command.extend(['-R', forward])
-        
-        # Add dynamic port forwarding (-D)
-        if dynamic_forward:
-            ssh_command.extend(['-D', dynamic_forward])
-        
-        # Add additional SSH options
-        if ssh_opts:
-            ssh_command.extend(shlex.split(ssh_opts))
-        
-        # Add the target
-        ssh_command.append(f'{user}@{public_hostname}')
-        
-        # Display connection info if requested
         if display_info:
             print(f"\033[1;36m→ Connecting to {hostname}\033[0m")
             print(f"\033[34m  Gateway: {public_hostname}\033[0m")
             print(f"\033[33m  Tunnel:  {tunnel_name}\033[0m")
-            print(f"\033[35m  User:    {user}\033[0m")
+            if user:
+                print(f"\033[35m  User:    {user}\033[0m")
             
-            # Show port forwarding if configured
             if local_forward:
                 print(f"\033[32m  Local:   {', '.join(local_forward)}\033[0m")
             if remote_forward:
                 print(f"\033[31m  Remote:  {', '.join(remote_forward)}\033[0m")
             if dynamic_forward:
                 print(f"\033[35m  SOCKS:   localhost:{dynamic_forward}\033[0m")
-            
             print("")
-        
-        # Execute SSH command
-        try:
-            result = subprocess.run(ssh_command)
-            return result.returncode
-        except KeyboardInterrupt:
-            print("\nSSH connection interrupted.")
-            return 130
-        except FileNotFoundError:
-            raise Exception("SSH command not found. Please ensure SSH is installed and in your PATH.")
-        except Exception as e:
-            raise Exception(f"SSH connection failed: {e}")
+
+        result = subprocess.run(ssh_command)
+        return result.returncode
     
     def run_job(self, agent: Agent, capabilities: list = None, config: str = None):
         """
         Run a job on an Aegis agent.
 
-        Executes security scanning capabilities against the specified Aegis agent.
-        If no capabilities are provided, returns available capabilities for selection.
-        Automatically determines the correct target key format based on capability
-        requirements (asset vs addomain targets).
-
-        :param agent: The Aegis agent object
-        :type agent: Agent
-        :param capabilities: List of capability names to execute
-        :type capabilities: list or None
-        :param config: Optional JSON configuration string for the job
-        :type config: str or None
-        :return: Job result information or available capabilities if none specified
-        :rtype: dict
-
-        **Example Usage:**
-            >>> # Get agent first
-            >>> agent = sdk.aegis.get_by_client_id("C.6e012b467f9faf82-OG9F0")
-            
-            >>> # List available capabilities
-            >>> result = sdk.aegis.run_job(agent)
-            >>> print(result['capabilities'])
-            
-            >>> # Run specific capability
-            >>> result = sdk.aegis.run_job(agent, ["windows-smb-snaffler"])
-            >>> print(f"Job queued: {result['job_id']}")
-            
-            >>> # Run with configuration
-            >>> config = '{"Username": "admin", "Password": "secret"}'
-            >>> result = sdk.aegis.run_job(agent, ["windows-domain-collection"], config)
-
-        **Return Values:**
-            When capabilities are provided:
-            - success: Boolean indicating if job was queued successfully
-            - job_id: Short job identifier for tracking
-            - job_key: Full job key
-            - status: Job status
-            - message: Success or error message
-
-            When no capabilities provided:
-            - capabilities: List of available capability dictionaries
-            - message: Informational message
+        If no capabilities are provided, returns available capability dicts under
+        the 'capabilities' key. When capabilities are provided, returns a dict
+        with keys: 'success', 'job_id', 'job_key', 'status'. Errors raise.
         """
-        # Agent object is already provided as parameter
-        
-        # If no capabilities specified, return available ones
         if not capabilities:
-            try:
-                caps = self.get_capabilities(surface_filter='internal')
-                if caps:
-                    return {
-                        'capabilities': sorted(caps, key=lambda x: x.get('name', '')),
-                        'message': f"Found {len(caps)} available capabilities"
-                    }
-                else:
-                    return {
-                        'capabilities': [],
-                        'message': "No capabilities found"
-                    }
-            except Exception as e:
-                return {
-                    'success': False,
-                    'message': f"Error listing capabilities: {e}"
-                }
-        
-        # Create target key - default to asset type
+            caps = self.get_capabilities(surface_filter='internal')
+            return {
+                'capabilities': sorted(caps, key=lambda x: x.get('name', '')),
+            }
+
         hostname = agent.hostname or 'unknown'
         target_key = f"#asset#{hostname}#{hostname}"
-        
-        # Add the job using the existing jobs SDK
-        try:
-            jobs = self.api.jobs.add(target_key, list(capabilities), config)
-            if jobs:
-                job = jobs[0] if isinstance(jobs, list) else jobs
-                job_key = job.get('key', '')
-                status = job.get('status', 'unknown')
-                
-                return {
-                    'success': True,
-                    'job_id': job_key.split('#')[-1][:12] if job_key else 'unknown',
-                    'job_key': job_key,
-                    'status': status,
-                    'message': "Job queued successfully"
-                }
-            else:
-                return {
-                    'success': False,
-                    'message': "No job returned from API"
-                }
-        except Exception as e:
-            return {
-                'success': False,
-                'message': str(e)
-            }
+
+        jobs = self.api.jobs.add(target_key, list(capabilities), config)
+        if not jobs:
+            raise Exception("No job returned from API")
+
+        job = jobs[0] if isinstance(jobs, list) else jobs
+        job_key = job.get('key', '')
+        status = job.get('status', 'unknown')
+
+        return {
+            'success': True,
+            'job_id': job_key.split('#')[-1][:12] if job_key else 'unknown',
+            'job_key': job_key,
+            'status': status,
+        }
     
     def format_agents_list(self, details: bool = False, filter_text: str = None):
         """

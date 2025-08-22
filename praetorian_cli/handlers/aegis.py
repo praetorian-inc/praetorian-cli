@@ -29,31 +29,32 @@ def list_agents(ctx, sdk, details, filter):
 
 @aegis.command('ssh')
 @cli_handler
-@click.option('-D', '--dynamic-forward', help='Dynamic port forwarding/SOCKS proxy (e.g., 1080)')
-@click.option('-L', '--local-forward', multiple=True, help='Local port forwarding (e.g., 8080:localhost:80)')
-@click.option('-R', '--remote-forward', multiple=True, help='Remote port forwarding (e.g., 9090:localhost:3000)')
-@click.option('-u', '--user', help='SSH username (default: auto-detected from email)')
-@click.option('-i', '--key', help='SSH private key file')
-@click.option('--ssh-opts', help='Additional SSH options (e.g., "-o StrictHostKeyChecking=no")')
 @click.argument('client_id', required=True)
+@click.option('-u', '--user', help='SSH username (prepends user@ to hostname)')
+@click.argument('args', nargs=-1)
 @click.pass_context
-def ssh(ctx, sdk, dynamic_forward, local_forward, remote_forward, user, key, ssh_opts, client_id):
-    """Connect to an Aegis agent via SSH"""
+def ssh(ctx, sdk, client_id, user, args):
+    """Connect to an Aegis agent via SSH.
+
+    Pass native ssh flags after client_id; they are forwarded to ssh.
+
+    Common options (forwarded to ssh):
+      -L [bind_address:]port:host:hostport   Local port forward (repeatable)
+      -R [bind_address:]port:host:hostport   Remote port forward (repeatable)
+      -D [bind_address:]port                 Dynamic SOCKS proxy
+      -i IDENTITY_FILE                       Identity (private key) file
+      -l USER                                Remote username (alternative to -u/--user)
+      -o OPTION=VALUE                        Extra ssh config option
+      -p PORT                                SSH port
+      -v/-vv/-vvv                            Verbose output
+    """
     agent = sdk.aegis.get_by_client_id(client_id)
     if not agent:
         click.echo(f"Agent not found: {client_id}", err=True)
         return
-    
-    sdk.aegis.ssh_to_agent(
-        agent=agent,
-        user=user,
-        local_forward=list(local_forward),
-        remote_forward=list(remote_forward),
-        dynamic_forward=dynamic_forward,
-        key=key,
-        ssh_opts=ssh_opts,
-        display_info=True
-    )
+
+    options = list(args)
+    sdk.aegis.ssh_to_agent(agent=agent, options=options, user=user, display_info=True)
 
 
 @aegis.command('job')
@@ -69,24 +70,27 @@ def job(ctx, sdk, capabilities, config, client_id):
         click.echo(f"Agent not found: {client_id}", err=True)
         return
     
-    result = sdk.aegis.run_job(
-        agent, 
-        list(capabilities) if capabilities else None, 
-        config
-    )
-    
-    if 'capabilities' in result:
-        click.echo("Available capabilities:")
-        for cap in result['capabilities']:
-            name = cap.get('name', 'unknown')
-            desc = cap.get('description', '')[:50]
-            click.echo(f"  {name:<25} {desc}")
-    elif result.get('success'):
-        click.echo(f"✓ Job queued successfully")
-        click.echo(f"  Job ID: {result.get('job_id', 'unknown')}")
-        click.echo(f"  Status: {result.get('status', 'unknown')}")
-    else:
-        click.echo(f"Error: {result.get('message', 'Unknown error')}", err=True)
+    try:
+        result = sdk.aegis.run_job(
+            agent,
+            list(capabilities) if capabilities else None,
+            config
+        )
+
+        if 'capabilities' in result:
+            click.echo("Available capabilities:")
+            for cap in result['capabilities']:
+                name = cap.get('name', 'unknown')
+                desc = cap.get('description', '')[:50]
+                click.echo(f"  {name:<25} {desc}")
+        elif result.get('success'):
+            click.echo("✓ Job queued successfully")
+            click.echo(f"  Job ID: {result.get('job_id', 'unknown')}")
+            click.echo(f"  Status: {result.get('status', 'unknown')}")
+        else:
+            click.echo("Error: Unknown error", err=True)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
 
 
 @aegis.command('info')

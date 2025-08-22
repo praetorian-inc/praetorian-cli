@@ -138,8 +138,7 @@ def run_job(menu, args):
             if 'status' in result:
                 menu.console.print(f"  Status: {result['status']}")
         else:
-            error_msg = result.get('message', 'Unknown error')
-            menu.console.print(f"\n[red]Error running job: {error_msg}[/red]")
+            menu.console.print("\n[red]Error running job: Unknown error[/red]")
 
         menu.console.print()
         menu.pause()
