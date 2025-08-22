@@ -65,9 +65,8 @@ def seed(chariot, key, status):
 
     \b
     Example usages:
-        - praetorian chariot update seed "#asset#example.com#1.2.3.4" -s A
+        - praetorian chariot update seed "#asset#example.com#example.com" -s A
         - praetorian chariot update seed "#asset#1.1.1.0/24#1.1.1.0/24" -s F
-    """
     
     chariot.seeds.update(key, status)
 
