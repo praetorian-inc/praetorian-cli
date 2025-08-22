@@ -190,8 +190,8 @@ def seed(chariot, key):
 
     \b
     Example usages:
-        - praetorian chariot get seed "#asset#domain#example.com"
-        - praetorian chariot get seed "#addomain#corp.local"
+        - praetorian chariot get seed "#asset#example.com#example.com"
+        - praetorian chariot get seed "#addomain#corp.local#corp.local"
     """
     print_json(chariot.seeds.get(key))
 
