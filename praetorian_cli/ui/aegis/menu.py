@@ -56,6 +56,9 @@ class AegisMenu:
         self.commands = [
             'set', 'ssh', 'info', 'list', 'job', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
+
+        # Initialize very simple autocomplete (Tab completion)
+        self._init_autocomplete()
     
     
     def run(self):
@@ -82,7 +85,7 @@ class AegisMenu:
         """Clear the screen"""
         os.system('clear' if os.name == 'posix' else 'cls')
     
-    def reload_agents(self):    
+    def reload_agents(self, force_refresh: bool = False):    
         """Load agents with 60-second caching and compute status properties"""
         self.load_agents()
         
@@ -240,6 +243,121 @@ class AegisMenu:
         except (EOFError, KeyboardInterrupt):
             # Handle Ctrl+C and Ctrl+D gracefully
             return "quit"
+
+    # --- Autocomplete -----------------------------------------------------
+    def _init_autocomplete(self):
+        """Attach a minimal Tab-completion using readline when available."""
+        try:
+            import readline  # type: ignore
+        except Exception:
+            self._readline = None
+            return
+
+        self._readline = readline
+
+        # Configure basic word delimiters (keep common shell delimiters)
+        try:
+            delims = readline.get_completer_delims()
+            # Allow hyphenated options and slashes to be part of a word
+            for ch in "-/.":
+                delims = delims.replace(ch, "")
+            readline.set_completer_delims(delims)
+        except Exception:
+            pass
+
+        def completer(text, state):
+            try:
+                buf = readline.get_line_buffer()
+                beg = getattr(readline, 'get_begidx', lambda: len(buf))()
+                # Portion before the current word being completed
+                before = buf[:beg]
+                try:
+                    tokens = shlex.split(before)
+                except Exception:
+                    tokens = before.split()
+
+                # If starting fresh or completing the first token
+                if not tokens:
+                    options = [c for c in self.commands if c.startswith(text)]
+                else:
+                    cmd = tokens[0]
+
+                    # If still typing the command itself (no space yet)
+                    if len(tokens) == 1 and not before.endswith(' '):
+                        options = [c for c in self.commands if c.startswith(text)]
+                    else:
+                        options = self._autocomplete_options_for(cmd, text, tokens)
+
+                # Ensure distinct, sorted for stable cycling
+                options = sorted(set(options))
+                return options[state] if state < len(options) else None
+            except Exception:
+                return None
+
+        # On macOS, readline is usually libedit; Tab is still the default.
+        try:
+            self._readline.set_completer(completer)
+            doc = getattr(self._readline, "__doc__", "") or ""
+            if "libedit" in doc.lower():
+                # macOS default: libedit compatibility layer
+                self._readline.parse_and_bind("bind ^I rl_complete")
+            else:
+                # GNU readline
+                self._readline.parse_and_bind('tab: complete')
+        except Exception:
+            pass
+
+    def _autocomplete_options_for(self, cmd, text, tokens):
+        """Return simple context-aware options for completion."""
+        # Top-level fallbacks
+        if cmd in ['quit', 'exit', 'clear', 'reload', 'info']:
+            return []
+
+        if cmd == 'help':
+            return [c for c in self.commands if c.startswith(text)]
+
+        if cmd == 'list':
+            opts = ['--all', '-a']
+            return [o for o in opts if o.startswith(text)]
+
+        if cmd == 'set':
+            # Offer indices, hostnames, and client_ids
+            suggestions = []
+            try:
+                # Indices start at 1 in the UI table
+                for idx, agent in enumerate(self.agents or [], 1):
+                    hostname = safe_get_attr(agent, 'hostname', None)
+                    client_id = getattr(agent, 'client_id', None)
+                    suggestions.append(str(idx))
+                    if hostname:
+                        suggestions.append(str(hostname))
+                    if client_id:
+                        suggestions.append(str(client_id))
+            except Exception:
+                pass
+            return [s for s in suggestions if s and s.startswith(text)]
+
+        if cmd == 'job':
+            sub = ['list', 'run', 'capabilities', 'caps']
+            # If only 'job ' entered, suggest subcommands
+            if len(tokens) <= 2:
+                return [s for s in sub if s.startswith(text)]
+            # Minimal: do not attempt to complete capability names here
+            return []
+
+        if cmd == 'ssh':
+            ssh_opts = [
+                '-u', '--user',
+                '-L', '--local-forward',
+                '-R', '--remote-forward',
+                '-D', '--dynamic-forward',
+                '-i', '--key',
+                '--ssh-opts'
+            ]
+            return [o for o in ssh_opts if o.startswith(text)]
+
+        # Default: no suggestions
+        return []
     
     def handle_choice(self, choice: str) -> bool:
         """Dead simple command dispatch"""
