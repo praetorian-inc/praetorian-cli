@@ -14,7 +14,3 @@ def handle_info(menu, args):
         menu.pause()
 
 
-def complete(menu, text, tokens):
-    # no additional options
-    return []
-

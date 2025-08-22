@@ -39,8 +39,17 @@ from .commands.set import complete as comp_set
 from .commands.help import complete as comp_help
 from .commands.list import complete as comp_list
 from .commands.ssh import complete as comp_ssh
-from .commands.info import complete as comp_info
 from .commands.job import complete as comp_job
+
+DEFAULT_COLORS = {
+    'primary': '#4A90E2',
+    'success': '#7ED321',
+    'warning': '#F5A623',
+    'error': '#D0021B',
+    'info': '#50E3C2',
+    'accent': '#BD10E0',
+    'dim': '#9B9B9B'
+}
 
 
 class AegisMenu:
@@ -58,22 +67,12 @@ class AegisMenu:
         
         self.user_email, self.username = self.sdk.get_current_user()
         
-        # Define Praetorian color scheme
-        self.colors = {
-            'primary': '#4A90E2',
-            'success': '#7ED321', 
-            'warning': '#F5A623',
-            'error': '#D0021B',
-            'info': '#50E3C2',
-            'accent': '#BD10E0',
-            'dim': '#9B9B9B'
-        }
+        self.colors = DEFAULT_COLORS
         
         self.commands = [
             'set', 'ssh', 'info', 'list', 'job', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
 
-        # Initialize very simple autocomplete (Tab completion)
         self._init_autocomplete()
     
     
@@ -96,6 +95,58 @@ class AegisMenu:
             except KeyboardInterrupt:
                 self.console.print("\n[dim]Goodbye![/dim]")
                 break
+    
+    def handle_choice(self, choice: str) -> bool:
+        """Dead simple command dispatch"""
+        if not choice:
+            return True  # Just refresh
+        
+        try:
+            args = shlex.split(choice)
+        except ValueError:
+            self.console.print(f"[red]Invalid command syntax: {choice}[/red]")
+            self.pause()
+            return True
+        
+        if not args:
+            return True
+        
+        command = args[0].lower()
+        cmd_args = args[1:] if len(args) > 1 else []
+        
+        if command in ['q', 'quit', 'exit']:
+            return False
+            
+        elif command in ['r', 'reload']:
+            self.reload_agents()
+            
+        elif command == 'clear':
+            self.clear_screen()
+            
+        elif command == 'set':
+            cmd_handle_set(self, cmd_args)
+            
+        elif command in ['h', 'help']:
+            cmd_handle_help(self, cmd_args)
+            
+        elif command == 'list':
+            cmd_handle_list(self, cmd_args)
+            
+        elif command == 'ssh':
+            cmd_handle_ssh(self, cmd_args)
+            
+        elif command == 'info':
+            cmd_handle_info(self, cmd_args)
+            
+        elif command == 'job':
+            cmd_handle_job(self, cmd_args)
+                
+        else:
+            self.console.print(f"\n  Unknown command: {command}")
+            self.console.print(f"  [{self.colors['dim']}]Type 'help' for available commands[/{self.colors['dim']}]\n")
+            self.pause()
+        
+        return True
     
     def clear_screen(self) -> None:
         """Clear the screen"""
@@ -183,7 +234,6 @@ class AegisMenu:
             os_version = agent.os_version
             os_display = format_os_display(os_info, os_version)
             
-            # Determine group based on agent properties
             if agent.is_online and agent.has_tunnel:
                 group = 'active_tunnel'
             elif agent.is_online:
@@ -191,14 +241,12 @@ class AegisMenu:
             else:
                 group = 'offline'
             
-            # Get display styles from utility function
             styles = get_agent_display_style(group, self.colors)
             status = styles['status']
             tunnel = styles['tunnel']
             idx_style = styles['idx_style']
             hostname_style = styles['hostname_style']
             
-            # Compute last seen time
             current_time = datetime.now().timestamp()
             if agent.last_seen_at and agent.is_online:
                 last_seen = relative_time(agent.last_seen_at / 1000000 if agent.last_seen_at > 1000000000000 else agent.last_seen_at, current_time)
@@ -222,7 +270,6 @@ class AegisMenu:
         if self._first_render:
             current_account = self.sdk.keychain.account
             
-            # Simple header without external class dependency
             self.console.print(f"\n[bold {self.colors['primary']}]Aegis Agent Interface[/bold {self.colors['primary']}]")
             self.console.print(f"  [{self.colors['dim']}]User: {self.username} | Account: {current_account}[/{self.colors['dim']}]")
             self.console.print(f"  [{self.colors['dim']}]hint: type 'help' for commands[/{self.colors['dim']}]\n")
@@ -241,10 +288,8 @@ class AegisMenu:
             user_input = input(self.current_prompt).strip()
             return user_input
         except (EOFError, KeyboardInterrupt):
-            # Handle Ctrl+C and Ctrl+D gracefully
             return "quit"
 
-    # --- Autocomplete -----------------------------------------------------
     def _init_autocomplete(self) -> None:
         """Attach a minimal Tab-completion using readline when available."""
         try:
@@ -255,10 +300,8 @@ class AegisMenu:
 
         self._readline = readline
 
-        # Configure basic word delimiters (keep common shell delimiters)
         try:
             delims = readline.get_completer_delims()
-            # Allow hyphenated options and slashes to be part of a word
             for ch in "-/.":
                 delims = delims.replace(ch, "")
             readline.set_completer_delims(delims)
@@ -269,32 +312,27 @@ class AegisMenu:
             try:
                 buf = readline.get_line_buffer()
                 beg = getattr(readline, 'get_begidx', lambda: len(buf))()
-                # Portion before the current word being completed
                 before = buf[:beg]
                 try:
                     tokens = shlex.split(before)
                 except Exception:
                     tokens = before.split()
 
-                # If starting fresh or completing the first token
                 if not tokens:
                     options = [c for c in self.commands if c.startswith(text)]
                 else:
                     cmd = tokens[0]
 
-                    # If still typing the command itself (no space yet)
                     if len(tokens) == 1 and not before.endswith(' '):
                         options = [c for c in self.commands if c.startswith(text)]
                     else:
                         options = self._autocomplete_options_for(cmd, text, tokens)
 
-                # Ensure distinct, sorted for stable cycling
                 options = sorted(set(options))
                 return options[state] if state < len(options) else None
             except Exception:
                 return None
 
-        # On macOS, readline is usually libedit; Tab is still the default.
         try:
             self._readline.set_completer(completer)
             doc = getattr(self._readline, "__doc__", "") or ""
@@ -328,63 +366,8 @@ class AegisMenu:
         if cmd == 'ssh':
             return comp_ssh(self, text, tokens)
 
-        if cmd == 'info':
-            return comp_info(self, text, tokens)
-
         # Default: no suggestions
         return []
-    
-    def handle_choice(self, choice: str) -> bool:
-        """Dead simple command dispatch"""
-        if not choice:
-            return True  # Just refresh
-        
-        try:
-            args = shlex.split(choice)
-        except ValueError:
-            self.console.print(f"[red]Invalid command syntax: {choice}[/red]")
-            self.pause()
-            return True
-        
-        if not args:
-            return True
-        
-        command = args[0].lower()
-        cmd_args = args[1:] if len(args) > 1 else []
-        
-        if command in ['q', 'quit', 'exit']:
-            return False
-            
-        elif command in ['r', 'reload']:
-            self.reload_agents()
-            
-        elif command == 'clear':
-            self.clear_screen()
-            
-        elif command == 'set':
-            cmd_handle_set(self, cmd_args)
-            
-        elif command in ['h', 'help']:
-            cmd_handle_help(self, cmd_args)
-            
-        elif command == 'list':
-            cmd_handle_list(self, cmd_args)
-            
-        elif command == 'ssh':
-            cmd_handle_ssh(self, cmd_args)
-            
-        elif command == 'info':
-            cmd_handle_info(self, cmd_args)
-            
-        elif command == 'job':
-            cmd_handle_job(self, cmd_args)
-                
-        else:
-            self.console.print(f"\n  Unknown command: {command}")
-            self.console.print(f"  [{self.colors['dim']}]Type 'help' for available commands[/{self.colors['dim']}]\n")
-            self.pause()
-        
-        return True
     
     def load_agents(self) -> None:
         """Load agents from SDK"""

@@ -1,6 +1,6 @@
 from rich.table import Table
 from rich.box import MINIMAL
-from ..utils import format_timestamp, format_job_status
+from ..utils import format_timestamp, format_job_status, DEFAULT_COLORS
 
 
 def handle_job(menu, args):
@@ -60,7 +60,7 @@ def list_jobs(menu):
 
         jobs.sort(key=lambda j: j.get('created', 0), reverse=True)
 
-        colors = menu.colors
+        colors = getattr(menu, 'colors', DEFAULT_COLORS)
         jobs_table = Table(
             show_header=True,
             header_style=f"bold {colors['primary']}",
@@ -162,7 +162,7 @@ def list_capabilities(menu, args):
             config=None
         )
 
-        colors = menu.colors
+        colors = getattr(menu, 'colors', DEFAULT_COLORS)
         if 'capabilities' in result:
             capabilities_table = Table(
                 show_header=True,

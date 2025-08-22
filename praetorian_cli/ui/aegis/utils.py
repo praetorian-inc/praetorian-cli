@@ -86,8 +86,14 @@ def compute_agent_groups(agents: List[Agent], current_time: float) -> dict:
     }
     
     for i, agent in enumerate(agents):
+        # Compute relative time string
+        if agent.last_seen_at > 0 and agent.is_online:
+            last_seen_str = relative_time(agent.last_seen_at / 1000000 if agent.last_seen_at > 1000000000000 else agent.last_seen_at, current_time)
+        else:
+            last_seen_str = "—"
+        
         # Determine group
-        if agent.is_online and agent.has_tunnel:
+        if agent.is_online and getattr(agent, 'has_tunnel', False):
             group = 'active_tunnel'
         elif agent.is_online:
             group = 'online'
@@ -137,11 +143,20 @@ def parse_agent_identifier(identifier: str, agents: List[Agent]) -> Optional[Age
         if 1 <= agent_num <= len(agents):
             return agents[agent_num - 1]
     
-    ident_lower = identifier.lower()
+    # Try client ID match
     for agent in agents:
-        if agent.client_id and agent.client_id.lower() == ident_lower:
-            return agent
-        if agent.hostname and agent.hostname.lower() == ident_lower:
-            return agent
+        try:
+            if agent.client_id and agent.client_id.lower() == identifier.lower():
+                return agent
+        except AttributeError:
+            continue
+    
+    # Try hostname match  
+    for agent in agents:
+        try:
+            if agent.hostname and agent.hostname.lower() == identifier.lower():
+                return agent
+        except AttributeError:
+            continue
     
     return None

@@ -2,9 +2,12 @@ from rich.table import Table
 from rich.box import MINIMAL
 
 
+
+
+
 def handle_help(menu, args):
     """Show help for commands or a specific command."""
-    colors = menu.colors
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
     if args and args[0] in ['ssh', 'list', 'info', 'job', 'set']:
         menu.console.print(f"\nHelp for '{args[0]}' command - see main help for details\n")
         menu.pause()
