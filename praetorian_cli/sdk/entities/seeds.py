@@ -69,7 +69,7 @@ class Seeds:
             return None
         return results[0]
 
-    def update(self, key, status=None, **kwargs):
+    def update(self, key, status=None):
         """
         Update seed fields dynamically.
         
@@ -137,6 +137,7 @@ class Seeds:
         else:
             error(f'Invalid seed type: {seed_type}')
             return ([], None)
+
         node = Node(
             labels=[seed_type],
             filters=[]
