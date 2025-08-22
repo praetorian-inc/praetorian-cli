@@ -1,6 +1,7 @@
 from rich.table import Table
 from rich.box import MINIMAL
-from ..utils import format_timestamp, format_job_status, DEFAULT_COLORS
+from ..utils import format_timestamp, format_job_status
+from ..menu import DEFAULT_COLORS
 
 
 def handle_job(menu, args):
