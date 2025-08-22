@@ -13,7 +13,7 @@ def handle_set(menu, args):
 
     if selected_agent:
         menu.selected_agent = selected_agent
-        hostname = getattr(selected_agent, 'hostname', 'Unknown')
+        hostname = selected_agent.hostname
         menu.console.print(f"\n  Selected: {hostname}\n")
     else:
         menu.console.print(f"\n[red]  Agent not found:[/red] {selection}")
@@ -23,16 +23,10 @@ def handle_set(menu, args):
 
 def complete(menu, text, tokens):
     suggestions = []
-    try:
-        for idx, agent in enumerate(menu.agents or [], 1):
-            hostname = getattr(agent, 'hostname', None)
-            client_id = getattr(agent, 'client_id', None)
-            suggestions.append(str(idx))
-            if hostname:
-                suggestions.append(str(hostname))
-            if client_id:
-                suggestions.append(str(client_id))
-    except Exception:
-        pass
-    return [s for s in suggestions if s and s.startswith(text)]
-
+    for idx, agent in enumerate(menu.agents, 1):
+        suggestions.append(str(idx))
+        if agent.hostname:
+            suggestions.append(agent.hostname)
+        if agent.client_id:
+            suggestions.append(agent.client_id)
+    return [s for s in suggestions if s.startswith(text)]

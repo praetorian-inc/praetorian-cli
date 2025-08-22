@@ -11,11 +11,15 @@ import shlex
 VERBOSE = os.getenv('CHARIOT_AEGIS_VERBOSE') == '1'
 
 from datetime import datetime
+from typing import List, Optional
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 from rich.box import MINIMAL
+
+from praetorian_cli.sdk.chariot import Chariot
+from praetorian_cli.sdk.model.aegis import Agent
 
 from .utils import (
     relative_time, format_os_display,
@@ -42,15 +46,12 @@ from .commands.job import complete as comp_job
 class AegisMenu:
     """Aegis menu interface with modern command-driven UX"""
     
-    def __init__(self, sdk):
-        self.sdk = sdk
+    def __init__(self, sdk: Chariot):
+        self.sdk: Chariot = sdk
         self.console = Console()
         self.verbose = VERBOSE
-        self.agents = []
-        self.selected_agent = None  
-        self.ssh_count = 0
-        self.last_agent_fetch = 0  
-        self.agent_cache_duration = 60  
+        self.agents: List[Agent] = []
+        self.selected_agent: Optional[Agent] = None  
         self._first_render = True
         self.agent_computed_data = {}  
         self.current_prompt = "> " 
@@ -76,7 +77,7 @@ class AegisMenu:
         self._init_autocomplete()
     
     
-    def run(self):
+    def run(self) -> None:
         """Main interface loop"""
         self.clear_screen()
         self.reload_agents()
@@ -96,11 +97,11 @@ class AegisMenu:
                 self.console.print("\n[dim]Goodbye![/dim]")
                 break
     
-    def clear_screen(self):
+    def clear_screen(self) -> None:
         """Clear the screen"""
         os.system('clear' if os.name == 'posix' else 'cls')
     
-    def reload_agents(self, force_refresh: bool = False):    
+    def reload_agents(self) -> None:
         """Load agents with 60-second caching and compute status properties"""
         self.load_agents()
         
@@ -108,28 +109,12 @@ class AegisMenu:
             self.console.print(f"[green]Loaded {len(self.agents)} agents successfully[/green]")
         
     
-    def get_selected_agent_context(self):
-        """Get the selected agent context for commands"""
-        return {
-            'agent': self.selected_agent,
-            'sdk': self.sdk,
-            'client_id': self.selected_agent.client_id if self.selected_agent else None,
-            'hostname': self.selected_agent.hostname if self.selected_agent else None
-        }
-    
-    def require_selected_agent(self):
-        """Return selected agent or display error message if none selected"""
-        if not self.selected_agent:
-            self.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
-            return None
-        return self.selected_agent
-    
-    def _compute_agent_status(self):
+    def _compute_agent_status(self) -> None:
         """Compute agent status data and groupings using utility function"""
         current_time = datetime.now().timestamp()
         self.agent_computed_data = compute_agent_groups(self.agents, current_time)
     
-    def show_agents_list(self, show_offline=False):
+    def show_agents_list(self, show_offline: bool = False) -> None:
         """Compose and display the agents table using pre-computed properties"""
         if not self.agents:
             self.console.print(f"  [{self.colors['warning']}]No agents available[/{self.colors['warning']}]")
@@ -193,13 +178,13 @@ class AegisMenu:
         table.add_column("SEEN", style=f"{self.colors['dim']}", width=10, justify="right", no_wrap=True)
         
         for i, (agent_idx, agent) in enumerate(display_agents, 1):
-            hostname = getattr(agent, 'hostname', 'Unknown')
-            os_info = getattr(agent, 'os', 'unknown')
-            os_version = getattr(agent, 'os_version', '')
+            hostname = agent.hostname
+            os_info = agent.os
+            os_version = agent.os_version
             os_display = format_os_display(os_info, os_version)
             
             # Determine group based on agent properties
-            if agent.is_online and getattr(agent, 'has_tunnel', False):
+            if agent.is_online and agent.has_tunnel:
                 group = 'active_tunnel'
             elif agent.is_online:
                 group = 'online'
@@ -215,7 +200,7 @@ class AegisMenu:
             
             # Compute last seen time
             current_time = datetime.now().timestamp()
-            if agent.last_seen_at > 0 and agent.is_online:
+            if agent.last_seen_at and agent.is_online:
                 last_seen = relative_time(agent.last_seen_at / 1000000 if agent.last_seen_at > 1000000000000 else agent.last_seen_at, current_time)
             else:
                 last_seen = "—"
@@ -232,7 +217,7 @@ class AegisMenu:
         self.console.print(table)
         self.console.print()
 
-    def show_main_menu(self):
+    def show_main_menu(self) -> None:
         """Show the main interface with reduced noise"""
         if self._first_render:
             current_account = self.sdk.keychain.account
@@ -248,7 +233,7 @@ class AegisMenu:
         """Get user input with minimal context-aware prompt"""
         try:
             if self.selected_agent:
-                hostname = getattr(self.selected_agent, 'hostname', 'Unknown')
+                hostname = self.selected_agent.hostname
                 self.current_prompt = f"{hostname}> "
             else:
                 self.current_prompt = "> "
@@ -260,7 +245,7 @@ class AegisMenu:
             return "quit"
 
     # --- Autocomplete -----------------------------------------------------
-    def _init_autocomplete(self):
+    def _init_autocomplete(self) -> None:
         """Attach a minimal Tab-completion using readline when available."""
         try:
             import readline  # type: ignore
@@ -280,7 +265,7 @@ class AegisMenu:
         except Exception:
             pass
 
-        def completer(text, state):
+        def completer(text: str, state: int):
             try:
                 buf = readline.get_line_buffer()
                 beg = getattr(readline, 'get_begidx', lambda: len(buf))()
@@ -322,7 +307,7 @@ class AegisMenu:
         except Exception:
             pass
 
-    def _autocomplete_options_for(self, cmd, text, tokens):
+    def _autocomplete_options_for(self, cmd: str, text: str, tokens: list[str]) -> list[str]:
         """Return simple context-aware options for completion."""
         # Top-level fallbacks
         if cmd in ['quit', 'exit', 'clear', 'reload']:
@@ -371,7 +356,7 @@ class AegisMenu:
             return False
             
         elif command in ['r', 'reload']:
-            self.reload_agents(force_refresh=True)
+            self.reload_agents()
             
         elif command == 'clear':
             self.clear_screen()
@@ -401,7 +386,7 @@ class AegisMenu:
         
         return True
     
-    def load_agents(self):
+    def load_agents(self) -> None:
         """Load agents from SDK"""
         try:
             with self.console.status(
@@ -410,7 +395,6 @@ class AegisMenu:
                 spinner_style=f"{self.colors['primary']}"
             ):
                 self.agents = self.sdk.aegis.list() or []
-                self.last_agent_fetch = datetime.now().timestamp()
                 
             if self.verbose or not self.agents:
                 agent_count = len(self.agents)
@@ -430,7 +414,7 @@ class AegisMenu:
         # Quiet mode: do not block
 
 
-def run_aegis_menu(sdk):
+def run_aegis_menu(sdk: Chariot) -> None:
     """Run the Aegis menu interface"""
     menu = AegisMenu(sdk)
     menu.run()

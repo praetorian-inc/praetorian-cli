@@ -40,7 +40,7 @@ def handle_ssh(menu, args):
         menu.pause()
         return
 
-    if getattr(ns, 'help', False):
+    if ns.help:
         _print_help(menu)
         menu.pause()
         return
@@ -72,4 +72,3 @@ def complete(menu, text, tokens):
         '-h', '--help', 'help'
     ]
     return [o for o in opts if o.startswith(text)]
-

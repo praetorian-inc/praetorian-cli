@@ -48,7 +48,7 @@ def list_jobs(menu):
         menu.pause()
         return
 
-    hostname = getattr(menu.selected_agent, 'hostname', 'Unknown')
+    hostname = menu.selected_agent.hostname
 
     try:
         jobs, _ = menu.sdk.jobs.list(prefix_filter=hostname)
@@ -209,4 +209,3 @@ def complete(menu, text, tokens):
         return [s for s in sub if s.startswith(text)]
     # Could extend to capability names later
     return []
-

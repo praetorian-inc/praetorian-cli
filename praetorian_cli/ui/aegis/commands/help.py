@@ -25,7 +25,7 @@ def handle_help(menu, args):
 
     commands_table.add_row("set <id>", "Select an agent by number, client_id, or hostname")
     commands_table.add_row("list [--all]", "List online agents (--all shows offline too)")
-    commands_table.add_row("ssh [options]", "SSH to selected agent with port forwarding")
+    commands_table.add_row("ssh [options]", "SSH to selected agent (use 'ssh --help' for options)")
     commands_table.add_row("info", "Show detailed information for selected agent")
     commands_table.add_row("job list", "List recent jobs for selected agent")
     commands_table.add_row("job capabilities [--details]", "List available capabilities")
@@ -73,4 +73,3 @@ def handle_help(menu, args):
 def complete(menu, text, tokens):
     # Suggest commands after 'help '
     return [c for c in menu.commands if c.startswith(text)]
-

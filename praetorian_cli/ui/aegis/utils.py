@@ -5,7 +5,8 @@ Helper functions for formatting, time calculations, and other utilities
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+from praetorian_cli.sdk.model.aegis import Agent
 from rich.text import Text
 
 
@@ -32,10 +33,6 @@ def relative_time(ts_seconds: float, now_seconds: float) -> str:
         return f"{weeks}w"
     return "long ago"
 
-
-def safe_get_attr(obj, attr: str, default=None):
-    """Safely get an attribute from an object with fallback"""
-    return getattr(obj, attr, None) or default
 
 
 def format_job_status(status: str, colors: dict) -> Text:
@@ -66,12 +63,6 @@ def format_os_display(os_info: str, os_version: str = "", max_length: int = 18) 
     return display[:max_length] if len(display) > max_length else display
 
 
-def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
-    """Truncate text to specified length with suffix"""
-    if not text or len(text) <= max_length:
-        return text
-    
-    return text[:max_length - len(suffix)] + suffix
 
 
 def format_timestamp(timestamp: float, format_str: str = "%m/%d %H:%M") -> str:
@@ -86,7 +77,7 @@ def format_timestamp(timestamp: float, format_str: str = "%m/%d %H:%M") -> str:
         return "—"
 
 
-def compute_agent_groups(agents, current_time: float) -> dict:
+def compute_agent_groups(agents: List[Agent], current_time: float) -> dict:
     """Compute agent status groups for display organization"""
     groups = {
         'active_tunnel': [],
@@ -95,14 +86,8 @@ def compute_agent_groups(agents, current_time: float) -> dict:
     }
     
     for i, agent in enumerate(agents):
-        # Compute relative time string
-        if agent.last_seen_at > 0 and agent.is_online:
-            last_seen_str = relative_time(agent.last_seen_at / 1000000 if agent.last_seen_at > 1000000000000 else agent.last_seen_at, current_time)
-        else:
-            last_seen_str = "—"
-        
         # Determine group
-        if agent.is_online and getattr(agent, 'has_tunnel', False):
+        if agent.is_online and agent.has_tunnel:
             group = 'active_tunnel'
         elif agent.is_online:
             group = 'online'
@@ -141,7 +126,7 @@ def get_agent_display_style(group: str, colors: dict) -> dict:
         }
 
 
-def parse_agent_identifier(identifier: str, agents: list) -> Optional[object]:
+def parse_agent_identifier(identifier: str, agents: List[Agent]) -> Optional[Agent]:
     """Parse agent identifier and return matching agent"""
     if not agents:
         return None
@@ -152,16 +137,11 @@ def parse_agent_identifier(identifier: str, agents: list) -> Optional[object]:
         if 1 <= agent_num <= len(agents):
             return agents[agent_num - 1]
     
-    # Try client ID match
+    ident_lower = identifier.lower()
     for agent in agents:
-        agent_client_id = safe_get_attr(agent, 'client_id', '')
-        if agent_client_id.lower() == identifier.lower():
+        if agent.client_id and agent.client_id.lower() == ident_lower:
             return agent
-    
-    # Try hostname match  
-    for agent in agents:
-        agent_hostname = safe_get_attr(agent, 'hostname', '')
-        if agent_hostname.lower() == identifier.lower():
+        if agent.hostname and agent.hostname.lower() == ident_lower:
             return agent
     
     return None
