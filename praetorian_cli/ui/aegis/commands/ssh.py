@@ -1,3 +1,5 @@
+from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
+
 def _print_help(menu):
     help_text = """
   SSH Command
@@ -41,48 +43,40 @@ def handle_ssh(menu, args):
         menu.pause()
         return
 
-    # Extract '-u/--user' from args while passing the rest through to ssh
-    user = None
-    options = []
-    i = 0
-    while i < len(args):
-        a = args[i]
-        if a == '-u' or a == '--user':
-            if i + 1 < len(args):
-                user = args[i + 1]
-                i += 2
-                continue
-        elif a.startswith('--user='):
-            user = a.split('=', 1)[1]
-            i += 1
-            continue
-        elif a.startswith('-u') and a != '-u':
-            # support '-uadmin' form
-            user = a[2:]
-            i += 1
-            continue
-        options.append(a)
-        i += 1
-
-    # If user provided via -u/--user, strip any '-l <name>' occurrences to avoid conflicts
-    if user:
-        filtered = []
-        skip_next = False
-        for j, tok in enumerate(options):
-            if skip_next:
-                skip_next = False
-                continue
-            if tok == '-l' and j + 1 < len(options):
-                skip_next = True
-                continue
-            filtered.append(tok)
-        options = filtered
-
+    # Use shared SSH argument parser to avoid duplication
+    from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
+    parser = SSHArgumentParser(console=menu.console)
+    
+    # Validate agent first
+    if not parser.validate_agent_ssh_availability(menu.selected_agent):
+        menu.pause()
+        return
+    
+    # Parse arguments using shared parser
+    parsed_options = parser.parse_ssh_args(args)
+    if not parsed_options:
+        # Error already displayed by parser
+        menu.pause()
+        return
+    
+    # Build options list from parsed options for SDK
+    options = parsed_options.get('passthrough', [])
+    
+    # Add structured options back as SSH flags
+    for forward in parsed_options.get('local_forward', []):
+        options.extend(['-L', forward])
+    for forward in parsed_options.get('remote_forward', []):
+        options.extend(['-R', forward])
+    if parsed_options.get('dynamic_forward'):
+        options.extend(['-D', parsed_options['dynamic_forward']])
+    if parsed_options.get('key'):
+        options.extend(['-i', parsed_options['key']])
+    
     try:
         menu.sdk.aegis.ssh_to_agent(
             agent=menu.selected_agent,
             options=options,
-            user=user,
+            user=parsed_options.get('user'),
             display_info=True
         )
     except Exception as e:

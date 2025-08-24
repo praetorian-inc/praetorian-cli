@@ -1,6 +1,7 @@
 from typing import List, Optional
 import subprocess
 from praetorian_cli.sdk.model.aegis import Agent
+from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
 
 
 def normalize_to_list(value, item_keys: List[str] = None) -> List:
@@ -283,7 +284,6 @@ class Aegis:
     
     def ssh_to_agent(self, agent: Agent, options: List[str] = None, user: str = None, display_info: bool = True) -> int:
         """SSH to an Aegis agent using Cloudflare tunnel."""
-        from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
 
         options = options or []
         
@@ -311,20 +311,25 @@ class Aegis:
         ssh_command.extend(options)
         ssh_command.append(f'{user}@{public_hostname}')
         
-        # Parse SSH options using the shared parser for consistent handling
-        from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
-        parser = SSHArgumentParser()
-        parsed_options = parser.parse_ssh_args(options)
+        # Parse forwarding options for display (simple extraction from SSH flags)
+        local_forward = []
+        remote_forward = []
+        dynamic_forward = []
         
-        # Extract forwarding info for display (fallback to empty if parsing failed)
-        if parsed_options:
-            local_forward = parsed_options.get('local_forward', [])
-            remote_forward = parsed_options.get('remote_forward', [])
-            dynamic_forward = [parsed_options['dynamic_forward']] if parsed_options.get('dynamic_forward') else []
-        else:
-            local_forward = []
-            remote_forward = []
-            dynamic_forward = []
+        # Extract forwarding info for display
+        i = 0
+        while i < len(options):
+            if options[i] == '-L' and i + 1 < len(options):
+                local_forward.append(options[i + 1])
+                i += 2
+            elif options[i] == '-R' and i + 1 < len(options):
+                remote_forward.append(options[i + 1])
+                i += 2
+            elif options[i] == '-D' and i + 1 < len(options):
+                dynamic_forward.append(options[i + 1])
+                i += 2
+            else:
+                i += 1
 
         if display_info:
             print(f"\033[1;36m→ Connecting to {hostname}\033[0m")
