@@ -27,7 +27,7 @@ class Aegis:
         self.api = api
 
 
-    def list(self) -> List[Agent]:
+    def list(self) -> tuple:
         """
         List all Aegis agents.
 
@@ -35,12 +35,12 @@ class Aegis:
         objects with detailed information including system specs, network
         interfaces, and tunnel connectivity status.
 
-        :return: A list of Agent objects
-        :rtype: list[Agent]
+        :return: A tuple containing (list of Agent objects, None for compatibility)
+        :rtype: tuple
 
         **Example Usage:**
             >>> # List all Aegis agents
-            >>> agents = sdk.aegis.list()
+            >>> agents, _ = sdk.aegis.list()
             
             >>> # Check agent properties
             >>> for agent in agents:
@@ -57,14 +57,17 @@ class Aegis:
             - has_tunnel: Boolean indicating if Cloudflare tunnel is active
             - is_online: Boolean indicating if agent is currently online
         """
-        agents_data = self.api.get('/aegis/agent')
-        
-        # Return Agent objects
-        agents = []
-        for agent_data in agents_data:
-            agent = Agent.from_dict(agent_data)
-            agents.append(agent)
-        return agents
+        try:
+            agents_data = self.api.get('/aegis/agent')
+            
+            # Return Agent objects
+            agents = []
+            for agent_data in agents_data:
+                agent = Agent.from_dict(agent_data)
+                agents.append(agent)
+            return agents, None
+        except Exception as e:
+            raise Exception(f"Failed to list Aegis agents: {e}")
     
     def get_by_client_id(self, client_id: str) -> Optional[Agent]:
         """
@@ -83,7 +86,7 @@ class Aegis:
             >>>     print(f"Tunnel status: {agent.has_tunnel}")
         """
         try:
-            agents_data = self.list()
+            agents_data, _ = self.list()
             for agent in agents_data:
                 if agent.client_id == client_id:
                     return agent
@@ -123,19 +126,43 @@ class Aegis:
             - surface: Attack surface ('internal', 'external')
             - parameters: List of configurable parameters
         """
-        raw = self.api.capabilities.list(executor='aegis')
-        caps = normalize_to_list(raw, ["capabilities", "data", "items"]) or []
-        caps = [c for c in caps if isinstance(c, dict)]
-
-        if surface_filter:
-            sf = surface_filter.lower()
-            caps = [c for c in caps if str(c.get("surface", "")).lower() == sf]
-
-        if agent_os:
-            os_prefix = f"{agent_os.lower()}-"
-            caps = [c for c in caps if str(c.get("name", "")).lower().startswith(os_prefix)]
-
-        return caps
+        try:
+            capabilities_response = self.api.capabilities.list(executor='aegis')
+            
+            # Handle different response formats
+            if isinstance(capabilities_response, tuple):
+                all_capabilities, _ = capabilities_response
+            elif isinstance(capabilities_response, list):
+                all_capabilities = capabilities_response
+            elif isinstance(capabilities_response, dict):
+                all_capabilities = capabilities_response.get('capabilities', 
+                                                           capabilities_response.get('data', 
+                                                                                   capabilities_response.get('items', [])))
+            else:
+                all_capabilities = []
+            
+            # Ensure we have a list and all items are dicts
+            caps = normalize_to_list(all_capabilities, ["capabilities", "data", "items"]) or []
+            caps = [c for c in caps if isinstance(c, dict)]
+            
+            # Apply surface filter
+            if surface_filter:
+                caps = [
+                    cap for cap in caps 
+                    if isinstance(cap, dict) and cap.get('surface', '').lower() == surface_filter.lower()
+                ]
+            
+            # Apply OS filter
+            if agent_os:
+                caps = [
+                    cap for cap in caps
+                    if isinstance(cap, dict) and cap.get('name', '').lower().startswith(f'{agent_os.lower()}-')
+                ]
+            
+            return caps
+            
+        except Exception as e:
+            raise Exception(f"Failed to get Aegis capabilities: {e}")
     
     def validate_capability(self, capability_name: str) -> Optional[dict]:
         """
@@ -153,12 +180,14 @@ class Aegis:
             >>>     print(f"Valid capability: {cap_info['name']}")
             >>>     print(f"Target type: {cap_info['target']}")
         """
-        caps = self.get_capabilities()
-        target = capability_name.lower()
-        for cap in caps:
-            if str(cap.get("name", "")).lower() == target:
-                return cap
-        return None
+        try:
+            caps = self.get_capabilities()
+            for cap in caps:
+                if isinstance(cap, dict) and cap.get('name', '').lower() == capability_name.lower():
+                    return cap
+            return None
+        except Exception:
+            return None
     
     def create_job_config(self, agent, credentials=None):
         """
@@ -214,26 +243,43 @@ class Aegis:
             - Asset DNS field (primary method)
             - Asset key field format: #addomain#domain.com#domain.com (fallback)
         """
-        domains: List[str] = []
-        raw = self.api.assets.list(asset_type='addomain')
-        assets = normalize_to_list(raw, ["assets", "data", "items"]) or []
-
-        for asset in assets:
-            if not isinstance(asset, dict):
-                continue
-            dns = asset.get("dns", "")
-            key = asset.get("key", "")
-
-            if dns and dns not in domains:
-                domains.append(dns)
-            elif key and "#addomain#" in key:
-                parts = key.split("#")
-                if len(parts) >= 3 and parts[1] == "addomain":
-                    domain = parts[2]
-                    if domain and domain not in domains:
-                        domains.append(domain)
-
-        return sorted(domains)
+        domains = []
+        try:
+            assets_resp = self.api.assets.list(asset_type='addomain')
+            
+            # Handle different response formats
+            if isinstance(assets_resp, tuple):
+                assets, _ = assets_resp
+            else:
+                assets = assets_resp
+            
+            if isinstance(assets, dict):
+                assets = assets.get('assets', assets.get('data', assets.get('items', [])))
+            elif isinstance(assets, list):
+                pass  # assets is already a list
+            else:
+                assets = []
+            
+            for asset in (assets or []):
+                if isinstance(asset, dict):
+                    dns = asset.get('dns', '')
+                    key = asset.get('key', '')
+                    
+                    # Try DNS field first
+                    if dns and dns not in domains:
+                        domains.append(dns)
+                    # If no DNS, try to extract from key format: #addomain#domain.com#domain.com
+                    elif key and '#addomain#' in key:
+                        parts = key.split('#')
+                        if len(parts) >= 3 and parts[1] == 'addomain':
+                            domain = parts[2]
+                            if domain and domain not in domains:
+                                domains.append(domain)
+            
+            return sorted(domains)
+            
+        except Exception as e:
+            raise Exception(f"Failed to get available domains: {e}")
     
     def ssh_to_agent(self, agent: Agent, options: List[str] = None, user: str = None, display_info: bool = True) -> int:
         """SSH to an Aegis agent using Cloudflare tunnel."""
@@ -262,6 +308,46 @@ class Aegis:
         dest = f'{user}@{public_hostname}' if user else public_hostname
         ssh_command.append(dest)
         
+        # Parse simple forwarding flags from options for display purposes only
+        local_forward = []
+        remote_forward = []
+        dynamic_forward = []
+        try:
+            i = 0
+            while i < len(options):
+                tok = options[i]
+                if tok == '-L':
+                    if i + 1 < len(options):
+                        local_forward.append(options[i + 1])
+                        i += 2
+                        continue
+                elif tok.startswith('-L') and tok != '-L':
+                    local_forward.append(tok[2:])
+                    i += 1
+                    continue
+                if tok == '-R':
+                    if i + 1 < len(options):
+                        remote_forward.append(options[i + 1])
+                        i += 2
+                        continue
+                elif tok.startswith('-R') and tok != '-R':
+                    remote_forward.append(tok[2:])
+                    i += 1
+                    continue
+                if tok == '-D':
+                    if i + 1 < len(options):
+                        dynamic_forward.append(str(options[i + 1]))
+                        i += 2
+                        continue
+                elif tok.startswith('-D') and tok != '-D':
+                    dynamic_forward.append(str(tok[2:]))
+                    i += 1
+                    continue
+                i += 1
+        except Exception:
+            # Best-effort parsing; ignore errors
+            pass
+
         if display_info:
             print(f"\033[1;36m→ Connecting to {hostname}\033[0m")
             print(f"\033[34m  Gateway: {public_hostname}\033[0m")
@@ -274,7 +360,8 @@ class Aegis:
             if remote_forward:
                 print(f"\033[31m  Remote:  {', '.join(remote_forward)}\033[0m")
             if dynamic_forward:
-                print(f"\033[35m  SOCKS:   localhost:{dynamic_forward}\033[0m")
+                socks = ', '.join([f"localhost:{p}" for p in dynamic_forward])
+                print(f"\033[35m  SOCKS:   {socks}\033[0m")
             print("")
 
         result = subprocess.run(ssh_command)
@@ -336,7 +423,7 @@ class Aegis:
             >>> result = sdk.aegis.format_agents_list(details=True, filter_text="windows")
             >>> print(result)
         """
-        agents_data = self.list()
+        agents_data, _ = self.list()
         
         if not agents_data:
             return "No agents found."

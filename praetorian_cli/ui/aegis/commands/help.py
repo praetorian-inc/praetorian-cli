@@ -1,5 +1,6 @@
 from rich.table import Table
 from rich.box import MINIMAL
+from ..constants import DEFAULT_COLORS
 
 
 

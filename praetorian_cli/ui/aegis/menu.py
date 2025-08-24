@@ -40,16 +40,7 @@ from .commands.help import complete as comp_help
 from .commands.list import complete as comp_list
 from .commands.ssh import complete as comp_ssh
 from .commands.job import complete as comp_job
-
-DEFAULT_COLORS = {
-    'primary': '#4A90E2',
-    'success': '#7ED321',
-    'warning': '#F5A623',
-    'error': '#D0021B',
-    'info': '#50E3C2',
-    'accent': '#BD10E0',
-    'dim': '#9B9B9B'
-}
+from .constants import DEFAULT_COLORS
 
 
 class AegisMenu:
@@ -377,7 +368,8 @@ class AegisMenu:
                 spinner="dots",
                 spinner_style=f"{self.colors['primary']}"
             ):
-                self.agents = self.sdk.aegis.list() or []
+                agents, _ = self.sdk.aegis.list()
+                self.agents = agents or []
                 
             if self.verbose or not self.agents:
                 agent_count = len(self.agents)
