@@ -42,9 +42,7 @@ def handle_ssh(menu, args):
         _print_help(menu)
         menu.pause()
         return
-
-    # Use shared SSH argument parser to avoid duplication
-    from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
+    
     parser = SSHArgumentParser(console=menu.console)
     
     # Validate agent first
