@@ -30,7 +30,7 @@ def handle_help(menu, args):
     commands_table.add_row("set <id>", "Select an agent by number, client_id, or hostname")
     commands_table.add_row("list [--all]", "List online agents (--all shows offline too)")
     commands_table.add_row("ssh [options]", "SSH to selected agent (use 'ssh --help' for options)")
-    commands_table.add_row("info", "Show detailed information for selected agent")
+    commands_table.add_row("info [--raw]", "Show detailed information for selected agent")
     commands_table.add_row("job list", "List recent jobs for selected agent")
     commands_table.add_row("job capabilities [--details]", "List available capabilities")
     commands_table.add_row("job run <capability>", "Run capability on selected agent")
@@ -65,6 +65,8 @@ def handle_help(menu, args):
     examples_table.add_row("job capabilities", "List available capabilities")
     examples_table.add_row("job caps --details", "Show full capability descriptions")
     examples_table.add_row("job run windows-enum", "Run capability on selected agent")
+    examples_table.add_row("info", "Show agent details")
+    examples_table.add_row("info --raw", "Show raw agent data (JSON format)")
 
     menu.console.print()
     menu.console.print("  Examples")
