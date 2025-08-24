@@ -286,7 +286,10 @@ class Aegis:
         from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
 
         options = options or []
-        # Do not auto-populate user if None; allow '-l' or ssh config to set it
+        
+        # Determine SSH username using the centralized method
+        if not user:
+            _, user = self.api.get_current_user()
         
         is_valid, error_msg = validate_agent_for_ssh(agent)
         if not is_valid:
@@ -298,15 +301,15 @@ class Aegis:
         authorized_users = cf_status.authorized_users or ''
         tunnel_name = cf_status.tunnel_name or 'N/A'
         
-        if authorized_users and user:
+        # Check if user is authorized (if authorization is configured)
+        if authorized_users:
             users_list = [u.strip() for u in authorized_users.split(',')]
             if user not in users_list:
                 print(f"User '{user}' may not be authorized for tunnel. Authorized users: {', '.join(users_list)}")
         
         ssh_command = ['ssh', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=30']
         ssh_command.extend(options)
-        dest = f'{user}@{public_hostname}' if user else public_hostname
-        ssh_command.append(dest)
+        ssh_command.append(f'{user}@{public_hostname}')
         
         # Parse simple forwarding flags from options for display purposes only
         local_forward = []
@@ -352,8 +355,7 @@ class Aegis:
             print(f"\033[1;36m→ Connecting to {hostname}\033[0m")
             print(f"\033[34m  Gateway: {public_hostname}\033[0m")
             print(f"\033[33m  Tunnel:  {tunnel_name}\033[0m")
-            if user:
-                print(f"\033[35m  User:    {user}\033[0m")
+            print(f"\033[35m  User:    {user}\033[0m")
             
             if local_forward:
                 print(f"\033[32m  Local:   {', '.join(local_forward)}\033[0m")
