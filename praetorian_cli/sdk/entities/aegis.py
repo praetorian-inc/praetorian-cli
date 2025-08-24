@@ -311,45 +311,20 @@ class Aegis:
         ssh_command.extend(options)
         ssh_command.append(f'{user}@{public_hostname}')
         
-        # Parse simple forwarding flags from options for display purposes only
-        local_forward = []
-        remote_forward = []
-        dynamic_forward = []
-        try:
-            i = 0
-            while i < len(options):
-                tok = options[i]
-                if tok == '-L':
-                    if i + 1 < len(options):
-                        local_forward.append(options[i + 1])
-                        i += 2
-                        continue
-                elif tok.startswith('-L') and tok != '-L':
-                    local_forward.append(tok[2:])
-                    i += 1
-                    continue
-                if tok == '-R':
-                    if i + 1 < len(options):
-                        remote_forward.append(options[i + 1])
-                        i += 2
-                        continue
-                elif tok.startswith('-R') and tok != '-R':
-                    remote_forward.append(tok[2:])
-                    i += 1
-                    continue
-                if tok == '-D':
-                    if i + 1 < len(options):
-                        dynamic_forward.append(str(options[i + 1]))
-                        i += 2
-                        continue
-                elif tok.startswith('-D') and tok != '-D':
-                    dynamic_forward.append(str(tok[2:]))
-                    i += 1
-                    continue
-                i += 1
-        except Exception:
-            # Best-effort parsing; ignore errors
-            pass
+        # Parse SSH options using the shared parser for consistent handling
+        from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
+        parser = SSHArgumentParser()
+        parsed_options = parser.parse_ssh_args(options)
+        
+        # Extract forwarding info for display (fallback to empty if parsing failed)
+        if parsed_options:
+            local_forward = parsed_options.get('local_forward', [])
+            remote_forward = parsed_options.get('remote_forward', [])
+            dynamic_forward = [parsed_options['dynamic_forward']] if parsed_options.get('dynamic_forward') else []
+        else:
+            local_forward = []
+            remote_forward = []
+            dynamic_forward = []
 
         if display_info:
             print(f"\033[1;36m→ Connecting to {hostname}\033[0m")
