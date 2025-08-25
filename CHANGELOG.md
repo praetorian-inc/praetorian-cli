@@ -1,5 +1,13 @@
 # Changelog
 
+# 2.2.2
+
+- [New feature] Integreation with Chariot's Aegis 
+  - See `praetorian chariot aegis` to load a new TUI for operators to interact with Aegis instances
+  - See `praetorian chariot aegis --help` to see new CLI commands
+- [New feature] Ability to query for scanners 
+  - Scanners are useful for determining the last time an IP address was used by Chariot
+
 # 2.2.1
 
 - [Bug fix] Fixed an issue for filtering by an asset's attack surface
