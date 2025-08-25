@@ -9,24 +9,43 @@ def handle_set(menu, args):
         return
 
     selection = args[0]
-    selected_agent = parse_agent_identifier(selection, menu.agents)
+    
+    # Try numeric selection from display first, then fall back to name/ID matching
+    if selection.isdigit():
+        display_idx = int(selection)
+        display_map = getattr(menu, 'display_agent_map', {})
+        selected_agent = display_map.get(display_idx) if display_map else parse_agent_identifier(selection, menu.agents)
+    else:
+        selected_agent = parse_agent_identifier(selection, menu.agents)
 
     if selected_agent:
         menu.selected_agent = selected_agent
-        hostname = selected_agent.hostname
-        menu.console.print(f"\n  Selected: {hostname}\n")
+        menu.console.print(f"\n  Selected: {selected_agent.hostname}\n")
     else:
+        display_count = len(getattr(menu, 'display_agent_map', menu.agents))
         menu.console.print(f"\n[red]  Agent not found:[/red] {selection}")
-        menu.console.print(f"[dim]  Use agent number (1-{len(menu.agents)}), client ID, or hostname[/dim]\n")
+        menu.console.print(f"[dim]  Use agent number (1-{display_count}), client ID, or hostname[/dim]\n")
         menu.pause()
 
 
 def complete(menu, text, tokens):
     suggestions = []
-    for idx, agent in enumerate(menu.agents, 1):
-        suggestions.append(str(idx))
-        if agent.hostname:
-            suggestions.append(agent.hostname)
-        if agent.client_id:
-            suggestions.append(agent.client_id)
+    display_map = getattr(menu, 'display_agent_map', {})
+    
+    if display_map:
+        for display_idx, agent in display_map.items():
+            suggestions.append(str(display_idx))
+            if agent.hostname:
+                suggestions.append(agent.hostname)
+            if agent.client_id:
+                suggestions.append(agent.client_id)
+    else:
+        # Fallback for tests/edge cases
+        for idx, agent in enumerate(menu.agents, 1):
+            suggestions.append(str(idx))
+            if agent.hostname:
+                suggestions.append(agent.hostname)
+            if agent.client_id:
+                suggestions.append(agent.client_id)
+    
     return [s for s in suggestions if s.startswith(text)]

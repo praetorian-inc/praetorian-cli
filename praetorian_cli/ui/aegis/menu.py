@@ -54,7 +54,8 @@ class AegisMenu:
         self.selected_agent: Optional[Agent] = None  
         self._first_render = True
         self.agent_computed_data = {}  
-        self.current_prompt = "> " 
+        self.current_prompt = "> "
+        self.display_agent_map = {}  # Maps display index to actual agent 
         
         self.user_email, self.username = self.sdk.get_current_user()
         
@@ -110,6 +111,8 @@ class AegisMenu:
             
         elif command in ['r', 'reload']:
             self.reload_agents()
+            if self.agents:
+                self.show_agents_list()
             
         elif command == 'clear':
             self.clear_screen()
@@ -219,7 +222,12 @@ class AegisMenu:
         table.add_column("TUNNEL", width=7, justify="left", no_wrap=True)
         table.add_column("SEEN", style=f"{self.colors['dim']}", width=10, justify="right", no_wrap=True)
         
-        for i, (agent_idx, agent) in enumerate(display_agents, 1):
+        # Create display mapping for sequential numbering
+        self.display_agent_map = {}
+        for display_idx, (original_idx, agent) in enumerate(display_agents, 1):
+            self.display_agent_map[display_idx] = agent
+        
+        for display_idx, (original_idx, agent) in enumerate(display_agents, 1):
             hostname = agent.hostname
             os_info = agent.os
             os_version = agent.os_version
@@ -245,7 +253,7 @@ class AegisMenu:
                 last_seen = "—"
             
             table.add_row(
-                Text(str(i), style=idx_style),
+                Text(str(display_idx), style=idx_style),
                 Text(hostname, style=hostname_style),
                 os_display,
                 status,
