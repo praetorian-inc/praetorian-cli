@@ -9,5 +9,5 @@ class Scanners:
 
     def list(self, filter='', offset='', page_size=100):
         """ List scanners with optional filtering """
-        search_term = filter if filter else '#scanner'
+        search_term = f"#scanner#{filter}"
         return self.api.search.by_term(search_term, None, offset, page_size)
