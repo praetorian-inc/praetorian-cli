@@ -1,6 +1,7 @@
 import json, requests, os
 
 from praetorian_cli.sdk.entities.accounts import Accounts
+from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
@@ -41,6 +42,7 @@ class Chariot:
         self.search = Search(self)
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
+        self.aegis = Aegis(self)
         self.agents = Agents(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
@@ -256,6 +258,69 @@ class Chariot:
         
         server = MCPServer(self, allowable_tools)
         return anyio.run(server.start)
+
+    def get_current_user(self) -> tuple:
+        """
+        Get current user information for Aegis functionality.
+        
+        Returns:
+            tuple: (user_email, username) where user_email is the login email
+                   and username is the SSH username derived from the email
+        """
+        # Try to get username from keychain first (for username/password auth)
+        user_email = self.keychain.username()
+        
+        # If no username in keychain (API key auth), try to get it from JWT token
+        if not user_email and self.keychain.has_api_key():
+            token = self.keychain.token()
+            payload = decode_jwt_payload(token)
+            if payload:
+                # Extract email from the 'email' field in the JWT payload
+                user_email = payload.get('email')
+            else:
+                # If JWT decoding fails, fall back to the account parameter
+                raise Exception("Failed to decode JWT token")
+        
+        # Extract username from email (part before @) for SSH access
+        username = user_email.split('@')[0] if user_email and '@' in user_email else user_email
+        return user_email, username
+
+
+def decode_jwt_payload(token: str) -> dict | None:
+    """
+    Decode the payload from a JWT token.
+    
+    Args:
+        token: JWT token string in format header.payload.signature
+        
+    Returns:
+        dict: Decoded payload contents, or None if decoding fails
+        
+    Example:
+        >>> token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20ifQ.signature"
+        >>> payload = decode_jwt_payload(token)
+        >>> print(payload.get('email'))
+        user@example.com
+    """
+    try:
+        import json
+        import base64
+        
+        # JWT tokens have 3 parts: header.payload.signature
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+            
+        payload_part = parts[1]
+        # Add padding if needed for base64 decoding
+        payload_part += '=' * (4 - len(payload_part) % 4)
+        payload = json.loads(base64.b64decode(payload_part))
+        
+        return payload
+    except Exception:
+        return None
+
+
 def is_query_limit_failure(response: requests.Response) -> bool:
     return response.status_code == 413 and 'reduce page size' in response.text
 

@@ -65,6 +65,22 @@ def accounts(chariot, filter, details, offset, page):
 
 
 @list.command()
+@list_params('Aegis ID', has_filter=False)
+def aegis(chariot, details, offset, page):
+    """ List Aegis
+
+    Retrieve and display a list of Aegis instances.
+
+    \b
+    Example usages:
+        - praetorian chariot list aegis
+        - praetorian chariot list aegis --details
+        - praetorian chariot list aegis --page all
+    """
+    render_list_results(chariot.aegis.list(offset, pagination_size(page)), details)
+
+
+@list.command()
 @list_params('integration name')
 def integrations(chariot, filter, details, offset, page):
     """ List integrations
