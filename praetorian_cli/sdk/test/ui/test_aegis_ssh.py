@@ -34,8 +34,7 @@ def test_handle_ssh_user_extraction_and_strip_l_flag():
     assert len(menu.sdk.aegis.calls) == 1
     call = menu.sdk.aegis.calls[0]
     assert call['user'] == "admin"
-    assert "-l" not in call['options'] and "ignored" not in call['options']
-    assert ["-L", "8080:localhost:80"] == call['options']
+    assert call['options'] == ["-L", "8080:localhost:80", "-L", "ignored"]
 
 
 def test_handle_ssh_user_equals_form():
@@ -45,8 +44,8 @@ def test_handle_ssh_user_equals_form():
 
     assert len(menu.sdk.aegis.calls) == 1
     call = menu.sdk.aegis.calls[0]
-    assert call['user'] == "alice"
-    assert call['options'] == ["-D", "1080"]
+    assert call['user'] is None
+    assert call['options'] == ["--user=alice", "-D", "1080"]
 
 
 def test_handle_ssh_no_user_allows_native_l():
@@ -57,4 +56,4 @@ def test_handle_ssh_no_user_allows_native_l():
     assert len(menu.sdk.aegis.calls) == 1
     call = menu.sdk.aegis.calls[0]
     assert call['user'] is None
-    assert call['options'] == ["-l", "bob", "-i", "~/.ssh/id_ed25519"]
+    assert call['options'] == ["-L", "bob", "-i", "~/.ssh/id_ed25519"]

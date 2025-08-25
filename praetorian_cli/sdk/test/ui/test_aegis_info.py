@@ -1,17 +1,25 @@
 import pytest
 from praetorian_cli.ui.aegis.commands.info import handle_info
-from praetorian_cli.sdk.test.ui_mocks import MockMenuBase
+from praetorian_cli.sdk.test.ui_mocks import MockMenuBase, MockAgent
 
 pytestmark = pytest.mark.tui
-class MockAgent:
-    def __init__(self, detail):
-        self._detail = detail
-
-    def to_detailed_string(self):
-        return self._detail
-
 class ErrorAgent(MockAgent):
-    def to_detailed_string(self):
+    def __init__(self, hostname="agent01", client_id="C.1"):
+        # Intentionally avoid calling super().__init__ to control attributes
+        self.hostname = hostname
+        self.client_id = client_id
+        # Set minimal attributes expected by the renderer
+        self.os = None
+        self.os_version = None
+        self.architecture = None
+        self.fqdn = None
+        self.network_interfaces = []
+        self.has_tunnel = False
+        self.health_check = None
+
+    # Create an attribute whose access raises to simulate a rendering error
+    @property
+    def last_seen_at(self):
         raise RuntimeError("boom")
 
 
@@ -29,10 +37,11 @@ def test_info_no_selected_agent():
 
 
 def test_info_prints_detail():
-    agent = MockAgent("Agent detail text")
+    agent = MockAgent(hostname="Agent-01")
     menu = Menu(agent=agent)
     handle_info(menu, [])
-    assert any("Agent detail text" in l for l in menu.console.lines)
+    assert any("Agent Details" in l for l in menu.console.lines)
+    assert any("Agent-01" in l for l in menu.console.lines)
     assert menu.paused is True
 
 

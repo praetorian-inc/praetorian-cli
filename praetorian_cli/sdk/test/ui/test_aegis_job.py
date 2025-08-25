@@ -1,5 +1,6 @@
 import pytest
 from praetorian_cli.ui.aegis.commands.job import handle_job
+from rich.prompt import Confirm
 from praetorian_cli.sdk.test.ui_mocks import MockMenuBase, MockSDK, MockAgent
 
 pytestmark = pytest.mark.tui
@@ -29,12 +30,25 @@ def test_job_capabilities_lists_caps():
     assert calls[0]['capabilities'] is None
 
 
-def test_job_run_success():
-    responses = {'run': {'success': True, 'job_id': 'deadbeef', 'job_key': 'k', 'status': 'queued'}}
+def test_job_run_success(monkeypatch):
+    responses = {
+        'capabilities': {
+            'windows-smb': {'name': 'windows-smb', 'description': 'desc', 'target': 'asset'}
+        },
+        'job': {
+            'key': 'jobs#deadbeefcafebabe',
+            'status': 'queued',
+        },
+        'config': {"Username": "u"},
+    }
     menu = Menu(responses=responses)
-    handle_job(menu, ['run', 'windows-smb', '--config', '{"Username":"u"}'])
 
-    calls = menu.sdk.aegis.calls
-    assert len(calls) == 1
-    assert calls[0]['capabilities'] == ['windows-smb']
-    assert calls[0]['config'] == '{"Username":"u"}'
+    # Auto-confirm prompts encountered in the interactive flow
+    monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job.Confirm.ask', lambda *a, **k: True)
+
+    handle_job(menu, ['run', 'windows-smb'])
+
+    job_calls = menu.sdk.jobs.calls
+    assert len(job_calls) == 1
+    assert job_calls[0]['capabilities'] == ['windows-smb']
+    assert job_calls[0]['target_key'].startswith('#asset#')
