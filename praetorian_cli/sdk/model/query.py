@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Union
 
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
 
@@ -16,7 +17,7 @@ class Filter:
         STARTS_WITH = 'STARTS WITH'
         ENDS_WITH = 'ENDS WITH'
         AND = "AND"
-        OR = "OR"
+        OR = "OR"   
         IN = "IN"
 
     class Field(Enum):
@@ -41,6 +42,7 @@ class Filter:
         PRODUCT = 'product'
         VERSION = 'version'
         CPE = 'cpe'
+        ATTACK_SURFACE = 'attackSurface'
         SURFACE = 'surface'
         ASNAME = 'asname'
         ASNUMBER = 'asnumber'
@@ -50,14 +52,28 @@ class Filter:
         EXPLOIT = 'exploit'
         PRIVATE = 'private'
 
-    def __init__(self, field: Field, operator: Operator, value: str, not_: bool = False):
+    def __init__(self, field: Field, operator: Operator, value: str, not_: bool = False, reverse_operands: bool = False):
         self.field = field
         self.operator = operator
         self.value = value
         self.not_ = not_
+        self.reverse_operands = reverse_operands
+    
+    def special_cases(self):
+        if self.field == Filter.Field.ATTACK_SURFACE:
+            self.operator = Filter.Operator.IN
+            self.reverse_operands = True
 
     def to_dict(self) -> dict:
-        return {'field': self.field.value, 'operator': self.operator.value, 'value': self.value, 'not': self.not_}
+        self.special_cases()
+        ret = dict(field=self.field.value)
+        ret |= dict(operator=self.operator.value)
+        ret |= dict(value=self.value)
+        if self.not_:
+            ret |= {"not": self.not_}
+        if self.reverse_operands:
+            ret |= dict(reverseOperands=self.reverse_operands)
+        return ret
 
 
 class Relationship:
