@@ -70,25 +70,15 @@ class Chariot:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
             kwargs['verify'] = False
         
-        self._add_beta_filter(method, kwargs)
+        self.add_beta_url_param(kwargs)
 
         return requests.request(method, url, headers=self.keychain.headers(), **kwargs)
 
-    def _add_beta_filter(self, method: str, kwargs: dict):
-        if method == 'GET' or method == 'DELETE':
-            self._add_beta_url_param(kwargs)
-        else:
-            self._add_beta_json_param(kwargs)
-
-    def _add_beta_url_param(self, kwargs: dict):
+    def add_beta_url_param(self, kwargs: dict):
         if 'params' in kwargs:
             kwargs['params']['beta'] = 'true'
         else:
             kwargs['params'] = {'beta': 'true'}
-
-    def _add_beta_json_param(self, kwargs: dict):
-        if 'json' in kwargs:
-            kwargs['json']['beta'] = True
 
     def my(self, params: dict, pages=1) -> dict:
         final_resp = dict()
