@@ -212,7 +212,7 @@ def seed(sdk, seed_type, status, field_list):
         - praetorian chariot add seed --type asset --field dns:example.com
         - praetorian chariot add seed --type asset --field dns:example.com --status A
         - praetorian chariot add seed --type asset --field dns:example.com --field name:1.2.3.4
-        - praetorian chariot add seed --type addomain --field name:corp.local --field netbios_name:CORP
+        - praetorian chariot add seed --type addomain --field domain:corp.local --field objectid:S-1-5-21-2701466056-1043032755-2418290285
     """
     # Collect dynamic fields from the --fields option
     dynamic_fields = {}
