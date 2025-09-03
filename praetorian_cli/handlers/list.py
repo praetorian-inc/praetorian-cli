@@ -5,7 +5,22 @@ from praetorian_cli.handlers.cli_decorators import list_params, pagination, cli_
 from praetorian_cli.handlers.utils import render_offset, render_list_results, pagination_size, error, print_json
 
 
-@chariot.group()
+class FallbackGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+
+        @click.command(name=cmd_name)
+        @click.option('-f', '--filter', required=False, help='Filter for the entities')
+        @click.option('-d', '--details', is_flag=True, help='Show detailed information')
+        @pagination
+        @cli_handler
+        def _dynamic(chariot, filter, details, offset, page): 
+            render_list_results(chariot.generic.list(cmd_name, filter_text=filter, offset=offset, pages=pagination_size(page)), details)
+        return _dynamic
+
+@chariot.group(cls=FallbackGroup)
 def list():
     """ Get a list of entities from Chariot """
     pass

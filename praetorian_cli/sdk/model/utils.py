@@ -1,5 +1,6 @@
 # This file largely mirror the model definitions in the model package in chariot-client.
 
+
 def asset_key(dns, name):
     return f'#asset#{dns}#{name}'
 

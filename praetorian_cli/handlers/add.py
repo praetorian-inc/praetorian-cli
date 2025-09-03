@@ -5,11 +5,32 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import error
+from praetorian_cli.handlers.utils import error, print_json, parse_name_value_fields
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
 
 
-@chariot.group()
+class FallbackGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+
+        # Return a dynamic command that adds entities with the label=cmd_name
+        @click.command(name=cmd_name)
+        @click.option('-f', '--field', 'field_list', multiple=True,
+                      help='Field in format name:value (can be specified multiple times)')
+        @cli_handler
+        def _dynamic(chariot, field_list):
+            try:
+                dynamic_fields = parse_name_value_fields(field_list)
+                if dynamic_fields is None:
+                    return
+                print_json(chariot.generic.add(cmd_name, dynamic_fields))
+            except Exception as e:
+                error(f"Failed to add entity: {e}")
+        return _dynamic
+
+@chariot.group(cls=FallbackGroup)
 def add():
     """ Add an entity to Chariot """
     pass
@@ -205,7 +226,7 @@ def seed(sdk, seed_type, status, field_list):
     """ Add a seed
 
     Add a seed to the Chariot database. Seeds are now assets with special labeling.
-    You can specify the asset type and provide dynamic fields using --fields.
+    You can specify the asset type and provide dynamic fields using --field.
 
     \b
     Example usages:
@@ -214,19 +235,11 @@ def seed(sdk, seed_type, status, field_list):
         - praetorian chariot add seed --type asset --field dns:example.com --field name:1.2.3.4
         - praetorian chariot add seed --type addomain --field domain:corp.local --field objectid:S-1-5-21-2701466056-1043032755-2418290285
     """
-    # Collect dynamic fields from the --fields option
-    dynamic_fields = {}
-    
-    # Parse field_list entries (name:value format)
-    for field in field_list:
-        if ':' in field:
-            # Split only once to allow colons in the value
-            name, value = field.split(':', 1)
-            dynamic_fields[name] = value
-        else:
-            error(f"Field '{field}' is not in the format name:value")
-            return
-    
+    # Collect dynamic fields from the --field option
+    dynamic_fields = parse_name_value_fields(field_list)
+    if dynamic_fields is None:
+        return
+
     # Call the updated add method with type and dynamic fields
     sdk.seeds.add(status=status, seed_type=seed_type, **dynamic_fields)
 

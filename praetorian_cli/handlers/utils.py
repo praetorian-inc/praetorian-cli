@@ -36,3 +36,22 @@ def error(message, quit=True):
     click.echo(message, err=True)
     if quit:
         exit(1)
+
+
+def parse_name_value_fields(field_list, sep=':'):
+    """Parse a sequence of name:value strings into a dict.
+    
+    - Splits on the first separator only to allow the value to contain it.
+    - Emits a user-facing error and returns None on invalid input.
+
+    Returns a dict on success, or None on error.
+    """
+    fields = {}
+    for field in field_list:
+        if sep in field:
+            name, value = field.split(sep, 1)
+            fields[name] = value
+        else:
+            error(f"Field '{field}' is not in the format name:value")
+            return None
+    return fields

@@ -7,10 +7,23 @@ from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import print_json
 
 
-@chariot.group()
+class FallbackGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+
+        @click.command(name=cmd_name)
+        @click.argument('entity_key', required=True)
+        @cli_handler
+        def _dynamic(chariot, entity_key): 
+            print_json(chariot.generic.get(entity_key))
+        return _dynamic
+
+@chariot.group(cls=FallbackGroup)
 def get():
     """ Get entity details from Chariot """
-    pass
+    pass 
 
 
 @get.command()
