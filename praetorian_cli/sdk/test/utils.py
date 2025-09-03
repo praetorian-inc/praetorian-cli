@@ -27,12 +27,24 @@ def random_dns():
 def random_ad_domain():
     return f'test-{epoch_micro()}.local'
 
+def random_object_id():
+    domain_id_1 = randint(1000000000, 4294967295)  # Start from 1 billion for realism
+    domain_id_2 = randint(1000000000, 4294967295)
+    domain_id_3 = randint(1000000000, 4294967295)
+
+    # Generate a random relative identifier (RID)
+    # Common ranges: 500-999 for built-in accounts, 1000+ for user accounts
+    relative_id = randint(1000, 999999)
+    return f"S-1-5-21-{domain_id_1}-{domain_id_2}-{domain_id_3}-{relative_id}"
+
+
 def make_test_values(o):
     o.asset_dns = random_dns()
     o.asset_name = random_ip()
     o.asset_key = asset_key(o.asset_dns, o.asset_name)
     o.ad_domain_name = random_ad_domain()
-    o.ad_domain_key = ad_domain_key(o.ad_domain_name, o.ad_domain_name)
+    o.ad_object_id = random_object_id()
+    o.ad_domain_key = ad_domain_key(o.ad_domain_name, o.ad_object_id)
     o.seed_asset_dns = random_dns()
     o.seed_asset_key = seed_asset_key(o.seed_asset_dns)
     o.risk_name = f'test-risk-name-{epoch_micro()}'

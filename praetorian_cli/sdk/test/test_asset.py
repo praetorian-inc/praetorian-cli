@@ -42,7 +42,7 @@ class TestAsset:
         assert any([a['group'] == self.asset_dns for a in deleted_assets])
     
     def test_add_ad_domain(self):
-        asset = self.sdk.assets.add(self.ad_domain_name, self.ad_domain_name, status=Asset.ACTIVE.value, surface='test-surface', type=Kind.ADDOMAIN.value)
+        asset = self.sdk.assets.add(self.ad_domain_name, self.ad_object_id, status=Asset.ACTIVE.value, surface='test-surface', type=Kind.ADDOMAIN.value)
         assert asset['key'] == self.ad_domain_key
         assert len(asset['attackSurface']) == 1
         assert 'test-surface' in asset['attackSurface']
@@ -51,7 +51,7 @@ class TestAsset:
     def test_get_ad_domain(self):
         asset = self.sdk.assets.get(self.ad_domain_key)
         assert asset['key'] == self.ad_domain_key
-        assert asset['name'] == self.ad_domain_name
+        assert asset['domain'] == self.ad_domain_name
         assert asset['status'] == Asset.ACTIVE.value
     
     def test_list_ad_domain(self):

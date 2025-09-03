@@ -20,11 +20,12 @@ class TestZCli:
         self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
 
         self.verify('list assets -p all', [o.asset_key])
-        self.verify(f'list assets -f "{o.asset_dns}"', [o.asset_key])
-        self.verify(f'list assets -f "{o.asset_dns}" -p first', [o.asset_key])
-        self.verify(f'list assets -f "{o.asset_dns}" -p all', [o.asset_key])
-        self.verify(f'list assets -f "{o.asset_dns}" -d', [o.asset_key, '"key"', '"data"'])
+        self.verify(f'list assets -f "#asset#{o.asset_dns}"', [o.asset_key])
+        self.verify(f'list assets -f "#asset#{o.asset_dns}" -p first', [o.asset_key])
+        self.verify(f'list assets -f "#asset#{o.asset_dns}" -p all', [o.asset_key])
+        self.verify(f'list assets -f "#asset#{o.asset_dns}" -d', [o.asset_key, '"key"', '"data"'])
 
+        self.verify(f'list assets -f "#asset#{epoch_micro()}"')
         self.verify(f'list assets -f {epoch_micro()}')
 
         self.verify(f'get asset "{o.asset_key}"', [o.asset_key, f'"status": "{Asset.ACTIVE.value}"'])
