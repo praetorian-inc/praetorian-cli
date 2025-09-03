@@ -5,7 +5,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import error, print_json
+from praetorian_cli.handlers.utils import error, print_json, parse_name_value_fields
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
 
 
@@ -17,12 +17,15 @@ class FallbackGroup(click.Group):
 
         # Return a dynamic command that adds entities with the label=cmd_name
         @click.command(name=cmd_name)
-        @click.option('-e', '--entries', required=True, help='key value pairs that make up the object')
+        @click.option('-f', '--field', 'field_list', multiple=True,
+                      help='Field in format name:value (can be specified multiple times)')
         @cli_handler
-        def _dynamic(chariot, entries):
+        def _dynamic(chariot, field_list):
             try:
-                entries_data = get_dict_from_entries(entries)
-                print_json(chariot.generic.add(cmd_name, entries_data))
+                dynamic_fields = parse_name_value_fields(field_list)
+                if dynamic_fields is None:
+                    return
+                print_json(chariot.generic.add(cmd_name, dynamic_fields))
             except Exception as e:
                 error(f"Failed to add entity: {e}")
         return _dynamic
@@ -223,7 +226,7 @@ def seed(sdk, seed_type, status, field_list):
     """ Add a seed
 
     Add a seed to the Chariot database. Seeds are now assets with special labeling.
-    You can specify the asset type and provide dynamic fields using --fields.
+    You can specify the asset type and provide dynamic fields using --field.
 
     \b
     Example usages:
@@ -232,19 +235,11 @@ def seed(sdk, seed_type, status, field_list):
         - praetorian chariot add seed --type asset --field dns:example.com --field name:1.2.3.4
         - praetorian chariot add seed --type addomain --field domain:corp.local --field objectid:S-1-5-21-2701466056-1043032755-2418290285
     """
-    # Collect dynamic fields from the --fields option
-    dynamic_fields = {}
-    
-    # Parse field_list entries (name:value format)
-    for field in field_list:
-        if ':' in field:
-            # Split only once to allow colons in the value
-            name, value = field.split(':', 1)
-            dynamic_fields[name] = value
-        else:
-            error(f"Field '{field}' is not in the format name:value")
-            return
-    
+    # Collect dynamic fields from the --field option
+    dynamic_fields = parse_name_value_fields(field_list)
+    if dynamic_fields is None:
+        return
+
     # Call the updated add method with type and dynamic fields
     sdk.seeds.add(status=status, seed_type=seed_type, **dynamic_fields)
 
@@ -346,27 +341,3 @@ def key(sdk, name, expires):
         return
     click.echo(f'API key created: {result.get("key", "N/A")}')
     click.echo(f'Secret (save this, it will not be shown again): {result["secret"]}')
-
-
-def get_dict_from_entries(entry):
-    config_dict = {}
-    for idx, item in enumerate(entry, start=1):
-        if '=' not in item:
-            error(f"Entry #{idx} ('{item}') is not in the format key=value")
-            return
-
-        if item.count('=') > 1:
-            error(f"Entry #{idx} ('{item}') contains multiple '=' characters. Format should be key=value")
-            return
-
-        key, value = item.split('=', 1)
-
-        if not key:
-            error(f"Key #{idx} cannot be empty")
-            return
-
-        if not value:
-            error(f"Value for key #{idx} cannot be empty")
-            return
-
-        config_dict[key] = value
