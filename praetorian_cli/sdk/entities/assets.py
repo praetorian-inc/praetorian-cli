@@ -81,12 +81,10 @@ class Assets:
         """
         List assets.
 
-        :param prefix_filter: Supply this to perform prefix-filtering of the asset keys after the "#asset#" portion of the asset key. Asset keys read '#asset#{dns}#{name}'
-        :type prefix_filter: str
+        :param key_prefix: Supply this to perform prefix-filtering of the asset key. E.g., '#asset#example.com' or '#addomain#sevenkingdoms'
+        :type key_prefix: str
         :param asset_type: The type of asset to filter by
         :type asset_type: str
-        :param offset: The offset of the page you want to retrieve results. If this is not supplied, this function retrieves from the first page
-        :type offset: str or None
         :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
         :return: A tuple containing (list of assets, next page offset)
