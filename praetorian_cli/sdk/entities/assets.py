@@ -98,8 +98,7 @@ class Assets:
         elif not asset_type:
             asset_type = Node.Label.ASSET
         else:
-            error(f'Invalid asset type: {asset_type}')
-            return ([], None)
+            raise ValueError(f'Invalid asset type: {asset_type}')
 
         node = Node(
             labels=[asset_type],
