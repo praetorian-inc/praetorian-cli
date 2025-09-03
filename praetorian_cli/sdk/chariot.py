@@ -16,6 +16,7 @@ from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
+from praetorian_cli.sdk.entities.schema import Schema
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.settings import Settings
@@ -51,6 +52,7 @@ class Chariot:
         self.keys = Keys(self)
         self.capabilities = Capabilities(self)
         self.credentials = Credentials(self)
+        self.schema = Schema(self)
         self.proxy = proxy
 
         if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):

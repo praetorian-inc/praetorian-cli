@@ -296,3 +296,31 @@ def scanner(chariot, key):
         - praetorian chariot get scanner "#scanner#127.0.0.1"
     """
     print_json(chariot.scanners.get(key))
+
+
+@get.command()
+@cli_handler
+@click.option('-t', '--type', help='Optional specific entity type (e.g., asset, risk, attribute)')
+@click.option('-d', '--details', is_flag=True, help='Further retrieve the details of the schema')
+def schema(chariot, type, details):
+    """ Get Chariot entity schema
+
+    \b
+    Returns the JSON schema for Chariot entities. Optionally filter for a
+    specific entity type.
+
+    \b
+    Example usages:
+        - praetorian chariot get schema
+        - praetorian chariot get schema --type asset
+        - praetorian chariot get schema --type asset --details
+    """
+    data = chariot.schema.get(type)
+    if type:
+        data = {type: data[type]}
+
+    if details:
+        print_json(data)
+    else:
+        for hit in data:
+            click.echo(hit)
