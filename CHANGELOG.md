@@ -1,5 +1,11 @@
 # Changelog
 
+# 2.2.3
+
+- [Bug fix] Fixed adding assets of different type than `asset`
+- [New feature] Added ability to query the live Chariot schema
+  - See `praetorian chariot get schema`
+
 # 2.2.2
 
 - [New feature] Integreation with Chariot's Aegis 
