@@ -1,6 +1,7 @@
-import json, requests
+import json, requests, os
 
 from praetorian_cli.sdk.entities.accounts import Accounts
+from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
@@ -14,6 +15,7 @@ from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
+from praetorian_cli.sdk.entities.scanners import Scanners
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.settings import Settings
@@ -41,8 +43,10 @@ class Chariot:
         self.definitions = Definitions(self)
         self.attributes = Attributes(self)
         self.search = Search(self)
+        self.scanners = Scanners(self)
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
+        self.aegis = Aegis(self)
         self.agents = Agents(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
@@ -50,6 +54,9 @@ class Chariot:
         self.capabilities = Capabilities(self)
         self.credentials = Credentials(self)
         self.proxy = proxy
+
+        if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):
+            self.proxy = os.environ.get('CHARIOT_PROXY')
 
         if self.proxy:
             import urllib3
@@ -64,8 +71,16 @@ class Chariot:
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
             kwargs['verify'] = False
+        
+        self.add_beta_url_param(kwargs)
 
         return requests.request(method, url, headers=self.keychain.headers(), **kwargs)
+
+    def add_beta_url_param(self, kwargs: dict):
+        if 'params' in kwargs:
+            kwargs['params']['beta'] = 'true'
+        else:
+            kwargs['params'] = {'beta': 'true'}
 
     def my(self, params: dict, pages=1) -> dict:
         final_resp = dict()
@@ -237,6 +252,69 @@ class Chariot:
         
         server = MCPServer(self, allowable_tools)
         return anyio.run(server.start)
+
+    def get_current_user(self) -> tuple:
+        """
+        Get current user information for Aegis functionality.
+        
+        Returns:
+            tuple: (user_email, username) where user_email is the login email
+                   and username is the SSH username derived from the email
+        """
+        # Try to get username from keychain first (for username/password auth)
+        user_email = self.keychain.username()
+        
+        # If no username in keychain (API key auth), try to get it from JWT token
+        if not user_email and self.keychain.has_api_key():
+            token = self.keychain.token()
+            payload = decode_jwt_payload(token)
+            if payload:
+                # Extract email from the 'email' field in the JWT payload
+                user_email = payload.get('email')
+            else:
+                # If JWT decoding fails, fall back to the account parameter
+                raise Exception("Failed to decode JWT token")
+        
+        # Extract username from email (part before @) for SSH access
+        username = user_email.split('@')[0] if user_email and '@' in user_email else user_email
+        return user_email, username
+
+
+def decode_jwt_payload(token: str) -> dict | None:
+    """
+    Decode the payload from a JWT token.
+    
+    Args:
+        token: JWT token string in format header.payload.signature
+        
+    Returns:
+        dict: Decoded payload contents, or None if decoding fails
+        
+    Example:
+        >>> token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20ifQ.signature"
+        >>> payload = decode_jwt_payload(token)
+        >>> print(payload.get('email'))
+        user@example.com
+    """
+    try:
+        import json
+        import base64
+        
+        # JWT tokens have 3 parts: header.payload.signature
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+            
+        payload_part = parts[1]
+        # Add padding if needed for base64 decoding
+        payload_part += '=' * (4 - len(payload_part) % 4)
+        payload = json.loads(base64.b64decode(payload_part))
+        
+        return payload
+    except Exception:
+        return None
+
+
 def is_query_limit_failure(response: requests.Response) -> bool:
     return response.status_code == 413 and 'reduce page size' in response.text
 
