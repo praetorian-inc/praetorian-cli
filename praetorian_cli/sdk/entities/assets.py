@@ -1,5 +1,6 @@
+from praetorian_cli.handlers.utils import error
 from praetorian_cli.sdk.model.globals import Asset, Kind
-from praetorian_cli.sdk.model.query import Relationship, Node, Query, asset_of_key, RISK_NODE, ATTRIBUTE_NODE
+from praetorian_cli.sdk.model.query import Relationship, Node, Query, Filter, KIND_TO_LABEL, asset_of_key, RISK_NODE, ATTRIBUTE_NODE
 
 
 class Assets:
@@ -76,7 +77,7 @@ class Assets:
         """
         return self.api.delete_by_key('asset', key)
 
-    def list(self, prefix_filter='', asset_type='', offset=None, pages=100000) -> tuple:
+    def list(self, key_prefix='', asset_type='', pages=100000) -> tuple:
         """
         List assets.
 
@@ -91,12 +92,32 @@ class Assets:
         :return: A tuple containing (list of assets, next page offset)
         :rtype: tuple
         """
-        dns_prefix = ''
-        if prefix_filter:
-            dns_prefix = f'group:{prefix_filter}'
-        if asset_type == '':
-            asset_type = Kind.ASSET.value
-        return self.api.search.by_term(dns_prefix, asset_type, offset, pages)
+
+        if asset_type in KIND_TO_LABEL:
+            asset_type = KIND_TO_LABEL[asset_type]
+        elif not asset_type:
+            asset_type = Node.Label.ASSET
+        else:
+            error(f'Invalid asset type: {asset_type}')
+            return ([], None)
+
+        node = Node(
+            labels=[asset_type],
+            filters=[]
+        )
+
+        key_filter = Filter(
+            field=Filter.Field.KEY,
+            operator=Filter.Operator.STARTS_WITH,
+            value=key_prefix
+        )
+
+        if key_prefix:
+            node.filters.append(key_filter)
+
+        query = Query(node=node)
+
+        return self.api.search.by_query(query, pages)
 
     def attributes(self, key):
         """
