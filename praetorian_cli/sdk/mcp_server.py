@@ -8,7 +8,6 @@ from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-
 class MCPServer:
     def __init__(self, chariot_instance, allowable_tools: Optional[List[str]] = None):
         self.chariot = chariot_instance
@@ -157,7 +156,7 @@ class MCPServer:
             tools = []
             for tool_name, tool_info in self.discovered_tools.items():
                 parameters = self._extract_parameters_from_doc(tool_info['doc'], tool_info['signature'])
-                
+
                 properties = {}
                 required = []
                 
@@ -170,7 +169,7 @@ class MCPServer:
                         "description": param_info["description"]
                     }
                     
-                    if param_info["required"]:
+                    if param_info.get("required", False):
                         required.append(param_name)
                 
                 tool_schema = {
