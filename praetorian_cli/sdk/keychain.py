@@ -117,9 +117,16 @@ class Keychain:
                 self.token_expiry = time() + 3600
                 self.token_cache = token_data.get('token') or token_data.get('IdToken')
             else:
+                # Fail-fast validation: ensure we have valid credentials before calling boto3
+                username = self.username()
+                password = self.password()
+                
+                if not username or not password:
+                    error("No valid credentials found. Please run 'praetorian configure' to set up your credentials or provide a valid API key/token.")
+                
                 response = boto3.client('cognito-idp', region_name='us-east-2').initiate_auth(
                     AuthFlow='USER_PASSWORD_AUTH',
-                    AuthParameters=dict(USERNAME=self.username(), PASSWORD=self.password()),
+                    AuthParameters=dict(USERNAME=username, PASSWORD=password),
                     ClientId=self.client_id())
                 self.token_expiry = time() + response['AuthenticationResult']['ExpiresIn']
                 self.token_cache = response['AuthenticationResult']['IdToken']
