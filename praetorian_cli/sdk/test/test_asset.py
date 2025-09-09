@@ -71,11 +71,47 @@ class TestAsset:
         deleted_assets, _ = self.sdk.search.by_status(Asset.DELETED.value, Kind.ADDOMAIN.value)
         assert any([a['key'] == self.ad_domain_key for a in deleted_assets])
 
+    def test_add_webapplication(self):
+        asset = self.sdk.assets.add(self.webapp_name, self.webapp_url, status=Asset.ACTIVE.value, surface='test-surface', type=Kind.WEBAPPLICATION.value)
+        assert asset['key'] == self.webapp_key
+        assert len(asset['attackSurface']) == 1
+        assert 'test-surface' in asset['attackSurface']
+        assert asset['status'] == Asset.ACTIVE.value
+    
+    def test_get_webapplication(self):
+        asset = self.sdk.assets.get(self.webapp_key)
+        assert asset['key'] == self.webapp_key
+        assert asset['group'] == self.webapp_name
+        assert asset['identifier'] == self.webapp_url
+        assert asset['status'] == Asset.ACTIVE.value
+    
+    def test_list_webapplication(self):
+        results, _ = self.sdk.assets.list(asset_type=Kind.WEBAPPLICATION.value)
+        assert len(results) > 0
+        assert any([a['key'] == self.webapp_key for a in results])
+        assert any([a['group'] == self.webapp_name for a in results])
+        assert any([a['identifier'] == self.webapp_url for a in results])
+    
+    def test_update_webapplication(self):
+        self.sdk.assets.update(self.webapp_key, status=Asset.FROZEN.value, surface='abc')
+        asset = self.get_webapplication()
+        assert asset['status'] == Asset.FROZEN.value
+        assert 'abc' in asset['attackSurface']
+    
+    def test_delete_webapplication(self):
+        self.sdk.assets.delete(self.webapp_key)
+        assert self.get_webapplication()['status'] == Asset.DELETED.value
+        deleted_assets, _ = self.sdk.search.by_status(Asset.DELETED.value, Kind.WEBAPPLICATION.value)
+        assert any([a['key'] == self.webapp_key for a in deleted_assets])
+
     def get_asset(self):
         return self.sdk.assets.get(self.asset_key)
     
     def get_ad_domain(self):
         return self.sdk.assets.get(self.ad_domain_key)
+
+    def get_webapplication(self):
+        return self.sdk.assets.get(self.webapp_key)
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)

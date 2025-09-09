@@ -259,10 +259,10 @@ class TestZCli:
 
     def test_webapplication_cli(self):
         o = make_test_values(lambda: None)
-        self.verify(f'add webapplication --url "{o.webapp_url}" --name "{o.webapp_name}"')
-        self.verify(f'get webapplication "{o.webapp_key}"', expected_stdout=[o.webapp_key, o.webapp_url, o.webapp_name, '"status"', '"A"'])
-        self.verify(f'list webapplications -f "{o.webapp_url[len(o.webapp_url//2):]}"', expected_stdout=[o.webapp_key])
-        self.verify(f'delete webapplication "{o.webapp_key}"', ignore_stdout=True)
+        self.verify(f'add asset --dns "{o.webapp_name}" --name "{o.webapp_url}" --type webapplication')
+        self.verify(f'get asset "{o.webapp_key}"', expected_stdout=[o.webapp_key, o.webapp_url, o.webapp_name, '"status"', '"A"'])
+        self.verify(f'list assets -f "{o.webapp_url[len(o.webapp_url//2):]}"', expected_stdout=[o.webapp_key])
+        self.verify(f'delete asset "{o.webapp_key}"', ignore_stdout=True)
     
     def test_webpage_cli(self):
         o = make_test_values(lambda: None)

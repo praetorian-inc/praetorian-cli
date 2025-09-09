@@ -371,26 +371,6 @@ def scanners(chariot, filter, details, offset, page):
 
 
 @list.command()
-@list_params('WebApplication URL or name')
-@cli_handler
-def webapplications(chariot, filter, details, offset, page):
-    """ List WebApplications
-
-    Retrieve and display a list of web applications. WebApplications are discovered
-    web applications that can be scanned for vulnerabilities and security issues.
-
-    \b
-    Example usages:
-        - praetorian chariot list webapplications
-        - praetorian chariot list webapplications --filter example.com
-        - praetorian chariot list webapplications --filter http://app.example.com:8080
-        - praetorian chariot list webapplications --details
-        - praetorian chariot list webapplications --page all
-    """
-    render_list_results(chariot.webapplication.list(filter, offset, pagination_size(page)), details)
-
-
-@list.command()
 @click.option('--parent', required=False, help='Optional WebApp key to filter pages')
 @click.option('-f', '--filter', required=False, help='Optional URL to filter pages')
 @click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')

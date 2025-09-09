@@ -54,6 +54,11 @@ def make_test_values(o):
     o.configuration_value = {o.configuration_name: o.configuration_name}
     o.configuration_key = configuration_key(o.configuration_name)
     o.key_name = f'test-key-name-{epoch_micro()}'
+    o.webapp_name = f'test-webapp-name-{epoch_micro()}'
+    o.webapp_url = f'https://test-webapp-{epoch_micro()}.com'
+    o.webapp_key = f'#webapplication#{o.webapp_url}'
+    o.webpage_url = f'https://test-webpage-{epoch_micro()}.com/index.html'
+    o.webpage_key = f'#webpage#{o.webpage_url}'
     return o
 
 
