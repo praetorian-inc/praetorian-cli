@@ -49,6 +49,8 @@ class Filter:
         KEV = 'kev'
         EXPLOIT = 'exploit'
         PRIVATE = 'private'
+        PRIMARY_URL = 'primary_url'
+        URL = 'url'
 
     def __init__(self, field: Field, operator: Operator, value: str, not_: bool = False):
         self.field = field
@@ -65,6 +67,7 @@ class Relationship:
         HAS_VULNERABILITY = 'HAS_VULNERABILITY'
         DISCOVERED = 'DISCOVERED'
         HAS_ATTRIBUTE = 'HAS_ATTRIBUTE'
+        HAS_WEBPAGE = 'HAS_WEBPAGE'
 
     def __init__(self, label: Label, source: 'Node' = None, target: 'Node' = None, optional: bool = False, length: int = 0):
         self.label = label
@@ -97,6 +100,8 @@ class Node:
         PRESEED = 'Preseed'
         SEED = 'Seed'
         TTL = 'TTL'
+        WEBAPPLICATION = 'WebApplication'
+        WEBPAGE = 'Webpage'
 
     def __init__(self, labels: list[Label] = None, filters: list[Filter] = None,
                  relationships: list[Relationship] = None):

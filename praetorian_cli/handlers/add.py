@@ -328,3 +328,21 @@ def key(sdk, name, expires):
         return
     click.echo(f'API key created: {result.get("key", "N/A")}')
     click.echo(f'Secret (save this, it will not be shown again): {result["secret"]}')
+
+
+@add.command()
+@cli_handler
+@click.option('-u', '--url', required=True, help='The full URL of the page')
+@click.option('-p', '--parent', required=False, help='Optional key of the parent WebApplication')
+def webpage(sdk, url, parent):
+    """ Add a Webpage
+    
+    Add a web page to the Chariot database. Webpages can optionally be associated
+    with a parent WebApplication or exist independently.
+    
+    \b
+    Example usages:
+        - praetorian chariot add webpage --url https://app.example.com/login
+        - praetorian chariot add webpage --url https://app.example.com/admin --parent "#webapplication#https://app.example.com"
+    """
+    sdk.webpage.add(url, parent)

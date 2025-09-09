@@ -296,3 +296,44 @@ def scanner(chariot, key):
         - praetorian chariot get scanner "#scanner#127.0.0.1"
     """
     print_json(chariot.scanners.get(key))
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+def webapplication(chariot, key):
+    """ Get WebApplication details
+
+    Retrieve detailed information about a specific web application, including
+    its configuration, discovered pages, and associated security findings.
+
+    \b
+    Argument:
+        - KEY: the key of an existing WebApplication
+
+    \b
+    Example usages:
+        - praetorian chariot get webapplication "#webapplication#https://app.example.com"
+    """
+    print_json(chariot.webapplication.get(key))
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
+def webpage(chariot, key):
+    """ Get Webpage details
+
+    Retrieve detailed information about a specific web page, including
+    its URL, method, authentication requirements, and other metadata.
+
+    \b
+    Argument:
+        - KEY: the key of an existing Webpage
+
+    \b
+    Example usages:
+        - praetorian chariot get webpage "#webpage#https://app.example.com/dashboard"
+    """
+    print_json(chariot.webpage.get(key))
+        
