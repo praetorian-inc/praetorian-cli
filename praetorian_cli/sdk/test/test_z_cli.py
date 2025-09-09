@@ -257,6 +257,20 @@ class TestZCli:
 
         self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
 
+    def test_webapplication_cli(self):
+        o = make_test_values(lambda: None)
+        self.verify(f'add webapplication --url "{o.webapp_url}" --name "{o.webapp_name}"')
+        self.verify(f'get webapplication "{o.webapp_key}"', expected_stdout=[o.webapp_key, o.webapp_url, o.webapp_name, '"status"', '"A"'])
+        self.verify(f'list webapplications -f "{o.webapp_url[len(o.webapp_url//2):]}"', expected_stdout=[o.webapp_key])
+        self.verify(f'delete webapplication "{o.webapp_key}"', ignore_stdout=True)
+    
+    def test_webpage_cli(self):
+        o = make_test_values(lambda: None)
+        self.verify(f'add webpage --url "{o.webpage_url}"')
+        self.verify(f'get webpage "{o.webpage_key}"', expected_stdout=[o.webpage_key, o.webpage_url, '"status"', '"A"'])
+        self.verify(f'list webpages -f "{o.webpage_url[len(o.webpage_url//2):]}"', expected_stdout=[o.webpage_key])
+        self.verify(f'delete webpage "{o.webpage_key}"', ignore_stdout=True)
+
     def test_help_cli(self):
         self.verify('--help', ignore_stdout=True)
         self.verify('list --help', ignore_stdout=True)
