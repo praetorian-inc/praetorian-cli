@@ -108,6 +108,8 @@ class Kind(Enum):
     SEED = 'seed'
     PRESEED = 'preseed'
     OTHERS = 'others'
+    WEBAPPLICATION = 'webapplication'
+    WEBPAGE = 'webpage'
 
 EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}

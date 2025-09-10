@@ -162,6 +162,8 @@ KIND_TO_LABEL = {
     Kind.REPOSITORY.value: Node.Label.REPOSITORY,
     Kind.INTEGRATION.value: Node.Label.INTEGRATION,
     Kind.ADDOMAIN.value: Node.Label.ADDOMAIN,
+    Kind.WEBAPPLICATION.value: Node.Label.WEBAPPLICATION,
+    Kind.WEBPAGE.value: Node.Label.WEBPAGE,
 }
 
 

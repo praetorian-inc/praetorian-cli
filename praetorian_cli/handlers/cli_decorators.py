@@ -68,7 +68,7 @@ def list_params(filter_by, has_details=True, has_filter=True, has_type=False):
 
 
 def pagination(func):
-    func = click.option('-o', '--offset', default='', help='List results from an offset')(func)
+    func = click.option('-o', '--offset', default=0, help='List results from an offset')(func)
     func = click.option('-p', '--page', type=click.Choice(('first', 'all')), default='first',
                         help='Pagination mode. "all" pages up to 10,000 pages.', show_default=True)(func)
     return func

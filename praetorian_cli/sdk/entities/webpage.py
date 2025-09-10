@@ -82,7 +82,7 @@ class Webpage:
         """
         return self.api.search.by_exact_key(key)
 
-    def list(self, parent_key=None, filter=None, offset=None, pages=100000) -> tuple:
+    def list(self, parent_key=None, filter=None, offset=0, pages=100000) -> tuple:
         """
         List Webpages, optionally filtered by parent WebApplication.
 
@@ -127,3 +127,17 @@ class Webpage:
         node = Node(labels=[Node.Label.WEBPAGE], filters=filters, relationships=relationships)
         query = Query(node=node, page=offset, limit=pages)
         return self.api.search.by_query(query, pages)
+
+    def delete(self, key):
+        """
+        Delete a webpage by its key.
+
+        :param key: The WebPage key identifier
+        :type key: str
+        """
+        body = {
+            'webpage': {
+                'key': key
+            }
+        }
+        self.api.delete('webpage', params={}, body=body)

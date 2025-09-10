@@ -16,21 +16,20 @@ class TestWebpage:
         result = self.sdk.webpage.add(self.webpage_url)
         
         assert result is not None
-        assert result.get('key') == self.webpage_key
-        assert result.get('url') == self.webpage_url
+        webpage = result.get('webpages')[0]
+        assert webpage.get('key') == self.webpage_key
+        assert webpage.get('url') == self.webpage_url
 
     def test_get_webpage(self):
         """Test retrieving a Webpage by key."""
         result = self.sdk.webpage.get(self.webpage_key)
-        
         assert result is not None
         assert result.get('key') == self.webpage_key
         assert result.get('url') == self.webpage_url
 
     def test_list_webpages(self):
         """Test listing Webpages."""
-        results, offset = self.sdk.webpage.list(filter=self.webpage_url[len(self.webpage_url//2):])
-        
+        results, offset = self.sdk.webpage.list(filter=self.webpage_url[:len(self.webpage_url)//2])
         assert isinstance(results, list)
         assert len(results) > 0
         assert any(r.get('key') == self.webpage_key for r in results)
