@@ -54,6 +54,26 @@ class Definitions:
             file.write(content)
         return download_path
 
+    def get_content(self, definition_name, global_=False) -> str:
+        """
+        Download a risk definition file content into memory as UTF-8 string.
+
+        :param definition_name: The name of the definition file to download
+        :type definition_name: str
+        :param global_: If True, fetch from global definitions instead of user-specific
+        :type global_: bool
+        :return: The definition content as UTF-8 string
+        :rtype: str
+        :raises Exception: If the definition does not exist
+        """
+        if global_:
+            try:
+                return self.api.download(f'definitions/{definition_name}', global_=True).decode('utf-8')
+            except Exception as e:
+                raise Exception(f'Global definition {definition_name} not found or inaccessible.')
+        else:
+            return self.api.files.get_utf8(f'definitions/{definition_name}')
+
     def list(self, name_filter='', offset=None, pages=100000) -> tuple:
         """
         List the definition names, optionally prefix-filtered by a definition name.
