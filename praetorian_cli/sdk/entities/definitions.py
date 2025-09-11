@@ -42,13 +42,10 @@ class Definitions:
         :return: The local file path where the definition was saved
         :rtype: str
         """
-        try:
-            content = self.api.files.get_utf8(f'definitions/{definition_name}', _global=global_)
-        except Exception as e:
-            if global_:
-                raise Exception(f'Global definition {definition_name} not found or inaccessible.')
-            else:
-                raise
+        if global_:
+            content = self.api.download(f'definitions/{definition_name}', global_=True).decode('utf-8')
+        else:
+            content = self.api.files.get_utf8(f'definitions/{definition_name}')
         download_path = os.path.join(download_directory, definition_name)
         with open(download_path, 'w') as file:
             file.write(content)
