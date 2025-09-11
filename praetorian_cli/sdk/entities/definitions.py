@@ -43,7 +43,10 @@ class Definitions:
         :rtype: str
         """
         if global_:
-            content = self.api.download(f'definitions/{definition_name}', global_=True).decode('utf-8')
+            try:
+                content = self.api.download(f'definitions/{definition_name}', global_=True).decode('utf-8')
+            except Exception as e:
+                raise Exception(f'Global definition {definition_name} not found or inaccessible.')
         else:
             content = self.api.files.get_utf8(f'definitions/{definition_name}')
         download_path = os.path.join(download_directory, definition_name)
