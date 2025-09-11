@@ -147,7 +147,8 @@ def file(chariot, name, path):
 @cli_handler
 @click.argument('name')
 @click.option('-path', '--path', default=os.getcwd(), help='Download path. Default: save to current directory')
-def definition(chariot, name, path):
+@click.option('--global', 'global_', is_flag=True, help='Fetch from global definitions instead of user-specific')
+def definition(chariot, name, path, global_):
     """ Download a definition using the risk name
 
     \b
@@ -158,8 +159,9 @@ def definition(chariot, name, path):
     Example usage:
         - praetorian chariot get definition jira-unauthenticated-user-picker
         - praetorian chariot get definition CVE-2024-23049
+        - praetorian chariot get definition CVE-2024-23049 --global
      """
-    downloaded_path = chariot.definitions.get(name, path)
+    downloaded_path = chariot.definitions.get(name, path, global_=global_)
     click.echo(f'Saved definition at {downloaded_path}')
 
 
