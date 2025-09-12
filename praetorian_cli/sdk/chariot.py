@@ -20,7 +20,8 @@ from praetorian_cli.sdk.entities.schema import Schema
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.settings import Settings
-from praetorian_cli.sdk.entities.statistics import Statistics
+from praetorian_cli.sdk.entities.statistics import Statistics   
+from praetorian_cli.sdk.entities.webpage import Webpage
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
@@ -52,6 +53,7 @@ class Chariot:
         self.keys = Keys(self)
         self.capabilities = Capabilities(self)
         self.credentials = Credentials(self)
+        self.webpage = Webpage(self)
         self.schema = Schema(self)
         self.proxy = proxy
 

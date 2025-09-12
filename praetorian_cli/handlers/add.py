@@ -29,6 +29,9 @@ def asset(sdk, name, dns, asset_type, status, surface):
     Add an asset to the Chariot database. This command requires a DNS name for the asset.
     Optionally, a name can be provided to give the asset more specific information,
     such as IP address. If no name is provided, the DNS name will be used as the name.
+    The DNS is the group and the name is the specific identifier. This is for legacy reasons.
+
+    The type can be one of the following: asset, addomain, repository, webapplication.
 
     \b
     Example assets:
@@ -41,6 +44,7 @@ def asset(sdk, name, dns, asset_type, status, surface):
         - praetorian chariot add asset --dns example.com
         - praetorian chariot add asset --dns example.com --name 1.2.3.4
         - praetorian chariot add asset --dns internal.example.com --name 10.2.3.4 --surface internal
+        - praetorian chariot add asset --dns https://example.com --name 'Example Web Application' --type webapplication
     """
     if not name:
         name = dns
@@ -328,3 +332,21 @@ def key(sdk, name, expires):
         return
     click.echo(f'API key created: {result.get("key", "N/A")}')
     click.echo(f'Secret (save this, it will not be shown again): {result["secret"]}')
+
+
+@add.command()
+@cli_handler
+@click.option('-u', '--url', required=True, help='The full URL of the page')
+@click.option('-p', '--parent', required=False, help='Optional key of the parent WebApplication')
+def webpage(sdk, url, parent):
+    """ Add a Webpage
+    
+    Add a web page to the Chariot database. Webpages can optionally be associated
+    with a parent WebApplication or exist independently.
+    
+    \b
+    Example usages:
+        - praetorian chariot add webpage --url https://app.example.com/login
+        - praetorian chariot add webpage --url https://app.example.com/admin --parent "#webapplication#https://app.example.com"
+    """
+    sdk.webpage.add(url, parent)

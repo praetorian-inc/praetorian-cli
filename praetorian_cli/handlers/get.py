@@ -300,6 +300,23 @@ def scanner(chariot, key):
 
 @get.command()
 @cli_handler
+@click.argument('key', required=True)
+def webpage(chariot, key):
+    """ Get Webpage details
+
+    Retrieve detailed information about a specific web page, including
+    its URL, method, authentication requirements, and other metadata.
+
+    \b
+    Argument:
+        - KEY: the key of an existing Webpage
+
+    \b
+    Example usages:
+        - praetorian chariot get webpage "#webpage#https://app.example.com/dashboard"
+    """
+    print_json(chariot.webpage.get(key))
+        
 @click.option('-t', '--type', help='Optional specific entity type (e.g., asset, risk, attribute)')
 @click.option('-d', '--details', is_flag=True, help='Further retrieve the details of the schema')
 def schema(chariot, type, details):
