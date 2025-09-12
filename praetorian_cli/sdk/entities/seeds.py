@@ -122,8 +122,6 @@ class Seeds:
         :seed_type seed_type: str or None
         :param key_prefix: Filter by key prefix
         :seed_type key_prefix: str
-        :param offset: The offset of the page you want to retrieve results. If this is not supplied, this function retrieves from the first page
-        :seed_type offset: str or None
         :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :seed_type pages: int
         :return: A tuple containing (list of seeds, next page offset)
@@ -135,8 +133,7 @@ class Seeds:
         elif not seed_type:
             seed_type = Node.Label.SEED
         else:
-            error(f'Invalid seed type: {seed_type}')
-            return ([], None)
+            raise ValueError(f'Invalid seed type: {seed_type}')
 
         node = Node(
             labels=[seed_type],

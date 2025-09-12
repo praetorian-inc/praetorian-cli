@@ -26,7 +26,7 @@ def assets(chariot, filter, model_type, details, offset, page):
         - praetorian chariot list assets --page all
         - praetorian chariot list assets --type repository
     """
-    render_list_results(chariot.assets.list(filter, model_type, offset, pagination_size(page)), details)
+    render_list_results(chariot.assets.list(filter, model_type, pagination_size(page)), details)
 
 
 @list.command()

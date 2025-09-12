@@ -94,7 +94,7 @@ class Node:
         ASSET = 'Asset'
         REPOSITORY = 'Repository'
         INTEGRATION = 'Integration'
-        ADDOMAIN = 'Addomain'
+        ADDOMAIN = 'ADDomain'
         ATTRIBUTE = 'Attribute'
         RISK = 'Risk'
         PRESEED = 'Preseed'
