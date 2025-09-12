@@ -80,7 +80,8 @@ class Webpage:
             - created: Creation timestamp
             - updated: Last update timestamp
         """
-        return self.api.search.by_exact_key(key)
+        query = Query(node=Node(labels=[Node.Label.WEBPAGE], filters=[Filter(field=Filter.Field.KEY, operator=Filter.Operator.EQUAL, value=key)]))
+        return self.api.search.by_query(query)
 
     def list(self, parent_key=None, filter=None, offset=0, pages=100000) -> tuple:
         """
