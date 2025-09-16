@@ -21,6 +21,7 @@ from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.settings import Settings
 from praetorian_cli.sdk.entities.statistics import Statistics
+from praetorian_cli.sdk.entities.webpages import Webpages
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
@@ -43,6 +44,7 @@ class Chariot:
         self.attributes = Attributes(self)
         self.search = Search(self)
         self.scanners = Scanners(self)
+        self.webpages = Webpages(self)
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
         self.aegis = Aegis(self)

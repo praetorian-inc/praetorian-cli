@@ -210,6 +210,19 @@ class TestZCli:
         self.verify(f'list accounts -f {o.email}', [o.email])
         self.verify(f'unlink account {o.email}')
         self.verify(f'list accounts -f {o.email}')
+        
+    def test_webpage_source_cli(self):
+        # Test webpage-source linking commands
+        webpage_key = '"#webpage#https://example.com/test"'
+        file_key = '"#file#proofs/test-scan.txt"'
+        repo_key = '"#repository#https://github.com/test/repo.git#repo.git"'
+        
+        # Test help commands
+        self.verify('link webpage-source --help', ['Link a file or repository to a webpage'], ignore_stdout=False)
+        self.verify('unlink webpage-source --help', ['Unlink a file or repository from a webpage'], ignore_stdout=False)
+        
+        # Note: Actual linking/unlinking would require mock setup since it makes API calls
+        # These tests verify the CLI command structure is correct
 
     def test_integration_cli(self):
         self.verify('list integrations', ignore_stdout=True)
@@ -310,9 +323,11 @@ class TestZCli:
 
         self.verify('link --help', ignore_stdout=True)
         self.verify('link account --help', ignore_stdout=True)
+        self.verify('link webpage-source --help', ignore_stdout=True)
 
         self.verify('unlink --help', ignore_stdout=True)
         self.verify('unlink account --help', ignore_stdout=True)
+        self.verify('unlink webpage-source --help', ignore_stdout=True)
 
         self.verify('delete --help', ignore_stdout=True)
         self.verify('delete asset --help', ignore_stdout=True)
