@@ -51,6 +51,8 @@ class Filter:
         PRIVATE = 'private'
         PRIMARY_URL = 'primary_url'
         URL = 'url'
+        CREDENTIAL_ID = 'credentialId'
+        RESOURCE_KEY = 'accountKey'
 
     def __init__(self, field: Field, operator: Operator, value: str, not_: bool = False):
         self.field = field
@@ -68,6 +70,7 @@ class Relationship:
         DISCOVERED = 'DISCOVERED'
         HAS_ATTRIBUTE = 'HAS_ATTRIBUTE'
         HAS_WEBPAGE = 'HAS_WEBPAGE'
+        HAS_CREDENTIAL = 'HAS_CREDENTIAL'
 
     def __init__(self, label: Label, source: 'Node' = None, target: 'Node' = None, optional: bool = False, length: int = 0):
         self.label = label
@@ -102,6 +105,7 @@ class Node:
         TTL = 'TTL'
         WEBAPPLICATION = 'WebApplication'
         WEBPAGE = 'Webpage'
+        CREDENTIAL = 'Credential'
 
     def __init__(self, labels: list[Label] = None, filters: list[Filter] = None,
                  relationships: list[Relationship] = None):
@@ -164,6 +168,7 @@ KIND_TO_LABEL = {
     Kind.ADDOMAIN.value: Node.Label.ADDOMAIN,
     Kind.WEBAPPLICATION.value: Node.Label.WEBAPPLICATION,
     Kind.WEBPAGE.value: Node.Label.WEBPAGE,
+    Kind.CREDENTIAL.value: Node.Label.CREDENTIAL,
 }
 
 

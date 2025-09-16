@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from praetorian_cli.sdk.model.query import Node, Query, Filter
+
 
 class Credentials:
     """ The methods in this class are to be accessed from sdk.credentials, where sdk is an instance
@@ -9,7 +11,7 @@ class Credentials:
     def __init__(self, api):
         self.api = api
 
-    def list(self, offset=None, pages=100000):
+    def list(self, offset=None, filter='', pages=100000):
         """
         List credentials available to the current principal.
 
@@ -20,7 +22,12 @@ class Credentials:
         :return: A tuple containing (list of credential entities, next page offset)
         :rtype: tuple
         """
-        return self.api.search.by_key_prefix('#credential', offset=offset, pages=pages)
+        filters = []
+        if filter:
+            filters.append(Filter(field=Filter.Field.RESOURCE_KEY, operator=Filter.Operator.STARTS_WITH, value=filter))
+        node = Node(labels=[Node.Label.CREDENTIAL], filters=filters)
+        query = Query(node=node)
+        return self.api.search.by_query(query, pages)
 
     def get(self, credential_id, category, type, format, **parameters):
         """

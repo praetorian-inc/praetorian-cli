@@ -110,6 +110,7 @@ class Kind(Enum):
     OTHERS = 'others'
     WEBAPPLICATION = 'webapplication'
     WEBPAGE = 'webpage'
+    CREDENTIAL = 'credential'
 
 EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
