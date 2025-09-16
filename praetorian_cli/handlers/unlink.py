@@ -48,7 +48,7 @@ def webpage_source(chariot, webpage_key, entity_key):
         - praetorian chariot unlink webpage-source "#webpage#https://example.com" "#file#proofs/scan.txt"
         - praetorian chariot unlink webpage-source "#webpage#https://example.com/login" "#repository#https://github.com/org/repo.git#repo.git"
     """
-    result = chariot.webpages.unlink_source(webpage_key, entity_key)
+    result = chariot.webpage.unlink_source(webpage_key, entity_key)
     if result:
         click.echo(f"Successfully unlinked {entity_key} from {webpage_key}")
         if 'artifacts' in result:

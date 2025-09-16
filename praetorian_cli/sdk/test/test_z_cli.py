@@ -212,21 +212,27 @@ class TestZCli:
         self.verify(f'list accounts -f {o.email}')
         
     def test_webpage_source_cli(self):
-        # Test webpage-source linking commands
-        webpage_key = f'"#webpage#https://test-{epoch_micro()}.example.com"'
-        file_key = f'"#file#test-webpage-{epoch_micro()}.txt"'
-        repo_key = f'"#repository#https://github.com/test-{epoch_micro()}/repo.git#repo.git"'
+        o = make_test_values(lambda: None)
+        
+        # First add the webpage that we'll link to
+        self.verify(f'add webpage --url "{o.webpage_url}"')
         
         # Test help commands - these should always work
         self.verify('link webpage-source --help', ['Link a file or repository to a webpage'])
         self.verify('unlink webpage-source --help', ['Unlink a file or repository from a webpage'])
         
-        # Test error cases (linking non-existent entities)
-        # These should fail gracefully - we expect stderr output with error messages
-        self.verify(f'link webpage-source {webpage_key} {file_key}', 
+        # Test error cases (linking non-existent entities to existing webpage)
+        # These should fail gracefully with proper error messages
+        file_key = f'"#file#test-nonexistent-{epoch_micro()}.txt"'
+        repo_key = f'"#repository#https://github.com/test-{epoch_micro()}/nonexistent.git#nonexistent.git"'
+        
+        self.verify(f'link webpage-source "{o.webpage_key}" {file_key}', 
                    expected_stderr=['not found'])
-        self.verify(f'unlink webpage-source {webpage_key} {file_key}', 
-                   expected_stderr=['not found'])
+        self.verify(f'unlink webpage-source "{o.webpage_key}" {file_key}', 
+                   expected_stderr=[])  # Unlink is idempotent, should succeed even if not linked
+        
+        # Clean up
+        self.verify(f'delete webpage "{o.webpage_key}"', ignore_stdout=True)
 
     def test_integration_cli(self):
         self.verify('list integrations', ignore_stdout=True)
@@ -274,6 +280,20 @@ class TestZCli:
         self.verify(f'list configurations -f "{o.configuration_name}"', expected_stdout=[o.configuration_key])
 
         self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
+
+    def test_webapplication_cli(self):
+        o = make_test_values(lambda: None)
+        self.verify(f'add asset --dns "{o.webapp_name}" --name "{o.webapp_url}" --type webapplication')
+        self.verify(f'get asset "{o.webapp_key}"', expected_stdout=[o.webapp_key, o.webapp_url, o.webapp_name, '"status"', '"A"'])
+        self.verify(f'list assets -f "{o.webapp_name}"', expected_stdout=[o.webapp_key])
+        self.verify(f'delete asset "{o.webapp_key}"', ignore_stdout=True)
+    
+    def test_webpage_cli(self):
+        o = make_test_values(lambda: None)
+        self.verify(f'add webpage --url "{o.webpage_url}"')
+        self.verify(f'get webpage "{o.webpage_key}"', expected_stdout=[o.webpage_key, o.webpage_url, '"status"', '"A"'])
+        self.verify(f'list webpages -p all -f "{o.webpage_url[:len(o.webpage_url)//2]}"', expected_stdout=[o.webpage_key])
+        self.verify(f'delete webpage "{o.webpage_key}"', ignore_stdout=True)
 
     def test_help_cli(self):
         self.verify('--help', ignore_stdout=True)

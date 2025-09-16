@@ -53,7 +53,7 @@ def webpage_source(chariot, webpage_key, entity_key):
         - praetorian chariot link webpage-source "#webpage#https://example.com" "#file#proofs/scan.txt"
         - praetorian chariot link webpage-source "#webpage#https://example.com/login" "#repository#https://github.com/org/repo.git#repo.git"
     """
-    result = chariot.webpages.link_source(webpage_key, entity_key)
+    result = chariot.webpage.link_source(webpage_key, entity_key)
     if result:
         click.echo(f"Successfully linked {entity_key} to {webpage_key}")
         if 'artifacts' in result:

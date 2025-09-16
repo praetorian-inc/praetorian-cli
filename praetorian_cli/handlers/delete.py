@@ -182,3 +182,15 @@ def key(chariot, key):
         - praetorian chariot delete key "#key#550e8400-e29b-41d4-a716-446655440000"
     """
     chariot.keys.delete(key)
+
+@delete.command()
+@cli_handler
+@click.argument('key', required=True)
+def webpage(chariot, key):
+    """ Delete a webpage
+
+    \b
+    Arguments:
+        - KEY: the key of an existing webpage
+    """
+    chariot.webpage.delete(key)
