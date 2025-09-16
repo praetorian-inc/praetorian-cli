@@ -51,7 +51,7 @@ class Webpages:
         :type webpage_key: str
         :param entity_key: The entity key (file or repository) to link. Format: #file#{path} or #repository#{url}#{name}
         :type entity_key: str
-        :return: The response from the API
+        :return: The updated webpage with linked artifacts
         :rtype: dict
         """
         data = {
@@ -74,7 +74,7 @@ class Webpages:
         :type webpage_key: str
         :param entity_key: The entity key (file or repository) to unlink. Format: #file#{path} or #repository#{url}#{name}
         :type entity_key: str
-        :return: The response from the API
+        :return: The updated webpage with artifacts removed
         :rtype: dict
         """
         data = {

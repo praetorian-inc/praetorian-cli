@@ -56,5 +56,5 @@ def webpage_source(chariot, webpage_key, entity_key):
     result = chariot.webpages.link_source(webpage_key, entity_key)
     if result:
         click.echo(f"Successfully linked {entity_key} to {webpage_key}")
-        if 'sourceCode' in result:
-            click.echo(f"Webpage now has {len(result['sourceCode'])} linked sources")
+        if 'artifacts' in result:
+            click.echo(f"Webpage now has {len(result['artifacts'])} linked artifacts")
