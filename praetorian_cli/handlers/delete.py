@@ -198,22 +198,19 @@ def webpage(chariot, key):
 
 @delete.command(name='credential')
 @cli_handler
-@click.option('--category', default='env-integration', show_default=True, help='Credential category')
-@click.option('--type', 'cred_type', default='burp-authentication', show_default=True, help='Credential type')
-@click.option('--format', 'cred_format', multiple=True, type=click.Choice(['token', 'file']), required=True, help='Format(s) to delete')
-@click.option('--resource-key', required=True, help='Resource key (e.g., #webapplication#https://example/)')
+#@click.option('--resource-key', required=True, help='Resource key (e.g., #webapplication#https://example/)')
 @click.option('--credential-id', required=True, help='Credential ID (Burp item id) to delete')
-def delete_burp_credential(sdk, category, cred_type, cred_format, resource_key, credential_id):
+# @click.option('--type', required=True, help='Credential type (e.g., burp-authentication)')
+# @click.option('--format', required=True, help='Credential format (e.g., token or file)')
+def delete_burp_credential(sdk, credential_id):
     """Delete a Burp authentication credential via the broker.
 
     Examples:
       - praetorian chariot delete credential \
           --resource-key "#webapplication#https://maximus.gladiator.systems/" \
           --credential-id a9921326-675b-426c-8189-37f5a1d19847 \
+          --type burp-authentication \
           --format token
     """
-    if not cred_format:
-        error('At least one --format must be provided (token or file)')
-        return
-    resp = sdk.credentials.delete_broker(category, cred_type, list(cred_format), resource_key, credential_id)
+    resp = sdk.credentials.delete_broker(credential_id)
     click.echo(sdk.credentials.format_output(resp))

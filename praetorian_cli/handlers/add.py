@@ -379,19 +379,15 @@ def add_burp_credential(sdk, category, cred_type, cred_format, resource_key, lab
     if cred_format == 'token':
         if not username or not password:
             error('For --format token, both --username and --password are required')
-            return
         params['username'] = username
         params['password'] = password
     else:  # file
         if not script_file:
             error('For --format file, --file is required')
-            return
         try:
             with open(script_file, 'r', encoding='utf-8') as f:
                 params['script'] = f.read()
         except Exception as e:
             error(f'Unable to read recording file: {e}')
-            return
-
-    resp = sdk.credentials.add_broker(category, cred_type, cred_format, resource_key, **params)
+    resp = sdk.credentials.add_broker(category, cred_type, [cred_format], resource_key, **params)
     click.echo(sdk.credentials.format_output(resp))

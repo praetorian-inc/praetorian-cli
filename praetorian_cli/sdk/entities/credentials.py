@@ -44,7 +44,7 @@ class Credentials:
             'Category': category,
             'Type': type,
             'Format': format,
-            'Parameters': parameters
+            'Parameters': parameters,
         }
         response = self.api.post('broker', request)
         return self._process_credential_output(response, format)
@@ -63,31 +63,26 @@ class Credentials:
         request = {
             'Category': category,
             'Type': type,
-            'Format': [format] if isinstance(format, str) else format,
-            'Operation': 'add',
+            'Format': format,
             'ResourceKey': resource_key,
             'Parameters': parameters,
         }
         return self.api.post('broker', request)
 
-    def delete_broker(self, category, type, formats, resource_key, credential_id):
+    def delete_broker(self, credential_id):
         """Delete a credential via the credential broker (HTTP DELETE).
 
-        :param category: Credential category
-        :param type: Credential type
-        :param formats: One or more formats to delete (e.g., ['token'] or ['file'])
         :param resource_key: The resource key associated with the credential
         :param credential_id: The ID of the credential to delete (Burp item id)
+        :param type: The type of credential to delete ('burp-authentication')
+        :type type: str
+        :param format: The format of the credential to delete ('token' or 'file')
+        :type format: str
         :return: Raw broker response
         :rtype: dict
         """
         request = {
-            'Category': category,
-            'Type': type,
-            'Format': formats if isinstance(formats, list) else [formats],
-            'Operation': 'delete',
-            'ResourceKey': resource_key,
-            'CredentialID': credential_id,
+            'CredentialID': credential_id,  
         }
         return self.api.delete('broker', request, params={})
 
