@@ -49,6 +49,48 @@ class Credentials:
         response = self.api.post('broker', request)
         return self._process_credential_output(response, format)
 
+    def add_broker(self, category, type, format, resource_key, **parameters):
+        """Add a credential via the credential broker (HTTP POST).
+
+        :param category: Credential category (e.g., integration, internal)
+        :param type: Credential type (e.g., 'burp-authentication')
+        :param format: Single format string (e.g., 'token' or 'file')
+        :param resource_key: The resource key to attach the credential to
+        :param parameters: Additional parameters (e.g., label, username/password, script)
+        :return: Raw broker response
+        :rtype: dict
+        """
+        request = {
+            'Category': category,
+            'Type': type,
+            'Format': [format] if isinstance(format, str) else format,
+            'Operation': 'add',
+            'ResourceKey': resource_key,
+            'Parameters': parameters,
+        }
+        return self.api.post('broker', request)
+
+    def delete_broker(self, category, type, formats, resource_key, credential_id):
+        """Delete a credential via the credential broker (HTTP DELETE).
+
+        :param category: Credential category
+        :param type: Credential type
+        :param formats: One or more formats to delete (e.g., ['token'] or ['file'])
+        :param resource_key: The resource key associated with the credential
+        :param credential_id: The ID of the credential to delete (Burp item id)
+        :return: Raw broker response
+        :rtype: dict
+        """
+        request = {
+            'Category': category,
+            'Type': type,
+            'Format': formats if isinstance(formats, list) else [formats],
+            'Operation': 'delete',
+            'ResourceKey': resource_key,
+            'CredentialID': credential_id,
+        }
+        return self.api.delete('broker', request, params={})
+
     def _process_credential_output(self, response, format):
         """
         Process credential response based on the requested format.

@@ -7,6 +7,7 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
+import json
 
 
 @chariot.group()
@@ -350,3 +351,47 @@ def webpage(sdk, url, parent):
         - praetorian chariot add webpage --url https://app.example.com/admin --parent "#webapplication#https://app.example.com"
     """
     sdk.webpage.add(url, parent)
+
+@add.command(name='credential')
+@cli_handler
+@click.option('--category', default='env-integration', show_default=True, help='Credential category')
+@click.option('--type', 'cred_type', default='burp-authentication', show_default=True, help='Credential type')
+@click.option('--format', 'cred_format', type=click.Choice(['token', 'file']), default='token', show_default=True, help='Credential format to add')
+@click.option('--resource-key', required=True, help='Resource key (e.g., #webapplication#https://example/)')
+@click.option('--label', required=True, help='Label for the credential in Burp')
+@click.option('--username', help='Username for token format')
+@click.option('--password', help='Password for token format')
+@click.option('--file', 'script_file', type=click.Path(exists=True, dir_okay=False), help='Recorded login file path for file format')
+def add_burp_credential(sdk, category, cred_type, cred_format, resource_key, label, username, password, script_file):
+    """Add a Burp authentication credential via the broker.
+
+    Examples:
+      - praetorian chariot add credential \
+          --resource-key "#webapplication#https://maximus.gladiator.systems/" \
+          --format token --label "My Test Login" --username testuser --password testpass
+
+      - praetorian chariot add credential \
+          --resource-key "#webapplication#https://maximus.gladiator.systems/" \
+          --format file --label "Prod Recorded Login" --file ./recording.cap
+    """
+    params = {'label': label}
+
+    if cred_format == 'token':
+        if not username or not password:
+            error('For --format token, both --username and --password are required')
+            return
+        params['username'] = username
+        params['password'] = password
+    else:  # file
+        if not script_file:
+            error('For --format file, --file is required')
+            return
+        try:
+            with open(script_file, 'r', encoding='utf-8') as f:
+                params['script'] = f.read()
+        except Exception as e:
+            error(f'Unable to read recording file: {e}')
+            return
+
+    resp = sdk.credentials.add_broker(category, cred_type, cred_format, resource_key, **params)
+    click.echo(sdk.credentials.format_output(resp))
