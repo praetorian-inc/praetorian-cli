@@ -1,12 +1,10 @@
 import click
-from praetorian_cli.handlers.cli_decorators import with_chariot_login_required
+from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.ui.conversation.menu import run_conversation_menu
 
 
 @click.command()
-@with_chariot_login_required
-@click.pass_context
-def conversation(click_context):
+@cli_handler
+def conversation(chariot):
     """Interactive conversation with Chariot AI assistant"""
-    chariot = click_context.obj
     run_conversation_menu(chariot)

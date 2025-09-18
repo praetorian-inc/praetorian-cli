@@ -136,13 +136,13 @@ The AI can generate and execute Chariot database queries to answer your question
     
     def call_conversation_api(self, message: str) -> Dict:
         """Call the Chariot conversation API"""
-        url = f"{self.sdk.api_base}/conversations"
+        url = self.sdk.url("/conversations")
         payload = {
             "conversationId": self.conversation_id,
             "message": message
         }
         
-        response = self.sdk.make_request("POST", url, json_data=payload)
+        response = self.sdk._make_request("POST", url, json=payload)
         
         if response.status_code == 200:
             return response.json().get('response', {})
