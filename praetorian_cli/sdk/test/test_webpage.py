@@ -23,7 +23,6 @@ class TestWebpage:
     def test_get_webpage(self):
         """Test retrieving a Webpage by key."""
         result = self.sdk.webpage.get(self.webpage_key)
-        print(result)
         assert result is not None
         assert result.get('key') == self.webpage_key
         assert result.get('url') == self.webpage_url
@@ -31,7 +30,6 @@ class TestWebpage:
     def test_list_webpages(self):
         """Test listing Webpages."""
         results, offset = self.sdk.webpage.list(filter=self.webpage_url[:len(self.webpage_url)//2])
-        print(results)
         assert isinstance(results, list)
         assert len(results) > 0
         assert any(r.get('key') == self.webpage_key for r in results)
