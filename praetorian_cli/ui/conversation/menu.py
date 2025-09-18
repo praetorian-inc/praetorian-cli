@@ -175,19 +175,39 @@ The AI can generate and execute Chariot database queries to answer your question
                             border_style="blue"
                         ))
                     
-                    # Display formatted JSON
+                    # Display truncated JSON (first 5 lines for preview)
+                    json_lines = json_part.split('\n')
+                    if len(json_lines) > 5:
+                        preview_lines = json_lines[:5]
+                        truncated_json = '\n'.join(preview_lines) + f"\n... [{len(json_lines)-5} more lines truncated]"
+                        title = f"Tool Output Preview (showing 5/{len(json_lines)} lines)"
+                        border_color = "yellow"
+                    else:
+                        truncated_json = json_part
+                        title = "Tool Output"
+                        border_color = "green"
+                    
                     try:
-                        parsed_json = json.loads(json_part)
-                        formatted_json = json.dumps(parsed_json, indent=2)
-                        self.console.print(Panel(
-                            formatted_json,
-                            title="Query Results",
-                            border_style="green"
-                        ))
+                        # Try to format as valid JSON for short content
+                        if len(json_lines) <= 5:
+                            parsed_json = json.loads(json_part)
+                            formatted_json = json.dumps(parsed_json, indent=2)
+                            self.console.print(Panel(
+                                formatted_json,
+                                title=title,
+                                border_style=border_color
+                            ))
+                        else:
+                            # Show raw preview for truncated content
+                            self.console.print(Panel(
+                                truncated_json,
+                                title=title,
+                                border_style=border_color
+                            ))
                     except json.JSONDecodeError:
                         self.console.print(Panel(
-                            json_part,
-                            title="Raw Results",
+                            truncated_json,
+                            title="Raw Tool Output Preview",
                             border_style="yellow"
                         ))
                     
