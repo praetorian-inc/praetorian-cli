@@ -5,7 +5,7 @@
 ### 1. Start Interactive Session
 ```bash
 cd /Users/ntutt/chariot-dev/chariot-development-platform/modules/praetorian-cli
-python3 -m praetorian_cli.main conversation
+python3 -m praetorian_cli.main chariot agent conversation
 ```
 
 ### 2. Test Commands
@@ -67,7 +67,7 @@ python3 -c "from praetorian_cli.ui.conversation.menu import run_conversation_men
 
 ### 3. Verify Command Registration
 ```bash
-python3 -m praetorian_cli.main --help | grep conversation
+python3 -m praetorian_cli.main chariot agent --help | grep conversation
 ```
 
 ## Troubleshooting

@@ -69,3 +69,32 @@ def tools(sdk, allowed):
     """
     for  tool in dict.keys(sdk.agents.list_mcp_tools(allowed)):
         click.echo(tool)
+
+@agent.command()
+@cli_handler
+def conversation(sdk):
+    """ Interactive conversation with Chariot AI assistant
+    
+    Start an interactive chat session with the Chariot AI assistant.
+    The AI can help you query security data, understand findings,
+    and provide insights about your attack surface.
+    
+    \b
+    Commands within conversation:
+        - help    Show available commands and query examples
+        - clear   Clear the screen  
+        - new     Start a new conversation
+        - quit    Exit the conversation
+    
+    \b
+    Example queries:
+        - "Find all active assets"
+        - "Show me critical risks"
+        - "What assets do we have for example.com?"
+        
+    \b
+    Usage:
+        praetorian chariot agent conversation
+    """
+    from praetorian_cli.ui.conversation.menu import run_conversation_menu
+    run_conversation_menu(sdk)
