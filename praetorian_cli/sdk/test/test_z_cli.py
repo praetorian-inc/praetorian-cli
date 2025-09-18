@@ -210,6 +210,29 @@ class TestZCli:
         self.verify(f'list accounts -f {o.email}', [o.email])
         self.verify(f'unlink account {o.email}')
         self.verify(f'list accounts -f {o.email}')
+        
+    def test_webpage_source_cli(self):
+        o = make_test_values(lambda: None)
+        
+        # First add the webpage that we'll link to
+        self.verify(f'add webpage --url "{o.webpage_url}"')
+        
+        # Test help commands - these should always work
+        self.verify('link webpage-source --help', ['Link a file or repository to a webpage'])
+        self.verify('unlink webpage-source --help', ['Unlink a file or repository from a webpage'])
+        
+        # Test error cases (linking non-existent entities to existing webpage)
+        # These should fail gracefully with proper error messages
+        file_key = f'"#file#test-nonexistent-{epoch_micro()}.txt"'
+        repo_key = f'"#repository#https://github.com/test-{epoch_micro()}/nonexistent.git#nonexistent.git"'
+        
+        self.verify(f'link webpage-source "{o.webpage_key}" {file_key}', 
+                   expected_stderr=['not found'])
+        self.verify(f'unlink webpage-source "{o.webpage_key}" {file_key}', 
+                   expected_stderr=[])  # Unlink is idempotent, should succeed even if not linked
+        
+        # Clean up
+        self.verify(f'delete webpage "{o.webpage_key}"', ignore_stdout=True)
 
     def test_integration_cli(self):
         self.verify('list integrations', ignore_stdout=True)
@@ -324,9 +347,11 @@ class TestZCli:
 
         self.verify('link --help', ignore_stdout=True)
         self.verify('link account --help', ignore_stdout=True)
+        self.verify('link webpage-source --help', ignore_stdout=True)
 
         self.verify('unlink --help', ignore_stdout=True)
         self.verify('unlink account --help', ignore_stdout=True)
+        self.verify('unlink webpage-source --help', ignore_stdout=True)
 
         self.verify('delete --help', ignore_stdout=True)
         self.verify('delete asset --help', ignore_stdout=True)

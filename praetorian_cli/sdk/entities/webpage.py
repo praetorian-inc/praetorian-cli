@@ -142,3 +142,49 @@ class Webpage:
             }
         }
         self.api.delete('webpage', params={}, body=body)
+
+    def link_source(self, webpage_key, entity_key):
+        """
+        Link a file or repository to a webpage as source code.
+
+        :param webpage_key: The webpage key in format #webpage#{url}
+        :type webpage_key: str
+        :param entity_key: The entity key (file or repository) to link. Format: #file#{path} or #repository#{url}#{name}
+        :type entity_key: str
+        :return: The updated webpage with linked artifacts
+        :rtype: dict
+        """
+        data = {
+            'webpageKey': webpage_key,
+            'entityKey': entity_key
+        }
+        
+        resp = self.api._make_request('PUT', self.api.url('/webpage/link'), json=data)
+        
+        if resp.status_code != 200:
+            raise Exception(f"Failed to link source: [{resp.status_code}] {resp.text}")
+            
+        return resp.json()
+
+    def unlink_source(self, webpage_key, entity_key):
+        """
+        Unlink a file or repository from a webpage's source code.
+
+        :param webpage_key: The webpage key in format #webpage#{url}
+        :type webpage_key: str
+        :param entity_key: The entity key (file or repository) to unlink. Format: #file#{path} or #repository#{url}#{name}
+        :type entity_key: str
+        :return: The updated webpage with artifacts removed
+        :rtype: dict
+        """
+        data = {
+            'webpageKey': webpage_key,
+            'entityKey': entity_key
+        }
+        
+        resp = self.api._make_request('DELETE', self.api.url('/webpage/link'), json=data)
+        
+        if resp.status_code != 200:
+            raise Exception(f"Failed to unlink source: [{resp.status_code}] {resp.text}")
+            
+        return resp.json()
