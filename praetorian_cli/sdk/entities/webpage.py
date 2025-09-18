@@ -81,7 +81,7 @@ class Webpage:
             - updated: Last update timestamp
         """
         query = Query(node=Node(labels=[Node.Label.WEBPAGE], filters=[Filter(field=Filter.Field.KEY, operator=Filter.Operator.EQUAL, value=key)]))
-        return self.api.search.by_query(query)
+        return self.api.search.by_query(query)[0][0]
 
     def list(self, parent_key=None, filter=None, offset=0, pages=100000) -> tuple:
         """
@@ -123,7 +123,7 @@ class Webpage:
             relationship = Relationship(label=Relationship.Label.HAS_WEBPAGE, target=Node(labels=[Node.Label.WEBAPPLICATION], filters=[parentFilter]))
             relationships.append(relationship)
         if filter:
-            urlFilter = Filter(field=Filter.Field.URL, operator=Filter.Operator.CONTAINS, value=filter)
+            urlFilter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.CONTAINS, value=filter)
             filters.append(urlFilter)
         node = Node(labels=[Node.Label.WEBPAGE], filters=filters, relationships=relationships)
         query = Query(node=node, page=offset, limit=pages)
@@ -159,12 +159,7 @@ class Webpage:
             'entityKey': entity_key
         }
         
-        resp = self.api._make_request('PUT', self.api.url('/webpage/link'), json=data)
-        
-        if resp.status_code != 200:
-            raise Exception(f"Failed to link source: [{resp.status_code}] {resp.text}")
-            
-        return resp.json()
+        return self.api.put('webpage/link', data, {})
 
     def unlink_source(self, webpage_key, entity_key):
         """
@@ -181,10 +176,5 @@ class Webpage:
             'webpageKey': webpage_key,
             'entityKey': entity_key
         }
-        
-        resp = self.api._make_request('DELETE', self.api.url('/webpage/link'), json=data)
-        
-        if resp.status_code != 200:
-            raise Exception(f"Failed to unlink source: [{resp.status_code}] {resp.text}")
-            
-        return resp.json()
+    
+        return self.api.delete('webpage/link', data, {})
