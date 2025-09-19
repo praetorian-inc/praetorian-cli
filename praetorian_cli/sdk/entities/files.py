@@ -46,30 +46,35 @@ class Files:
 
         return download_path
 
-    def get(self, chariot_filepath) -> bytes:
+    def get(self, chariot_filepath, _global=False) -> bytes:
         """
         Download a file from Chariot storage into memory as bytes.
 
         :param chariot_filepath: Path of the file in Chariot storage to download
         :type chariot_filepath: str
+        :param _global: If True, fetch from global storage instead of user-specific
+        :type _global: bool
         :return: The file content as bytes
         :rtype: bytes
         :raises Exception: If the file does not exist in Chariot storage
         """
-        self.raise_if_missing(chariot_filepath)
-        return self.api.download(chariot_filepath)
+        if not _global:
+            self.raise_if_missing(chariot_filepath)
+        return self.api.download(chariot_filepath, global_=_global)
 
-    def get_utf8(self, chariot_filepath) -> str:
+    def get_utf8(self, chariot_filepath, _global=False) -> str:
         """
         Download a file from Chariot storage into memory as a UTF-8 string.
 
         :param chariot_filepath: Path of the file in Chariot storage to download
         :type chariot_filepath: str
+        :param _global: If True, fetch from global storage instead of user-specific
+        :type _global: bool
         :return: The file content as a UTF-8 decoded string
         :rtype: str
         :raises Exception: If the file does not exist in Chariot storage
         """
-        return self.get(chariot_filepath).decode('utf-8')
+        return self.get(chariot_filepath, _global=_global).decode('utf-8')
 
     def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
         """
