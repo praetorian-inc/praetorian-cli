@@ -82,7 +82,19 @@ class ConversationMenu:
 - "List assets for example.com"
 - "What vulnerabilities do we have?"
 
-The AI can generate and execute Chariot database queries to answer your questions.
+**Security Scan Examples:**
+- "Scan webapp.example.com for vulnerabilities"
+- "Run a port scan on 10.0.1.5"
+- "Check SSL configuration for api.example.com"
+- "Scan example.com for subdomains"
+
+**Available Security Capabilities:**
+- **nuclei**: Web application vulnerability scanning
+- **nmap**: Network port scanning
+- **ssl-analyzer**: SSL/TLS analysis
+- **aws-security-scan**: Cloud security assessment
+
+The AI can both search existing security data and run new scans to discover vulnerabilities.
         """
         self.console.print(Panel(Markdown(help_text), title="Help", border_style="blue"))
         self.console.print()
@@ -136,7 +148,7 @@ The AI can generate and execute Chariot database queries to answer your question
     
     def call_conversation_api(self, message: str) -> Dict:
         """Call the Chariot conversation API"""
-        url = self.sdk.url("/conversations")
+        url = self.sdk.url("/planner")
         payload = {
             "conversationId": self.conversation_id,
             "message": message
@@ -155,6 +167,16 @@ The AI can generate and execute Chariot database queries to answer your question
     def display_ai_response(self, response: str) -> None:
         """Display AI response with proper formatting"""
         self.console.print()
+        
+        # Check for job completion (🎯 prefix indicates results)
+        if response.startswith("🎯"):
+            self.console.print(Panel(
+                response,
+                title="[bold green]Security Scan Results[/bold green]",
+                border_style="green"
+            ))
+            self.console.print()
+            return
         
         # Check if response contains formatted query results
         if "```json" in response:
