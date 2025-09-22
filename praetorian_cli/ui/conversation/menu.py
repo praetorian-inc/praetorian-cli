@@ -44,6 +44,9 @@ class ConversationMenu:
                 elif user_input.lower() in ['new', 'restart']:
                     self.start_new_conversation()
                     continue
+                elif user_input.lower() == 'jobs':
+                    self.show_job_status()
+                    continue
                 elif user_input.lower() == 'help':
                     self.show_help()
                     continue
@@ -60,11 +63,33 @@ class ConversationMenu:
         os.system('clear' if os.name == 'posix' else 'cls')
     
     def show_header(self) -> None:
-        """Show conversation header"""
+        """Show conversation header with job status"""
         self.console.print(f"\n[bold blue]Chariot AI Assistant[/bold blue]")
         self.console.print(f"[dim]User: {self.username}[/dim]")
         if self.conversation_id:
             self.console.print(f"[dim]Conversation: {self.conversation_id[:8]}...[/dim]")
+            
+            # Show job summary in header
+            try:
+                jobs = self.get_conversation_jobs()
+                if jobs:
+                    active_jobs = [j for j in jobs if j.get('status', '').startswith(('JR', 'JQ'))]
+                    completed_jobs = [j for j in jobs if j.get('status', '').startswith('JP')]
+                    failed_jobs = [j for j in jobs if j.get('status', '').startswith('JF')]
+                    
+                    status_parts = []
+                    if active_jobs:
+                        status_parts.append(f"[yellow]{len(active_jobs)} running[/yellow]")
+                    if completed_jobs:
+                        status_parts.append(f"[green]{len(completed_jobs)} completed[/green]")
+                    if failed_jobs:
+                        status_parts.append(f"[red]{len(failed_jobs)} failed[/red]")
+                    
+                    if status_parts:
+                        self.console.print(f"[dim]Jobs: {', '.join(status_parts)}[/dim]")
+            except Exception:
+                pass
+                
         self.console.print()
     
     def show_help(self) -> None:
@@ -259,6 +284,48 @@ The AI can both search existing security data and run new scans to discover vuln
             ))
         
         self.console.print()
+
+    def show_job_status(self) -> None:
+        """Show active jobs for the current conversation"""
+        if not self.conversation_id:
+            self.console.print("[dim]No active conversation[/dim]")
+            return
+            
+        try:
+            conversation_jobs = self.get_conversation_jobs()
+            
+            if not conversation_jobs:
+                self.console.print("[dim]No jobs found for this conversation[/dim]")
+                return
+            
+            self.console.print(f"[bold]Jobs for this conversation: {len(conversation_jobs)}[/bold]\n")
+            
+            for job in conversation_jobs:
+                status_color = self.get_job_status_color(job.get('status', ''))
+                target_key = job.get('target', {}).get('key', 'unknown') if isinstance(job.get('target'), dict) else str(job.get('target', 'unknown'))
+                self.console.print(f"[{status_color}]• {job.get('source', 'unknown')}[/{status_color}] on {target_key} - {job.get('status', 'unknown')}")
+                
+        except Exception as e:
+            self.console.print(f"[red]Failed to get job status: {e}[/red]")
+
+    def get_conversation_jobs(self) -> list:
+        """Get jobs for the current conversation using conversation:<uuid> pattern"""
+        try:
+            jobs, _ = self.sdk.jobs.list(prefix_filter=f"conversation:{self.conversation_id}")
+            return jobs if jobs else []
+        except Exception:
+            return []
+
+    def get_job_status_color(self, status: str) -> str:
+        """Get color for job status display"""
+        if status.startswith("JP"):
+            return "green"
+        elif status.startswith("JR") or status.startswith("JQ"):
+            return "yellow" 
+        elif status.startswith("JF"):
+            return "red"
+        else:
+            return "white"
 
 
 def run_conversation_menu(sdk: Chariot) -> None:
