@@ -29,7 +29,7 @@ class Definitions:
             definition_name = os.path.basename(local_filepath)
         return self.api.files.add(local_filepath, f'definitions/{definition_name}')
 
-    def get(self, definition_name, download_directory=os.getcwd()):
+    def get(self, definition_name, download_directory=os.getcwd(), global_=False):
         """
         Download a risk definition file from the definitions folder.
 
@@ -37,14 +37,23 @@ class Definitions:
         :type definition_name: str
         :param download_directory: The directory to save the downloaded file (defaults to current working directory)
         :type download_directory: str
+        :param global_: If True, fetch from global definitions instead of user-specific
+        :type global_: bool
         :return: The local file path where the definition was saved
         :rtype: str
         """
-        content = self.api.files.get_utf8(f'definitions/{definition_name}')
+        try:
+            content = self.api.files.get_utf8(f'definitions/{definition_name}', _global=global_)
+        except Exception as e:
+            if global_:
+                raise Exception(f'Global definition {definition_name} not found or inaccessible.')
+            else:
+                raise
         download_path = os.path.join(download_directory, definition_name)
         with open(download_path, 'w') as file:
             file.write(content)
         return download_path
+
 
     def list(self, name_filter='', offset=None, pages=100000) -> tuple:
         """
