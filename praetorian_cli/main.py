@@ -3,6 +3,7 @@ import click
 import praetorian_cli.handlers.add
 import praetorian_cli.handlers.aegis
 import praetorian_cli.handlers.agent
+import praetorian_cli.handlers.conversation
 import praetorian_cli.handlers.delete
 import praetorian_cli.handlers.enrich
 import praetorian_cli.handlers.get
