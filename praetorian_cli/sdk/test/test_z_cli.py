@@ -210,6 +210,21 @@ class TestZCli:
         self.verify(f'list accounts -f {o.email}', [o.email])
         self.verify(f'unlink account {o.email}')
         self.verify(f'list accounts -f {o.email}')
+        
+    def test_webpage_source_cli(self):
+        o = make_test_values(lambda: None)
+        
+        self.verify(f'add webpage --url "{o.webpage_url}"')
+        
+        file_key = f'"#file#test-nonexistent-{epoch_micro()}-2.txt"'
+        
+        self.verify(f'link webpage-source "{o.webpage_key}" {file_key}', 
+                   expected_stderr=['not found'])
+        self.verify(f'unlink webpage-source "{o.webpage_key}" {file_key}',
+                   expected_stdout=[o.webpage_key])
+        
+        # Clean up
+        self.verify(f'delete webpage "{o.webpage_key}"', ignore_stdout=True)
 
     def test_integration_cli(self):
         self.verify('list integrations', ignore_stdout=True)
@@ -324,9 +339,11 @@ class TestZCli:
 
         self.verify('link --help', ignore_stdout=True)
         self.verify('link account --help', ignore_stdout=True)
+        self.verify('link webpage-source --help', ignore_stdout=True)
 
         self.verify('unlink --help', ignore_stdout=True)
         self.verify('unlink account --help', ignore_stdout=True)
+        self.verify('unlink webpage-source --help', ignore_stdout=True)
 
         self.verify('delete --help', ignore_stdout=True)
         self.verify('delete asset --help', ignore_stdout=True)

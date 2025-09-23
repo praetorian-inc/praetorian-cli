@@ -81,7 +81,7 @@ class Webpage:
             - updated: Last update timestamp
         """
         query = Query(node=Node(labels=[Node.Label.WEBPAGE], filters=[Filter(field=Filter.Field.KEY, operator=Filter.Operator.EQUAL, value=key)]))
-        return self.api.search.by_query(query)
+        return self.api.search.by_query(query)[0][0]
 
     def list(self, parent_key=None, filter=None, offset=0, pages=100000) -> tuple:
         """
@@ -123,7 +123,7 @@ class Webpage:
             relationship = Relationship(label=Relationship.Label.HAS_WEBPAGE, target=Node(labels=[Node.Label.WEBAPPLICATION], filters=[parentFilter]))
             relationships.append(relationship)
         if filter:
-            urlFilter = Filter(field=Filter.Field.URL, operator=Filter.Operator.CONTAINS, value=filter)
+            urlFilter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.CONTAINS, value=filter)
             filters.append(urlFilter)
         node = Node(labels=[Node.Label.WEBPAGE], filters=filters, relationships=relationships)
         query = Query(node=node, page=offset, limit=pages)
@@ -142,3 +142,39 @@ class Webpage:
             }
         }
         self.api.delete('webpage', params={}, body=body)
+
+    def link_source(self, webpage_key, entity_key):
+        """
+        Link a file or repository to a webpage as source code.
+
+        :param webpage_key: The webpage key in format #webpage#{url}
+        :type webpage_key: str
+        :param entity_key: The entity key (file or repository) to link. Format: #file#{path} or #repository#{url}#{name}
+        :type entity_key: str
+        :return: The updated webpage with linked artifacts
+        :rtype: dict
+        """
+        data = {
+            'webpageKey': webpage_key,
+            'entityKey': entity_key
+        }
+        
+        return self.api.put('webpage/link', data, {})
+
+    def unlink_source(self, webpage_key, entity_key):
+        """
+        Unlink a file or repository from a webpage's source code.
+
+        :param webpage_key: The webpage key in format #webpage#{url}
+        :type webpage_key: str
+        :param entity_key: The entity key (file or repository) to unlink. Format: #file#{path} or #repository#{url}#{name}
+        :type entity_key: str
+        :return: The updated webpage with artifacts removed
+        :rtype: dict
+        """
+        data = {
+            'webpageKey': webpage_key,
+            'entityKey': entity_key
+        }
+    
+        return self.api.delete('webpage/link', data, {})

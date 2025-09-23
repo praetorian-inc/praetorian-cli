@@ -1,5 +1,10 @@
 # Changelog
 
+# 2.2.4
+
+- [New Feature] Webpage and Webapplication support
+  - See `sdk.webpage` 
+
 # 2.2.3
 
 - [Bug fix] Fixed adding assets of different type than `asset`
