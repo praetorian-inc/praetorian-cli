@@ -167,10 +167,9 @@ class ConversationMenu:
     def get_recent_conversations(self) -> List[Dict]:
         """Get recent conversations for the user"""
         try:
-            url = self.sdk.url("/conversations")
-            response = self.sdk._make_request("GET", url)
-            if response.status_code == 200:
-                return response.json().get('conversations', [])
+            result = self.sdk.my({"key_prefix": "#conversation#"})
+            conversations = result.get('collection', {}).get('items', {}).get('conversation', [])
+            return sorted(conversations, key=lambda x: x.get('created', ''), reverse=True)
         except Exception:
             pass
         return []
@@ -178,10 +177,11 @@ class ConversationMenu:
     def get_conversation_message_count(self, conversation_id: str) -> int:
         """Get message count for a conversation"""
         try:
-            url = self.sdk.url(f"/conversations/{conversation_id}/messages")
-            response = self.sdk._make_request("GET", url)
-            if response.status_code == 200:
-                return len(response.json().get('messages', []))
+            if not conversation_id:
+                return 0
+            result = self.sdk.my({"key_prefix": f"#message#{conversation_id}"})
+            messages = result.get('collection', {}).get('items', {}).get('message', [])
+            return len(messages)
         except Exception:
             pass
         return 0
@@ -254,18 +254,19 @@ The AI can search security data and run scans to discover vulnerabilities.
             if not self.conversation_id:
                 return
                 
-            url = self.sdk.url(f"/conversations/{self.conversation_id}/messages")
-            response = self.sdk._make_request("GET", url)
+            result = self.sdk.my({"key_prefix": f"#message#{self.conversation_id}"})
+            messages = result.get('collection', {}).get('items', {}).get('message', [])
             
-            if response.status_code == 200:
-                messages = response.json().get('messages', [])
-                new_messages = messages[self.last_message_count:]
-                
-                for msg in new_messages:
-                    if msg.get('role') == 'chariot':
-                        self.display_ai_response(msg.get('content', ''))
-                
-                self.last_message_count = len(messages)
+            # Sort messages by timestamp for proper order
+            messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
+            
+            new_messages = messages[self.last_message_count:]
+            
+            for msg in new_messages:
+                if msg.get('role') == 'chariot':
+                    self.display_ai_response(msg.get('content', ''))
+            
+            self.last_message_count = len(messages)
                 
         except Exception as e:
             self.console.print(f"[red]Error polling messages: {e}[/red]")
