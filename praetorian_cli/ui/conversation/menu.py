@@ -155,8 +155,17 @@ The AI can both search existing security data and run new scans to discover vuln
             ):
                 response = self.call_conversation_api(message)
             
-            if response.get('success') or response.get('conversation'):
-                ai_response = response.get('response', {}).get('response', 'Conversation started successfully.')
+            if isinstance(response, str):
+                self.display_ai_response(response)
+                self.messages.append({
+                    'user': message,
+                    'ai': response,
+                    'timestamp': datetime.now().isoformat()
+                })
+            elif response.get('success') or response.get('conversation'):
+                ai_response = response.get('response', {})
+                if isinstance(ai_response, dict):
+                    ai_response = ai_response.get('response', 'Conversation started successfully.')
                 if ai_response:
                     self.display_ai_response(ai_response)
                     self.messages.append({
