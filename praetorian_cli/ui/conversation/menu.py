@@ -169,7 +169,7 @@ class ConversationMenu:
     def get_recent_conversations(self) -> List[Dict]:
         """Get recent conversations for the user"""
         try:
-            conversations, _ = self.sdk.search.by_key_prefix("#conversation#", pages=1)
+            conversations, _ = self.sdk.search.by_key_prefix("#conversation#", pages=1, user=True)
             return sorted(conversations, key=lambda x: x.get('created', ''), reverse=True)
         except Exception:
             pass
@@ -180,7 +180,7 @@ class ConversationMenu:
         try:
             if not conversation_id:
                 return 0
-            messages, _ = self.sdk.search.by_key_prefix(f"#message#{conversation_id}", pages=1)
+            messages, _ = self.sdk.search.by_key_prefix(f"#message#{conversation_id}", pages=1, user=True)
             return len(messages)
         except Exception:
             pass
@@ -238,7 +238,7 @@ The AI can search security data and run scans to discover vulnerabilities.
                 # Poll until AI responds (most recent message is from AI)
                 while True:
                     if self.conversation_id:
-                        messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1)
+                        messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
                         if messages:
                             # Sort by timestamp to get most recent
                             messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
@@ -261,7 +261,7 @@ The AI can search security data and run scans to discover vulnerabilities.
             if not self.conversation_id:
                 return
                 
-            messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1)
+            messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
             
             # Sort messages by timestamp for proper order
             messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
