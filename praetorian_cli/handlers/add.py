@@ -5,7 +5,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import error
+from praetorian_cli.handlers.utils import error, parse_configuration_value
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
 
 
@@ -274,40 +274,33 @@ def setting(sdk, name, value):
 @add.command()
 @cli_handler
 @click.option('-n', '--name', required=True, help='Name of the configuration')
-@click.option('-e', '--entry', required=True, multiple=True, help='Key-value pair in format key=value. Can be specified multiple times to set multiple values.')
+@click.option('-e', '--entry', required=False, multiple=True,
+              help='Key-value pair in format key=value. Can be specified multiple times to set multiple values.')
+@click.option('--string', 'string_value', required=False,
+              help='Set the configuration value to a string')
+@click.option('--integer', 'integer_value', required=False,
+              help='Set the configuration value to an integer')
+@click.option('--float', 'float_value', required=False,
+              help='Set the configuration value to a floating point number')
 @praetorian_only
-def configuration(sdk, name, entry):
+def configuration(sdk, name, entry, string_value, integer_value, float_value):
     """ Add a configuration
 
-    This command adds, or overwrites if exists, a name-value configuration.
+    This command adds, or overwrites if exists, a configuration value.
+
+    Configuration values can be provided as a mapping of key-value pairs using
+    ``--entry`` (the previous behavior), or as primitive values using
+    ``--string``, ``--integer``, or ``--float``.
 
     \b
     Example usages:
         - praetorian chariot add configuration --name "nuclei" --entry extra-tags=http,sql --entry something=else
+        - praetorian chariot add configuration --name "billing-status" --string PAID_MS
+        - praetorian chariot add configuration --name "request-timeout" --integer 60
+        - praetorian chariot add configuration --name "scoring-threshold" --float 0.85
     """
-    config_dict = {}
-    for item in entry:
-        if '=' not in item:
-            click.echo(f"Error: Entry '{item}' is not in the format key=value")
-            return
-
-        if item.count('=') > 1:
-            click.echo(f"Error: Entry '{item}' contains multiple '=' characters. Format should be key=value")
-            return
-
-        key, value = item.split('=', 1)
-
-        if not key:
-            click.echo("Error: Key cannot be empty")
-            return
-
-        if not value:
-            click.echo("Error: Value cannot be empty")
-            return
-
-        config_dict[key] = value
-
-    sdk.configurations.add(name, config_dict)
+    config_value = parse_configuration_value(entry, string_value, integer_value, float_value)
+    sdk.configurations.add(name, config_value)
 
 
 @add.command()

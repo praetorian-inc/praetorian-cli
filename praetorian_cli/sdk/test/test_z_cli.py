@@ -5,6 +5,7 @@ from subprocess import run
 import pytest
 
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Risk, Seed, Preseed
+from praetorian_cli.sdk.model.utils import configuration_key
 from praetorian_cli.sdk.test.utils import epoch_micro, random_ip, make_test_values, clean_test_entities, setup_chariot
 
 
@@ -272,6 +273,24 @@ class TestZCli:
         self.verify(f'list configurations -f "{o.configuration_name}"', expected_stdout=[o.configuration_key])
 
         self.verify(f'delete configuration "{o.configuration_key}"', ignore_stdout=True)
+
+        string_name = f'{o.configuration_name}-string'
+        string_key = configuration_key(string_name)
+        self.verify(f'add configuration --name "{string_name}" --string PAID_MS')
+        self.verify(f'get configuration "{string_key}"', expected_stdout=[string_key, string_name, '"value": "PAID_MS"'])
+        self.verify(f'delete configuration "{string_key}"', ignore_stdout=True)
+
+        integer_name = f'{o.configuration_name}-integer'
+        integer_key = configuration_key(integer_name)
+        self.verify(f'add configuration --name "{integer_name}" --integer 123')
+        self.verify(f'get configuration "{integer_key}"', expected_stdout=[integer_key, integer_name, '"value": 123'])
+        self.verify(f'delete configuration "{integer_key}"', ignore_stdout=True)
+
+        float_name = f'{o.configuration_name}-float'
+        float_key = configuration_key(float_name)
+        self.verify(f'add configuration --name "{float_name}" --float 1.5')
+        self.verify(f'get configuration "{float_key}"', expected_stdout=[float_key, float_name, '"value": 1.5'])
+        self.verify(f'delete configuration "{float_key}"', ignore_stdout=True)
 
     def test_webapplication_cli(self):
         o = make_test_values(lambda: None)
