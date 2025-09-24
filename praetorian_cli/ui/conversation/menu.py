@@ -127,14 +127,12 @@ The AI can both search existing security data and run new scans to discover vuln
     def start_conversation(self) -> None:
         """Start a new conversation"""
         if not self.conversation_id:
-            self.conversation_id = str(uuid.uuid4())
+            self.conversation_id = None
             self.messages = []
-            if os.getenv('CHARIOT_CLI_VERBOSE'):
-                self.console.print(f"[dim]Started new conversation: {self.conversation_id}[/dim]")
     
     def start_new_conversation(self) -> None:
         """Reset and start a new conversation"""
-        self.conversation_id = str(uuid.uuid4())
+        self.conversation_id = None
         self.messages = []
         self.clear_screen()
         self.show_header()
@@ -174,15 +172,22 @@ The AI can both search existing security data and run new scans to discover vuln
     def call_conversation_api(self, message: str) -> Dict:
         """Call the Chariot conversation API"""
         url = self.sdk.url("/planner")
-        payload = {
-            "conversationId": self.conversation_id,
-            "message": message
-        }
+        payload = {"message": message}
+        
+        if self.conversation_id:
+            payload["conversationId"] = self.conversation_id
         
         response = self.sdk._make_request("POST", url, json=payload)
         
         if response.status_code == 200:
-            return response.json().get('response', {})
+            result = response.json().get('response', {})
+            
+            if not self.conversation_id and 'conversation' in result:
+                self.conversation_id = result['conversation'].get('uuid')
+                if os.getenv('CHARIOT_CLI_VERBOSE'):
+                    self.console.print(f"[dim]Started conversation: {self.conversation_id}[/dim]")
+            
+            return result
         else:
             return {
                 'success': False,
