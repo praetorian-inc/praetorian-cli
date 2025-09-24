@@ -129,13 +129,15 @@ class ConversationMenu:
                 
             table = Table(title="Recent Conversations")
             table.add_column("ID", style="cyan", no_wrap=True)
+            table.add_column("Topic", style="yellow", max_width=40)
             table.add_column("Created", style="magenta")
             table.add_column("Messages", style="green")
             
             for i, conv in enumerate(conversations[:10]):
+                topic = conv.get('topic', 'No topic')[:40]
                 created = conv.get('created', 'Unknown')[:16]
                 message_count = self.get_conversation_message_count(conv['uuid'])
-                table.add_row(str(i + 1), created, str(message_count))
+                table.add_row(str(i + 1), topic, created, str(message_count))
             
             self.console.print(table)
             
