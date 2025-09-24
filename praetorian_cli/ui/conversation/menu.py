@@ -222,8 +222,6 @@ The AI can search security data and run scans to discover vulnerabilities.
     def send_message_with_polling(self, message: str) -> None:
         """Send message and poll for AI response"""
         try:
-            initial_message_count = self.get_conversation_message_count(self.conversation_id) if self.conversation_id else 0
-            
             with self.console.status(
                 "[dim]Thinking...[/dim]",
                 spinner="dots",
@@ -235,10 +233,19 @@ The AI can search security data and run scans to discover vulnerabilities.
                     self.console.print(f"[red]Error: {response.get('error')}[/red]")
                     return
                 
+                # Poll until AI responds (most recent message is from AI)
                 while True:
-                    current_count = self.get_conversation_message_count(self.conversation_id)
-                    if current_count > initial_message_count + 1:
-                        break
+                    if self.conversation_id:
+                        messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1)
+                        if messages:
+                            # Sort by timestamp to get most recent
+                            messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
+                            most_recent = messages[-1]
+                            
+                            # Stop thinking when AI responds
+                            if most_recent.get('role') == 'chariot':
+                                break
+                    
                     time.sleep(1)
             
             self.poll_and_display_new_messages()
