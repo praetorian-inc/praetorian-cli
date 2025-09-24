@@ -180,7 +180,7 @@ The AI can both search existing security data and run new scans to discover vuln
         
         response = self.sdk._make_request("POST", url, json=payload)
         
-        if response.status_code in [200, 201]:
+        if response.status_code == 200:
             result = response.json()
             
             if not self.conversation_id and 'conversation' in result:
@@ -188,7 +188,7 @@ The AI can both search existing security data and run new scans to discover vuln
                 if os.getenv('CHARIOT_CLI_VERBOSE'):
                     self.console.print(f"[dim]Started conversation: {self.conversation_id}[/dim]")
             
-            return result.get('response', result)
+            return result.get('response', {})
         else:
             return {
                 'success': False,
