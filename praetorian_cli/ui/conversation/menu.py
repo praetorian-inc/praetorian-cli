@@ -47,29 +47,29 @@ class ConversationMenu:
                     if user_input.lower() in ['quit', 'exit', 'q']:
                         self.console.print("\n[dim]Goodbye![/dim]")
                         break
-                elif user_input.lower() in ['clear', 'cls']:
-                    self.clear_screen()
-                    self.show_header()
+                    elif user_input.lower() in ['clear', 'cls']:
+                        self.clear_screen()
+                        self.show_header()
+                        continue
+                    elif user_input.lower() in ['new']:
+                        self.start_new_conversation()
+                        continue
+                    elif user_input.lower() in ['resume']:
+                        self.resume_conversation()
+                        continue
+                    elif user_input.lower() == 'jobs':
+                        self.show_job_status()
+                        continue
+                    elif user_input.lower() == 'help':
+                        self.show_help()
+                        continue
+                        
+                    if user_input.strip():
+                        self.send_message_with_polling(user_input)
+                        
+                except KeyboardInterrupt:
+                    self.console.print("\n[dim]Use 'quit' to exit[/dim]")
                     continue
-                elif user_input.lower() in ['new']:
-                    self.start_new_conversation()
-                    continue
-                elif user_input.lower() in ['resume']:
-                    self.resume_conversation()
-                    continue
-                elif user_input.lower() == 'jobs':
-                    self.show_job_status()
-                    continue
-                elif user_input.lower() == 'help':
-                    self.show_help()
-                    continue
-                    
-                if user_input.strip():
-                    self.send_message_with_polling(user_input)
-                    
-            except KeyboardInterrupt:
-                self.console.print("\n[dim]Use 'quit' to exit[/dim]")
-                continue
         finally:
             self.stop_background_polling()
     
