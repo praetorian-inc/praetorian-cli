@@ -290,8 +290,15 @@ The AI can search security data and run scans to discover vulnerabilities.
         try:
             if tool_use_content:
                 tool_data = json.loads(tool_use_content)
-                return tool_data.get('name', 'unknown')
-        except:
+                # Try different possible field names
+                return (tool_data.get('name') or 
+                       tool_data.get('Name') or 
+                       tool_data.get('toolName') or 
+                       'unknown')
+        except Exception as e:
+            # Debug: print what we actually got
+            print(f"DEBUG: tool_use_content = {tool_use_content}")
+            print(f"DEBUG: parse error = {e}")
             pass
         return 'unknown'
     
