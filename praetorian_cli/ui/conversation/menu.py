@@ -514,7 +514,7 @@ The AI can search security data and run scans to discover vulnerabilities.
     def get_conversation_jobs(self) -> list:
         """Get jobs for the current conversation using conversation:<uuid> pattern"""
         try:
-            jobs, _ = self.sdk.jobs.list(prefix_filter=f"conversation:{self.conversation_id}")
+            jobs, _ = self.sdk.search.by_term(f"conversation:{self.conversation_id}", user=True)
             return jobs if jobs else []
         except Exception:
             return []
