@@ -275,8 +275,7 @@ The AI can search security data and run scans to discover vulnerabilities.
                 if role == 'chariot':
                     self.display_ai_response(content)
                 elif role == 'tool call':
-                    tool_name = self.extract_tool_name_from_content(msg.get('toolUseContent', ''))
-                    self.console.print(f"[dim]🔧 Executing {tool_name} tool...[/dim]")
+                    self.console.print(f"[dim]🔧 Executing tool...[/dim]")
                 elif role == 'tool response':
                     self.console.print(f"[dim]✅ Tool execution completed[/dim]")
             
@@ -285,22 +284,6 @@ The AI can search security data and run scans to discover vulnerabilities.
         except Exception as e:
             self.console.print(f"[red]Error polling messages: {e}[/red]")
     
-    def extract_tool_name_from_content(self, tool_use_content: str) -> str:
-        """Extract tool name from tool use content JSON"""
-        try:
-            if tool_use_content:
-                tool_data = json.loads(tool_use_content)
-                # Try different possible field names
-                return (tool_data.get('name') or 
-                       tool_data.get('Name') or 
-                       tool_data.get('toolName') or 
-                       'unknown')
-        except Exception as e:
-            # Debug: print what we actually got
-            print(f"DEBUG: tool_use_content = {tool_use_content}")
-            print(f"DEBUG: parse error = {e}")
-            pass
-        return 'unknown'
     
     def get_user_input(self) -> str:
         """Get user input with prompt"""
