@@ -202,6 +202,18 @@ The AI can both search existing security data and run new scans to discover vuln
             ))
             self.console.print()
             return
+            
+        # Check for scan completion indicators
+        if response.startswith("**Scan Complete**") or response.startswith("**Scan Failed**"):
+            border_style = "green" if "Complete" in response else "red"
+            title_style = "[bold green]Scan Complete[/bold green]" if "Complete" in response else "[bold red]Scan Failed[/bold red]"
+            self.console.print(Panel(
+                response,
+                title=title_style,
+                border_style=border_style
+            ))
+            self.console.print()
+            return
         
         # Check if response contains formatted query results
         if "```json" in response:
