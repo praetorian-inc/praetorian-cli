@@ -269,13 +269,31 @@ The AI can search security data and run scans to discover vulnerabilities.
             new_messages = messages[self.last_message_count:]
             
             for msg in new_messages:
-                if msg.get('role') == 'chariot':
-                    self.display_ai_response(msg.get('content', ''))
+                role = msg.get('role')
+                content = msg.get('content', '')
+                
+                if role == 'chariot':
+                    self.display_ai_response(content)
+                elif role == 'tool call':
+                    tool_name = self.extract_tool_name_from_content(msg.get('toolUseContent', ''))
+                    self.console.print(f"[dim]🔧 Executing {tool_name} tool...[/dim]")
+                elif role == 'tool response':
+                    self.console.print(f"[dim]✅ Tool execution completed[/dim]")
             
             self.last_message_count = len(messages)
                 
         except Exception as e:
             self.console.print(f"[red]Error polling messages: {e}[/red]")
+    
+    def extract_tool_name_from_content(self, tool_use_content: str) -> str:
+        """Extract tool name from tool use content JSON"""
+        try:
+            if tool_use_content:
+                tool_data = json.loads(tool_use_content)
+                return tool_data.get('name', 'unknown')
+        except:
+            pass
+        return 'unknown'
     
     def get_user_input(self) -> str:
         """Get user input with prompt"""
