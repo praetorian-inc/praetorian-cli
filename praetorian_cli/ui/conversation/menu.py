@@ -3,6 +3,7 @@
 import os
 import json
 import time
+import threading
 from datetime import datetime
 from typing import Optional, List, Dict
 from rich.console import Console
@@ -25,6 +26,8 @@ class ConversationMenu:
         self.messages: List[Dict] = []
         self.user_email, self.username = self.sdk.get_current_user()
         self.last_message_count = 0
+        self.polling_thread = None
+        self.stop_polling = False
         
     def run(self) -> None:
         """Main conversation loop"""
@@ -34,14 +37,16 @@ class ConversationMenu:
             return
             
         self.show_header()
+        self.start_background_polling()
         
-        while True:
-            try:
-                user_input = self.get_user_input()
-                
-                if user_input.lower() in ['quit', 'exit', 'q']:
-                    self.console.print("\n[dim]Goodbye![/dim]")
-                    break
+        try:
+            while True:
+                try:
+                    user_input = self.get_user_input()
+                    
+                    if user_input.lower() in ['quit', 'exit', 'q']:
+                        self.console.print("\n[dim]Goodbye![/dim]")
+                        break
                 elif user_input.lower() in ['clear', 'cls']:
                     self.clear_screen()
                     self.show_header()
@@ -65,6 +70,8 @@ class ConversationMenu:
             except KeyboardInterrupt:
                 self.console.print("\n[dim]Use 'quit' to exit[/dim]")
                 continue
+        finally:
+            self.stop_background_polling()
     
     def clear_screen(self) -> None:
         """Clear the screen"""
@@ -224,6 +231,8 @@ The AI can search security data and run scans to discover vulnerabilities.
     def send_message_with_polling(self, message: str) -> None:
         """Send message and poll for AI response"""
         try:
+            initial_message_count = 0
+            
             with self.console.status(
                 "[dim]Thinking...[/dim]",
                 spinner="dots",
@@ -235,18 +244,32 @@ The AI can search security data and run scans to discover vulnerabilities.
                     self.console.print(f"[red]Error: {response.get('error')}[/red]")
                     return
                 
-                # Poll until AI responds (most recent message is from AI)
+                if self.conversation_id:
+                    messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
+                    initial_message_count = len(messages)
+                
+                # Poll for new messages and tool executions
                 while True:
                     if self.conversation_id:
                         messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
                         if messages:
-                            # Sort by timestamp to get most recent
                             messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
-                            most_recent = messages[-1]
                             
-                            # Stop thinking when AI responds
+                            # Show any new tool executions
+                            new_messages = messages[initial_message_count:]
+                            for msg in new_messages:
+                                role = msg.get('role')
+                                if role == 'tool call':
+                                    status.update("[dim]🔧 Executing tool...[/dim]")
+                                elif role == 'tool response':
+                                    status.update("[dim]✅ Tool completed, thinking...[/dim]")
+                            
+                            # Check if AI has responded (final response)
+                            most_recent = messages[-1]
                             if most_recent.get('role') == 'chariot':
                                 break
+                            
+                            initial_message_count = len(messages)
                     
                     time.sleep(1)
             
@@ -283,6 +306,48 @@ The AI can search security data and run scans to discover vulnerabilities.
                 
         except Exception as e:
             self.console.print(f"[red]Error polling messages: {e}[/red]")
+    
+    def start_background_polling(self):
+        """Start continuous background polling for new messages"""
+        if self.polling_thread and self.polling_thread.is_alive():
+            self.stop_polling = True
+            self.polling_thread.join()
+        
+        self.stop_polling = False
+        self.polling_thread = threading.Thread(target=self._background_poll, daemon=True)
+        self.polling_thread.start()
+    
+    def stop_background_polling(self):
+        """Stop background polling"""
+        self.stop_polling = True
+        if self.polling_thread:
+            self.polling_thread.join()
+    
+    def _background_poll(self):
+        """Background polling thread"""
+        while not self.stop_polling:
+            try:
+                if self.conversation_id:
+                    old_count = self.last_message_count
+                    messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
+                    
+                    if len(messages) > old_count:
+                        messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
+                        new_messages = messages[old_count:]
+                        
+                        for msg in new_messages:
+                            role = msg.get('role')
+                            if role == 'chariot':
+                                content = msg.get('content', '')
+                                if content.startswith("**Scan Complete**") or content.startswith("**Scan Failed**"):
+                                    self.console.print(f"\n[bold green]🎯 Job Update:[/bold green]")
+                                    self.display_ai_response(content)
+                        
+                        self.last_message_count = len(messages)
+                
+                time.sleep(3)
+            except Exception:
+                pass
     
     
     def get_user_input(self) -> str:
