@@ -155,14 +155,15 @@ The AI can both search existing security data and run new scans to discover vuln
             ):
                 response = self.call_conversation_api(message)
             
-            if response.get('success'):
-                ai_response = response.get('response', 'No response received')
-                self.display_ai_response(ai_response)
-                self.messages.append({
-                    'user': message,
-                    'ai': ai_response,
-                    'timestamp': datetime.now().isoformat()
-                })
+            if response.get('success') or response.get('conversation'):
+                ai_response = response.get('response', {}).get('response', 'Conversation started successfully.')
+                if ai_response:
+                    self.display_ai_response(ai_response)
+                    self.messages.append({
+                        'user': message,
+                        'ai': ai_response,
+                        'timestamp': datetime.now().isoformat()
+                    })
             else:
                 self.console.print(f"[red]Error: {response.get('error', 'Unknown error')}[/red]")
                 
@@ -179,15 +180,15 @@ The AI can both search existing security data and run new scans to discover vuln
         
         response = self.sdk._make_request("POST", url, json=payload)
         
-        if response.status_code == 200:
-            result = response.json().get('response', {})
+        if response.status_code in [200, 201]:
+            result = response.json()
             
             if not self.conversation_id and 'conversation' in result:
                 self.conversation_id = result['conversation'].get('uuid')
                 if os.getenv('CHARIOT_CLI_VERBOSE'):
                     self.console.print(f"[dim]Started conversation: {self.conversation_id}[/dim]")
             
-            return result
+            return result.get('response', result)
         else:
             return {
                 'success': False,
