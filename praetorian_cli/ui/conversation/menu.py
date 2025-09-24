@@ -2,14 +2,15 @@
 
 import os
 import json
-import uuid
+import time
 from datetime import datetime
 from typing import Optional, List, Dict
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Prompt, Confirm
 from rich.text import Text
 from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.table import Table
 
 from praetorian_cli.sdk.chariot import Chariot
 
@@ -23,12 +24,16 @@ class ConversationMenu:
         self.conversation_id: Optional[str] = None
         self.messages: List[Dict] = []
         self.user_email, self.username = self.sdk.get_current_user()
+        self.last_message_count = 0
         
     def run(self) -> None:
         """Main conversation loop"""
         self.clear_screen()
+        
+        if not self.choose_conversation_mode():
+            return
+            
         self.show_header()
-        self.start_conversation()
         
         while True:
             try:
@@ -41,8 +46,11 @@ class ConversationMenu:
                     self.clear_screen()
                     self.show_header()
                     continue
-                elif user_input.lower() in ['new', 'restart']:
+                elif user_input.lower() in ['new']:
                     self.start_new_conversation()
+                    continue
+                elif user_input.lower() in ['resume']:
+                    self.resume_conversation()
                     continue
                 elif user_input.lower() == 'jobs':
                     self.show_job_status()
@@ -52,7 +60,7 @@ class ConversationMenu:
                     continue
                     
                 if user_input.strip():
-                    self.send_message(user_input)
+                    self.send_message_with_polling(user_input)
                     
             except KeyboardInterrupt:
                 self.console.print("\n[dim]Use 'quit' to exit[/dim]")
@@ -92,51 +100,175 @@ class ConversationMenu:
                 
         self.console.print()
     
+    def choose_conversation_mode(self) -> bool:
+        """Choose between new conversation or resume existing"""
+        self.console.print(f"\n[bold blue]Chariot AI Assistant[/bold blue]")
+        self.console.print(f"[dim]User: {self.username}[/dim]\n")
+        
+        choice = Prompt.ask("Start [bold green]new[/bold green] conversation or [bold blue]resume[/bold blue] existing?", 
+                           choices=["new", "resume", "quit"], default="new")
+        
+        if choice == "quit":
+            return False
+        elif choice == "new":
+            self.start_new_conversation()
+        elif choice == "resume":
+            if not self.resume_conversation():
+                return False
+        
+        return True
+    
+    def resume_conversation(self) -> bool:
+        """Resume an existing conversation"""
+        try:
+            conversations = self.get_recent_conversations()
+            if not conversations:
+                self.console.print("[yellow]No recent conversations found. Starting new conversation.[/yellow]")
+                self.start_new_conversation()
+                return True
+                
+            table = Table(title="Recent Conversations")
+            table.add_column("ID", style="cyan", no_wrap=True)
+            table.add_column("Created", style="magenta")
+            table.add_column("Messages", style="green")
+            
+            for i, conv in enumerate(conversations[:10]):
+                created = conv.get('created', 'Unknown')[:16]
+                message_count = self.get_conversation_message_count(conv['uuid'])
+                table.add_row(str(i + 1), created, str(message_count))
+            
+            self.console.print(table)
+            
+            choice = Prompt.ask("\nEnter conversation number (1-10) or 'new' for new conversation", 
+                               default="new")
+            
+            if choice.lower() == 'new':
+                self.start_new_conversation()
+                return True
+            
+            try:
+                conv_index = int(choice) - 1
+                if 0 <= conv_index < len(conversations):
+                    self.conversation_id = conversations[conv_index]['uuid']
+                    self.console.print(f"[green]Resumed conversation: {self.conversation_id[:8]}...[/green]")
+                    return True
+                else:
+                    self.console.print("[red]Invalid conversation number[/red]")
+                    return False
+            except ValueError:
+                self.console.print("[red]Invalid input[/red]")
+                return False
+                
+        except Exception as e:
+            self.console.print(f"[red]Error loading conversations: {e}[/red]")
+            self.start_new_conversation()
+            return True
+
+    def get_recent_conversations(self) -> List[Dict]:
+        """Get recent conversations for the user"""
+        try:
+            url = self.sdk.url("/conversations")
+            response = self.sdk._make_request("GET", url)
+            if response.status_code == 200:
+                return response.json().get('conversations', [])
+        except Exception:
+            pass
+        return []
+    
+    def get_conversation_message_count(self, conversation_id: str) -> int:
+        """Get message count for a conversation"""
+        try:
+            url = self.sdk.url(f"/conversations/{conversation_id}/messages")
+            response = self.sdk._make_request("GET", url)
+            if response.status_code == 200:
+                return len(response.json().get('messages', []))
+        except Exception:
+            pass
+        return 0
+
     def show_help(self) -> None:
         """Show help information"""
         help_text = """
 **Available Commands:**
 - `help` - Show this help
 - `clear` - Clear screen
-- `new` - Start new conversation  
+- `new` - Start new conversation
+- `resume` - Resume existing conversation
+- `jobs` - Show running jobs
 - `quit` - Exit
 
 **Query Examples:**
 - "Find all active assets"
 - "Show me high-priority risks"
 - "List assets for example.com"
-- "What vulnerabilities do we have?"
 
 **Security Scan Examples:**
-- "Scan webapp.example.com for vulnerabilities"
 - "Run a port scan on 10.0.1.5"
 - "Check SSL configuration for api.example.com"
 - "Scan example.com for subdomains"
 
-**Available Security Capabilities:**
-- **nuclei**: Web application vulnerability scanning
-- **nmap**: Network port scanning
-- **ssl-analyzer**: SSL/TLS analysis
-- **aws-security-scan**: Cloud security assessment
-
-The AI can both search existing security data and run new scans to discover vulnerabilities.
+The AI can search security data and run scans to discover vulnerabilities.
         """
         self.console.print(Panel(Markdown(help_text), title="Help", border_style="blue"))
         self.console.print()
     
-    def start_conversation(self) -> None:
-        """Start a new conversation"""
-        if not self.conversation_id:
-            self.conversation_id = None
-            self.messages = []
-    
     def start_new_conversation(self) -> None:
-        """Reset and start a new conversation"""
+        """Start a new conversation"""
         self.conversation_id = None
         self.messages = []
+        self.last_message_count = 0
         self.clear_screen()
         self.show_header()
         self.console.print("[green]Started new conversation[/green]\n")
+    
+    def send_message_with_polling(self, message: str) -> None:
+        """Send message and poll for AI response"""
+        try:
+            initial_message_count = self.get_conversation_message_count(self.conversation_id) if self.conversation_id else 0
+            
+            with self.console.status(
+                "[dim]Thinking...[/dim]",
+                spinner="dots",
+                spinner_style="blue"
+            ) as status:
+                response = self.call_conversation_api(message)
+                
+                if response.get('error'):
+                    self.console.print(f"[red]Error: {response.get('error')}[/red]")
+                    return
+                
+                while True:
+                    current_count = self.get_conversation_message_count(self.conversation_id)
+                    if current_count > initial_message_count + 1:
+                        break
+                    time.sleep(1)
+            
+            self.poll_and_display_new_messages()
+            
+        except Exception as e:
+            self.console.print(f"[red]Failed to send message: {e}[/red]")
+    
+    def poll_and_display_new_messages(self) -> None:
+        """Poll for new messages and display them"""
+        try:
+            if not self.conversation_id:
+                return
+                
+            url = self.sdk.url(f"/conversations/{self.conversation_id}/messages")
+            response = self.sdk._make_request("GET", url)
+            
+            if response.status_code == 200:
+                messages = response.json().get('messages', [])
+                new_messages = messages[self.last_message_count:]
+                
+                for msg in new_messages:
+                    if msg.get('role') == 'chariot':
+                        self.display_ai_response(msg.get('content', ''))
+                
+                self.last_message_count = len(messages)
+                
+        except Exception as e:
+            self.console.print(f"[red]Error polling messages: {e}[/red]")
     
     def get_user_input(self) -> str:
         """Get user input with prompt"""
@@ -145,39 +277,6 @@ The AI can both search existing security data and run new scans to discover vuln
         except (EOFError, KeyboardInterrupt):
             return "quit"
     
-    def send_message(self, message: str) -> None:
-        """Send message to AI and display response"""
-        try:
-            with self.console.status(
-                "[dim]Thinking...[/dim]",
-                spinner="dots",
-                spinner_style="blue"
-            ):
-                response = self.call_conversation_api(message)
-            
-            if isinstance(response, str):
-                self.display_ai_response(response)
-                self.messages.append({
-                    'user': message,
-                    'ai': response,
-                    'timestamp': datetime.now().isoformat()
-                })
-            elif response.get('success') or response.get('conversation'):
-                ai_response = response.get('response', {})
-                if isinstance(ai_response, dict):
-                    ai_response = ai_response.get('response', 'Conversation started successfully.')
-                if ai_response:
-                    self.display_ai_response(ai_response)
-                    self.messages.append({
-                        'user': message,
-                        'ai': ai_response,
-                        'timestamp': datetime.now().isoformat()
-                    })
-            else:
-                self.console.print(f"[red]Error: {response.get('error', 'Unknown error')}[/red]")
-                
-        except Exception as e:
-            self.console.print(f"[red]Failed to send message: {e}[/red]")
     
     def call_conversation_api(self, message: str) -> Dict:
         """Call the Chariot conversation API"""
@@ -194,10 +293,8 @@ The AI can both search existing security data and run new scans to discover vuln
             
             if not self.conversation_id and 'conversation' in result:
                 self.conversation_id = result['conversation'].get('uuid')
-                if os.getenv('CHARIOT_CLI_VERBOSE'):
-                    self.console.print(f"[dim]Started conversation: {self.conversation_id}[/dim]")
             
-            return result.get('response', {})
+            return {'success': True}
         else:
             return {
                 'success': False,
@@ -218,7 +315,6 @@ The AI can both search existing security data and run new scans to discover vuln
             self.console.print()
             return
             
-        # Check for scan completion indicators
         if response.startswith("**Scan Complete**") or response.startswith("**Scan Failed**"):
             border_style = "green" if "Complete" in response else "red"
             title_style = "[bold green]Scan Complete[/bold green]" if "Complete" in response else "[bold red]Scan Failed[/bold red]"
