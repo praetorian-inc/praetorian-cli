@@ -167,8 +167,7 @@ class ConversationMenu:
     def get_recent_conversations(self) -> List[Dict]:
         """Get recent conversations for the user"""
         try:
-            result = self.sdk.my({"key_prefix": "#conversation#"})
-            conversations = result.get('collection', {}).get('items', {}).get('conversation', [])
+            conversations, _ = self.sdk.search.by_key_prefix("#conversation#", pages=1)
             return sorted(conversations, key=lambda x: x.get('created', ''), reverse=True)
         except Exception:
             pass
@@ -179,8 +178,7 @@ class ConversationMenu:
         try:
             if not conversation_id:
                 return 0
-            result = self.sdk.my({"key_prefix": f"#message#{conversation_id}"})
-            messages = result.get('collection', {}).get('items', {}).get('message', [])
+            messages, _ = self.sdk.search.by_key_prefix(f"#message#{conversation_id}", pages=1)
             return len(messages)
         except Exception:
             pass
@@ -254,8 +252,7 @@ The AI can search security data and run scans to discover vulnerabilities.
             if not self.conversation_id:
                 return
                 
-            result = self.sdk.my({"key_prefix": f"#message#{self.conversation_id}"})
-            messages = result.get('collection', {}).get('items', {}).get('message', [])
+            messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1)
             
             # Sort messages by timestamp for proper order
             messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
