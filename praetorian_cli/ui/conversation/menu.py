@@ -25,7 +25,7 @@ class ConversationMenu:
         self.conversation_id: Optional[str] = None
         self.messages: List[Dict] = []
         self.user_email, self.username = self.sdk.get_current_user()
-        self.last_message_count = 0
+        self.last_message_key = ""
         self.polling_thread = None
         self.stop_polling = False
         
@@ -215,7 +215,7 @@ The AI can search security data and run scans to discover vulnerabilities.
         """Start a new conversation"""
         self.conversation_id = None
         self.messages = []
-        self.last_message_count = 0
+        self.last_message_key = ""
         self.clear_screen()
         self.show_header()
         self.console.print("[green]Started new conversation[/green]\n")
@@ -223,8 +223,6 @@ The AI can search security data and run scans to discover vulnerabilities.
     def send_message_with_polling(self, message: str) -> None:
         """Send message and poll for AI response"""
         try:
-            initial_message_count = 0
-            
             with self.console.status(
                 "[dim]Thinking...[/dim]",
                 spinner="dots",
@@ -236,68 +234,34 @@ The AI can search security data and run scans to discover vulnerabilities.
                     self.console.print(f"[red]Error: {response.get('error')}[/red]")
                     return
                 
-                if self.conversation_id:
-                    messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
-                    initial_message_count = len(messages)
-                
-                # Poll for new messages and tool executions
+                # Wait for AI to respond (background polling handles display)
                 while True:
                     if self.conversation_id:
-                        messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
+                        # Use efficient greater-than search
+                        search_key = f"#message#{self.conversation_id}#{self.last_message_key}" if self.last_message_key else f"#message#{self.conversation_id}#"
+                        messages, _ = self.sdk.search.by_term(f"key:>{search_key}", user=True)
+                        
                         if messages:
-                            messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
+                            messages = sorted(messages, key=lambda x: x.get('key', ''))
+                            most_recent = messages[-1]
                             
-                            # Show any new tool executions
-                            new_messages = messages[initial_message_count:]
-                            for msg in new_messages:
+                            # Update spinner for tool execution
+                            for msg in messages:
                                 role = msg.get('role')
                                 if role == 'tool call':
                                     status.update("[dim]🔧 Executing tool...[/dim]")
                                 elif role == 'tool response':
                                     status.update("[dim]✅ Tool completed, thinking...[/dim]")
                             
-                            # Check if AI has responded (final response)
-                            most_recent = messages[-1]
+                            # Stop when AI responds
                             if most_recent.get('role') == 'chariot':
                                 break
-                            
-                            initial_message_count = len(messages)
                     
                     time.sleep(1)
-            
-            self.poll_and_display_new_messages()
             
         except Exception as e:
             self.console.print(f"[red]Failed to send message: {e}[/red]")
     
-    def poll_and_display_new_messages(self) -> None:
-        """Poll for new messages and display them"""
-        try:
-            if not self.conversation_id:
-                return
-                
-            messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
-            
-            # Sort messages by timestamp for proper order
-            messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
-            
-            new_messages = messages[self.last_message_count:]
-            
-            for msg in new_messages:
-                role = msg.get('role')
-                content = msg.get('content', '')
-                
-                if role == 'chariot':
-                    self.display_ai_response(content)
-                elif role == 'tool call':
-                    self.console.print(f"[dim]🔧 Executing tool...[/dim]")
-                elif role == 'tool response':
-                    self.console.print(f"[dim]✅ Tool execution completed[/dim]")
-            
-            self.last_message_count = len(messages)
-                
-        except Exception as e:
-            self.console.print(f"[red]Error polling messages: {e}[/red]")
     
     def start_background_polling(self):
         """Start continuous background polling for new messages"""
@@ -316,28 +280,40 @@ The AI can search security data and run scans to discover vulnerabilities.
             self.polling_thread.join()
     
     def _background_poll(self):
-        """Background polling thread"""
+        """Background polling thread - unified message loader"""
         while not self.stop_polling:
             try:
                 if self.conversation_id:
-                    old_count = self.last_message_count
-                    messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
+                    # Use efficient greater-than search for new messages only
+                    search_key = f"#message#{self.conversation_id}#{self.last_message_key}" if self.last_message_key else f"#message#{self.conversation_id}#"
+                    messages, _ = self.sdk.search.by_term(f"key:>{search_key}", user=True)
                     
-                    if len(messages) > old_count:
-                        messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
-                        new_messages = messages[old_count:]
+                    if messages:
+                        # Sort by key (which includes timestamp ordering)
+                        messages = sorted(messages, key=lambda x: x.get('key', ''))
                         
-                        for msg in new_messages:
+                        for msg in messages:
                             role = msg.get('role')
+                            content = msg.get('content', '')
+                            
                             if role == 'chariot':
-                                content = msg.get('content', '')
+                                # Check if it's a job completion
                                 if content.startswith("**Scan Complete**") or content.startswith("**Scan Failed**"):
                                     self.console.print(f"\n[bold green]🎯 Job Update:[/bold green]")
                                     self.display_ai_response(content)
+                                else:
+                                    self.display_ai_response(content)
+                            elif role == 'tool call':
+                                self.console.print(f"[dim]🔧 Executing tool...[/dim]")
+                            elif role == 'tool response':
+                                self.console.print(f"[dim]✅ Tool execution completed[/dim]")
+                            elif role == 'planner-output':
+                                self.console.print(f"[dim]🎯 Processing job completion...[/dim]")
                         
-                        self.last_message_count = len(messages)
+                        # Update last message key for next poll
+                        self.last_message_key = messages[-1].get('key', '')
                 
-                time.sleep(3)
+                time.sleep(2)
             except Exception:
                 pass
     
@@ -565,8 +541,9 @@ The AI can search security data and run scans to discover vulnerabilities.
             if not self.conversation_id:
                 return
                 
-            messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
-            messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
+            # Use greater-than search for efficient loading
+            messages, _ = self.sdk.search.by_term(f"key:>#message#{self.conversation_id}#", user=True)
+            messages = sorted(messages, key=lambda x: x.get('key', ''))
             
             self.console.print(f"\n[dim]Loading conversation history ({len(messages)} messages)...[/dim]\n")
             
@@ -586,7 +563,10 @@ The AI can search security data and run scans to discover vulnerabilities.
                 elif role == 'planner-output':
                     self.console.print("[dim]🎯 Job completion summary[/dim]")
             
-            self.last_message_count = len(messages)
+            # Set last message key for background polling
+            if messages:
+                self.last_message_key = messages[-1].get('key', '')
+            
             self.console.print()
             
         except Exception as e:
