@@ -511,21 +511,28 @@ The AI can search security data and run scans to discover vulnerabilities.
                 status_color = self.get_job_status_color(job.get('status', ''))
                 status_text = self.get_job_status_text(job.get('status', ''))
                 
-                # Extract target properly from job structure
-                target = job.get('target', {})
+                # Debug and extract target properly from job structure
+                target = job.get('target', 'unknown')
+                target_key = job.get('key', '')
+                
+                # Try multiple approaches to get target name
                 if isinstance(target, dict):
-                    target_key = target.get('key', 'unknown')
-                    # Extract readable name from key if possible
-                    if target_key.startswith('#asset#'):
+                    target_display = target.get('key', target.get('name', 'unknown'))
+                elif isinstance(target, str):
+                    target_display = target
+                elif target_key:
+                    # Extract from job key if available
+                    if target_key.startswith('#job#'):
                         parts = target_key.split('#')
                         if len(parts) >= 4:
-                            target_display = parts[3]  # hostname/ip part
+                            target_display = parts[3]  # target part from job key
                         else:
                             target_display = target_key
                     else:
                         target_display = target_key
                 else:
-                    target_display = str(target) if target else 'unknown'
+                    # Debug: print actual structure to understand format
+                    target_display = f"DEBUG: {job.get('target')} / key: {job.get('key', 'no-key')}"
                 
                 capability = job.get('source', 'unknown')
                 self.console.print(f"[{status_color}]• {capability}[/{status_color}] on {target_display} - {status_text}")
