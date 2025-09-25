@@ -141,13 +141,11 @@ class ConversationMenu:
             table.add_column("ID", style="cyan", no_wrap=True)
             table.add_column("Topic", style="yellow", max_width=40)
             table.add_column("Created", style="magenta")
-            table.add_column("Messages", style="green")
             
             for i, conv in enumerate(conversations[:10]):
                 topic = conv.get('topic', 'No topic')[:40]
                 created = conv.get('created', 'Unknown')[:16]
-                message_count = self.get_conversation_message_count(conv['uuid'])
-                table.add_row(str(i + 1), topic, created, str(message_count))
+                table.add_row(str(i + 1), topic, created)
             
             self.console.print(table)
             
@@ -186,16 +184,6 @@ class ConversationMenu:
             pass
         return []
     
-    def get_conversation_message_count(self, conversation_id: str) -> int:
-        """Get message count for a conversation"""
-        try:
-            if not conversation_id:
-                return 0
-            messages, _ = self.sdk.search.by_key_prefix(f"#message#{conversation_id}", pages=1, user=True)
-            return len(messages)
-        except Exception:
-            pass
-        return 0
 
     def show_help(self) -> None:
         """Show help information"""
