@@ -96,5 +96,5 @@ def conversation(sdk):
     Usage:
         praetorian chariot agent conversation
     """
-    from praetorian_cli.ui.conversation.menu import run_conversation_menu
-    run_conversation_menu(sdk)
+    from praetorian_cli.ui.conversation import run_textual_conversation
+    run_textual_conversation(sdk)
