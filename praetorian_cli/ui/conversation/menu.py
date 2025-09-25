@@ -88,13 +88,16 @@ class ConversationMenu:
             try:
                 jobs = self.get_conversation_jobs()
                 if jobs:
-                    active_jobs = [j for j in jobs if j.get('status', '').startswith(('JR', 'JQ'))]
+                    queued_jobs = [j for j in jobs if j.get('status', '').startswith('JQ')]
+                    running_jobs = [j for j in jobs if j.get('status', '').startswith('JR')]
                     completed_jobs = [j for j in jobs if j.get('status', '').startswith('JP')]
                     failed_jobs = [j for j in jobs if j.get('status', '').startswith('JF')]
                     
                     status_parts = []
-                    if active_jobs:
-                        status_parts.append(f"[yellow]{len(active_jobs)} running[/yellow]")
+                    if queued_jobs:
+                        status_parts.append(f"[blue]{len(queued_jobs)} queued[/blue]")
+                    if running_jobs:
+                        status_parts.append(f"[yellow]{len(running_jobs)} running[/yellow]")
                     if completed_jobs:
                         status_parts.append(f"[green]{len(completed_jobs)} completed[/green]")
                     if failed_jobs:
@@ -160,6 +163,7 @@ class ConversationMenu:
                 if 0 <= conv_index < len(conversations):
                     self.conversation_id = conversations[conv_index]['uuid']
                     self.console.print(f"[green]Resumed conversation: {self.conversation_id[:8]}...[/green]")
+                    self.load_conversation_history()
                     return True
                 else:
                     self.console.print("[red]Invalid conversation number[/red]")
@@ -505,8 +509,26 @@ The AI can search security data and run scans to discover vulnerabilities.
             
             for job in conversation_jobs:
                 status_color = self.get_job_status_color(job.get('status', ''))
-                target_key = job.get('target', {}).get('key', 'unknown') if isinstance(job.get('target'), dict) else str(job.get('target', 'unknown'))
-                self.console.print(f"[{status_color}]• {job.get('source', 'unknown')}[/{status_color}] on {target_key} - {job.get('status', 'unknown')}")
+                status_text = self.get_job_status_text(job.get('status', ''))
+                
+                # Extract target properly from job structure
+                target = job.get('target', {})
+                if isinstance(target, dict):
+                    target_key = target.get('key', 'unknown')
+                    # Extract readable name from key if possible
+                    if target_key.startswith('#asset#'):
+                        parts = target_key.split('#')
+                        if len(parts) >= 4:
+                            target_display = parts[3]  # hostname/ip part
+                        else:
+                            target_display = target_key
+                    else:
+                        target_display = target_key
+                else:
+                    target_display = str(target) if target else 'unknown'
+                
+                capability = job.get('source', 'unknown')
+                self.console.print(f"[{status_color}]• {capability}[/{status_color}] on {target_display} - {status_text}")
                 
         except Exception as e:
             self.console.print(f"[red]Failed to get job status: {e}[/red]")
@@ -514,7 +536,7 @@ The AI can search security data and run scans to discover vulnerabilities.
     def get_conversation_jobs(self) -> list:
         """Get jobs for the current conversation using conversation:<uuid> pattern"""
         try:
-            jobs, _ = self.sdk.search.by_term(f"conversation:{self.conversation_id}", user=True)
+            jobs, _ = self.sdk.search.by_term(f"conversation:{self.conversation_id}")
             return jobs if jobs else []
         except Exception:
             return []
@@ -523,12 +545,60 @@ The AI can search security data and run scans to discover vulnerabilities.
         """Get color for job status display"""
         if status.startswith("JP"):
             return "green"
-        elif status.startswith("JR") or status.startswith("JQ"):
-            return "yellow" 
+        elif status.startswith("JR"):
+            return "yellow"
+        elif status.startswith("JQ"):
+            return "blue"
         elif status.startswith("JF"):
             return "red"
         else:
             return "white"
+    
+    def get_job_status_text(self, status: str) -> str:
+        """Map job status codes to human-readable text"""
+        if status.startswith("JQ"):
+            return "Queued"
+        elif status.startswith("JR"):
+            return "Running"
+        elif status.startswith("JP"):
+            return "Completed"
+        elif status.startswith("JF"):
+            return "Failed"
+        else:
+            return status
+    
+    def load_conversation_history(self) -> None:
+        """Load and display previous messages when resuming conversation"""
+        try:
+            if not self.conversation_id:
+                return
+                
+            messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}", pages=1, user=True)
+            messages = sorted(messages, key=lambda x: x.get('timestamp', ''))
+            
+            self.console.print(f"\n[dim]Loading conversation history ({len(messages)} messages)...[/dim]\n")
+            
+            for msg in messages:
+                role = msg.get('role')
+                content = msg.get('content', '')
+                
+                if role == 'user':
+                    self.console.print(f"[bold blue]You:[/bold blue] {content}")
+                elif role == 'chariot':
+                    self.console.print(f"[bold green]AI:[/bold green]")
+                    self.display_ai_response(content)
+                elif role == 'tool call':
+                    self.console.print("[dim]🔧 Executing tool...[/dim]")
+                elif role == 'tool response':
+                    self.console.print("[dim]✅ Tool execution completed[/dim]")
+                elif role == 'planner-output':
+                    self.console.print("[dim]🎯 Job completion summary[/dim]")
+            
+            self.last_message_count = len(messages)
+            self.console.print()
+            
+        except Exception as e:
+            self.console.print(f"[red]Error loading conversation history: {e}[/red]")
 
 
 def run_conversation_menu(sdk: Chariot) -> None:
