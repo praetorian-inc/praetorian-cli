@@ -28,6 +28,7 @@ class ConversationMenu:
         self.last_message_key = ""
         self.polling_thread = None
         self.stop_polling = False
+        self.mode = "query"
         
     def run(self) -> None:
         """Main conversation loop"""
@@ -63,6 +64,12 @@ class ConversationMenu:
                     elif user_input.lower() == 'help':
                         self.show_help()
                         continue
+                    elif user_input.lower() in ['mode query', 'query']:
+                        self.set_mode('query')
+                        continue
+                    elif user_input.lower() in ['mode agent', 'agent']:
+                        self.set_mode('agent')
+                        continue
                         
                     if user_input.strip():
                         self.send_message_with_polling(user_input)
@@ -81,6 +88,7 @@ class ConversationMenu:
         """Show conversation header with job status"""
         self.console.print(f"\n[bold blue]Chariot AI Assistant[/bold blue]")
         self.console.print(f"[dim]User: {self.username}[/dim]")
+        self.console.print(f"[dim]Mode: [bold {self.get_mode_color()}]{self.mode}[/bold {self.get_mode_color()}][/dim]")
         if self.conversation_id:
             self.console.print(f"[dim]Conversation: {self.conversation_id[:8]}...[/dim]")
             
@@ -194,19 +202,24 @@ class ConversationMenu:
 - `new` - Start new conversation
 - `resume` - Resume existing conversation
 - `jobs` - Show running jobs
+- `query` - Switch to Query Mode (data discovery only)
+- `agent` - Switch to Agent Mode (full security operations)
 - `quit` - Exit
 
-**Query Examples:**
+**Query Mode:**
+- Search and analyze existing security data
+- List available capabilities
+- Data discovery focus
+
+**Agent Mode:**
+- Full security operations
+- Execute scans and manage assets
+- Comprehensive attack surface management
+
+**Examples:**
 - "Find all active assets"
-- "Show me high-priority risks"
-- "List assets for example.com"
-
-**Security Scan Examples:**
-- "Run a port scan on 10.0.1.5"
-- "Check SSL configuration for api.example.com"
-- "Scan example.com for subdomains"
-
-The AI can search security data and run scans to discover vulnerabilities.
+- "Show me high-priority risks" 
+- "Run a port scan on 10.0.1.5" (agent mode only)
         """
         self.console.print(Panel(Markdown(help_text), title="Help", border_style="blue"))
         self.console.print()
@@ -329,7 +342,7 @@ The AI can search security data and run scans to discover vulnerabilities.
     def call_conversation_api(self, message: str) -> Dict:
         """Call the Chariot conversation API"""
         url = self.sdk.url("/planner")
-        payload = {"message": message}
+        payload = {"message": message, "mode": self.mode}
         
         if self.conversation_id:
             payload["conversationId"] = self.conversation_id
@@ -534,6 +547,28 @@ The AI can search security data and run scans to discover vulnerabilities.
             return "Failed"
         else:
             return status
+    
+    def get_mode_color(self) -> str:
+        """Get color for mode display"""
+        if self.mode == "query":
+            return "blue"
+        elif self.mode == "agent":
+            return "green"
+        else:
+            return "white"
+    
+    def set_mode(self, mode: str) -> None:
+        """Switch conversation mode"""
+        if mode in ["query", "agent"]:
+            self.mode = mode
+            self.clear_screen()
+            self.show_header()
+            if mode == "query":
+                self.console.print("[blue]Switched to Query Mode - Data discovery and analysis focus[/blue]\n")
+            elif mode == "agent":
+                self.console.print("[green]Switched to Agent Mode - Full security operations[/green]\n")
+        else:
+            self.console.print(f"[red]Invalid mode: {mode}. Available modes: query, agent[/red]")
     
     def load_conversation_history(self) -> None:
         """Load and display previous messages when resuming conversation"""
