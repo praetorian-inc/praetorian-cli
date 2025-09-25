@@ -511,28 +511,25 @@ The AI can search security data and run scans to discover vulnerabilities.
                 status_color = self.get_job_status_color(job.get('status', ''))
                 status_text = self.get_job_status_text(job.get('status', ''))
                 
-                # Debug and extract target properly from job structure
-                target = job.get('target', 'unknown')
-                target_key = job.get('key', '')
-                
-                # Try multiple approaches to get target name
-                if isinstance(target, dict):
-                    target_display = target.get('key', target.get('name', 'unknown'))
-                elif isinstance(target, str):
-                    target_display = target
-                elif target_key:
-                    # Extract from job key if available
-                    if target_key.startswith('#job#'):
-                        parts = target_key.split('#')
-                        if len(parts) >= 4:
-                            target_display = parts[3]  # target part from job key
+                # Extract target from job key format: #job#target#capability
+                job_key = job.get('key', '')
+                if job_key.startswith('#job#'):
+                    parts = job_key.split('#')
+                    if len(parts) >= 3:
+                        target_part = parts[2]  # target part from job key
+                        # If target is an asset key, extract readable name
+                        if target_part.startswith('#asset#'):
+                            asset_parts = target_part.split('#')
+                            if len(asset_parts) >= 4:
+                                target_display = asset_parts[3]  # hostname/ip from asset key
+                            else:
+                                target_display = target_part
                         else:
-                            target_display = target_key
+                            target_display = target_part
                     else:
-                        target_display = target_key
+                        target_display = job_key
                 else:
-                    # Debug: print actual structure to understand format
-                    target_display = f"DEBUG: {job.get('target')} / key: {job.get('key', 'no-key')}"
+                    target_display = job.get('dns', 'unknown')
                 
                 capability = job.get('source', 'unknown')
                 self.console.print(f"[{status_color}]• {capability}[/{status_color}] on {target_display} - {status_text}")
