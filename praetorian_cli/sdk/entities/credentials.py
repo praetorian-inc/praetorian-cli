@@ -47,11 +47,12 @@ class Credentials:
         :rtype: dict or str
         """
         request = {
-            'CredentialID': credential_id,
-            'Category': category,
-            'Type': type,
-            'Format': format,
-            'Parameters': parameters,
+            'credentialID': credential_id,
+            'operation': 'get',
+            'category': category,
+            'type': type,
+            'format': format,
+            'parameters': parameters,
         }
         response = self.api.post('broker', request)
         return self._process_credential_output(response, format)
@@ -68,11 +69,12 @@ class Credentials:
         :rtype: dict
         """
         request = {
-            'Category': category,
-            'Type': type,
-            'Format': format,
-            'ResourceKey': resource_key,
-            'Parameters': parameters,
+            'category': category,
+            'operation': 'add',
+            'type': type,
+            'format': format,
+            'resourceKey': resource_key,
+            'parameters': parameters,
         }
         return self.api.post('broker', request)
 
@@ -89,7 +91,7 @@ class Credentials:
         :rtype: dict
         """
         request = {
-            'CredentialID': credential_id,  
+            'credentialID': credential_id,
         }
         return self.api.delete('broker', request, params={})
 
