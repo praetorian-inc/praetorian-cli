@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from praetorian_cli.sdk.model.query import Node, Query, Filter
+
 
 class Credentials:
     """ The methods in this class are to be accessed from sdk.credentials, where sdk is an instance
@@ -9,7 +11,7 @@ class Credentials:
     def __init__(self, api):
         self.api = api
 
-    def list(self, offset=None, pages=100000):
+    def list(self, offset=None, filter='', pages=100000):
         """
         List credentials available to the current principal.
 
@@ -20,7 +22,12 @@ class Credentials:
         :return: A tuple containing (list of credential entities, next page offset)
         :rtype: tuple
         """
-        return self.api.search.by_key_prefix('#credential', offset=offset, pages=pages)
+        filters = []
+        if filter:
+            filters.append(Filter(field=Filter.Field.RESOURCE_KEY, operator=Filter.Operator.STARTS_WITH, value=filter))
+        node = Node(labels=[Node.Label.CREDENTIAL], filters=filters)
+        query = Query(node=node)
+        return self.api.search.by_query(query, pages)
 
     def get(self, credential_id, category, type, format, **parameters):
         """
@@ -40,14 +47,53 @@ class Credentials:
         :rtype: dict or str
         """
         request = {
-            'CredentialID': credential_id,
-            'Category': category,
-            'Type': type,
-            'Format': format,
-            'Parameters': parameters
+            'credentialID': credential_id,
+            'operation': 'get',
+            'category': category,
+            'type': type,
+            'format': format,
+            'parameters': parameters,
         }
         response = self.api.post('broker', request)
         return self._process_credential_output(response, format)
+
+    def add_broker(self, category, type, format, resource_key, **parameters):
+        """Add a credential via the credential broker (HTTP POST).
+
+        :param category: Credential category (e.g., integration, internal)
+        :param type: Credential type (e.g., 'burp-authentication')
+        :param format: Single format string (e.g., 'token' or 'file')
+        :param resource_key: The resource key to attach the credential to
+        :param parameters: Additional parameters (e.g., label, username/password, script)
+        :return: Raw broker response
+        :rtype: dict
+        """
+        request = {
+            'category': category,
+            'operation': 'add',
+            'type': type,
+            'format': format,
+            'resourceKey': resource_key,
+            'parameters': parameters,
+        }
+        return self.api.post('broker', request)
+
+    def delete_broker(self, credential_id):
+        """Delete a credential via the credential broker (HTTP DELETE).
+
+        :param resource_key: The resource key associated with the credential
+        :param credential_id: The ID of the credential to delete (Burp item id)
+        :param type: The type of credential to delete ('burp-authentication')
+        :type type: str
+        :param format: The format of the credential to delete ('token' or 'file')
+        :type format: str
+        :return: Raw broker response
+        :rtype: dict
+        """
+        request = {
+            'credentialID': credential_id,
+        }
+        return self.api.delete('broker', request, params={})
 
     def _process_credential_output(self, response, format):
         """

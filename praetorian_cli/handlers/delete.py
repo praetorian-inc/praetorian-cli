@@ -3,6 +3,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.sdk.model.globals import Risk
+from praetorian_cli.handlers.utils import error
 
 
 @chariot.group()
@@ -194,3 +195,22 @@ def webpage(chariot, key):
         - KEY: the key of an existing webpage
     """
     chariot.webpage.delete(key)
+
+@delete.command(name='credential')
+@cli_handler
+#@click.option('--resource-key', required=True, help='Resource key (e.g., #webapplication#https://example/)')
+@click.option('--credential-id', required=True, help='Credential ID (Burp item id) to delete')
+# @click.option('--type', required=True, help='Credential type (e.g., burp-authentication)')
+# @click.option('--format', required=True, help='Credential format (e.g., token or file)')
+def delete_burp_credential(sdk, credential_id):
+    """Delete a Burp authentication credential via the broker.
+
+    Examples:
+      - praetorian chariot delete credential \
+          --resource-key "#webapplication#https://maximus.gladiator.systems/" \
+          --credential-id a9921326-675b-426c-8189-37f5a1d19847 \
+          --type burp-authentication \
+          --format token
+    """
+    resp = sdk.credentials.delete_broker(credential_id)
+    click.echo(sdk.credentials.format_output(resp))

@@ -326,7 +326,8 @@ def keys(chariot, details, offset, page):
 
 @list.command()
 @list_params('credential ID', has_details=False, has_filter=False)
-def credentials(chariot, offset, page):
+@click.option('-f', '--filter', default='', help='Filter by resource key')
+def credentials(chariot, offset, filter, page):
     """ List credentials
 
     Retrieve and display a list of credentials.
@@ -336,7 +337,7 @@ def credentials(chariot, offset, page):
         - praetorian chariot list credentials
         - praetorian chariot list credentials --page all
     """
-    print_json(chariot.credentials.list(offset, pagination_size(page)))
+    print_json(chariot.credentials.list(offset, filter, pagination_size(page))[0])
 
 
 @list.command()
