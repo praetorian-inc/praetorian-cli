@@ -339,6 +339,11 @@ class TestZCli:
 
         self.verify('link --help', ignore_stdout=True)
         self.verify('link account --help', ignore_stdout=True)
+        
+        # Agent commands
+        self.verify('agent --help', ignore_stdout=True)
+        self.verify('agent conversation --help', ignore_stdout=True)
+        self.verify('agent mcp --help', ignore_stdout=True)
         self.verify('link webpage-source --help', ignore_stdout=True)
 
         self.verify('unlink --help', ignore_stdout=True)

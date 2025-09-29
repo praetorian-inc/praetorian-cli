@@ -1,6 +1,6 @@
 import json
 from praetorian_cli.sdk.model.query import Query
-from praetorian_cli.sdk.model.globals import EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, Kind
+from praetorian_cli.sdk.model.globals import EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
 class Search:
 
     def __init__(self, api):
@@ -17,7 +17,7 @@ class Search:
         """
         return self.api.count(dict(key=search_term))
 
-    def by_key_prefix(self, key_prefix, offset=None, pages=100000) -> tuple:
+    def by_key_prefix(self, key_prefix, offset=None, pages=100000, user=False) -> tuple:
         """
         Search for entities by key prefix. <mcp>If the response is too large, make your query more specific.<mcp>
 
@@ -30,7 +30,7 @@ class Search:
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple
         """
-        return self.by_term(key_prefix, None, offset, pages)
+        return self.by_term(key_prefix, None, offset, pages, user=user)
 
     def by_exact_key(self, key, get_attributes=False) -> {}:
         """
@@ -119,7 +119,7 @@ class Search:
         return self.by_term(f'dns:{dns_prefix}', kind, offset, pages)
 
     def by_term(self, search_term, kind=None, offset=None, pages=100000, exact=False, descending=False,
-                global_=False) -> tuple:
+                global_=False, user=False) -> tuple:
         """
         Search for a given kind by term.
 
@@ -151,6 +151,8 @@ class Search:
             params |= DESCENDING_FLAG
         if global_:
             params |= GLOBAL_FLAG
+        if user:
+            params |= USER_FLAG
 
         results = self.api.my(params, pages)
 

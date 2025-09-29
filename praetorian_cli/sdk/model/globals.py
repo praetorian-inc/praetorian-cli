@@ -114,3 +114,4 @@ class Kind(Enum):
 EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}
+USER_FLAG = {'user': 'true'}
