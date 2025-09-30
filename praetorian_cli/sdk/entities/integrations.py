@@ -67,3 +67,23 @@ class Integrations:
         chariot_filename = f'imports/{name}/{basename(local_filepath)}'
         self.api.files.add(local_filepath, chariot_filename)
         self.api.link_account(name, chariot_filename)
+
+    def delete(self, key):
+        """
+        Delete an integration by its key.
+
+        :param key: The exact key of the integration to delete (format: #account#{username}#{integration_type}#{integration_id})
+        :type key: str
+        :return: The deleted integration entity
+        :rtype: dict
+        """
+        # Extract the components from the key
+        # Key format: #account#{owner}#{integration_type}#{integration_id}
+        parts = key.split('#')
+        if len(parts) < 5 or parts[0] != '' or parts[1] != 'account':
+            raise ValueError(f'Invalid integration key format: {key}')
+
+        # unlink requires the integration_type and integration_id
+        integration_type = parts[3]
+        integration_id = parts[4]
+        return self.api.unlink(integration_type, integration_id)
