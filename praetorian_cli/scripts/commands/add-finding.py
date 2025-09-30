@@ -182,7 +182,8 @@ class ManualAssetParser:
     
     ASSET_TYPES = {
         'dns-ip': 'DNS + IP Address',
-        'aws': 'AWS Resource (ARN)'
+        'aws': 'AWS Resource (ARN)',
+        'dns-dns': 'DNS + DNS'
     }
     
     def __init__(self):
@@ -207,7 +208,7 @@ class ManualAssetParser:
     def parse_dns_ip_asset(self):
         """
         Handle DNS + IP asset creation.
-        Asks for DNS record as asset name, then IP.
+        Asks for DNS record as asset name, then IP or text identifier.
         
         :return: Dict with asset creation parameters
         """
@@ -218,15 +219,16 @@ class ManualAssetParser:
             click.echo("DNS record cannot be empty.")
             return None
         
-        ip_address = click.prompt("Enter IP address", type=str).strip()
-        if not ip_address:
-            click.echo("IP address cannot be empty.")
+        identifier = click.prompt("Enter IP address or identifier text", type=str).strip()
+        if not identifier:
+            click.echo("Identifier cannot be empty.")
             return None
         
-        # Basic IP validation (simple regex)
+        # Check if it's a valid IP address
         ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-        if not re.match(ip_pattern, ip_address):
-            click.echo("⚠ Warning: IP address format may be invalid")
+        if not re.match(ip_pattern, identifier):
+            click.echo("⚠ Warning: Identifier does not match IP address format. Using as text identifier.")
+            click.echo(f"  Identifier: '{identifier}'")
         
         surface = click.prompt("Enter surface classification", 
                              type=click.Choice(['external', 'internal', 'web', 'api', 'cloud']),
@@ -234,11 +236,11 @@ class ManualAssetParser:
         
         return {
             'name': dns_record,
-            'identifier': ip_address,  # IP as the identifier
+            'identifier': identifier,  # Can be IP or text
             'surface': surface,
             'status': Asset.ACTIVE.value,
             'type': Kind.ASSET.value,
-            'expected_key': f"#asset#{dns_record}#{ip_address}"
+            'expected_key': f"#asset#{dns_record}#{identifier}"
         }
     
     def parse_aws_asset(self):
@@ -316,29 +318,51 @@ class ManualAssetParser:
         :return: Asset creation data dict
         """
         if asset_type == 'dns-ip':
-            # For DNS-IP, expect format: "dns_record|ip_address"
+            # For DNS-IP, expect format: "dns_record|ip_address_or_identifier"
             if '|' not in asset_value:
-                raise ValueError(f"DNS-IP asset_value must be in format 'dns_record|ip_address', got: {asset_value}")
+                raise ValueError(f"DNS-IP asset_value must be in format 'dns_record|ip_address_or_identifier', got: {asset_value}")
             
             parts = asset_value.split('|', 1)
             dns_record = parts[0].strip()
-            ip_address = parts[1].strip()
+            identifier = parts[1].strip()
             
-            if not dns_record or not ip_address:
-                raise ValueError("Both DNS record and IP address must be non-empty")
+            if not dns_record or not identifier:
+                raise ValueError("Both DNS record and identifier must be non-empty")
             
-            # Basic IP validation
+            # Check if it's a valid IP address
             ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-            if not re.match(ip_pattern, ip_address):
-                raise ValueError(f"Invalid IP address format: {ip_address}")
+            if not re.match(ip_pattern, identifier):
+                # Log warning but allow the text identifier
+                click.echo(f"    ⚠ Warning: Identifier '{identifier}' does not match IP format for DNS record '{dns_record}'")
             
             return {
                 'name': dns_record,
-                'identifier': ip_address,
+                'identifier': identifier,
                 'surface': surface,
                 'status': Asset.ACTIVE.value,
                 'type': Kind.ASSET.value,
-                'expected_key': f"#asset#{dns_record}#{ip_address}"
+                'expected_key': f"#asset#{dns_record}#{identifier}"
+            }
+            
+        elif asset_type == 'dns-dns':
+            # For DNS-DNS, expect format: "dns_record|dns_identifier"
+            if '|' not in asset_value:
+                raise ValueError(f"DNS-DNS asset_value must be in format 'dns_record|dns_identifier', got: {asset_value}")
+            
+            parts = asset_value.split('|', 1)
+            dns_record = parts[0].strip()
+            dns_identifier = parts[1].strip()
+            
+            if not dns_record or not dns_identifier:
+                raise ValueError("Both DNS record and DNS identifier must be non-empty")
+            
+            return {
+                'name': dns_record,
+                'identifier': dns_identifier,
+                'surface': surface,
+                'status': Asset.ACTIVE.value,
+                'type': Kind.ASSET.value,
+                'expected_key': f"#asset#{dns_record}#{dns_identifier}"
             }
             
         elif asset_type == 'aws':
