@@ -27,7 +27,7 @@ class Configurations:
                 "Please contact your Praetorian representative for assistance."
             )
 
-    def add(self, name, value: dict):
+    def add(self, name, value):
         """
         Add or update a configuration.
 
