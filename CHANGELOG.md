@@ -1,5 +1,10 @@
 # Changelog
 
+# 2.2.5
+- [New Feature] Interactive conversation with Chariot AI assistant
+  - See `praetorian chariot agent conversation`
+- [New Feature] Expanded configuration options
+
 # 2.2.4
 
 - [New Feature] Webpage and Webapplication support
