@@ -13,6 +13,7 @@ from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
+from praetorian_cli.sdk.entities.ports import Ports
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
@@ -42,6 +43,7 @@ class Chariot:
         self.files = Files(self)
         self.definitions = Definitions(self)
         self.attributes = Attributes(self)
+        self.ports = Ports(self)
         self.search = Search(self)
         self.scanners = Scanners(self)
         self.webhook = Webhook(self)
