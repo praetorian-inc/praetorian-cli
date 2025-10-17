@@ -65,13 +65,16 @@ class Keychain:
             error(f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
 
         profile = self.config[self.profile]
-        if 'api' not in profile or 'client_id' not in profile:
-            error(f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
-
+        
         self.load_env('username', 'PRAETORIAN_CLI_USERNAME', required=False)
         self.load_env('password', 'PRAETORIAN_CLI_PASSWORD', required=False)
         self.load_env(API_KEY_ID, 'PRAETORIAN_CLI_API_KEY_ID', required=False)
         self.load_env(API_KEY_SECRET, 'PRAETORIAN_CLI_API_KEY_SECRET', required=False)
+        self.load_env('api', 'PRAETORIAN_CLI_API', required=False)
+        self.load_env('client_id', 'PRAETORIAN_CLI_CLIENT_ID', required=False)
+        
+        if 'api' not in profile or 'client_id' not in profile:
+            error(f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
 
         if self.account is None:
             self.account = self.config.get(self.profile, 'account', fallback=None)
