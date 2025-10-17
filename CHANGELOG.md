@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.2.7
+- [Bug fix] Fixed offset support for risk list
+
 # 2.2.6
 - [New Feature] Better risk list filtering
   - Now risk list supports a `contains` filter.
