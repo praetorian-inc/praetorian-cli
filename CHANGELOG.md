@@ -1,5 +1,9 @@
 # Changelog
 
+# 2.2.6
+- [New Feature] Better risk list filtering
+  - Now risk list supports a `contains` filter.
+
 # 2.2.5
 - [New Feature] Interactive conversation with Chariot AI assistant
   - See `praetorian chariot agent conversation`
