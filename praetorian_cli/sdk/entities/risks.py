@@ -1,5 +1,5 @@
 from praetorian_cli.sdk.model.globals import Kind
-from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, ATTRIBUTE_NODE
+from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, ATTRIBUTE_NODE, Filter
 
 
 class Risks:
@@ -85,12 +85,12 @@ class Risks:
 
         return self.api.delete_by_key('risk', key, body)
 
-    def list(self, prefix_filter='', offset=None, pages=100000) -> tuple:
+    def list(self, contains_filter='', offset=None, pages=100000) -> tuple:
         """
         List risks with optional filtering and pagination.
 
-        :param prefix_filter: Prefix filter to apply after the "#risk#" portion of the key. Risk keys follow format '#risk#{asset_dns}#{risk_name}'
-        :type prefix_filter: str
+        :param contains_filter: Filter to apply to the risk key. Ensure the risk's key contains the filter.
+        :type contains_filter: str
         :param offset: The offset of the page you want to retrieve results. If not supplied, retrieves from the first page
         :type offset: str or None
         :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
@@ -98,7 +98,12 @@ class Risks:
         :return: A tuple containing (list of matching risks, next page offset)
         :rtype: tuple
         """
-        return self.api.search.by_key_prefix(f'#risk#{prefix_filter}', offset, pages)
+        filters = []
+        if contains_filter:
+            contains_filter_filter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.CONTAINS, value=contains_filter)
+            filters.append(contains_filter_filter)
+        query = Query(Node([Node.Label.RISK], filters=filters))
+        return self.api.search.by_query(query, pages)
 
     def attributes(self, key):
         """
