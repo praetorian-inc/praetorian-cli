@@ -213,9 +213,21 @@ class Chariot:
         if global_:
             params |= GLOBAL_FLAG
 
-        resp = self._make_request('GET', self.url('/file'), params=params, allow_redirects=True)
+        # Step 1: Get presigned URL from backend
+        resp = self._make_request('GET', self.url('/file'), params=params)
         process_failure(resp)
-        return resp.content
+
+        # Parse JSON response to get presigned URL
+        presigned_url = resp.json().get('url')
+        if not presigned_url:
+            raise Exception('No download URL returned from server')
+
+        # Step 2: Fetch file from presigned URL (no auth headers)
+        file_resp = requests.get(presigned_url)
+        if not file_resp.ok:
+            raise Exception(f'Failed to download file from presigned URL: {file_resp.status_code}')
+
+        return file_resp.content
 
     def count(self, params: dict) -> dict:
         resp = self._make_request('GET', self.url('/my/count'), params=params)
