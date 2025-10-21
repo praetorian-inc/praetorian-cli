@@ -347,7 +347,7 @@ class ConversationApp(App):
         if self.conversation_id:
             payload["conversationId"] = self.conversation_id
         
-        response = self.sdk._make_request("POST", url, json=payload)
+        response = self.sdk.chariot_request("POST", url, json=payload)
         
         if response.status_code == 200:
             result = response.json()

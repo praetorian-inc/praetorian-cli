@@ -23,7 +23,7 @@ class TestConversation:
             "mode": "query"
         }
         
-        response = self.sdk._make_request("POST", url, json=payload)
+        response = self.sdk.chariot_request("POST", url, json=payload)
         
         # Should get successful response
         assert response.status_code == 200
@@ -45,7 +45,7 @@ class TestConversation:
             "mode": "query"
         }
         
-        response = self.sdk._make_request("POST", url, json=initial_payload)
+        response = self.sdk.chariot_request("POST", url, json=initial_payload)
         assert response.status_code == 200
         
         result = response.json()
@@ -58,7 +58,7 @@ class TestConversation:
             "conversationId": conversation_id
         }
         
-        response = self.sdk._make_request("POST", url, json=follow_up_payload)
+        response = self.sdk.chariot_request("POST", url, json=follow_up_payload)
         
         # Should get successful response
         assert response.status_code == 200
@@ -72,7 +72,7 @@ class TestConversation:
             "mode": "query"
         }
         
-        response = self.sdk._make_request("POST", url, json=payload)
+        response = self.sdk.chariot_request("POST", url, json=payload)
         assert response.status_code == 200
         
         result = response.json()
@@ -100,7 +100,7 @@ class TestConversation:
             "mode": "query"
         }
         
-        response = self.sdk._make_request("POST", url, json=payload)
+        response = self.sdk.chariot_request("POST", url, json=payload)
         assert response.status_code == 200
         
         # Wait a moment for conversation to be stored
@@ -123,7 +123,7 @@ class TestConversation:
             # Missing required "message" field
         }
         
-        response = self.sdk._make_request("POST", url, json=malformed_payload)
+        response = self.sdk.chariot_request("POST", url, json=malformed_payload)
         
         # Should get a 4xx error for bad request
         assert response.status_code >= 400
@@ -138,7 +138,7 @@ class TestConversation:
             "mode": "query"
         }
         
-        response = self.sdk._make_request("POST", url, json=query_payload)
+        response = self.sdk.chariot_request("POST", url, json=query_payload)
         assert response.status_code == 200
         
         result = response.json()
@@ -150,7 +150,7 @@ class TestConversation:
             "mode": "agent"
         }
         
-        response = self.sdk._make_request("POST", url, json=agent_payload)
+        response = self.sdk.chariot_request("POST", url, json=agent_payload)
         assert response.status_code == 200
         
         result = response.json()
@@ -165,7 +165,7 @@ class TestConversation:
             "mode": "query"
         }
         
-        response = self.sdk._make_request("POST", url, json=payload)
+        response = self.sdk.chariot_request("POST", url, json=payload)
         assert response.status_code == 200
         
         result = response.json()
