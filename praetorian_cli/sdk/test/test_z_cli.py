@@ -296,7 +296,7 @@ class TestZCli:
         o = make_test_values(lambda: None)
         self.verify(f'add asset --dns "{o.webapp_name}" --name "{o.webapp_url}" --type webapplication')
         self.verify(f'get asset "{o.webapp_key}"', expected_stdout=[o.webapp_key, o.webapp_url, o.webapp_name, '"status"', '"A"'])
-        self.verify(f'list assets -f "{o.webapp_name}"', expected_stdout=[o.webapp_key])
+        self.verify(f'list assets -f "{o.webapp_key}"', expected_stdout=[o.webapp_key])
         self.verify(f'delete asset "{o.webapp_key}"', ignore_stdout=True)
     
     def test_webpage_cli(self):
