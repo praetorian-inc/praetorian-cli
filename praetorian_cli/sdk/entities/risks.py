@@ -111,7 +111,7 @@ class Risks:
         )
 
         if offset:
-            query.node.page = int(offset)
+            query.page = int(offset)
 
         return self.api.search.by_query(query, pages)
 
