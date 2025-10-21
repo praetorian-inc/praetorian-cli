@@ -102,7 +102,17 @@ class Risks:
         if contains_filter:
             contains_filter_filter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.CONTAINS, value=contains_filter)
             filters.append(contains_filter_filter)
-        query = Query(Node([Node.Label.RISK], filters=filters), page=int(offset))
+
+        query = Query(
+            Node(
+                labels=[Node.Label.RISK],
+                filters=filters
+            )
+        )
+
+        if offset:
+            query.page = int(offset)
+
         return self.api.search.by_query(query, pages)
 
     def attributes(self, key):
