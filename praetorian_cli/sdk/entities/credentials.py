@@ -40,6 +40,7 @@ class Credentials:
         :rtype: dict or str
         """
         request = {
+            'Operation': 'get',
             'CredentialID': credential_id,
             'Category': category,
             'Type': type,
