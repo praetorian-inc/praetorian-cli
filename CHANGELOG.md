@@ -1,5 +1,10 @@
 # Changelog
 
+# 2.2.8
+- [Bug fix] Improved large file downloads
+- [Bug fix] Fixed credential retrieval operations
+- [Bug fix] Fixed a web application test case
+
 # 2.2.7
 - [Bug fix] Fixed offset support for risk list
 
