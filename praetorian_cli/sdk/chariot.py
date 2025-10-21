@@ -66,17 +66,23 @@ class Chariot:
 
     def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
         """
-        Centralized method to make HTTP requests with proxy configuration.
-        Automatically applies proxy settings and verify=False if proxy is defined.
+        Centralized method to make HTTP requests to the Chariot API with all global headers/parameters set.
+        """
+        
+        self.add_beta_url_param(kwargs)
+
+        return self.request(method, url, self.keychain.headers(), **kwargs)
+    
+    def request(self, method: str, url: str, headers: dict = None, **kwargs) -> requests.Response:
+        """
+        Centralized wrapper around requests.request, ensuring the HTTP proxy is respected.
         """
 
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
             kwargs['verify'] = False
-        
-        self.add_beta_url_param(kwargs)
 
-        return requests.request(method, url, headers=self.keychain.headers(), **kwargs)
+        return requests.request(method, url, headers=headers, **kwargs)
 
     def add_beta_url_param(self, kwargs: dict):
         if 'params' in kwargs:
@@ -213,7 +219,16 @@ class Chariot:
         if global_:
             params |= GLOBAL_FLAG
 
-        resp = self._make_request('GET', self.url('/file'), params=params, allow_redirects=True)
+        resp = self._make_request('GET', self.url('/file'), params=params)
+        process_failure(resp)
+
+        data = resp.json()
+        url = data.get("url", None)
+        if not url:
+            message = f'Download request failed: response missing URL' + (f'\nBody: {resp.text}' if resp.text else '(empty)')
+            raise Exception(message)
+        
+        resp = self.request('GET', url)
         process_failure(resp)
         return resp.content
 
