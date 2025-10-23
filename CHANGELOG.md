@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.2.9
+- [Bug fix] Optimized a risk query
+
 # 2.2.8
 - [Bug fix] Improved large file downloads
 - [Bug fix] Fixed credential retrieval operations
