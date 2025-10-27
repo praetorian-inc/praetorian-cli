@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.2.11
+- [Bug fix] Updated Aegis TUI to not set offline agents
+
 # 2.2.10
 - [Update] Updated the aegis agent endpoint
 
