@@ -652,21 +652,74 @@ def collect_assets_for_risk(sdk):
         if asset_exists:
             # Perform asset search with fuzzy matching
             try:
-                # Ask if user wants to filter assets by DNS prefix to reduce search space
-                dns_filter = ""
-                use_dns_filter = click.confirm("Would you like to filter assets by DNS hostname before searching? (Recommended for accounts with many assets)")
-                if use_dns_filter:
-                    dns_filter = click.prompt("Enter DNS hostname prefix to filter by (e.g., 'example.com' or 'api.')", type=str, default="").strip()
-                    if dns_filter:
-                        click.echo(f"💡 Filtering assets by DNS prefix: '{dns_filter}'")
-                
-                # Get assets with optional DNS filtering (load more pages for better selection)
-                all_assets, _ = sdk.assets.list(prefix_filter=dns_filter, pages=5)  # Get more assets for better fzf experience
-                if not all_assets:
-                    if dns_filter:
-                        click.echo(f"No assets found matching DNS filter: '{dns_filter}'")
+                # Step 1: Select asset type category
+                asset_type_category = click.prompt(
+                    "Select asset type",
+                    type=click.Choice(['asset', 'ad-object'], case_sensitive=False),
+                    default='asset',
+                    show_choices=True
+                )
+
+                key_prefix = ''
+                filter_value = ''
+                ad_object_type = None
+
+                if asset_type_category == 'asset':
+                    # Step 2: Get DNS filter for regular assets
+                    filter_value = click.prompt(
+                        "Enter DNS hostname to filter by (leave empty for all assets)",
+                        type=str,
+                        default=""
+                    ).strip()
+                    if filter_value:
+                        key_prefix = f'#asset#{filter_value}'
+                        click.echo(f"💡 Searching assets with DNS prefix: '{filter_value}'")
+
+                elif asset_type_category == 'ad-object':
+                    # Step 2: Select specific AD object type
+                    ad_object_type = click.prompt(
+                        "Select AD object type",
+                        type=click.Choice([
+                            'addomain',
+                            'aduser',
+                            'adcomputer',
+                            'adgroup',
+                            'adgpo',
+                            'adou',
+                            'adcontainer',
+                            'adlocalgroup',
+                            'adlocaluser',
+                            'adaiaca',
+                            'adrootca',
+                            'adenterpriseca',
+                            'adntauthstore',
+                            'adcerttemplate',
+                            'adissuancepolicy'
+                        ], case_sensitive=False),
+                        default='addomain',
+                        show_choices=True
+                    )
+
+                    # Step 3: Get AD domain filter
+                    filter_value = click.prompt(
+                        f"Enter AD domain to filter by (leave empty for all {ad_object_type} objects)",
+                        type=str,
+                        default=""
+                    ).strip()
+                    if filter_value:
+                        key_prefix = f'#{ad_object_type}#{filter_value}'
+                        click.echo(f"💡 Searching {ad_object_type} objects with domain prefix: '{filter_value}'")
                     else:
-                        click.echo("No assets found in your account.")
+                        key_prefix = f'#{ad_object_type}#'
+
+                # Get assets with optional filtering (load more pages for better selection)
+                all_assets, _ = sdk.assets.list(key_prefix=key_prefix, pages=100000)  # Get more assets for better fzf experience
+                if not all_assets:
+                    asset_type_label = ad_object_type if ad_object_type else asset_type_category
+                    if filter_value:
+                        click.echo(f"No {asset_type_label} assets found matching filter: '{filter_value}'")
+                    else:
+                        click.echo(f"No {asset_type_label} assets found in your account.")
                     
                     if click.confirm("Would you like to create a new asset instead?"):
                         asset_exists = False
