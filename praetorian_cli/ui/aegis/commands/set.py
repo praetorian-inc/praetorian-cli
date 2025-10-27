@@ -9,15 +9,16 @@ def handle_set(menu, args):
         return
 
     selection = args[0]
-    selected_agent = parse_agent_identifier(selection, menu.agents)
+    selected_agent = parse_agent_identifier(selection, menu.displayed_agents, menu.agents)
 
     if selected_agent:
         menu.selected_agent = selected_agent
         hostname = selected_agent.hostname
         menu.console.print(f"\n  Selected: {hostname}\n")
     else:
+        displayed_count = len(menu.displayed_agents)
         menu.console.print(f"\n[red]  Agent not found:[/red] {selection}")
-        menu.console.print(f"[dim]  Use agent number (1-{len(menu.agents)}), client ID, or hostname[/dim]\n")
+        menu.console.print(f"[dim]  Use agent number (1-{displayed_count}), client ID, or hostname[/dim]\n")
         menu.pause()
 
 
