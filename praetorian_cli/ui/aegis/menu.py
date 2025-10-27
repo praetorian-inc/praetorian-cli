@@ -54,7 +54,8 @@ class AegisMenu:
         self.selected_agent: Optional[Agent] = None  
         self._first_render = True
         self.agent_computed_data = {}  
-        self.current_prompt = "> " 
+        self.current_prompt = "> "
+        self.displayed_agents: List[Agent] = []  # Track currently displayed agents 
         
         self.user_email, self.username = self.sdk.get_current_user()
         
@@ -172,6 +173,8 @@ class AegisMenu:
         display_agents = active_tunnel_agents + online_agents
         if show_offline:
             display_agents = display_agents + offline_agents
+        
+        self.displayed_agents = [agent for _, agent in display_agents]
         
         self.console.print()
 
