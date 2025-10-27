@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.2.10
+- [Update] Updated the aegis agent endpoint
+
 # 2.2.9
 - [Bug fix] Optimized a risk query
 
