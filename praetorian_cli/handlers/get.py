@@ -71,6 +71,23 @@ def attribute(chariot, key):
 @get.command()
 @cli_handler
 @click.argument('key', required=True)
+def port(chariot, key):
+    """ Get port details
+
+    \b
+    Argument:
+        - KEY: the key of an existing port
+
+    \b
+    Example usage:
+        - praetorian chariot get port "#port#tcp#443#asset#example.com#example.com"
+    """
+    print_json(chariot.ports.get(key))
+
+
+@get.command()
+@cli_handler
+@click.argument('key', required=True)
 def account(chariot, key):
     """ Get account (collaborator or authorized master account) details
 

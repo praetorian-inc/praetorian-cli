@@ -177,6 +177,32 @@ def attributes(chariot, filter, key, details, offset, page):
 
 
 @list.command()
+@list_params('port protocol or service')
+@click.option('-k', '--key', default=None, help='Filter by an asset key')
+def ports(chariot, filter, key, details, offset, page):
+    """ List ports
+
+    Retrieve and display a list of open ports and services.
+
+    \b
+    Filtering options:
+        - Use the --filter option to filter by protocol or service (e.g., 'tcp', 'https').
+        - Use the --key option to filter for ports of a specific asset.
+        - You can only filter using either of the above, not together.
+
+    \b
+    Example usages:
+        - praetorian chariot list ports
+        - praetorian chariot list ports --filter tcp
+        - praetorian chariot list ports --filter https
+        - praetorian chariot list ports --key "#asset#example.com#example.com"
+        - praetorian chariot list ports --details
+        - praetorian chariot list ports --page all
+    """
+    render_list_results(chariot.ports.list(filter, key, offset, pagination_size(page)), details)
+
+
+@list.command()
 @list_params('DNS')
 @click.option('-t', '--type', help='Filter by seed type (e.g., asset, addomain)')
 def seeds(chariot, type, filter, details, offset, page):
