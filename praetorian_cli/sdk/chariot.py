@@ -206,8 +206,12 @@ class Chariot:
         return resp
 
     def _upload(self, chariot_filepath: str, content: str) -> dict:
-        # It is a two-step upload. The PUT request to the /file endpoint is to get a presigned URL for S3.
-        # There is no data transfer.
+        # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
+        # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
+        if chariot_filepath.startswith('_encrypted/'):
+            return self.chariot_request('PUT', self.url('/encrypted-file'), params=dict(name=chariot_filepath), data=content)
+
+        # Regular files use presigned URLs
         presigned_url = self.chariot_request('PUT', self.url('/file'), params=dict(name=chariot_filepath))
         process_failure(presigned_url)
         resp = requests.put(presigned_url.json()['url'], data=content)
@@ -216,6 +220,14 @@ class Chariot:
 
     def download(self, name: str, global_=False) -> bytes:
         params = dict(name=name)
+        # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
+        # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
+        if name.startswith("_encrypted/"):
+            resp = self.chariot_request('GET', self.url('/encrypted-file'), params=params)
+            process_failure(resp)
+            return resp.content
+
+        # Regular files, use presigned URLs
         if global_:
             params |= GLOBAL_FLAG
 
