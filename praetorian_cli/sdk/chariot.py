@@ -68,10 +68,15 @@ class Chariot:
         """
         Centralized method to make HTTP requests to the Chariot API with all global headers/parameters set.
         """
-        
         self.add_beta_url_param(kwargs)
 
-        return self.request(method, url, self.keychain.headers(), **kwargs)
+        # If headers is supplied in kwargs, merge it with the keychain's authentication headers
+        headers = self.keychain.headers()
+        if 'headers' in kwargs:
+            headers |= kwargs['headers']
+            del kwargs['headers']
+
+        return self.request(method, url, headers, **kwargs)
     
     def request(self, method: str, url: str, headers: dict = None, **kwargs) -> requests.Response:
         """
@@ -208,7 +213,7 @@ class Chariot:
     def _upload(self, chariot_filepath: str, content: str) -> dict:
         # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
         # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
-        if chariot_filepath.startswith('_encrypted/'):
+        if is_encrypted_file(chariot_filepath):
             return self.chariot_request('PUT', self.url('/encrypted-file'), params=dict(name=chariot_filepath), data=content)
 
         # Regular files use presigned URLs
@@ -222,8 +227,9 @@ class Chariot:
         params = dict(name=name)
         # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
         # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
-        if name.startswith("_encrypted/"):
-            resp = self.chariot_request('GET', self.url('/encrypted-file'), params=params)
+        if is_encrypted_file(name):
+            accept_binary = {'Accept': 'application/octet-stream'}
+            resp = self.chariot_request('GET', self.url('/encrypted-file'), params=params, headers=accept_binary)
             process_failure(resp)
             return resp.content
 
@@ -367,3 +373,7 @@ def extend(accumulate: dict, new: dict) -> dict:
             extend(accumulate[key], value)
 
     return accumulate
+
+
+def is_encrypted_file(chariot_filepath: str) -> bool:
+    return chariot_filepath.startswith('_encrypted/')
