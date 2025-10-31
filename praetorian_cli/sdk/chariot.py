@@ -213,7 +213,7 @@ class Chariot:
     def _upload(self, chariot_filepath: str, content: str) -> dict:
         # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
         # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
-        if is_encrypted_partition(chariot_filepath):
+        if is_encrypted_file(chariot_filepath):
             return self.chariot_request('PUT', self.url('/encrypted-file'), params=dict(name=chariot_filepath), data=content)
 
         # Regular files use presigned URLs
@@ -227,8 +227,9 @@ class Chariot:
         params = dict(name=name)
         # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
         # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
-        if is_encrypted_partition(name):
-            resp = self.chariot_request('GET', self.url('/encrypted-file'), params=params)
+        if is_encrypted_file(name):
+            accept_binary = {'Accept': 'application/octet-stream'}
+            resp = self.chariot_request('GET', self.url('/encrypted-file'), params=params, headers=accept_binary)
             process_failure(resp)
             return resp.content
 
@@ -374,5 +375,5 @@ def extend(accumulate: dict, new: dict) -> dict:
     return accumulate
 
 
-def is_encrypted_partition(chariot_filepath: str) -> bool:
+def is_encrypted_file(chariot_filepath: str) -> bool:
     return chariot_filepath.startswith('_encrypted/')
