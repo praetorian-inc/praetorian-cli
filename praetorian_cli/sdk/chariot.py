@@ -64,30 +64,19 @@ class Chariot:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    def chariot_request(self, method: str, url: str, **kwargs) -> requests.Response:
+    def chariot_request(self, method: str, url: str, headers: dict = {}, **kwargs) -> requests.Response:
         """
-        Centralized method to make HTTP requests to the Chariot API with all global headers/parameters set.
+        Centralized wrapper around requests.request. Take care of proxy, beta flag, and 
+        supplies the authentication headers
         """
         self.add_beta_url_param(kwargs)
-
-        # If headers is supplied in kwargs, merge it with the keychain's authentication headers
-        headers = self.keychain.headers()
-        if 'headers' in kwargs:
-            headers |= kwargs['headers']
-            del kwargs['headers']
-
-        return self.request(method, url, headers, **kwargs)
-    
-    def request(self, method: str, url: str, headers: dict = None, **kwargs) -> requests.Response:
-        """
-        Centralized wrapper around requests.request, ensuring the HTTP proxy is respected.
-        """
 
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
             kwargs['verify'] = False
 
-        return requests.request(method, url, headers=headers, **kwargs)
+        return requests.request(method, url, headers=(headers | self.keychain.headers()), **kwargs)
+
 
     def add_beta_url_param(self, kwargs: dict):
         if 'params' in kwargs:
@@ -246,7 +235,7 @@ class Chariot:
             message = f'Download request failed: response missing URL' + (f'\nBody: {resp.text}' if resp.text else '(empty)')
             raise Exception(message)
         
-        resp = self.request('GET', url)
+        resp = requests.request('GET', url)
         process_failure(resp)
         return resp.content
 
