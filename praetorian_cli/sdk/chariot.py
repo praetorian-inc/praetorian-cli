@@ -14,6 +14,7 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.preseeds import Preseeds
+from praetorian_cli.sdk.entities.redteam import RedTeam
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
 from praetorian_cli.sdk.entities.schema import Schema
@@ -48,6 +49,7 @@ class Chariot:
         self.statistics = Statistics(self)
         self.aegis = Aegis(self)
         self.agents = Agents(self)
+        self.redteam = RedTeam(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
         self.keys = Keys(self)
@@ -254,6 +256,21 @@ class Chariot:
     def agent(self, agent: str, body: dict) -> dict:
         body = body | dict(agent=agent)
         resp = self.chariot_request('PUT', self.url('/agent'), json=body)
+        process_failure(resp)
+        return resp.json()
+
+    def redteam_plan(self) -> dict:
+        resp = self.chariot_request('POST', self.url('/red-team/plan'))
+        process_failure(resp)
+        return resp.json()
+
+    def redteam_apply(self) -> dict:
+        resp = self.chariot_request('POST', self.url('/red-team/apply'))
+        process_failure(resp)
+        return resp.json()
+
+    def redteam_history(self) -> dict:
+        resp = self.chariot_request('GET', self.url('/red-team/history'))
         process_failure(resp)
         return resp.json()
 
