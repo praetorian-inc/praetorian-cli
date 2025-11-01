@@ -126,7 +126,7 @@ class Webpage:
             urlFilter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.CONTAINS, value=filter)
             filters.append(urlFilter)
         node = Node(labels=[Node.Label.WEBPAGE], filters=filters, relationships=relationships)
-        query = Query(node=node, page=offset, limit=pages)
+        query = Query(node=node, page=offset)
         return self.api.search.by_query(query, pages)
 
     def delete(self, key):

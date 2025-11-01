@@ -1,5 +1,8 @@
 # Changelog
 
+# NEXT_RELEASE
+- [New Feature] Added support for the _encrypted/ encrypted file store partition
+
 # 2.2.11
 - [Bug fix] Updated Aegis TUI to not set offline agents
 

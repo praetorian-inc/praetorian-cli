@@ -102,7 +102,7 @@ class TestZCli:
         self.verify(f'update risk "{o.risk_key}" -s {Risk.OPEN_LOW.value}')
         self.verify(f'get risk "{o.risk_key}"', [o.risk_key, f'"status": "{Risk.OPEN_LOW.value}"'])
 
-        self.verify(f'delete risk "{o.risk_key}"')
+        self.verify(f'delete risk "{o.risk_key}" -s DLO')
         self.verify(f'get risk "{o.risk_key}"', [
                     o.risk_key, f'"status": "{Risk.DELETED_OTHER_LOW.value}"',
                     f'"to": "{Risk.DELETED_OTHER_LOW.value}"'])
