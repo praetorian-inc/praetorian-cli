@@ -32,6 +32,22 @@ class RedTeam:
         """
         return self.api.redteam_apply()
 
+    def launch(self, project_id: str) -> dict:
+        """
+        Trigger a red team operation launch.
+
+        Args:
+            project_id: GCP project ID for the red team engagement
+
+        Returns:
+            dict: Response containing the launch operation status
+
+        Example:
+            >>> sdk.redteam.launch('my-redteam-project')
+            {'message': 'Red team launch triggered successfully', 'action': 'launch', 'status': 'initiated', ...}
+        """
+        return self.api.redteam_launch(project_id)
+
     def history(self) -> list:
         """
         Retrieve historical red team operation records.

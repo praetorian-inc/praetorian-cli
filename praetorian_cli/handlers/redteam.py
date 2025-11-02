@@ -46,6 +46,30 @@ def apply(sdk):
 
 
 @redteam.command()
+@click.option('--project-id', '-p', required=True, help='GCP project ID for the red team engagement')
+@cli_handler
+def launch(sdk, project_id):
+    """ Trigger a red team operation launch
+
+    This command initiates a red team operation launch to execute offensive
+    security testing operations against your infrastructure.
+
+    The project ID must meet GCP requirements:
+    - 6-27 characters in length
+    - Lowercase letters, numbers, and hyphens only
+    - Must start with a letter
+    - Cannot end with a hyphen
+
+    \b
+    Example usage:
+        praetorian chariot redteam launch --project-id my-redteam-project
+        praetorian chariot redteam launch -p my-redteam-project
+    """
+    result = sdk.redteam.launch(project_id)
+    click.echo(json.dumps(result, indent=2))
+
+
+@redteam.command()
 @cli_handler
 def history(sdk):
     """ Retrieve historical red team operation records

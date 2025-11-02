@@ -269,6 +269,12 @@ class Chariot:
         process_failure(resp)
         return resp.json()
 
+    def redteam_launch(self, project_id: str) -> dict:
+        body = {"project_id": project_id}
+        resp = self.chariot_request('POST', self.url('/red-team/launch'), json=body)
+        process_failure(resp)
+        return resp.json()
+
     def redteam_history(self) -> dict:
         resp = self.chariot_request('GET', self.url('/red-team/history'))
         process_failure(resp)
