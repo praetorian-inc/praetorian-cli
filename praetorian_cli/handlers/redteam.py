@@ -46,9 +46,9 @@ def apply(sdk):
 
 
 @redteam.command()
-@click.option('--project-id', '-p', required=True, help='GCP project ID for the red team engagement')
+@click.option('--desired-project-id', '-p', required=True, help='GCP project ID for the red team engagement')
 @cli_handler
-def launch(sdk, project_id):
+def launch(sdk, desired_id):
     """ Trigger a red team operation launch
 
     This command initiates a red team operation launch to execute offensive
@@ -62,10 +62,9 @@ def launch(sdk, project_id):
 
     \b
     Example usage:
-        praetorian chariot redteam launch --project-id my-redteam-project
-        praetorian chariot redteam launch -p my-redteam-project
+        praetorian chariot redteam launch --desired-id client-name-2025-12-1234
     """
-    result = sdk.redteam.launch(project_id)
+    result = sdk.redteam.launch(desired_id)
     click.echo(json.dumps(result, indent=2))
 
 
@@ -82,4 +81,45 @@ def history(sdk):
         praetorian chariot redteam history
     """
     result = sdk.redteam.history()
+    click.echo(json.dumps(result, indent=2))
+
+
+@redteam.command()
+@click.option('--collaborators', '-c', multiple=True, required=True, help='Email addresses of collaborators (can be specified multiple times)')
+@cli_handler
+def collaborators(sdk, collaborators):
+    """ Update collaborators for the current red team deployment
+
+    This command updates the list of collaborators who have access to the
+    red team project. Collaborators will be granted appropriate permissions
+    to work on the red team infrastructure.
+
+    You must provide at least one collaborator email address. You can specify
+    multiple collaborators by using the -c flag multiple times.
+
+    \b
+    Example usage:
+        praetorian chariot redteam collaborators -c alice@praetorian.com -c bob@praetorian.com
+    """
+    # Convert tuple to list for JSON serialization
+    collaborator_list = list(collaborators)
+    result = sdk.redteam.update_collaborators(collaborator_list)
+    click.echo(json.dumps(result, indent=2))
+
+
+@redteam.command()
+@cli_handler
+def details(sdk):
+    """ Retrieve the current red team deployment configuration
+
+    This command retrieves detailed information about the current red team
+    deployment, including the GCP project ID, git hash of the infrastructure
+    code, the principal who launched the deployment, collaborators with access,
+    and deployment timestamps.
+
+    \b
+    Example usage:
+        praetorian chariot redteam details
+    """
+    result = sdk.redteam.details()
     click.echo(json.dumps(result, indent=2))
