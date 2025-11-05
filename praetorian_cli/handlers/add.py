@@ -163,7 +163,8 @@ def risk(sdk, name, asset, status, comment, capability):
 @click.option('-c', '--capability', 'capabilities', multiple=True,
               help='Capabilities to run (can be specified multiple times)')
 @click.option('-g', '--config', help='JSON configuration string')
-def job(sdk, key, capabilities, config):
+@click.option('-s', '--credential', 'credentials', help='Credential ID to use with the job', multiple=True)
+def job(sdk, key, capabilities, config, credentials):
     """ Schedule scan jobs for an asset or an attribute
 
     This command schedules the relevant discovery and vulnerability scans for
@@ -176,8 +177,9 @@ def job(sdk, key, capabilities, config):
         - praetorian chariot add job --key "#asset#example.com#1.2.3.4" -c subdomain -c portscan
         - praetorian chariot add job --key "#attribute#ssh#22#asset#api.www.example.com#1.2.3.4"
         - praetorian chariot add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"}'
+        - praetorian chariot add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"} --credential "E4644F37-6985-40B4-8D07-5311516D98F1"'
     """
-    sdk.jobs.add(key, capabilities, config)
+    sdk.jobs.add(key, capabilities, config, credentials)
 
 
 @add.command()
@@ -333,13 +335,52 @@ def key(sdk, name, expires):
 @click.option('-p', '--parent', required=False, help='Optional key of the parent WebApplication')
 def webpage(sdk, url, parent):
     """ Add a Webpage
-    
+
     Add a web page to the Chariot database. Webpages can optionally be associated
     with a parent WebApplication or exist independently.
-    
+
     \b
     Example usages:
         - praetorian chariot add webpage --url https://app.example.com/login
         - praetorian chariot add webpage --url https://app.example.com/admin --parent "#webapplication#https://app.example.com"
     """
     sdk.webpage.add(url, parent)
+
+
+@add.command()
+@cli_handler
+@click.option('-r', '--resource-key', required=True, help='The resource key for the credential (e.g., account key)')
+@click.option('-c', '--category', required=True,
+              type=click.Choice(['integration', 'cloud', 'env-integration']),
+              help='The category of the credential')
+@click.option('-t', '--type', 'cred_type', required=True,
+              help='The type of credential (aws, gcp, azure, static, ssh_key, json, active-directory, default)')
+@click.option('-l', '--label', required=True, help='A human-readable label for the credential')
+@click.option('-p', '--param', 'parameters', multiple=True,
+              help='Parameter in format key=value (can be specified multiple times)')
+def credential(sdk, resource_key, category, cred_type, label, parameters):
+    """ Add a credential
+
+    This command adds a credential to the credential broker. Credentials can be used
+    for authentication with various cloud providers, integrations, and environment services.
+
+    \b
+    Example usages:
+        - praetorian chariot add credential --resource-key "C.0c6cf7104f516b08-OGMPG" --category env-integration --type active-directory --label "Robb Stark" --param username=robb.stark --param password=sexywolfy --param domain=north.sevenkingdoms.local
+        - praetorian chariot add credential -r "C.example-key" -c cloud -t aws --label "AWS Production" -p region=us-east-1 -p role_arn=arn:aws:iam::123456789012:role/MyRole
+        - praetorian chariot add credential -r "C.example-key" -c integration -t static --label "API Token" -p token=abc123xyz
+    """
+    # Parse parameters from key=value format
+    params = {}
+    for param in parameters:
+        if '=' not in param:
+            error(f"Parameter '{param}' is not in the format key=value")
+            return
+        key, value = param.split('=', 1)
+        params[key] = value
+
+    try:
+        result = sdk.credentials.add(resource_key, category, cred_type, label, params)
+        click.echo(result)
+    except Exception as e:
+        error(f'Unable to add credential. Error: {e}')
