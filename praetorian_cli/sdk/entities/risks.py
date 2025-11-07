@@ -1,5 +1,5 @@
 from praetorian_cli.sdk.model.globals import Kind
-from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, PORT_NODE, Filter
+from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, PORT_NODE, Filter, WEBPAGE_NODE
 
 
 class Risks:
@@ -150,5 +150,12 @@ class Risks:
         query = Query(Node(ASSET_NODE, relationships=[to_ports]))
         indirect_assets, _ = self.api.search.by_query(query)
 
+        # webpages linked to the risk
+        webpages = Node(WEBPAGE_NODE, relationships=[to_this])
+        to_webpages = Relationship(Relationship.Label.HAS_WEBPAGE, target=webpages)
+        query = Query(Node(ASSET_NODE, relationships=[to_webpages]))
+        web_assets, _ = self.api.search.by_query(query)
+
         assets.extend(indirect_assets)
+        assets.extend(web_assets)
         return assets
