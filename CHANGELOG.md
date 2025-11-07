@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.2.12
+- [Bug fix] Updated the risk's affected assets query to handle ports and webpages.
+
 # 2.2.11
 - [Bug fix] Updated Aegis TUI to not set offline agents
 
