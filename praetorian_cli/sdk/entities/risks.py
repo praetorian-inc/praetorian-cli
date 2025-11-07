@@ -132,7 +132,7 @@ class Risks:
         Get all assets affected by a risk.
 
         This method finds assets that are directly linked to the risk via HAS_VULNERABILITY
-        relationships, as well as assets indirectly linked via attributes that have the risk.
+        relationships, as well as assets indirectly linked via ports that have the risk.
 
         :param key: The key of the risk to get affected assets for
         :type key: str
@@ -145,8 +145,8 @@ class Risks:
         assets, _ = self.api.search.by_query(query)
 
         # assets indirectly linked to the risk via a port
-        attributes = Node(PORT_NODE, relationships=[to_this])
-        to_ports = Relationship(Relationship.Label.HAS_PORT, target=attributes)
+        ports = Node(PORT_NODE, relationships=[to_this])
+        to_ports = Relationship(Relationship.Label.HAS_PORT, target=ports)
         query = Query(Node(ASSET_NODE, relationships=[to_ports]))
         indirect_assets, _ = self.api.search.by_query(query)
 
