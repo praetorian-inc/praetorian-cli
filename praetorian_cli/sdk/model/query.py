@@ -68,6 +68,7 @@ class Relationship:
         DISCOVERED = 'DISCOVERED'
         HAS_ATTRIBUTE = 'HAS_ATTRIBUTE'
         HAS_WEBPAGE = 'HAS_WEBPAGE'
+        HAS_PORT = 'HAS_PORT'
 
     def __init__(self, label: Label, source: 'Node' = None, target: 'Node' = None, optional: bool = False, length: int = 0):
         self.label = label
@@ -97,6 +98,7 @@ class Node:
         ADDOMAIN = 'ADDomain'
         ATTRIBUTE = 'Attribute'
         RISK = 'Risk'
+        PORT = 'Port'
         PRESEED = 'Preseed'
         SEED = 'Seed'
         TTL = 'TTL'
@@ -152,11 +154,15 @@ class Query:
 ASSET_NODE = [Node.Label.ASSET]
 RISK_NODE = [Node.Label.RISK]
 ATTRIBUTE_NODE = [Node.Label.ATTRIBUTE]
+PORT_NODE = [Node.Label.PORT]
+WEBAPPLICATION_NODE = [Node.Label.WEBAPPLICATION]
+WEBPAGE_NODE = [Node.Label.WEBPAGE]
 
 KIND_TO_LABEL = {
     Kind.ASSET.value: Node.Label.ASSET,
     Kind.RISK.value: Node.Label.RISK,
     Kind.ATTRIBUTE.value: Node.Label.ATTRIBUTE,
+    Kind.PORT.value: Node.Label.PORT,
     Kind.SEED.value: Node.Label.SEED,
     Kind.PRESEED.value: Node.Label.PRESEED,
     Kind.REPOSITORY.value: Node.Label.REPOSITORY,
