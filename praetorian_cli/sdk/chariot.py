@@ -64,25 +64,19 @@ class Chariot:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    def chariot_request(self, method: str, url: str, **kwargs) -> requests.Response:
+    def chariot_request(self, method: str, url: str, headers: dict = {}, **kwargs) -> requests.Response:
         """
-        Centralized method to make HTTP requests to the Chariot API with all global headers/parameters set.
+        Centralized wrapper around requests.request. Take care of proxy, beta flag, and 
+        supplies the authentication headers
         """
-        
         self.add_beta_url_param(kwargs)
-
-        return self.request(method, url, self.keychain.headers(), **kwargs)
-    
-    def request(self, method: str, url: str, headers: dict = None, **kwargs) -> requests.Response:
-        """
-        Centralized wrapper around requests.request, ensuring the HTTP proxy is respected.
-        """
 
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
             kwargs['verify'] = False
 
-        return requests.request(method, url, headers=headers, **kwargs)
+        return requests.request(method, url, headers=(headers | self.keychain.headers()), **kwargs)
+
 
     def add_beta_url_param(self, kwargs: dict):
         if 'params' in kwargs:
@@ -206,8 +200,12 @@ class Chariot:
         return resp
 
     def _upload(self, chariot_filepath: str, content: str) -> dict:
-        # It is a two-step upload. The PUT request to the /file endpoint is to get a presigned URL for S3.
-        # There is no data transfer.
+        # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
+        # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
+        if is_encrypted_partition(chariot_filepath):
+            return self.chariot_request('PUT', self.url('/encrypted-file'), params=dict(name=chariot_filepath), data=content)
+
+        # Regular files use presigned URLs
         presigned_url = self.chariot_request('PUT', self.url('/file'), params=dict(name=chariot_filepath))
         process_failure(presigned_url)
         resp = requests.put(presigned_url.json()['url'], data=content)
@@ -216,6 +214,15 @@ class Chariot:
 
     def download(self, name: str, global_=False) -> bytes:
         params = dict(name=name)
+        # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
+        # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
+        if is_encrypted_partition(name):
+            accept_binary = {'Accept': 'application/octet-stream'}
+            resp = self.chariot_request('GET', self.url('/encrypted-file'), params=params, headers=accept_binary)
+            process_failure(resp)
+            return resp.content
+
+        # Regular files, use presigned URLs
         if global_:
             params |= GLOBAL_FLAG
 
@@ -228,7 +235,7 @@ class Chariot:
             message = f'Download request failed: response missing URL' + (f'\nBody: {resp.text}' if resp.text else '(empty)')
             raise Exception(message)
         
-        resp = self.request('GET', url)
+        resp = requests.request('GET', url)
         process_failure(resp)
         return resp.content
 
@@ -355,3 +362,7 @@ def extend(accumulate: dict, new: dict) -> dict:
             extend(accumulate[key], value)
 
     return accumulate
+
+
+def is_encrypted_partition(chariot_filepath: str) -> bool:
+    return chariot_filepath.startswith('_encrypted/')
