@@ -9,6 +9,7 @@ import praetorian_cli.handlers.get
 import praetorian_cli.handlers.imports
 import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
+import praetorian_cli.handlers.redteam
 import praetorian_cli.handlers.script
 import praetorian_cli.handlers.search
 import praetorian_cli.handlers.test
