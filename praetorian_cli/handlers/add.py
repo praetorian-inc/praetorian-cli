@@ -1,4 +1,5 @@
 import datetime
+import json
 import os.path
 
 import click
@@ -381,6 +382,6 @@ def credential(sdk, resource_key, category, cred_type, label, parameters):
 
     try:
         result = sdk.credentials.add(resource_key, category, cred_type, label, params)
-        click.echo(result)
+        click.echo(json.dumps(result, indent=2))
     except Exception as e:
         error(f'Unable to add credential. Error: {e}')
