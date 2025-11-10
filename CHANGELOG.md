@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.2.13
+- [New Feature] Add credential IDs to aegis jobs
+
 # 2.2.12
 - [Bug fix] Updated the risk's affected assets query to handle ports and webpages.
 
