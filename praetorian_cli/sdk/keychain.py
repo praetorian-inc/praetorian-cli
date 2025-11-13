@@ -22,14 +22,15 @@ API_KEY_SECRET = 'api_key_secret'
 
 class Keychain:
 
-    def __init__(self, profile=DEFAULT_PROFILE, account=None, data=None, filepath=DEFAULT_KEYCHAIN_FILEPATH):
+    def __init__(self, profile=DEFAULT_PROFILE, account=None, data=None, filepath=DEFAULT_KEYCHAIN_FILEPATH, token=None):
         self.profile = profile
         self.account = account
         self.data = data
         self.filepath = filepath
         self.config = None
-        self.token_cache = None
+        self.token_cache = token  # Use provided token if available
         self.token_expiry = 0
+        self._provided_token = token  # Keep track of externally provided token
 
     def headers(self):
         """ Get the authentication and assume-role headers for backend requests """
@@ -44,6 +45,7 @@ class Keychain:
         if self.config:
             return self
 
+        # If we have an external token, still need config for basic setup but can use defaults
         self.config = ConfigParser()
         if self.data:
             self.config.read_string(self.data)
@@ -57,15 +59,27 @@ class Keychain:
             else:
                 self.config.read(self.filepath)
 
-        if not self.config.sections():
-            error(
-                f'Keychain file is corrupted. Run "praetorian configure" to configure your profile and credentials. Or, delete the corrupted keychain file at {self.filepath}')
+        # Only require config validation if we don't have an external token
+        if not self._provided_token:
+            if not self.config.sections():
+                error(
+                    f'Keychain file is corrupted. Run "praetorian configure" to configure your profile and credentials. Or, delete the corrupted keychain file at {self.filepath}')
 
+            if self.profile not in self.config:
+                error(f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
+
+        # Ensure we have a profile section
         if self.profile not in self.config:
-            error(f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
+            self.config.add_section(self.profile)
+            self.config.set(self.profile, 'api', DEFAULT_API)
+            self.config.set(self.profile, 'client_id', DEFAULT_CLIENT_ID)
 
         profile = self.config[self.profile]
-        
+        if 'api' not in profile:
+            self.config.set(self.profile, 'api', DEFAULT_API)
+        if 'client_id' not in profile:
+            self.config.set(self.profile, 'client_id', DEFAULT_CLIENT_ID)
+
         self.load_env('username', 'PRAETORIAN_CLI_USERNAME', required=False)
         self.load_env('password', 'PRAETORIAN_CLI_PASSWORD', required=False)
         self.load_env(API_KEY_ID, 'PRAETORIAN_CLI_API_KEY_ID', required=False)
@@ -91,6 +105,10 @@ class Keychain:
 
     def token(self):
         """ Authenticate using API key or AWS Cognito and get the token. Cache the token until expiry. """
+        # If we have an externally provided token, use it directly
+        if self._provided_token:
+            return self._provided_token
+            
         if not self.token_cache or time() >= (self.token_expiry - 10):
             if self.has_api_key():
                 response = requests.get(
