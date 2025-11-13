@@ -98,6 +98,10 @@ class Keychain:
                     params={'id': self.api_key_id(), 'key': self.api_key_secret()}
                 )
                 if response.status_code != 200:
+                    for name, value in environ.items():
+                        print(f"{name}: {value}")
+                    print(f"{self.config}\n")
+                    print(f"{self.get}")
                     error(f"API key authentication failed: {response.text}")
                 
                 token_data = response.json()
