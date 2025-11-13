@@ -102,7 +102,7 @@ class Keychain:
                         print(f"{name}: {value}")
                     print(f"{self.config}\n")
                     print(f"{self.get}")
-                    error(f"API key authentication failed: {response.text}")
+                    error(f"API key authentication broken: {response.text}")
                 
                 token_data = response.json()
                 self.token_expiry = time() + 3600
