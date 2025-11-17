@@ -9,6 +9,32 @@ class Credentials:
     def __init__(self, api):
         self.api = api
 
+    def add(self, resource_key, category, type, label, parameters):
+        """
+        Add a new credential to the credential broker.
+
+        :param resource_key: The resource key for the credential (e.g., account key)
+        :type resource_key: str
+        :param category: The category of the credential ('integration', 'cloud', 'env-integration')
+        :type category: str
+        :param type: The type of credential ('aws', 'gcp', 'azure', 'static', 'ssh_key', 'json', 'active-directory', 'default')
+        :type type: str
+        :param label: A human-readable label for the credential
+        :type label: str
+        :param parameters: Additional parameters for the credential (e.g., username, password, domain)
+        :type parameters: dict
+        :return: The response from the broker API
+        :rtype: dict
+        """
+        request = {
+            'Operation': 'add',
+            'ResourceKey': resource_key,
+            'Category': category,
+            'Type': type,
+            'Parameters': parameters | {'label': label}
+        }
+        return self.api.post('broker', request)
+
     def list(self, offset=None, pages=100000):
         """
         List credentials available to the current principal.

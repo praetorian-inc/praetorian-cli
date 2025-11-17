@@ -183,6 +183,7 @@ class ManualAssetParser:
     ASSET_TYPES = {
         'dns-ip': 'DNS + IP Address',
         'aws': 'AWS Resource (ARN)',
+        'azure': 'Azure Resource (Resource ID)',
         'dns-dns': 'DNS + DNS'
     }
     
@@ -289,6 +290,76 @@ class ManualAssetParser:
             'type': Kind.ASSET.value,
             'expected_key': f"#asset#{asset_name}#{arn}"
         }
+
+    def parse_azure_asset(self):
+        """
+        Handle Azure asset creation.
+        Asks for Azure Resource ID, parses last slash field as asset name and full Resource ID as identifier.
+
+        :return: Dict with asset creation parameters
+        """
+        click.echo(f"\n☁️ Creating Azure asset:")
+
+        resource_id = click.prompt("Enter Azure Resource ID", type=str).strip()
+        if not resource_id:
+            click.echo("Azure Resource ID cannot be empty.")
+            return None
+
+        # Validate Azure Resource ID format with relaxed rules
+        try:
+            self._validate_azure_resource_id(resource_id)
+        except ValueError as e:
+            click.echo(f"❌ Invalid Azure Resource ID: {e}")
+            return None
+
+        # Parse Resource ID to extract asset name (last segment after final slash)
+        segments = [s for s in resource_id.split('/') if s]  # Remove empty segments
+        asset_name = segments[-1]
+
+        if not asset_name:
+            click.echo("❌ Could not extract asset name from Azure Resource ID (final segment is empty)")
+            return None
+
+        surface = click.prompt("Enter surface classification",
+                             type=click.Choice(['external', 'internal', 'web', 'api', 'cloud']),
+                             default='cloud')
+
+        click.echo(f"💡 Parsed Azure Resource ID:")
+        click.echo(f"   Asset Name: {asset_name}")
+        click.echo(f"   Full Resource ID: {resource_id}")
+
+        return {
+            'name': asset_name,
+            'identifier': resource_id,  # Full Resource ID as identifier
+            'surface': surface,
+            'status': Asset.ACTIVE.value,
+            'type': Kind.ASSET.value,
+            'expected_key': f"#asset#{asset_name}#{resource_id}"
+        }
+
+    def _validate_azure_resource_id(self, resource_id):
+        """
+        Validate Azure Resource ID with relaxed rules to handle various Azure resource types.
+
+        :param resource_id: The Azure Resource ID to validate
+        :raises ValueError: If the resource ID format is invalid
+        """
+        if not (resource_id.startswith('/subscriptions/') or resource_id.startswith('/providers/')):
+            raise ValueError("Azure Resource ID must start with '/subscriptions/' or '/providers/'")
+
+        segments = [s for s in resource_id.split('/') if s]  # Remove empty segments
+        if len(segments) < 3:
+            raise ValueError("Azure Resource ID must have at least 3 segments")
+
+        if not segments[-1]:
+            raise ValueError("Resource name (final segment) cannot be empty")
+
+        if '/providers/' not in resource_id:
+            raise ValueError("Azure Resource ID must contain '/providers/'")
+
+        # Optional warning for unusual patterns (not an error)
+        if len(segments) < 4 or len(segments) > 15:
+            click.echo(f"⚠ Warning: Unusual Azure Resource ID format with {len(segments)} segments")
     
     def create_manual_asset(self):
         """
@@ -304,6 +375,8 @@ class ManualAssetParser:
             return self.parse_dns_ip_asset()
         elif asset_type == 'aws':
             return self.parse_aws_asset()
+        elif asset_type == 'azure':
+            return self.parse_azure_asset()
         else:
             click.echo(f"❌ Unsupported asset type: {asset_type}")
             return None
@@ -311,8 +384,8 @@ class ManualAssetParser:
     def parse_asset_from_bulk_data(self, asset_type, asset_value, surface):
         """
         Parse asset data from bulk input (non-interactive) for the given asset type.
-        
-        :param asset_type: Type of asset (dns-ip, aws)
+
+        :param asset_type: Type of asset (dns-ip, aws, azure, dns-dns)
         :param asset_value: Value to parse based on type
         :param surface: Surface classification
         :return: Asset creation data dict
@@ -388,6 +461,39 @@ class ManualAssetParser:
                 'status': Asset.ACTIVE.value,
                 'type': Kind.ASSET.value,
                 'expected_key': f"#asset#{asset_name}#{arn}"
+            }
+
+        elif asset_type == 'azure':
+            # For Azure, expect full Resource ID
+            resource_id = asset_value.strip()
+
+            # Validate Azure Resource ID format with relaxed rules
+            if not (resource_id.startswith('/subscriptions/') or resource_id.startswith('/providers/')):
+                raise ValueError(f"Azure Resource ID must start with '/subscriptions/' or '/providers/', got: {resource_id}")
+
+            segments = [s for s in resource_id.split('/') if s]  # Remove empty segments
+            if len(segments) < 3:
+                raise ValueError(f"Azure Resource ID must have at least 3 segments, got {len(segments)} segments: {resource_id}")
+
+            if '/providers/' not in resource_id:
+                raise ValueError(f"Azure Resource ID must contain '/providers/': {resource_id}")
+
+            # Extract asset name (last segment after final slash)
+            asset_name = segments[-1]
+            if not asset_name:
+                raise ValueError("Could not extract asset name from Azure Resource ID (final segment is empty)")
+
+            # Optional warning for unusual patterns (not an error)
+            if len(segments) < 4 or len(segments) > 15:
+                click.echo(f"    ⚠ Warning: Unusual Azure Resource ID format with {len(segments)} segments for resource '{asset_name}'")
+
+            return {
+                'name': asset_name,
+                'identifier': resource_id,
+                'surface': surface,
+                'status': Asset.ACTIVE.value,
+                'type': Kind.ASSET.value,
+                'expected_key': f"#asset#{asset_name}#{resource_id}"
             }
         else:
             raise ValueError(f"Unsupported asset type: {asset_type}")

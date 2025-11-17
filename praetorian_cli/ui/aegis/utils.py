@@ -132,27 +132,28 @@ def get_agent_display_style(group: str, colors: dict) -> dict:
         }
 
 
-def parse_agent_identifier(identifier: str, agents: List[Agent]) -> Optional[Agent]:
-    """Parse agent identifier and return matching agent"""
-    if not agents:
+def parse_agent_identifier(identifier: str, displayed_agents: List[Agent], all_agents: Optional[List[Agent]] = None) -> Optional[Agent]:
+    """Parse agent identifier and return matching agent
+    """
+    if not displayed_agents:
         return None
     
-    # Try numeric index first
+    # Use all_agents for fallback searches, or displayed_agents if not provided
+    search_agents = all_agents if all_agents is not None else displayed_agents
+    
     if identifier.isdigit():
         agent_num = int(identifier)
-        if 1 <= agent_num <= len(agents):
-            return agents[agent_num - 1]
+        if 1 <= agent_num <= len(displayed_agents):
+            return displayed_agents[agent_num - 1]
     
-    # Try client ID match
-    for agent in agents:
+    for agent in search_agents:
         try:
             if agent.client_id and agent.client_id.lower() == identifier.lower():
                 return agent
         except AttributeError:
             continue
     
-    # Try hostname match  
-    for agent in agents:
+    for agent in search_agents:
         try:
             if agent.hostname and agent.hostname.lower() == identifier.lower():
                 return agent

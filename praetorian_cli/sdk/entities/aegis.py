@@ -59,7 +59,7 @@ class Aegis:
             - is_online: Boolean indicating if agent is currently online
         """
         try:
-            agents_data = self.api.get('/aegis/agent')
+            agents_data = self.api.get('/agent/enhanced')
             
             # Return Agent objects
             agents = []
