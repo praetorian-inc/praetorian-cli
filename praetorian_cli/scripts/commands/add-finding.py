@@ -329,8 +329,8 @@ class ManualAssetParser:
         click.echo(f"   Full Resource ID: {resource_id}")
 
         return {
-            'name': resource_id,  # Full Resource ID as display name (swapped for testing unique assets)
-            'identifier': asset_name,  # Short name as identifier (swapped for testing unique assets)
+            'name': asset_name,
+            'identifier': resource_id,  # Full Resource ID as identifier
             'surface': surface,
             'status': Asset.ACTIVE.value,
             'type': Kind.ASSET.value,
@@ -488,8 +488,8 @@ class ManualAssetParser:
                 click.echo(f"    ⚠ Warning: Unusual Azure Resource ID format with {len(segments)} segments for resource '{asset_name}'")
 
             return {
-                'name': resource_id,  # Full Resource ID as display name (swapped for testing unique assets)
-                'identifier': asset_name,  # Short name as identifier (swapped for testing unique assets)
+                'name': asset_name,
+                'identifier': resource_id,
                 'surface': surface,
                 'status': Asset.ACTIVE.value,
                 'type': Kind.ASSET.value,
