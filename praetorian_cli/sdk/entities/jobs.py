@@ -8,7 +8,7 @@ class Jobs:
     def __init__(self, api):
         self.api = api
 
-    def add(self, target_key, capabilities=[], config=None):
+    def add(self, target_key, capabilities=[], config=None, credentials=[]):
         """
         Add a job to execute capabilities against an asset or attribute.
 
@@ -62,19 +62,22 @@ class Jobs:
             - crawler: Web application crawler
             - whois: Domain registration information lookup
         """
-        params = dict(key=target_key)
+        body = dict(key=target_key)
         if capabilities:
-            params = params | dict(capabilities=capabilities)
+            body = body | dict(capabilities=capabilities)
 
         if config:
             try:
-                params = params | dict(config=json.loads(config))
+                body = body | dict(config=json.loads(config))
             except json.JSONDecodeError as e:
                 raise Exception(f"Invalid JSON in configuration string: {e}")
             except Exception as e:
                 raise Exception(f"Error processing configuration string: {e}")
 
-        return self.api.force_add('job', params)
+        if credentials:
+            body = body | dict(credential_ids=credentials)
+
+        return self.api.force_add('job', body)
 
     def get(self, key):
         """

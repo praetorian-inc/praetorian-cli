@@ -3,6 +3,9 @@
 # NEXT_RELEASE
 - [New Feature] Added support for the _encrypted/ encrypted file store partition.
 
+# 2.2.13
+- [New Feature] Add credential IDs to aegis jobs
+
 # 2.2.12
 - [Bug fix] Updated the risk's affected assets query to handle ports and webpages.
 
