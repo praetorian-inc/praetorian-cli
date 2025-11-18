@@ -16,6 +16,7 @@ class Menu(MockMenuBase):
         super().__init__()
         self.agents = agents
         self.selected_agent = None
+        self.displayed_agents = agents
 
 
 def test_set_no_args_shows_message_and_pauses():

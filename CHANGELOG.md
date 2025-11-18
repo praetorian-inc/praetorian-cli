@@ -1,5 +1,8 @@
 # Changelog
 
+# NEXT_RELEASE
+- [New Feature] Added support for the encrypted file store partition.
+
 # 2.2.13
 - [New Feature] Add credential IDs to aegis jobs
 
