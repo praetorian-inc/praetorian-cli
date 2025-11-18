@@ -1,6 +1,6 @@
 # Changelog
 
-# NEXT_RELEASE
+# 2.2.14
 - [New Feature] Added support for the encrypted file store partition.
 
 # 2.2.13
