@@ -1,5 +1,20 @@
 # Changelog
 
+# 2.2.13
+- [New Feature] Add credential IDs to aegis jobs
+
+# 2.2.12
+- [Bug fix] Updated the risk's affected assets query to handle ports and webpages.
+
+# 2.2.11
+- [Bug fix] Updated Aegis TUI to not set offline agents
+
+# 2.2.10
+- [Update] Updated the aegis agent endpoint
+
+# 2.2.9
+- [Bug fix] Optimized a risk query
+
 # 2.2.8
 - [Bug fix] Improved large file downloads
 - [Bug fix] Fixed credential retrieval operations
