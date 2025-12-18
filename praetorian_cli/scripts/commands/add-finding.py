@@ -360,23 +360,57 @@ class ManualAssetParser:
         # Optional warning for unusual patterns (not an error)
         if len(segments) < 4 or len(segments) > 15:
             click.echo(f"⚠ Warning: Unusual Azure Resource ID format with {len(segments)} segments")
+
+    def parse_dns_dns_asset(self):
+        """
+        Handle DNS + DNS asset creation.
+        Asks for DNS record as asset name, then DNS identifier.
+
+        :return: Dict with asset creation parameters
+        """
+        click.echo(f"\n📡 Creating DNS + DNS asset:")
+
+        dns_record = click.prompt("Enter DNS record (asset name)", type=str).strip()
+        if not dns_record:
+            click.echo("DNS record cannot be empty.")
+            return None
+
+        dns_identifier = click.prompt("Enter DNS identifier", type=str).strip()
+        if not dns_identifier:
+            click.echo("DNS identifier cannot be empty.")
+            return None
+
+        surface = click.prompt("Enter surface classification",
+                             type=click.Choice(['external', 'internal', 'web', 'api', 'cloud']),
+                             default='external')
+
+        return {
+            'name': dns_record,
+            'identifier': dns_identifier,
+            'surface': surface,
+            'status': Asset.ACTIVE.value,
+            'type': Kind.ASSET.value,
+            'expected_key': f"#asset#{dns_record}#{dns_identifier}"
+        }
     
     def create_manual_asset(self):
         """
         Main method to create a manual asset by determining type and calling appropriate parser.
-        
+
         :return: Dict with asset creation parameters or None if cancelled
         """
         asset_type = self.get_asset_type()
         if not asset_type:
             return None
-        
+
         if asset_type == 'dns-ip':
             return self.parse_dns_ip_asset()
         elif asset_type == 'aws':
             return self.parse_aws_asset()
         elif asset_type == 'azure':
             return self.parse_azure_asset()
+        elif asset_type == 'dns-dns':
+            return self.parse_dns_dns_asset()
         else:
             click.echo(f"❌ Unsupported asset type: {asset_type}")
             return None
