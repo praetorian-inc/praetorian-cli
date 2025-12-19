@@ -44,9 +44,9 @@ class Risks:
             risk['affected_assets'] = self.affected_assets(key)
         return risk
 
-    def update(self, key, status=None, comment=None):
+    def update(self, key, status=None, comment=None, remove_comment=None):
         """
-        Update a risk's status and/or comment.
+        Update a risk's status and/or comment, or remove a comment.
 
         :param key: The key of the risk. If you supply a prefix that matches multiple risks, all of them will be updated
         :type key: str
@@ -54,6 +54,8 @@ class Risks:
         :type status: str or None
         :param comment: Comment for the risk update
         :type comment: str or None
+        :param remove_comment: Index of comment to remove (0, 1, ... or -1 for most recent)
+        :type remove_comment: int or None
         :return: API response containing update results
         :rtype: dict
         """
@@ -62,6 +64,9 @@ class Risks:
             params = params | dict(status=status)
         if comment:
             params = params | dict(comment=comment)
+        if remove_comment is not None:
+            index = self.resolve_comment_entry_index(key, remove_comment)
+            params = params | dict(remove=index)
 
         return self.api.upsert('risk', params)
 
@@ -159,3 +164,41 @@ class Risks:
         assets.extend(indirect_assets)
         assets.extend(web_assets)
         return assets
+
+    def resolve_comment_entry_index(self, key, note_index):
+        """
+        Translate a note index to the actual history array index.
+
+        :param key: The key of the risk
+        :param note_index: Index into note entries (0, 1, ... or -1 for most recent note)
+        :return: The actual index in the history array
+        """
+        risk = self.get(key)
+        history = risk.get('history', [])
+        note_indices = get_note_entry_indices(history)
+
+        if len(note_indices) == 0:
+            raise Exception(f"Risk {key} has no notes to remove")
+
+        # Handle negative indexing (e.g., -1 for last note)
+        if note_index < 0:
+            note_index = len(note_indices) + note_index
+
+        if note_index < 0 or note_index >= len(note_indices):
+            raise Exception(f"Note index {note_index} is out of range (0 to {len(note_indices) - 1})")
+
+        return note_indices[note_index]
+
+
+def get_note_entries(risk):
+    history = risk.get('history', [])
+    return [entry for entry in history if is_note_entry(entry)]
+
+
+def get_note_entry_indices(history):
+    """Return the indices in the history array that are note entries."""
+    return [i for i, entry in enumerate(history) if is_note_entry(entry)]
+
+
+def is_note_entry(entry):
+    return entry.get('comment') and entry.get('from') is None

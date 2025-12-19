@@ -1,5 +1,10 @@
 # Changelog
 
+# 2.2.15
+- [New Feature] Added support for removing notes from risks.
+  - See `praetorian chariot update risk --help` for more information.
+  - The value used is the index of the note to remove. i.e. 0 for first. -1 for latest. 
+
 # 2.2.14
 - [New Feature] Added support for the encrypted file store partition.
 
