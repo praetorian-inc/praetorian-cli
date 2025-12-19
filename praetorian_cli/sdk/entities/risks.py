@@ -201,4 +201,4 @@ def get_note_entry_indices(history):
 
 
 def is_note_entry(entry):
-    return entry.get('comment') and entry.get('from') is None
+    return entry.get('comment') is not None
