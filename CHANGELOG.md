@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.2.16
+- [Bug fix] Expand what is considered a note for removal from risks.
+
 # 2.2.15
 - [New Feature] Added support for removing notes from risks.
   - See `praetorian chariot update risk --help` for more information.
