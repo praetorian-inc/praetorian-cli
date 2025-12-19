@@ -36,7 +36,8 @@ def asset(chariot, key, status, surface):
 @click.argument('key', required=True)
 @click.option('-s', '--status', type=click.Choice([s.value for s in Risk]), help=f'Status of the risk')
 @click.option('-c', '--comment', default='', help='Comment for the risk')
-def risk(chariot, key, status, comment):
+@click.option('-r', '--remove-comment', type=int, default=None, help='Remove comment at index (0, 1, ... or -1 for most recent)')
+def risk(chariot, key, status, comment, remove_comment):
     """ Update the status and comment of a risk
 
     \b
@@ -47,8 +48,13 @@ def risk(chariot, key, status, comment):
     Example usages:
         - praetorian chariot update risk "#risk#www.example.com#CVE-2024-23049" --status OH --comment "Open it as a high severity risk"
         - praetorian chariot update risk "#risk#www.example.com#open-ssh-port" --status RH --comment "John stopped sshd on the server"
+        - praetorian chariot update risk "#risk#www.example.com#CVE-2024-23049" --remove-comment 0
+        - praetorian chariot update risk "#risk#www.example.com#CVE-2024-23049" --remove-comment -1
     """
-    chariot.risks.update(key, status, comment)
+    if comment and remove_comment is not None:
+        raise click.UsageError("Cannot use --comment and --remove-comment together")
+
+    chariot.risks.update(key, status, comment, remove_comment)
 
 
 @update.command()

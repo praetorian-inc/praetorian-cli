@@ -1,6 +1,7 @@
 import pytest
 
 from praetorian_cli.sdk.model.globals import Risk, Kind
+from praetorian_cli.sdk.entities.risks import get_note_entries
 from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
 
 
@@ -38,6 +39,33 @@ class TestRisk:
     def test_update_risk(self):
         self.sdk.risks.update(self.risk_key, Risk.OPEN_CRITICAL.value)
         assert self.get_risk()['status'] == Risk.OPEN_CRITICAL.value
+
+    def test_remove_comment(self):
+        self.sdk.risks.update(self.risk_key, comment='First comment')
+        self.sdk.risks.update(self.risk_key, comment='Second comment')
+        self.sdk.risks.update(self.risk_key, comment='Third comment')
+
+        risk = self.get_risk()
+        initial_history_len = len(get_note_entries(risk))
+        assert initial_history_len == 3
+
+        self.sdk.risks.update(self.risk_key, remove_comment=-2)
+
+        risk = self.get_risk()
+        new_history_len = len(get_note_entries(risk))
+        assert new_history_len == 2
+
+        self.sdk.risks.update(self.risk_key, remove_comment=-1)
+
+        risk = self.get_risk()
+        final_history_len = len(get_note_entries(risk))
+        assert final_history_len == 1
+
+        self.sdk.risks.update(self.risk_key, remove_comment=0)
+
+        risk = self.get_risk()
+        final_history_len = len(get_note_entries(risk))
+        assert final_history_len == 0
 
     def test_delete_risk(self):
         self.sdk.risks.delete(self.risk_key, Risk.DELETED_DUPLICATE_CRITICAL.value)
