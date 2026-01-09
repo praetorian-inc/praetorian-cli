@@ -66,6 +66,8 @@ def file(sdk, path, name):
     User files reside in the "home/" folder. Those files appear in the app
     at https://chariot.praetorian.com/app/files
 
+    Files larger than 100MB automatically use multipart upload with progress.
+
     \b
     Arguments:
         - PATH: the local file path to the file you want to upload.

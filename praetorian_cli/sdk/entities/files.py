@@ -1,6 +1,10 @@
 import os
 
 
+# Files larger than 100MB use multipart upload
+MULTIPART_THRESHOLD = 100 * 1024 * 1024
+
+
 class Files:
     """ The methods in this class are to be assessed from sdk.files, where sdk is an instance
         of Chariot. """
@@ -10,7 +14,8 @@ class Files:
 
     def add(self, local_filepath, chariot_filepath=None):
         """
-        Upload a file to Chariot storage.
+        Upload a file to Chariot storage. Automatically uses multipart upload
+        with progress for files larger than 100MB.
 
         :param local_filepath: Path to the local file to upload
         :type local_filepath: str
@@ -19,7 +24,27 @@ class Files:
         :return: The uploaded file entity
         :rtype: dict
         """
+        file_size = os.path.getsize(local_filepath)
+        if file_size >= MULTIPART_THRESHOLD:
+            return self.add_multipart(local_filepath, chariot_filepath)
         return self.api.upload(local_filepath, chariot_filepath)
+
+    def add_multipart(self, local_filepath, chariot_filepath=None):
+        """
+        Upload a large file using multipart upload with parallel part uploads.
+
+        :param local_filepath: Path to the local file to upload
+        :type local_filepath: str
+        :param chariot_filepath: Optional destination path in Chariot storage. If None, uses the local filename
+        :type chariot_filepath: str or None
+        :return: The uploaded file entity
+        :rtype: dict
+        """
+        if not chariot_filepath:
+            chariot_filepath = local_filepath
+
+        with open(local_filepath, 'rb') as content:
+            return self.api.upload_multipart(chariot_filepath, content)
 
     def save(self, chariot_filepath, download_directory=os.getcwd()):
         """
