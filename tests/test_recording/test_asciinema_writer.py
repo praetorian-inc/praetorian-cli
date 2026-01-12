@@ -98,3 +98,39 @@ def test_invalid_utf8_handling():
         # Invalid bytes should be replaced, not cause exception
         assert event[1] == "o"
         assert isinstance(event[2], str)  # Successfully decoded as string
+
+
+def test_directory_creation_failure():
+    """Test that writer.start() returns False when directory creation fails."""
+    from unittest.mock import patch
+
+    metadata = {"agent_name": "test"}
+
+    # Use a path that requires root permissions
+    filepath = Path("/root/recordings/test.cast")
+    writer = AsciinemaWriter(filepath, width=80, height=24, metadata=metadata)
+
+    # Start should return False (graceful failure)
+    result = writer.start()
+    assert result is False
+
+
+def test_write_error_silent_handling():
+    """Test that write errors don't crash the recording."""
+    import tempfile
+    from unittest.mock import Mock
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = Path(tmpdir) / "test.cast"
+        metadata = {"agent_name": "test"}
+
+        writer = AsciinemaWriter(filepath, width=80, height=24, metadata=metadata)
+        writer.start()
+
+        # Simulate write error by closing file
+        writer.file.close()
+
+        # write_event should not raise exception
+        writer.write_event(b"test data")  # Should silently fail
+
+        writer.close()

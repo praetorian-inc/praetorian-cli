@@ -69,3 +69,39 @@ def test_recording_file_created():
         content = recorder.recording_path.read_text()
         assert len(content) > 0
         assert "version" in content  # Asciicast header
+
+
+def test_recording_failure_fallback():
+    """Test that SSH continues when recording fails."""
+    os.environ.pop("PRAETORIAN_NO_RECORD", None)
+
+    from praetorian_cli.ui.aegis.recording import SessionRecorder
+    from unittest.mock import patch
+
+    metadata = {"agent_name": "test", "user": "test"}
+    recorder = SessionRecorder(command=["echo", "test"], metadata=metadata)
+
+    # Mock AsciinemaWriter.start() to return False (recording failure)
+    with patch('praetorian_cli.ui.aegis.recording.asciinema_writer.AsciinemaWriter.start', return_value=False):
+        exit_code = recorder.run()
+
+    # Should fall back to subprocess.run and succeed
+    assert exit_code == 0
+
+
+def test_pty_allocation_failure_fallback():
+    """Test fallback when PTY allocation fails."""
+    os.environ.pop("PRAETORIAN_NO_RECORD", None)
+
+    from praetorian_cli.ui.aegis.recording import SessionRecorder
+    from unittest.mock import patch
+
+    metadata = {"agent_name": "test", "user": "test"}
+    recorder = SessionRecorder(command=["echo", "test"], metadata=metadata)
+
+    # Mock pty.openpty() to raise OSError
+    with patch('pty.openpty', side_effect=OSError("PTY allocation failed")):
+        exit_code = recorder.run()
+
+    # Should fall back to subprocess.run and succeed
+    assert exit_code == 0
