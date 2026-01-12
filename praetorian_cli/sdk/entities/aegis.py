@@ -1,5 +1,6 @@
 from typing import List, Optional
 import subprocess
+import os
 from praetorian_cli.sdk.model.aegis import Agent
 from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
 
@@ -346,8 +347,26 @@ class Aegis:
                 print(f"\033[35m  SOCKS:   {socks}\033[0m")
             print("")
 
-        result = subprocess.run(ssh_command)
-        return result.returncode
+        # Check opt-out environment variable
+        if os.environ.get("PRAETORIAN_NO_RECORD"):
+            # Original behavior - no recording
+            result = subprocess.run(ssh_command)
+            return result.returncode
+
+        # New behavior - record session
+        from praetorian_cli.ui.aegis.recording import SessionRecorder
+
+        # Build metadata for recording
+        recording_metadata = {
+            "agent_name": hostname,
+            "agent_id": agent.client_id,
+            "user": user,
+            "title": f"SSH to {hostname}"
+        }
+
+        # Use session recorder
+        recorder = SessionRecorder(ssh_command, recording_metadata)
+        return recorder.run()
     
     def run_job(self, agent: Agent, capabilities: list = None, config: str = None):
         """
