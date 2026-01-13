@@ -95,3 +95,15 @@ def error(message, quit=True):
     click.echo(message, err=True)
     if quit:
         exit(1)
+
+
+def warning(message):
+    """Print a warning message to stderr in yellow."""
+    click.secho('WARNING: ', fg='yellow', nl=False, err=True)
+    click.echo(message, err=True)
+
+
+def success(message):
+    """Print an info message to stderr."""
+    click.secho('INFO: ', fg='blue', nl=False, err=True)
+    click.echo(message, err=True)

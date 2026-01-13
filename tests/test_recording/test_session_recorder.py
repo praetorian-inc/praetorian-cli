@@ -41,11 +41,8 @@ def test_opt_out_via_env_var():
         del os.environ["PRAETORIAN_NO_RECORD"]
 
 
-def test_recording_file_created():
+def test_recording_file_created(clear_recording_env):
     """Test that recording file is created on successful run."""
-    # Ensure opt-out is not set
-    os.environ.pop("PRAETORIAN_NO_RECORD", None)
-
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = {
             "agent_name": "test-agent",
@@ -71,10 +68,8 @@ def test_recording_file_created():
         assert "version" in content  # Asciicast header
 
 
-def test_recording_failure_fallback():
+def test_recording_failure_fallback(clear_recording_env):
     """Test that SSH continues when recording fails."""
-    os.environ.pop("PRAETORIAN_NO_RECORD", None)
-
     from praetorian_cli.ui.aegis.recording import SessionRecorder
     from unittest.mock import patch
 
@@ -89,10 +84,8 @@ def test_recording_failure_fallback():
     assert exit_code == 0
 
 
-def test_pty_allocation_failure_fallback():
+def test_pty_allocation_failure_fallback(clear_recording_env):
     """Test fallback when PTY allocation fails."""
-    os.environ.pop("PRAETORIAN_NO_RECORD", None)
-
     from praetorian_cli.ui.aegis.recording import SessionRecorder
     from unittest.mock import patch
 

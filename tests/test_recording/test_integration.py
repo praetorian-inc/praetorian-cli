@@ -7,11 +7,8 @@ import pytest
 
 
 @pytest.mark.integration
-def test_simple_command_recording():
+def test_simple_command_recording(clear_recording_env):
     """Test recording a simple command (not real SSH)."""
-    # Unset opt-out
-    os.environ.pop("PRAETORIAN_NO_RECORD", None)
-
     from praetorian_cli.ui.aegis.recording import SessionRecorder
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -45,10 +42,8 @@ def test_simple_command_recording():
 
 
 @pytest.mark.integration
-def test_interactive_program_recording():
+def test_interactive_program_recording(clear_recording_env):
     """Test recording an interactive program."""
-    os.environ.pop("PRAETORIAN_NO_RECORD", None)
-
     from praetorian_cli.ui.aegis.recording import SessionRecorder
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -76,10 +71,8 @@ def test_interactive_program_recording():
 
 
 @pytest.mark.integration
-def test_recording_playback_compatibility():
+def test_recording_playback_compatibility(clear_recording_env):
     """Test that recorded files can be read by asciinema (format validation)."""
-    os.environ.pop("PRAETORIAN_NO_RECORD", None)
-
     from praetorian_cli.ui.aegis.recording import SessionRecorder
 
     with tempfile.TemporaryDirectory() as tmpdir:

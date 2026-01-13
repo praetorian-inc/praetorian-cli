@@ -9,6 +9,10 @@ from typing import Optional
 # Import our recording components
 from .pty_handler import PTYHandler
 from .asciinema_writer import AsciinemaWriter
+from .terminal_utils import get_terminal_size_safe
+
+# Import utility functions
+from praetorian_cli.handlers.utils import warning, success
 
 
 class SessionRecorder:
@@ -42,6 +46,16 @@ class SessionRecorder:
         filename = f"{agent_name}_{timestamp}_{session_id}.cast"
         return base_dir / filename
 
+    def _run_without_recording(self) -> int:
+        """
+        Run command without recording (fallback for opt-out, errors, etc.).
+
+        Returns:
+            Command exit code
+        """
+        result = subprocess.run(self.command)
+        return result.returncode
+
     def run(self) -> int:
         """
         Execute SSH command with recording (or without if opted out).
@@ -52,17 +66,10 @@ class SessionRecorder:
         # Check opt-out environment variable
         if os.environ.get("PRAETORIAN_NO_RECORD"):
             # Fall back to regular subprocess without recording
-            result = subprocess.run(self.command)
-            return result.returncode
+            return self._run_without_recording()
 
         # Get terminal size
-        try:
-            term_size = os.get_terminal_size()
-            width = term_size.columns
-            height = term_size.lines
-        except OSError:
-            # Not a TTY, use defaults
-            width, height = 80, 24
+        width, height = get_terminal_size_safe()
 
         # Create writer
         writer = AsciinemaWriter(
@@ -75,10 +82,8 @@ class SessionRecorder:
         # Try to start recording
         if not writer.start():
             # Recording failed - fall back to regular subprocess
-            import sys
-            print(f"\033[33m⚠️  Failed to start recording, continuing without it\033[0m", file=sys.stderr)
-            result = subprocess.run(self.command)
-            return result.returncode
+            warning("Failed to start recording, continuing without it")
+            return self._run_without_recording()
 
         # Create PTY handler
         pty_handler = PTYHandler(self.command)
@@ -97,17 +102,14 @@ class SessionRecorder:
             exit_code = process.wait()
 
             # Show success message
-            import sys
-            print(f"\n\033[32m📹 Session recorded to: {self.recording_path}\033[0m", file=sys.stderr)
+            success(f"Session recorded to: {self.recording_path}")
 
             return exit_code
 
         except OSError as e:
             # PTY allocation failed - fall back to regular subprocess
-            import sys
-            print(f"\033[33m⚠️  PTY allocation failed, recording disabled: {e}\033[0m", file=sys.stderr)
-            result = subprocess.run(self.command)
-            return result.returncode
+            warning(f"PTY allocation failed, recording disabled: {e}")
+            return self._run_without_recording()
 
         finally:
             # Always close writer

@@ -11,6 +11,8 @@ import struct
 import fcntl
 from typing import Callable, Optional, Tuple
 
+from .terminal_utils import get_terminal_size_safe
+
 
 class PTYHandler:
     """Handles PTY allocation and I/O multiplexing for SSH subprocess."""
@@ -42,13 +44,7 @@ class PTYHandler:
         self.master_fd, slave_fd = pty.openpty()
 
         # Set initial PTY window size
-        try:
-            # Try to get current terminal size
-            term_size = os.get_terminal_size()
-            rows, cols = term_size.lines, term_size.columns
-        except OSError:
-            # No terminal available (e.g., CI environment), use defaults
-            rows, cols = 24, 80
+        cols, rows = get_terminal_size_safe()  # cols=width, rows=height
 
         # Set PTY window size using ioctl
         try:
