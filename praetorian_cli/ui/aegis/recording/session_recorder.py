@@ -37,10 +37,11 @@ class SessionRecorder:
         Returns:
             Path like: ~/.praetorian/recordings/YYYY-MM-DD/agent_YYYYMMdd-HHMMSS_session.cast
         """
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        now = datetime.now()
+        timestamp = now.strftime("%Y%m%d-%H%M%S")
         session_id = uuid.uuid4().hex[:6]
         agent_name = self.metadata.get("agent_name", "unknown")
-        date_dir = datetime.now().strftime("%Y-%m-%d")
+        date_dir = now.strftime("%Y-%m-%d")
 
         base_dir = Path.home() / ".praetorian" / "recordings" / date_dir
         filename = f"{agent_name}_{timestamp}_{session_id}.cast"
