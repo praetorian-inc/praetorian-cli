@@ -41,6 +41,23 @@ class PTYHandler:
         # Create master/slave PTY pair
         self.master_fd, slave_fd = pty.openpty()
 
+        # Set initial PTY window size
+        try:
+            # Try to get current terminal size
+            term_size = os.get_terminal_size()
+            rows, cols = term_size.lines, term_size.columns
+        except OSError:
+            # No terminal available (e.g., CI environment), use defaults
+            rows, cols = 24, 80
+
+        # Set PTY window size using ioctl
+        try:
+            winsize = struct.pack("HHHH", rows, cols, 0, 0)
+            fcntl.ioctl(self.master_fd, termios.TIOCSWINSZ, winsize)
+        except (OSError, IOError):
+            # Ignore errors setting window size (not critical for basic functionality)
+            pass
+
         # Spawn subprocess with slave as stdin/stdout/stderr
         self.process = subprocess.Popen(
             self.command,
