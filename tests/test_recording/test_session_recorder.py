@@ -93,7 +93,7 @@ def test_pty_allocation_failure_fallback(clear_recording_env):
     recorder = SessionRecorder(command=["echo", "test"], metadata=metadata)
 
     # Mock pty.openpty() to raise OSError
-    with patch('pty.openpty', side_effect=OSError("PTY allocation failed")):
+    with patch('praetorian_cli.ui.aegis.recording.pty_handler.pty.openpty', side_effect=OSError("PTY allocation failed")):
         exit_code = recorder.run()
 
     # Should fall back to subprocess.run and succeed
