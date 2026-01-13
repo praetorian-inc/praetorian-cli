@@ -11,13 +11,14 @@ class MockAegis:
         self.calls = []
         self._responses = responses or {}
 
-    def ssh_to_agent(self, agent, options, user, display_info=True):
+    def ssh_to_agent(self, agent, options, user, display_info=True, no_record=False):
         self.calls.append({
             'method': 'ssh_to_agent',
             'agent': agent,
             'options': list(options),
             'user': user,
             'display_info': display_info,
+            'no_record': no_record,
         })
 
     def run_job(self, agent, capabilities=None, config=None):

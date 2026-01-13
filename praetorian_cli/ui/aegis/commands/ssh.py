@@ -75,7 +75,8 @@ def handle_ssh(menu, args):
             agent=menu.selected_agent,
             options=options,
             user=parsed_options.get('user'),
-            display_info=True
+            display_info=True,
+            no_record=parsed_options.get('no_record', False)
         )
     except Exception as e:
         menu.console.print(f"[red]SSH error: {e}[/red]")

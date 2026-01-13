@@ -283,7 +283,7 @@ class Aegis:
         except Exception as e:
             raise Exception(f"Failed to get available domains: {e}")
     
-    def ssh_to_agent(self, agent: Agent, options: List[str] = None, user: str = None, display_info: bool = True) -> int:
+    def ssh_to_agent(self, agent: Agent, options: List[str] = None, user: str = None, display_info: bool = True, no_record: bool = False) -> int:
         """SSH to an Aegis agent using Cloudflare tunnel."""
 
         options = options or []
@@ -347,8 +347,8 @@ class Aegis:
                 print(f"\033[35m  SOCKS:   {socks}\033[0m")
             print("")
 
-        # Check opt-out environment variable
-        if os.environ.get("PRAETORIAN_NO_RECORD"):
+        # Check opt-out via environment variable or parameter
+        if os.environ.get("PRAETORIAN_NO_RECORD") or no_record:
             # Original behavior - no recording
             result = subprocess.run(ssh_command)
             return result.returncode
