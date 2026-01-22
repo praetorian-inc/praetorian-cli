@@ -27,5 +27,15 @@ class TestPreseed:
         assert len(preseeds) > 0
         assert preseeds[0]['status'] == Preseed.FROZEN_REJECTED.value
 
+    def test_update_preseed_with_comment(self):
+        # Update preseed with comment parameter
+        self.sdk.preseeds.update(self.preseed_key, Preseed.ACTIVE.value, comment="Test comment for preseed update")
+        preseed = self.sdk.preseeds.get(self.preseed_key, details=True)
+        assert preseed['status'] == Preseed.ACTIVE.value
+        # Verify comment was stored in history
+        assert 'history' in preseed
+        assert len(preseed['history']) > 0
+        assert preseed['history'][0]['comment'] == "Test comment for preseed update"
+
     def teardown_class(self):
         clean_test_entities(self.sdk, self)

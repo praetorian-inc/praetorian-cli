@@ -29,6 +29,16 @@ class TestSeed:
         self.sdk.seeds.update(self.seed_asset_key, Seed.ACTIVE.value)
         assert self.get_seed()['status'] == Seed.ACTIVE.value
 
+    def test_update_seed_with_comment(self):
+        # Update seed with comment parameter
+        self.sdk.seeds.update(self.seed_asset_key, Seed.FROZEN.value, comment="Test comment for seed update")
+        seed = self.get_seed()
+        assert seed['status'] == Seed.FROZEN.value
+        # Verify comment was stored in history
+        assert 'history' in seed
+        assert len(seed['history']) > 0
+        assert seed['history'][0]['comment'] == "Test comment for seed update"
+
     def test_delete_seed(self):
         self.sdk.seeds.delete(self.seed_asset_key)
         assert self.sdk.seeds.get(self.seed_asset_key)['status'] == Seed.DELETED.value

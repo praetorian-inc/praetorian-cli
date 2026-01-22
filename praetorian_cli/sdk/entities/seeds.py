@@ -69,26 +69,46 @@ class Seeds:
             return None
         return results[0]
 
-    def update(self, key, status=None):
+    def update(self, key, status=None, comment=None):
         """
         Update seed fields dynamically.
-        
+
         :param key: Seed/Asset key (e.g., '#seed#domain#example.com' or '#asset#domain#example.com')
         :type key: str
         :param status: Status for backward compatibility (can be positional)
         :type status: str or None
+        :param comment: Optional comment to include with the update (stored in History field)
+        :type comment: str or None
         :param kwargs: Fields to update
         :return: The updated seed, or None if the seed was not found
         :rtype: dict or None
+
+        **Example Usage:**
+
+        .. code-block:: python
+
+            # Update status only
+            sdk.seeds.update("#asset#domain#example.com", "A")
+
+            # Update status with comment
+            sdk.seeds.update(
+                "#asset#domain#example.com",
+                "A",
+                comment="Activated after verification"
+            )
         """
-            
+
         seed = self.get(key)  # This already handles old key format conversion
         if seed:
             update_payload = {
                 'key': key,
                 'status': status
             }
-            
+
+            # Include comment if provided
+            if comment is not None:
+                update_payload['comment'] = comment
+
             return self.api.upsert('seed', update_payload)
         else:
             error(f'Seed {key} not found.')
