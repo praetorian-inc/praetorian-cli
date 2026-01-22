@@ -85,9 +85,9 @@ class Preseeds:
         """
         return self.api.search.by_exact_key(key, details)
 
-    def update(self, key, status):
+    def update(self, key, status, comment=None):
         """Update the status of an existing preseed.
-        
+
         Only the status field can be meaningfully updated for preseeds. This allows
         you to activate, freeze, or mark preseeds for deletion without recreating them.
         The preseed must exist before it can be updated.
@@ -101,24 +101,29 @@ class Preseeds:
                       - 'FR' (FROZEN_REJECTED): Preseed is frozen and rejected
                       - 'P' (PENDING): Preseed is pending activation
         :type status: str
+        :param comment: Optional comment to include with the update (stored in History field)
+        :type comment: str or None
         :return: The updated preseed object with new status
         :rtype: dict
         :raises: Prints error message if preseed with the specified key is not found
 
         **Example Usage:**
-        
+
         .. code-block:: python
-        
+
+            # Update status only
             sdk.preseeds.update(
                 "#preseed#whois+company#Example Company#example company",
                 "A"
             )
-            
+
+            # Update status with comment
             sdk.preseeds.update(
                 "#preseed#dns+subdomain#API Subdomain#api.example.com",
-                "F"
+                "F",
+                comment="Temporarily frozen pending review"
             )
-            
+
             sdk.preseeds.update(
                 "#preseed#whois+company#Old Company#old company",
                 "D"
@@ -130,7 +135,13 @@ class Preseeds:
         """
         preseed = self.api.search.by_exact_key(key)
         if preseed:
-            return self.api.update('preseed', dict(key=key, status=status))
+            update_payload = {'key': key, 'status': status}
+
+            # Include comment if provided
+            if comment is not None:
+                update_payload['comment'] = comment
+
+            return self.api.update('preseed', update_payload)
         else:
             error(f'Pre-seed {key} is not found.')
 
