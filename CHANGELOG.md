@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.2.17
+- [New Feature] Add comments to seeds and presseds via the SDK
+
 # 2.2.16
 - [Bug fix] Expand what is considered a note for removal from risks.
 
