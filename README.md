@@ -7,7 +7,7 @@
 [![Open Source Libraries](https://img.shields.io/badge/Open--source-%F0%9F%92%9A-28a745)](https://opensource.org/)
 [![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg?style=flat)](https://github.com/praetorian-inc/chariot-ui/issues)
 
-:link: [Guard Platform](https://chariot.praetorian.com)
+:link: [Guard Platform](https://guard.praetorian.com)
 :book: [Documentation](https://docs.praetorian.com)
 :bookmark: [PyPI](https://pypi.org/project/praetorian-cli/)
 
