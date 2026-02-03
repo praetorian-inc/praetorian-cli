@@ -271,7 +271,7 @@ def run_workflow(name: str, params: tuple[str, ...], output_dir: str | None, con
         if config:
             agent_config = AgentConfig.from_yaml(config)
         else:
-            agent_config = AgentConfig()  # Uses defaults
+            agent_config = AgentConfig.default()  # Uses default config file
 
         # Map config to all agents by class name
         agent_configs = {}
