@@ -391,7 +391,7 @@ class TestZCli:
         self.verify('agent affiliation --help', ignore_stdout=True)
         
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
-        result = run(f'praetorian --profile "{self.sdk.keychain.profile}" chariot {command}', capture_output=True,
+        result = run(f'praetorian --profile "{self.sdk.keychain.profile}" guard {command}', capture_output=True,
                      text=True, shell=True)
         if expected_stdout:
             for out in expected_stdout:
