@@ -7,7 +7,7 @@ def chariot(click_context):
     # import done here to avoid circular import errors in praetorian_cli/handlers/cli_decorators.py
     from praetorian_cli.sdk.chariot import Chariot
 
-    """ Command group for interacting with the Chariot product """
+    """ Command group for interacting with the Guard product """
     # Replace the click context (previously a Keychain instance) with a Chariot
     # instance, after creating it using the Keychain instance.
     keychain = click_context.obj['keychain']

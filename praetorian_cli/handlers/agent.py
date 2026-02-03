@@ -29,14 +29,14 @@ def affiliation(sdk, key):
 
 @agent.group()
 def mcp():
-    """ Chariot's MCP server """
+    """ Guard's MCP server """
     pass
 
 @mcp.command()
 @cli_handler
 @click.option('--allowed', '-a', type=str, multiple=True, default=['search_by_query', '*_list', '*_get'])
 def start(sdk, allowed):
-    """ Starts the Chariot MCP server
+    """ Starts the Guard MCP server
 
     \b
     Example usages:
@@ -73,9 +73,9 @@ def tools(sdk, allowed):
 @agent.command()
 @cli_handler
 def conversation(sdk):
-    """ Interactive conversation with Chariot AI assistant
+    """ Interactive conversation with Guard AI assistant
     
-    Start an interactive chat session with the Chariot AI assistant.
+    Start an interactive chat session with the Guard AI assistant.
     The AI can help you query security data, understand findings,
     and provide insights about your attack surface.
     

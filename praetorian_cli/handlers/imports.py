@@ -6,7 +6,7 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 
 @chariot.group()
 def imports():
-    """ Import data to Chariot """
+    """ Import data to Guard """
     pass
 
 

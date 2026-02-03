@@ -16,7 +16,7 @@ from praetorian_cli.sdk.model.globals import Kind
 @click.option('-desc', '--desc', is_flag=True, default=False, help='Return data in descending order')
 @click.option('-g', '--global', 'global_', is_flag=True, default=False, help='Use the global data set')
 def search(chariot, term, count, kind, details, offset, page, desc, global_):
-    """ Query Chariot for matches or counts using the search syntax
+    """ Query Guard for matches or counts using the search syntax
 
     \b
     Search syntax:

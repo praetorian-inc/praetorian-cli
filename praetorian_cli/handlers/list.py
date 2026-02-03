@@ -7,7 +7,7 @@ from praetorian_cli.handlers.utils import render_offset, render_list_results, pa
 
 @chariot.group()
 def list():
-    """ Get a list of entities from Chariot """
+    """ Get a list of entities from Guard """
     pass
 
 
@@ -121,7 +121,7 @@ def jobs(chariot, filter, details, offset, page):
 def files(chariot, filter, details, offset, page):
     """ List files
 
-    Retrieve and display a list of files in the Chariot file system.
+    Retrieve and display a list of files in the Guard file system.
 
     \b
     Example usages:
