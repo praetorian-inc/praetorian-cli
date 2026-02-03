@@ -2,9 +2,14 @@
 """CLI handlers for agent workflows.
 
 Provides `praetorian chariot agent workflow` subcommands for running
-LiteLLM-based agent workflows.
+LiteLLM-based agent workflows using a generic, scalable approach.
+
+Commands:
+    list [--filter PATTERN]     - List available workflows
+    info <name>                 - Show workflow parameters and usage
+    run <name> [key=value ...]  - Run a workflow with dynamic parameters
 """
-import json
+import fnmatch
 import os
 import sys
 from pathlib import Path
@@ -26,17 +31,29 @@ def _check_llm_api_key() -> str | None:
     return None
 
 
-def _get_default_model() -> str:
-    """Get default model based on available API key."""
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return "anthropic/claude-sonnet-4-20250514"
-    elif os.environ.get("OPENAI_API_KEY"):
-        return "openai/gpt-4o"
-    elif os.environ.get("GEMINI_API_KEY"):
-        return "gemini/gemini-1.5-pro"
-    elif os.environ.get("AZURE_API_KEY"):
-        return "azure/gpt-4o"
-    return "anthropic/claude-sonnet-4-20250514"  # Default
+def _parse_key_value_args(args: tuple[str, ...]) -> dict[str, str]:
+    """Parse key=value arguments into a dictionary.
+
+    Args:
+        args: Tuple of strings in "key=value" format
+
+    Returns:
+        Dictionary of parsed key-value pairs
+
+    Raises:
+        click.BadParameter: If an argument is not in key=value format
+    """
+    result = {}
+    for arg in args:
+        if "=" not in arg:
+            raise click.BadParameter(
+                f"Invalid argument '{arg}'. Use key=value format (e.g., cve_id=CVE-2024-1234)"
+            )
+        key, value = arg.split("=", 1)
+        if not key:
+            raise click.BadParameter(f"Empty key in argument '{arg}'")
+        result[key] = value
+    return result
 
 
 @agent.group()
@@ -47,27 +64,37 @@ def workflow():
     CVE research, Nuclei template generation, and template refinement.
 
     \b
-    Available workflows:
-        exploit   - Generate Nuclei exploit templates from CVE IDs
-        generate  - Generate Nuclei detection templates from CVE IDs
-        refine    - Refine existing Nuclei templates
+    Commands:
+        list              List available workflows
+        info <name>       Show workflow parameters and usage
+        run <name> ...    Run a workflow with parameters
 
     \b
     Required environment variable (one of):
         ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, AZURE_API_KEY
 
     \b
-    Example:
-        praetorian chariot agent workflow exploit --cve-id CVE-2024-1234
+    Examples:
+        praetorian chariot agent workflow list
+        praetorian chariot agent workflow info exploit
+        praetorian chariot agent workflow run exploit cve_id=CVE-2024-1234
     """
     pass
 
 
 @workflow.command("list")
-def list_workflows():
+@click.option("--filter", "-f", "pattern", default=None, help="Filter workflows by name pattern (e.g., 'cve*')")
+def list_workflows(pattern: str | None):
     """List all available workflows.
 
-    Shows registered workflows with their descriptions and required arguments.
+    Shows registered workflows with their descriptions.
+    Use --filter to filter by name pattern (supports wildcards).
+
+    \b
+    Examples:
+        praetorian chariot agent workflow list
+        praetorian chariot agent workflow list --filter "cve*"
+        praetorian chariot agent workflow list -f "*template*"
     """
     # Import here to avoid circular imports and trigger registration
     from praetorian_chariot.agent_framework import list_workflows as get_all_workflows
@@ -79,95 +106,91 @@ def list_workflows():
         click.echo("No workflows registered.")
         return
 
+    # Apply filter if provided
+    if pattern:
+        all_workflows = [wf for wf in all_workflows if fnmatch.fnmatch(wf.cli_name, pattern)]
+        if not all_workflows:
+            click.echo(f"No workflows matching pattern '{pattern}'.")
+            return
+
     click.echo("Available workflows:\n")
     for wf in all_workflows:
         click.echo(f"  {wf.cli_name}")
         click.echo(f"    {wf.description}")
-        if wf.required_args:
-            click.echo(f"    Required: {', '.join(wf.required_args)}")
-        if wf.optional_args:
-            click.echo(f"    Optional: {', '.join(wf.optional_args)}")
-        click.echo()
+    click.echo(f"\nUse 'praetorian chariot agent workflow info <name>' for parameter details.")
 
 
-@workflow.command("exploit")
-@click.option("--cve-id", required=True, help="CVE identifier (e.g., CVE-2024-1234)")
+@workflow.command("info")
+@click.argument("name")
+def workflow_info(name: str):
+    """Show detailed information about a workflow.
+
+    Displays the workflow's description, required parameters,
+    optional parameters, and usage examples.
+
+    \b
+    Example:
+        praetorian chariot agent workflow info exploit
+    """
+    from praetorian_chariot.agent_framework import get_workflow
+    from praetorian_chariot.capabilities import workflows as _  # noqa: F401
+
+    meta = get_workflow(name)
+    if not meta:
+        click.echo(f"Error: Unknown workflow '{name}'", err=True)
+        click.echo("Use 'praetorian chariot agent workflow list' to see available workflows.", err=True)
+        sys.exit(1)
+
+    click.echo(f"\nWorkflow: {meta.cli_name}")
+    click.echo(f"Description: {meta.description}")
+
+    click.echo("\nRequired parameters:")
+    if meta.required_args:
+        for arg in meta.required_args:
+            help_text = meta.arg_help.get(arg, "No description")
+            click.echo(f"  {arg}: {help_text}")
+    else:
+        click.echo("  (none)")
+
+    click.echo("\nOptional parameters:")
+    if meta.optional_args:
+        for arg in meta.optional_args:
+            help_text = meta.arg_help.get(arg, "No description")
+            click.echo(f"  {arg}: {help_text}")
+    else:
+        click.echo("  (none)")
+
+    # Build example command
+    example_args = []
+    for arg in meta.required_args:
+        if arg == "cve_id":
+            example_args.append("cve_id=CVE-2024-1234")
+        elif arg == "template":
+            example_args.append("template=./template.yaml")
+        else:
+            example_args.append(f"{arg}=<value>")
+
+    click.echo(f"\nUsage:")
+    click.echo(f"  praetorian chariot agent workflow run {name} {' '.join(example_args)}")
+
+
+@workflow.command("run")
+@click.argument("name")
+@click.argument("params", nargs=-1)
 @click.option("--output-dir", "-o", help="Directory for output artifacts (auto-generated if not specified)")
-@click.option("--model", "-m", help="LLM model to use (e.g., openai/gpt-4o)")
-def exploit_workflow(cve_id: str, output_dir: str | None, model: str | None):
-    """Generate Nuclei exploit templates from CVE IDs.
+@click.option("--config", "-c", type=click.Path(exists=True), help="Path to YAML config file for LLM settings")
+def run_workflow(name: str, params: tuple[str, ...], output_dir: str | None, config: str | None):
+    """Run a workflow with the specified parameters.
 
-    This workflow chains 3 agents:
-    1. ExploitResearchAgent - Researches CVE exploitation vectors
-    2. TechnologyAnalysisAgent - Analyzes affected technologies
-    3. ExploitTemplateGeneratorAgent - Generates Nuclei template
+    Parameters are passed as key=value pairs. Use 'info <name>' to see
+    what parameters a workflow requires.
 
     \b
-    Example:
-        praetorian chariot agent workflow exploit --cve-id CVE-2024-1234
-        praetorian chariot agent workflow exploit --cve-id CVE-2024-1234 -o ./output
-        praetorian chariot agent workflow exploit --cve-id CVE-2024-1234 -m openai/gpt-4o
-    """
-    _run_workflow("exploit", {"cve_id": cve_id}, output_dir, model)
-
-
-@workflow.command("generate")
-@click.option("--cve-id", required=True, help="CVE identifier (e.g., CVE-2024-1234)")
-@click.option("--output-dir", "-o", help="Directory for output artifacts")
-@click.option("--model", "-m", help="LLM model to use")
-@click.option("--template-type", "-t", default="detection", help="Template type: detection or exploitation")
-def generate_workflow(cve_id: str, output_dir: str | None, model: str | None, template_type: str):
-    """Generate Nuclei detection templates from CVE IDs.
-
-    This workflow chains 2 agents:
-    1. CVEResearchAgent - Researches CVE details
-    2. TemplateGeneratorAgent - Generates Nuclei template
-
-    \b
-    Example:
-        praetorian chariot agent workflow generate --cve-id CVE-2024-1234
-        praetorian chariot agent workflow generate --cve-id CVE-2024-1234 -t exploitation
-    """
-    _run_workflow("generate", {"cve_id": cve_id, "template_type": template_type}, output_dir, model)
-
-
-@workflow.command("refine")
-@click.option("--cve-id", required=True, help="CVE identifier (e.g., CVE-2024-1234)")
-@click.option("--template", "-t", required=True, type=click.Path(exists=True), help="Path to existing template file")
-@click.option("--output-dir", "-o", help="Directory for output artifacts")
-@click.option("--model", "-m", help="LLM model to use")
-@click.option("--prompt", "-p", default="", help="Refinement guidance (e.g., 'reduce false positives')")
-def refine_workflow(cve_id: str, template: str, output_dir: str | None, model: str | None, prompt: str):
-    """Refine existing Nuclei templates with CVE research.
-
-    This workflow chains 2 agents:
-    1. CVEResearchAgent - Researches CVE with refinement context
-    2. TemplateRefinerAgent - Refines the existing template
-
-    \b
-    Example:
-        praetorian chariot agent workflow refine --cve-id CVE-2024-1234 -t template.yaml
-        praetorian chariot agent workflow refine --cve-id CVE-2024-1234 -t template.yaml -p "reduce false positives"
-    """
-    # Read existing template
-    template_content = Path(template).read_text()
-
-    _run_workflow(
-        "refine",
-        {"cve_id": cve_id, "existing_template": template_content, "refinement_prompt": prompt},
-        output_dir,
-        model,
-    )
-
-
-def _run_workflow(cli_name: str, workflow_input: dict, output_dir: str | None, model: str | None):
-    """Execute a workflow with progress output.
-
-    Args:
-        cli_name: The workflow CLI name (e.g., "exploit")
-        workflow_input: Input dict for workflow.run()
-        output_dir: Optional output directory
-        model: Optional model override
+    Examples:
+        praetorian chariot agent workflow run exploit cve_id=CVE-2024-1234
+        praetorian chariot agent workflow run generate cve_id=CVE-2024-1234 template_type=detection
+        praetorian chariot agent workflow run refine cve_id=CVE-2024-1234 template=./existing.yaml
+        praetorian chariot agent workflow run exploit cve_id=CVE-2024-1234 -c ./config.yaml -o ./output
     """
     # Check for API key
     api_key_var = _check_llm_api_key()
@@ -185,18 +208,43 @@ def _run_workflow(cli_name: str, workflow_input: dict, output_dir: str | None, m
     from praetorian_chariot.capabilities import workflows as _  # noqa: F401
 
     # Get workflow metadata
-    meta = get_workflow(cli_name)
+    meta = get_workflow(name)
     if not meta:
-        click.echo(f"Error: Unknown workflow '{cli_name}'", err=True)
+        click.echo(f"Error: Unknown workflow '{name}'", err=True)
+        click.echo("Use 'praetorian chariot agent workflow list' to see available workflows.", err=True)
         sys.exit(1)
 
-    # Determine model
-    actual_model = model or _get_default_model()
+    # Parse key=value parameters
+    try:
+        workflow_input = _parse_key_value_args(params)
+    except click.BadParameter as e:
+        click.echo(f"Error: {e.message}", err=True)
+        sys.exit(1)
+
+    # Validate required parameters
+    missing_args = []
+    for required_arg in meta.required_args:
+        if required_arg not in workflow_input:
+            missing_args.append(required_arg)
+
+    if missing_args:
+        click.echo(f"Error: Missing required parameters: {', '.join(missing_args)}", err=True)
+        click.echo(f"\nUse 'praetorian chariot agent workflow info {name}' to see required parameters.", err=True)
+        sys.exit(1)
+
+    # Handle special parameters that need file reading
+    if "template" in workflow_input:
+        template_path = Path(workflow_input["template"])
+        if not template_path.exists():
+            click.echo(f"Error: Template file not found: {template_path}", err=True)
+            sys.exit(1)
+        # Read template content and store as existing_template
+        workflow_input["existing_template"] = template_path.read_text()
 
     # Create artifact manager
     identifier = workflow_input.get("cve_id", "workflow")
     artifacts = ArtifactManager(
-        workflow_name=cli_name,
+        workflow_name=name,
         identifier=identifier,
         output_dir=output_dir,
     )
@@ -204,43 +252,47 @@ def _run_workflow(cli_name: str, workflow_input: dict, output_dir: str | None, m
     # Save metadata
     artifacts.save_metadata(
         cve_id=workflow_input.get("cve_id"),
-        model=actual_model,
-        workflow=cli_name,
+        config=config,
+        workflow=name,
         api_key_source=api_key_var,
+        parameters=workflow_input,
     )
 
     # Create workflow
     click.echo(f"Running workflow: {meta.description}")
-    click.echo(f"Model: {actual_model}")
+    click.echo(f"Parameters: {workflow_input}")
     click.echo(f"Output: {artifacts.output_dir}\n")
 
     try:
-        # Build agent configs with model
+        # Build agent configs
         from praetorian_chariot.agent_framework import AgentConfig
 
-        # Create config with specified model
-        config = AgentConfig(model=actual_model)
+        # Create config - use provided config file or default
+        if config:
+            agent_config = AgentConfig.from_yaml(config)
+        else:
+            agent_config = AgentConfig()  # Uses defaults
 
         # Map config to all agents by class name
         agent_configs = {}
         for step in meta.workflow_class.pipeline:
-            agent_configs[step.agent.__name__] = config
+            agent_configs[step.agent.__name__] = agent_config
 
-        workflow = WorkflowFactory.create(meta.workflow_class, agent_configs=agent_configs)
+        workflow_instance = WorkflowFactory.create(meta.workflow_class, agent_configs=agent_configs)
 
         # Execute with progress
-        total_steps = len(workflow.steps)
-        for i, step in enumerate(workflow.steps, 1):
+        total_steps = len(workflow_instance.steps)
+        for i, step in enumerate(workflow_instance.steps, 1):
             click.echo(f"  [{i}/{total_steps}] {step.name.capitalize()}...", nl=False)
             artifacts.log(f"Starting step: {step.name}")
 
         # Actually run the workflow
-        result = workflow.run(workflow_input)
+        result = workflow_instance.run(workflow_input)
 
-        # Mark all complete (we can't do real progress without callbacks)
+        # Mark all complete
         click.echo("\r" + " " * 50 + "\r", nl=False)  # Clear line
-        for i, step in enumerate(workflow.steps, 1):
-            click.echo(f"  [{i}/{total_steps}] {step.name.capitalize()}... ✓")
+        for i, step in enumerate(workflow_instance.steps, 1):
+            click.echo(f"  [{i}/{total_steps}] {step.name.capitalize()}... done")
 
             # Save step output
             step_output = result.get(step.name)
