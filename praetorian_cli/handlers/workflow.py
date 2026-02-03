@@ -160,11 +160,6 @@ def workflow_info(name: str):
     else:
         click.echo("  (none)")
 
-    # Show global CLI options (always available)
-    click.echo("\nGlobal options (available for all workflows):")
-    click.echo("  --config, -c: Path to YAML config file for LLM settings")
-    click.echo("  --output-dir, -o: Directory for output artifacts (auto-generated if not specified)")
-
     # Build example command
     example_args = []
     for arg in meta.required_args:
@@ -177,19 +172,15 @@ def workflow_info(name: str):
 
     click.echo(f"\nUsage:")
     click.echo(f"  praetorian chariot agent workflow run {name} {' '.join(example_args)}")
-    click.echo(f"\nWith config file:")
-    click.echo(f"  praetorian chariot agent workflow run {name} {' '.join(example_args)} -c ./config.yaml")
 
 
 @workflow.command("run")
 @click.argument("name")
 @click.argument("params", nargs=-1)
-@click.option("--output-dir", "-o", help="Directory for output artifacts (auto-generated if not specified)")
-@click.option("--config", "-c", type=click.Path(exists=True), help="Path to YAML config file for LLM settings")
-def run_workflow(name: str, params: tuple[str, ...], output_dir: str | None, config: str | None):
+def run_workflow(name: str, params: tuple[str, ...]):
     """Run a workflow with the specified parameters.
 
-    Parameters are passed as key=value pairs. Use 'info <name>' to see
+    ALL parameters are passed as key=value pairs. Use 'info <name>' to see
     what parameters a workflow requires.
 
     \b
@@ -197,7 +188,7 @@ def run_workflow(name: str, params: tuple[str, ...], output_dir: str | None, con
         praetorian chariot agent workflow run exploit cve_id=CVE-2024-1234
         praetorian chariot agent workflow run generate cve_id=CVE-2024-1234 template_type=detection
         praetorian chariot agent workflow run refine cve_id=CVE-2024-1234 template=./existing.yaml
-        praetorian chariot agent workflow run exploit cve_id=CVE-2024-1234 -c ./config.yaml -o ./output
+        praetorian chariot agent workflow run exploit cve_id=CVE-2024-1234 config=./config.yaml output_dir=./output
     """
     # Check for API key
     api_key_var = _check_llm_api_key()
@@ -247,6 +238,15 @@ def run_workflow(name: str, params: tuple[str, ...], output_dir: str | None, con
             sys.exit(1)
         # Read template content and store as existing_template
         workflow_input["existing_template"] = template_path.read_text()
+
+    # Extract common optional parameters from workflow_input
+    output_dir = workflow_input.pop("output_dir", None)
+    config = workflow_input.pop("config", None)
+
+    # Validate config file exists if provided
+    if config and not Path(config).exists():
+        click.echo(f"Error: Config file not found: {config}", err=True)
+        sys.exit(1)
 
     # Create artifact manager
     identifier = workflow_input.get("cve_id", "workflow")
