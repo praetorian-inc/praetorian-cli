@@ -21,7 +21,7 @@ from praetorian_cli.sdk.keychain import Keychain
 
 @click.group()
 @click.option('--profile', default='United States', help='The profile to use in the keychain file', show_default=True)
-@click.option('--account', default=None, help='Assume role into this account hello')
+@click.option('--account', default=None, help='Assume role into this account')
 @click.option('--debug', is_flag=True, default=False, help='Run the CLI in debug mode')
 @click.option('--proxy', default='', help='The proxy to use in the CLI')
 @click.pass_context
