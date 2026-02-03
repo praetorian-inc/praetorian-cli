@@ -160,6 +160,11 @@ def workflow_info(name: str):
     else:
         click.echo("  (none)")
 
+    # Show global CLI options (always available)
+    click.echo("\nGlobal options (available for all workflows):")
+    click.echo("  --config, -c: Path to YAML config file for LLM settings")
+    click.echo("  --output-dir, -o: Directory for output artifacts (auto-generated if not specified)")
+
     # Build example command
     example_args = []
     for arg in meta.required_args:
@@ -172,6 +177,8 @@ def workflow_info(name: str):
 
     click.echo(f"\nUsage:")
     click.echo(f"  praetorian chariot agent workflow run {name} {' '.join(example_args)}")
+    click.echo(f"\nWith config file:")
+    click.echo(f"  praetorian chariot agent workflow run {name} {' '.join(example_args)} -c ./config.yaml")
 
 
 @workflow.command("run")
