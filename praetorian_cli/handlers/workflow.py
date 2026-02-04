@@ -293,8 +293,8 @@ def run_workflow(name: str, params: tuple[str, ...]):
             click.echo(f"  [{i}/{total_steps}] {step.name.capitalize()}...", nl=False)
             artifacts.log(f"Starting step: {step.name}")
 
-        # Actually run the workflow
-        result = workflow_instance.run(workflow_input)
+        # Actually run the workflow, passing artifacts for persistence
+        result = workflow_instance.run(workflow_input, artifacts=artifacts)
 
         # Mark all complete
         click.echo("\r" + " " * 50 + "\r", nl=False)  # Clear line
