@@ -35,5 +35,27 @@ def main(click_context, profile, account, debug, proxy):
 
 
 main.add_command(chariot)
-main.add_command(chariot, name='guard')
 main.add_command(configure)
+
+
+@click.group()
+@click.option('--profile', default='United States', help='The profile to use in the keychain file', show_default=True)
+@click.option('--account', default=None, help='Assume role into this account')
+@click.option('--debug', is_flag=True, default=False, help='Run the CLI in debug mode')
+@click.option('--proxy', default='', help='The proxy to use in the CLI')
+@click.pass_context
+@click.version_option()
+def guard_main(click_context, profile, account, debug, proxy):
+    """Guard CLI - Praetorian's offensive security platform."""
+    from praetorian_cli.sdk.chariot import Chariot
+    if debug:
+        click.echo('Running in debug mode.')
+    chariot.is_debug = debug
+    click_context.obj = Chariot(Keychain(profile, account), proxy=proxy)
+    praetorian_cli.handlers.script.load_dynamic_commands()
+
+
+# Add all chariot commands to guard_main
+for cmd_name, cmd in chariot.commands.items():
+    guard_main.add_command(cmd, cmd_name)
+guard_main.add_command(configure)

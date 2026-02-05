@@ -390,8 +390,14 @@ class TestZCli:
         self.verify('agent --help', ignore_stdout=True)
         self.verify('agent affiliation --help', ignore_stdout=True)
         
+    def test_guard_cli(self):
+        """Test the 'guard' entry point works correctly."""
+        self.verify('configure --help', expected_stdout=['Configure the CLI'])
+        self.verify('--help', expected_stdout=['configure', 'list', 'add', 'delete', 'update'])
+        self.verify('list --help', expected_stdout=['assets', 'risks', 'accounts'])
+
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
-        result = run(f'praetorian --profile "{self.sdk.keychain.profile}" guard {command}', capture_output=True,
+        result = run(f'guard --profile "{self.sdk.keychain.profile}" {command}', capture_output=True,
                      text=True, shell=True)
         if expected_stdout:
             for out in expected_stdout:

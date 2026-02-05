@@ -6,7 +6,7 @@ you store your scripts. It makes them available as commands under the `script` g
 can list all the script commands by:
 
 ```zsh
-praetorian guard script --help
+guard script --help
 ```
 
 To add your own extensions to the CLI, set `PRAETORIAN_SCRIPTS_PATH` environment variable
@@ -56,7 +56,7 @@ def register(script_group: click.MultiCommand):
 ## Debugging
 
 The CLI skips loading scripts that have compilation errors. If your script does not
-appear in `praetorian guard script --help`, run the CLI with the `--debug` flag to
+appear in `guard script --help`, run the CLI with the `--debug` flag to
 see the compilation errors.
 
 ## Go further

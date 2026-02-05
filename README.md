@@ -104,13 +104,13 @@ The CLI is a command and option utility for accessing the full suite of Guard's 
 using the `help` option:
 
 ```zsh
-praetorian guard --help
+guard --help
 ```
 
 As an example, run the following command to retrieve the list of all assets in your account:
 
 ```zsh
-praetorian --account guard+example@praetorian.com guard list assets
+guard --account guard+example@praetorian.com list assets
 ```
 
 You can obtain the `account` argument by viewing the email of the first user on the Users page in your Guard account, as shown below:
@@ -120,7 +120,7 @@ You can obtain the `account` argument by viewing the email of the first user on 
 To get detailed information about a specific asset, run:
 
 ```zsh
-praetorian --account guard+example@praetorian.com guard get asset <ASSET_KEY>
+guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
 
 # Developers
@@ -161,7 +161,7 @@ environment to point to directories where you store additional extension scripts
 Those external scripts are available under the `script` commands. To see a list of them:
 
 ```zsh
-praetorian --account chariot+example@praetorian.com guard script --help
+guard --account guard+example@praetorian.com script --help
 ```
 
 For developing scripts, you can refer to
@@ -191,15 +191,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 # Backwards Compatibility
 
-**Guard** is a rebrand of **Chariot**. To ensure a smooth transition and maintain backwards compatibility, both names are supported:
+**Guard** is a rebrand of **Chariot**.
 
 ### CLI
-Both `praetorian guard` and `praetorian chariot` commands work identically:
+The `guard` command is the new primary CLI entry point. The legacy `praetorian chariot` command continues to work:
 
 ```zsh
-# These are equivalent:
-praetorian guard list assets
+# New (preferred):
+guard list assets
+guard --account example@praetorian.com list assets
+guard configure
+
+# Legacy (still supported):
 praetorian chariot list assets
+praetorian configure
 ```
 
 ### SDK
@@ -217,5 +222,3 @@ chariot = Chariot(Keychain())
 
 ### Configuration
 The keychain file and environment variables remain unchanged. Existing configurations will continue to work without modification.
-
-**Note**: While `chariot` remains fully supported, we recommend using `guard` for new integrations and scripts.
