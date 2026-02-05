@@ -20,11 +20,11 @@ def assets(chariot, filter, model_type, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list assets
-        - praetorian chariot list assets --filter api.example.com
-        - praetorian chariot list assets --details
-        - praetorian chariot list assets --page all
-        - praetorian chariot list assets --type repository
+        - guard list assets
+        - guard list assets --filter api.example.com
+        - guard list assets --details
+        - guard list assets --page all
+        - guard list assets --type repository
     """
     render_list_results(chariot.assets.list(filter, model_type, pagination_size(page)), details)
 
@@ -38,10 +38,10 @@ def risks(chariot, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list risks
-        - praetorian chariot list risks --filter api.example.com
-        - praetorian chariot list risks --details
-        - praetorian chariot list risks --page all
+        - guard list risks
+        - guard list risks --filter api.example.com
+        - guard list risks --details
+        - guard list risks --page all
     """
     render_list_results(chariot.risks.list(filter, offset, pagination_size(page)), details)
 
@@ -56,10 +56,10 @@ def accounts(chariot, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list accounts
-        - praetorian chariot list accounts --filter john@praetorian.com
-        - praetorian chariot list accounts --details
-        - praetorian chariot list accounts --page all
+        - guard list accounts
+        - guard list accounts --filter john@praetorian.com
+        - guard list accounts --details
+        - guard list accounts --page all
     """
     render_list_results(chariot.accounts.list(filter, offset, pagination_size(page)), details)
 
@@ -73,9 +73,9 @@ def aegis(chariot, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list aegis
-        - praetorian chariot list aegis --details
-        - praetorian chariot list aegis --page all
+        - guard list aegis
+        - guard list aegis --details
+        - guard list aegis --page all
     """
     render_list_results(chariot.aegis.list(offset, pagination_size(page)), details)
 
@@ -89,10 +89,10 @@ def integrations(chariot, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list integrations
-        - praetorian chariot list integrations --filter gcp
-        - praetorian chariot list integrations --details
-        - praetorian chariot list integrations --page all
+        - guard list integrations
+        - guard list integrations --filter gcp
+        - guard list integrations --details
+        - guard list integrations --page all
     """
     render_list_results(chariot.integrations.list(filter, offset, pagination_size(page)), details)
 
@@ -108,10 +108,10 @@ def jobs(chariot, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list jobs
-        - praetorian chariot list jobs --filter www.example.com
-        - praetorian chariot list jobs --details
-        - praetorian chariot list jobs --page all
+        - guard list jobs
+        - guard list jobs --filter www.example.com
+        - guard list jobs --details
+        - guard list jobs --page all
     """
     render_list_results(chariot.jobs.list(filter, offset, pagination_size(page)), details)
 
@@ -125,10 +125,10 @@ def files(chariot, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list files
-        - praetorian chariot list files --filter "home/reports/cloud-assessment-2024-"
-        - praetorian chariot list files --details
-        - praetorian chariot list files --page all
+        - guard list files
+        - guard list files --filter "home/reports/cloud-assessment-2024-"
+        - guard list files --details
+        - guard list files --page all
      """
     render_list_results(chariot.files.list(filter, offset, pagination_size(page)), details)
 
@@ -142,9 +142,9 @@ def definitions(chariot, filter, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list definitions
-        - praetorian chariot list definitions --filter "home/reports/cloud-assessment-2024-"
-        - praetorian chariot list definitions --page all
+        - guard list definitions
+        - guard list definitions --filter "home/reports/cloud-assessment-2024-"
+        - guard list definitions --page all
     """
     definitions, next_offset = chariot.definitions.list(filter, offset, pagination_size(page))
     click.echo('\n'.join(definitions))
@@ -167,11 +167,11 @@ def attributes(chariot, filter, key, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list attributes
-        - praetorian chariot list attributes --filter proto
-        - praetorian chariot list attributes --key "#risk#www.example.com#CVE-2024-23049"
-        - praetorian chariot list attributes --details
-        - praetorian chariot list attributes --page all
+        - guard list attributes
+        - guard list attributes --filter proto
+        - guard list attributes --key "#risk#www.example.com#CVE-2024-23049"
+        - guard list attributes --details
+        - guard list attributes --page all
     """
     render_list_results(chariot.attributes.list(filter, key, offset, pagination_size(page)), details)
 
@@ -186,12 +186,12 @@ def seeds(chariot, type, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list seeds
-        - praetorian chariot list seeds --type asset
-        - praetorian chariot list seeds --type addomain
-        - praetorian chariot list seeds --type asset --filter example.com
-        - praetorian chariot list seeds --details
-        - praetorian chariot list seeds --page all
+        - guard list seeds
+        - guard list seeds --type asset
+        - guard list seeds --type addomain
+        - guard list seeds --type asset --filter example.com
+        - guard list seeds --details
+        - guard list seeds --page all
     """
     # Note: filter restriction removed since we're using different key format now
     render_list_results(chariot.seeds.list(type, filter, pagination_size(page)), details)
@@ -206,10 +206,10 @@ def preseeds(chariot, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list preseeds
-        - praetorian chariot list preseeds --filter tlscert
-        - praetorian chariot list preseeds --details
-        - praetorian chariot list preseeds --page all
+        - guard list preseeds
+        - guard list preseeds --filter tlscert
+        - guard list preseeds --details
+        - guard list preseeds --page all
     """
     render_list_results(chariot.preseeds.list(filter, offset, pagination_size(page)), details)
 
@@ -229,12 +229,12 @@ def statistics(chariot, filter, from_date, to_date, details, offset, page, help_
 
     \b
     Example usages:
-        - praetorian chariot list statistics
-        - praetorian chariot list statistics --filter "my#status"
-        - praetorian chariot list statistics --from 2024-12-01 --to 2024-12-31
-        - praetorian chariot list statistics --details
-        - praetorian chariot list statistics --page all
-        - praetorian chariot list statistics --help-stats
+        - guard list statistics
+        - guard list statistics --filter "my#status"
+        - guard list statistics --from 2024-12-01 --to 2024-12-31
+        - guard list statistics --details
+        - guard list statistics --page all
+        - guard list statistics --help-stats
     """
     if help_stats:
         click.echo(chariot.statistics.util.get_statistics_help())
@@ -277,10 +277,10 @@ def settings(chariot, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list settings
-        - praetorian chariot list settings --filter rate-limit
-        - praetorian chariot list settings --details
-        - praetorian chariot list settings --page all
+        - guard list settings
+        - guard list settings --filter rate-limit
+        - guard list settings --details
+        - guard list settings --page all
     """
     render_list_results(chariot.settings.list(filter, offset, pagination_size(page)), details)
 
@@ -299,10 +299,10 @@ def configurations(chariot, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list configurations
-        - praetorian chariot list configurations --filter nuclei
-        - praetorian chariot list configurations --details
-        - praetorian chariot list configurations --page all
+        - guard list configurations
+        - guard list configurations --filter nuclei
+        - guard list configurations --details
+        - guard list configurations --page all
     """
     render_list_results(chariot.configurations.list(filter, offset, pagination_size(page)), details)
 
@@ -318,9 +318,9 @@ def keys(chariot, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list keys
-        - praetorian chariot list keys --details
-        - praetorian chariot list keys --page all
+        - guard list keys
+        - guard list keys --details
+        - guard list keys --page all
     """
     render_list_results(chariot.keys.list(offset, pagination_size(page)), details)
 
@@ -333,8 +333,8 @@ def credentials(chariot, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list credentials
-        - praetorian chariot list credentials --page all
+        - guard list credentials
+        - guard list credentials --page all
     """
     print_json(chariot.credentials.list(offset, pagination_size(page)))
 
@@ -348,7 +348,7 @@ def capabilities(chariot, name, target, executor):
     """ List capabilities
 
     Example usage:
-        - praetorian chariot list capabilities --name nuclei --target attribute --executor chariot
+        - guard list capabilities --name nuclei --target attribute --executor chariot
     """
     print_json(chariot.capabilities.list(name, target, executor))
 
@@ -358,14 +358,14 @@ def capabilities(chariot, name, target, executor):
 def scanners(chariot, filter, details, offset, page):
     """ List scanners
 
-    Retrieve and display a list of scanner records that track IP addresses used by chariot.
+    Retrieve and display a list of scanner records that track IP addresses used by Guard.
 
     \b
     Example usages:
-        - praetorian chariot list scanners
-        - praetorian chariot list scanners --filter 127.0.0.1
-        - praetorian chariot list scanners --details
-        - praetorian chariot list scanners --page all
+        - guard list scanners
+        - guard list scanners --filter 127.0.0.1
+        - guard list scanners --details
+        - guard list scanners --page all
     """
     render_list_results(chariot.scanners.list(filter, offset, pagination_size(page)), details)
 
@@ -383,10 +383,10 @@ def webpages(chariot, parent, filter, details, offset, page):
 
     \b
     Example usages:
-        - praetorian chariot list webpages
-        - praetorian chariot list webpages --parent "#webapplication#https://app.example.com"
-        - praetorian chariot list webpages --filter /login
-        - praetorian chariot list webpages --parent "#webapplication#https://app.example.com" --details
-        - praetorian chariot list webpages --page all
+        - guard list webpages
+        - guard list webpages --parent "#webapplication#https://app.example.com"
+        - guard list webpages --filter /login
+        - guard list webpages --parent "#webapplication#https://app.example.com" --details
+        - guard list webpages --page all
     """
     render_list_results(chariot.webpage.list(parent, filter, offset, pagination_size(page)), details)

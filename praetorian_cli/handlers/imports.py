@@ -21,7 +21,7 @@ def insightvm(chariot, xml_file):
 
     \b
     Example usages:
-        - praetorian chariot import insightvm ~/Downloads/insightvm-report.xml
+        - guard import insightvm ~/Downloads/insightvm-report.xml
     """
     chariot.integrations.add_import_integration('insightvm-import', xml_file)
 
@@ -37,7 +37,7 @@ def qualys(chariot, csv_file):
 
     \b
     Example usages:
-        - praetorian chariot import qualys ~/Downloads/qualys-report.csv
+        - guard import qualys ~/Downloads/qualys-report.csv
     """
     chariot.integrations.add_import_integration('qualys-import', csv_file)
 
@@ -53,6 +53,6 @@ def nessus(chariot, nessus_file):
 
     \b
     Example usages:
-        - praetorian chariot import nessus ~/Downloads/nessus-report.nessus
+        - guard import nessus ~/Downloads/nessus-report.nessus
     """
     chariot.integrations.add_import_integration('nessus-import', nessus_file)

@@ -22,7 +22,7 @@ def account(chariot, username):
 
     \b
     Example usages:
-        - praetorian chariot unlink account john@praetorian.com
+        - guard unlink account john@praetorian.com
     """
     chariot.accounts.delete_collaborator(username)
 
@@ -45,8 +45,8 @@ def webpage_source(chariot, webpage_key, entity_key):
 
     \b
     Example usages:
-        - praetorian chariot unlink webpage-source "#webpage#https://example.com" "#file#proofs/scan.txt"
-        - praetorian chariot unlink webpage-source "#webpage#https://example.com/login" "#repository#https://github.com/org/repo.git#repo.git"
+        - guard unlink webpage-source "#webpage#https://example.com" "#file#proofs/scan.txt"
+        - guard unlink webpage-source "#webpage#https://example.com/login" "#repository#https://github.com/org/repo.git#repo.git"
     """
     result = chariot.webpage.unlink_source(webpage_key, entity_key)
     if result:
