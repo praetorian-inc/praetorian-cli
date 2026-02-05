@@ -98,7 +98,3 @@ def conversation(sdk):
     """
     from praetorian_cli.ui.conversation import run_textual_conversation
     run_textual_conversation(sdk)
-
-
-# Import workflow subcommands (must be after agent group is defined)
-from praetorian_cli.handlers import workflow  # noqa: F401, E402
