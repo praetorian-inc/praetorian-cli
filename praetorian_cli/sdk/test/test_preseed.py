@@ -33,9 +33,11 @@ class TestPreseed:
         preseed = self.sdk.preseeds.get(self.preseed_key, details=True)
         assert preseed['status'] == Preseed.ACTIVE.value
         # Verify comment was stored in history
-        assert 'history' in preseed
-        assert len(preseed['history']) > 0
-        assert preseed['history'][0]['comment'] == "Test comment for preseed update"
+        assert 'history' in preseed, f"Expected 'history' in preseed response: {preseed}"
+        assert len(preseed['history']) > 0, f"Expected history to have entries: {preseed['history']}"
+        # Find entry with our comment (may not be first if there are status change entries)
+        comment_entries = [h for h in preseed['history'] if h.get('comment') == "Test comment for preseed update"]
+        assert len(comment_entries) > 0, f"Comment not found in history: {preseed['history']}"
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
