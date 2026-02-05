@@ -51,7 +51,7 @@ pip install praetorian-cli
 
 ## Signing up
 
-Register for an account for [Guard](http://chariot.praetorian.com) using the instructions
+Register for an account for [Guard](http://guard.praetorian.com) using the instructions
 in [our documentation](https://docs.praetorian.com/hc/en-us/articles/38048335323547-Account-Creation-and-Attack-Surface-Setup).
 
 ## Authentication

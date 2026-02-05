@@ -319,6 +319,8 @@ def webpage(chariot, key):
     """
     print_json(chariot.webpage.get(key))
         
+@get.command()
+@cli_handler
 @click.option('-t', '--type', help='Optional specific entity type (e.g., asset, risk, attribute)')
 @click.option('-d', '--details', is_flag=True, help='Further retrieve the details of the schema')
 def schema(chariot, type, details):
