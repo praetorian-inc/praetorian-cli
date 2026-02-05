@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/License-MIT-007EC6.svg)](LICENSE)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20covenant-2.1-007EC6.svg)](CODE_OF_CONDUCT.md)
 [![Open Source Libraries](https://img.shields.io/badge/Open--source-%F0%9F%92%9A-28a745)](https://opensource.org/)
-[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg?style=flat)](https://github.com/praetorian-inc/chariot-ui/issues)
+[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg?style=flat)](https://github.com/praetorian-inc/praetorian-cli/issues)
 
 :link: [Guard Platform](https://guard.praetorian.com)
 :book: [Documentation](https://docs.praetorian.com)
@@ -51,14 +51,14 @@ pip install praetorian-cli
 
 ## Signing up
 
-Register for an account for [Guard](http://guard.praetorian.com) using the instructions
+Register for an account for [Guard](https://guard.praetorian.com) using the instructions
 in [our documentation](https://docs.praetorian.com/hc/en-us/articles/38048335323547-Account-Creation-and-Attack-Surface-Setup).
 
 ## Authentication
 
-Once you can properly access Guard through the UI. You can obtain API credentials through the UI under
-Settings -> User Settings -> API Keys. Be sure to careful copy the API credentials you created as
-you will need to provide them to the CLI for interacting with Guard. 
+Once you can properly access Guard through the UI, you can obtain API credentials by clicking the 
+Praetorian icon in the top right corner -> User Profile -> API Keys. Be sure to carefully copy the 
+API credentials you created as you will need to provide them to the CLI for interacting with Guard. 
 
 **Note**: SSO Organizations should provision access through API Keys as well.
 
@@ -70,13 +70,13 @@ This is the authentication method for CLI. You can authenticate using either a k
 
 This method stores your API key in a keychain file.
 
-1. Run `praetorian configure` and follow the prompts to set up authentication. 
+1. Run `guard configure` and follow the prompts to set up authentication. 
 Use the default values for `profile name`, `URL of backend API`, and `client ID`.
 2. It creates `~/.praetorian/keychain.ini`, which should read like this:
 
 ```
 [United States]
-name = chariot
+name = guard
 client_id = 795dnnr45so7m17cppta0b295o
 api = https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot
 api_key_id = your-api-key-id-here
@@ -88,7 +88,7 @@ api_key_secret = your-api-key-here
 This method uses in-memory environment variables to pass your API key to
 the CLI. There is no need for a keychain file on disk. This enables you to choose
 a credential storage method suitable for your use cases. To use this method, set the
-following environment variable:
+following environment variables:
 
 ```zsh
 export PRAETORIAN_CLI_API_KEY_ID=your-api-key-id-here
@@ -180,7 +180,7 @@ By contributing, you agree to our [Code of Conduct](CODE_OF_CONDUCT.md).
 ## Support
 
 If you have any questions or need support, please open an issue
-[here](https://github.com/praetorian-inc/chariot-ui/issues) or reach out via
+[here](https://github.com/praetorian-inc/praetorian-cli/issues) or reach out via
 [support@praetorian.com](mailto:support@praetorian.com).
 
 ## License

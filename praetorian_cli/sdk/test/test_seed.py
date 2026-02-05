@@ -35,9 +35,11 @@ class TestSeed:
         seed = self.get_seed()
         assert seed['status'] == Seed.FROZEN.value
         # Verify comment was stored in history
-        assert 'history' in seed
-        assert len(seed['history']) > 0
-        assert seed['history'][0]['comment'] == "Test comment for seed update"
+        assert 'history' in seed, f"Expected 'history' in seed response: {seed}"
+        assert len(seed['history']) > 0, f"Expected history to have entries: {seed['history']}"
+        # Find entry with our comment (may not be first if there are status change entries)
+        comment_entries = [h for h in seed['history'] if h.get('comment') == "Test comment for seed update"]
+        assert len(comment_entries) > 0, f"Comment not found in history: {seed['history']}"
 
     def test_delete_seed(self):
         self.sdk.seeds.delete(self.seed_asset_key)
