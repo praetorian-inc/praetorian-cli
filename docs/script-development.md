@@ -6,14 +6,14 @@ you store your scripts. It makes them available as commands under the `script` g
 can list all the script commands by:
 
 ```zsh
-praetorian chariot script --help
+guard script --help
 ```
 
 To add your own extensions to the CLI, set `PRAETORIAN_SCRIPTS_PATH` environment variable
 to point to directories where you store your scripts.
 
 The code snippet below is an example that runs an nmap scan on a host. It further adds
-the open ports to your account on Chariot using the SDK.
+the open ports to your account on Guard using the SDK.
 
 The main logic is in `nmap_command`. This function uses Click decorators to register itself
 to the CLI and define command line arguments.
@@ -56,7 +56,7 @@ def register(script_group: click.MultiCommand):
 ## Debugging
 
 The CLI skips loading scripts that have compilation errors. If your script does not
-appear in `praetorian chariot script --help`, run the CLI with the `--debug` flag to
+appear in `guard script --help`, run the CLI with the `--debug` flag to
 see the compilation errors.
 
 ## Go further

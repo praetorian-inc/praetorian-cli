@@ -7,7 +7,7 @@
 [![Open Source Libraries](https://img.shields.io/badge/Open--source-%F0%9F%92%9A-28a745)](https://opensource.org/)
 [![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg?style=flat)](https://github.com/praetorian-inc/chariot-ui/issues)
 
-:link: [Chariot Platform](https://chariot.praetorian.com)
+:link: [Guard Platform](https://guard.praetorian.com)
 :book: [Documentation](https://docs.praetorian.com)
 :bookmark: [PyPI](https://pypi.org/project/praetorian-cli/)
 
@@ -24,14 +24,15 @@
 - [Contributing](#contributing)
 - [Support](#support)
 - [License](#license)
+- [Backwards Compatibility](#backwards-compatibility)
 
 # Description
 
 Praetorian CLI and SDK are open-source tools for interacting with our products and services. Currently, they support
-access to [Chariot](https://www.praetorian.com/proactive-cybersecurity-technology/), our
+access to [Guard](https://www.praetorian.com/proactive-cybersecurity-technology/), our
 offensive security platform.
-<br> The SDK exposes the full set of APIs that the Chariot UI uses.
-<br> The CLI is a fully-featured companion to the Chariot UI.
+<br> The SDK exposes the full set of APIs that the Guard UI uses.
+<br> The CLI is a fully-featured companion to the Guard UI.
 
 # Getting Started
 
@@ -50,14 +51,14 @@ pip install praetorian-cli
 
 ## Signing up
 
-Register for an account for [Chariot](http://chariot.praetorian.com) using the instructions
+Register for an account for [Guard](http://guard.praetorian.com) using the instructions
 in [our documentation](https://docs.praetorian.com/hc/en-us/articles/38048335323547-Account-Creation-and-Attack-Surface-Setup).
 
 ## Authentication
 
-Once you can properly access Chariot through the UI. You can obtain API credentials through the UI under
+Once you can properly access Guard through the UI. You can obtain API credentials through the UI under
 Settings -> User Settings -> API Keys. Be sure to careful copy the API credentials you created as
-you will need to provide them to the CLI for interacting with Chariot. 
+you will need to provide them to the CLI for interacting with Guard. 
 
 **Note**: SSO Organizations should provision access through API Keys as well.
 
@@ -99,49 +100,49 @@ For more advanced configuration options or managing access in SSO organizations 
 
 # Using the CLI
 
-The CLI is a command and option utility for accessing the full suite of Chariot's API. You can see the documentation for commands
+The CLI is a command and option utility for accessing the full suite of Guard's API. You can see the documentation for commands
 using the `help` option:
 
 ```zsh
-praetorian chariot --help
+guard --help
 ```
 
 As an example, run the following command to retrieve the list of all assets in your account:
 
 ```zsh
-praetorian --account chariot+example@praetorian.com chariot list assets
+guard --account guard+example@praetorian.com list assets
 ```
 
-You can obtain the `account` argument by viewing the email of the first user on the Users page in your Chariot account, as shown below:
+You can obtain the `account` argument by viewing the email of the first user on the Users page in your Guard account, as shown below:
 
 <img width="482" alt="image" src="https://github.com/user-attachments/assets/7c1024c9-7b74-46b1-87c5-af44671b1ec8" />
 
 To get detailed information about a specific asset, run:
 
 ```zsh
-praetorian --account chariot+example@praetorian.com chariot get asset <ASSET_KEY>
+guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
 
 # Developers
 
 Both CLI and SDK is open-source in this repository. The SDK is installed along with the `praetorian-cli`
-package. You can extend Chariot by creating scripts using the SDK.
+package. You can extend Guard by creating scripts using the SDK.
 
 ## SDK
 
 Integrate the SDK into your own Python application with the following steps:
 
 1. Include the dependency ``praetorian-cli`` in your project.
-2. Import the Chariot class ``from praetorian_cli.sdk.chariot import Chariot``.
+2. Import the Guard class ``from praetorian_cli.sdk.guard import Guard``.
 3. Import the Keychain class ``from praetorian_cli.sdk.keychain import Keychain``.
-4. Call any function of the Chariot class, which expose the full backend API. See example below:
+4. Call any function of the Guard class, which expose the full backend API. See example below:
 
 ```python
-from praetorian_cli.sdk.chariot import Chariot
+from praetorian_cli.sdk.guard import Guard
 from praetorian_cli.sdk.keychain import Keychain
 
-chariot = Chariot(Keychain(account='chariot+example@praetorian.com'))
-chariot.add('asset', dict(name='example.com', dns='example.com'))
+guard = Guard(Keychain(account='guard+example@praetorian.com'))
+guard.add('asset', dict(name='example.com', dns='example.com'))
 ```
 
 The best place to explore the SDK is the code of the CLI, especially
@@ -160,7 +161,7 @@ environment to point to directories where you store additional extension scripts
 Those external scripts are available under the `script` commands. To see a list of them:
 
 ```zsh
-praetorian --account chariot+example@praetorian.com chariot script --help
+guard --account guard+example@praetorian.com script --help
 ```
 
 For developing scripts, you can refer to
@@ -185,3 +186,39 @@ If you have any questions or need support, please open an issue
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+# Backwards Compatibility
+
+**Guard** is a rebrand of **Chariot**.
+
+### CLI
+The `guard` command is the new primary CLI entry point. The legacy `praetorian chariot` command continues to work:
+
+```zsh
+# New (preferred):
+guard list assets
+guard --account example@praetorian.com list assets
+guard configure
+
+# Legacy (still supported):
+praetorian chariot list assets
+praetorian configure
+```
+
+### SDK
+Both `Guard` and `Chariot` classes are available and interchangeable:
+
+```python
+# New (preferred):
+from praetorian_cli.sdk.guard import Guard
+guard = Guard(Keychain())
+
+# Legacy (still supported):
+from praetorian_cli.sdk.chariot import Chariot
+chariot = Chariot(Keychain())
+```
+
+### Configuration
+The keychain file and environment variables remain unchanged. Existing configurations will continue to work without modification.

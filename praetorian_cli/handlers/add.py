@@ -12,7 +12,7 @@ from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
 
 @chariot.group()
 def add():
-    """ Add an entity to Chariot """
+    """ Add an entity to Guard """
     pass
 
 
@@ -27,7 +27,7 @@ def add():
 def asset(sdk, name, dns, asset_type, status, surface):
     """ Add an asset
 
-    Add an asset to the Chariot database. This command requires a DNS name for the asset.
+    Add an asset to the Guard database. This command requires a DNS name for the asset.
     Optionally, a name can be provided to give the asset more specific information,
     such as IP address. If no name is provided, the DNS name will be used as the name.
     The DNS is the group and the name is the specific identifier. This is for legacy reasons.
@@ -55,12 +55,12 @@ def asset(sdk, name, dns, asset_type, status, surface):
 @add.command()
 @cli_handler
 @click.argument('path')
-@click.option('-n', '--name', help='The file name in Chariot. Default: the full path of the uploaded file')
+@click.option('-n', '--name', help='The file name in Guard. Default: the full path of the uploaded file')
 def file(sdk, path, name):
     """ Upload a file
 
     This commands takes the path to a local file and uploads it to the
-    Chariot file system. The Chariot file system is where the platform
+    Guard file system. The Guard file system is where the platform
     stores proofs of exploit, risk definitions, and other supporting data.
 
     User files reside in the "home/" folder. Those files appear in the app
@@ -89,7 +89,7 @@ def definition(sdk, path, name):
     """ Upload a risk definition
 
     This commands takes the path to the local file and uploads it to the
-    Chariot file system as risk definitions. Risk definitions reside
+    Guard file system as risk definitions. Risk definitions reside
     in the "definitions/" folder in the file system.
 
     Risk definitions need to be in the Markdown format.
@@ -141,7 +141,7 @@ def webhook(sdk):
 def risk(sdk, name, asset, status, comment, capability):
     """ Add a risk
 
-    This command adds a risk to Chariot. A risk must have an associated asset.
+    This command adds a risk to Guard. A risk must have an associated asset.
     The asset is specified by its key, which can be retrieved by listing and
     searching the assets.
 
@@ -211,7 +211,7 @@ def attribute(sdk, key, name, value):
 def seed(sdk, seed_type, status, field_list):
     """ Add a seed
 
-    Add a seed to the Chariot database. Seeds are now assets with special labeling.
+    Add a seed to the Guard database. Seeds are now assets with special labeling.
     You can specify the asset type and provide dynamic fields using --fields.
 
     \b
@@ -247,7 +247,7 @@ def seed(sdk, seed_type, status, field_list):
 def preseed(sdk, type, title, value, status):
     """ Add a preseed
 
-    This command adds a preseed to the Chariot database.
+    This command adds a preseed to the Guard database.
     Preseeds default to ACTIVE and cannot be added as PENDING.
 
     \b
@@ -337,7 +337,7 @@ def key(sdk, name, expires):
 def webpage(sdk, url, parent):
     """ Add a Webpage
 
-    Add a web page to the Chariot database. Webpages can optionally be associated
+    Add a web page to the Guard database. Webpages can optionally be associated
     with a parent WebApplication or exist independently.
 
     \b

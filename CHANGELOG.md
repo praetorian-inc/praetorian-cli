@@ -1,5 +1,10 @@
 # Changelog
 
+# 2.3.0
+- [New Feature] Rebranded to the Guard platform
+  - `guard` is a direct replacement to `praetorian chariot`
+  - The SDK's `Chariot` and `praetorian chariot` remain for backwards compatibility
+
 # 2.2.17
 - [New Feature] Add comments to seeds and presseds via the SDK
 

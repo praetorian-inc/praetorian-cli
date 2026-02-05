@@ -9,7 +9,7 @@ from praetorian_cli.handlers.utils import print_json
 
 @chariot.group()
 def get():
-    """ Get entity details from Chariot """
+    """ Get entity details from Guard """
     pass
 
 
@@ -319,13 +319,15 @@ def webpage(chariot, key):
     """
     print_json(chariot.webpage.get(key))
         
+@get.command()
+@cli_handler
 @click.option('-t', '--type', help='Optional specific entity type (e.g., asset, risk, attribute)')
 @click.option('-d', '--details', is_flag=True, help='Further retrieve the details of the schema')
 def schema(chariot, type, details):
-    """ Get Chariot entity schema
+    """ Get Guard entity schema
 
     \b
-    Returns the JSON schema for Chariot entities. Optionally filter for a
+    Returns the JSON schema for Guard entities. Optionally filter for a
     specific entity type.
 
     \b

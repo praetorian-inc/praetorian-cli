@@ -7,7 +7,7 @@ from praetorian_cli.sdk.model.globals import Risk, Seed, Asset
 
 @chariot.group()
 def update():
-    """ Update an entity in Chariot """
+    """ Update an entity in Guard """
     pass
 
 

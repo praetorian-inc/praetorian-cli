@@ -7,7 +7,7 @@ from praetorian_cli.sdk.model.globals import Risk
 
 @chariot.group()
 def delete():
-    """ Delete an entity from Chariot """
+    """ Delete an entity from Guard """
     pass
 
 
@@ -106,7 +106,7 @@ def file(chariot, filepath):
 
     \b
     Arguments:
-        - FILEPATH: The Chariot file path
+        - FILEPATH: The Guard file path
 
     \b
     Example usage:
