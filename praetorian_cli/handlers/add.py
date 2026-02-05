@@ -42,10 +42,10 @@ def asset(sdk, name, dns, asset_type, status, surface):
 
     \b
     Example usages:
-        - praetorian chariot add asset --dns example.com
-        - praetorian chariot add asset --dns example.com --name 1.2.3.4
-        - praetorian chariot add asset --dns internal.example.com --name 10.2.3.4 --surface internal
-        - praetorian chariot add asset --dns https://example.com --name 'Example Web Application' --type webapplication
+        - guard add asset --dns example.com
+        - guard add asset --dns example.com --name 1.2.3.4
+        - guard add asset --dns internal.example.com --name 10.2.3.4 --surface internal
+        - guard add asset --dns https://example.com --name 'Example Web Application' --type webapplication
     """
     if not name:
         name = dns
@@ -64,7 +64,7 @@ def file(sdk, path, name):
     stores proofs of exploit, risk definitions, and other supporting data.
 
     User files reside in the "home/" folder. Those files appear in the app
-    at https://chariot.praetorian.com/app/files
+    at https://guard.praetorian.com/app/files
 
     \b
     Arguments:
@@ -72,8 +72,8 @@ def file(sdk, path, name):
 
     \b
     Example usages:
-        - praetorian chariot add file ./file.txt
-        - praetorian chariot add file ./file.txt --name "home/file.txt"
+        - guard add file ./file.txt
+        - guard add file ./file.txt --name "home/file.txt"
     """
     try:
         sdk.files.add(path, name)
@@ -100,8 +100,8 @@ def definition(sdk, path, name):
 
     \b
     Example usages:
-        - praetorian chariot add definition ./CVE-2024-23049
-        - praetorian chariot add definition ./CVE-2024-23049.updated.md --name CVE-2024-23049
+        - guard add definition ./CVE-2024-23049
+        - guard add definition ./CVE-2024-23049.updated.md --name CVE-2024-23049
     """
     if name is None:
         name = os.path.basename(path)
@@ -122,7 +122,7 @@ def webhook(sdk):
 
     \b
     Example usages:
-        - praetorian chariot add webhook
+        - guard add webhook
     """
     if sdk.webhook.get_record():
         click.echo('There is an existing webhook. Delete it first before adding a new one.')
@@ -151,9 +151,9 @@ def risk(sdk, name, asset, status, comment, capability):
 
     \b
     Example usages:
-        - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI
-        - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC
-        - praetorian chariot add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC --capability red-team
+        - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI
+        - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC
+        - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC --capability red-team
     """
     sdk.risks.add(asset, name, status, comment, capability)
 
@@ -174,11 +174,11 @@ def job(sdk, key, capabilities, config, credentials):
 
     \b
     Example usages:
-        - praetorian chariot add job --key "#asset#example.com#1.2.3.4"
-        - praetorian chariot add job --key "#asset#example.com#1.2.3.4" -c subdomain -c portscan
-        - praetorian chariot add job --key "#attribute#ssh#22#asset#api.www.example.com#1.2.3.4"
-        - praetorian chariot add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"}'
-        - praetorian chariot add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"} --credential "E4644F37-6985-40B4-8D07-5311516D98F1"'
+        - guard add job --key "#asset#example.com#1.2.3.4"
+        - guard add job --key "#asset#example.com#1.2.3.4" -c subdomain -c portscan
+        - guard add job --key "#attribute#ssh#22#asset#api.www.example.com#1.2.3.4"
+        - guard add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"}'
+        - guard add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"} --credential "E4644F37-6985-40B4-8D07-5311516D98F1"'
     """
     sdk.jobs.add(key, capabilities, config, credentials)
 
@@ -195,8 +195,8 @@ def attribute(sdk, key, name, value):
 
     \b
     Example usages:
-        - praetorian chariot add attribute --key "#risk#www.example.com#CVE-2024-23049" --name https --value 443
-        - praetorian chariot add attribute --key "#asset#www.example.com#www.example.com" --name id --value "arn:aws:route53::1654874321:hostedzone/Z0000000EJBHGTFTGH3"
+        - guard add attribute --key "#risk#www.example.com#CVE-2024-23049" --name https --value 443
+        - guard add attribute --key "#asset#www.example.com#www.example.com" --name id --value "arn:aws:route53::1654874321:hostedzone/Z0000000EJBHGTFTGH3"
     """
     sdk.attributes.add(key, name, value)
 
@@ -216,10 +216,10 @@ def seed(sdk, seed_type, status, field_list):
 
     \b
     Example usages:
-        - praetorian chariot add seed --type asset --field dns:example.com
-        - praetorian chariot add seed --type asset --field dns:example.com --status A
-        - praetorian chariot add seed --type asset --field dns:example.com --field name:1.2.3.4
-        - praetorian chariot add seed --type addomain --field domain:corp.local --field objectid:S-1-5-21-2701466056-1043032755-2418290285
+        - guard add seed --type asset --field dns:example.com
+        - guard add seed --type asset --field dns:example.com --status A
+        - guard add seed --type asset --field dns:example.com --field name:1.2.3.4
+        - guard add seed --type addomain --field domain:corp.local --field objectid:S-1-5-21-2701466056-1043032755-2418290285
     """
     # Collect dynamic fields from the --fields option
     dynamic_fields = {}
@@ -252,8 +252,8 @@ def preseed(sdk, type, title, value, status):
 
     \b
     Example usages:
-        - praetorian chariot add preseed -t "whois+company" -l "Example Company" -v "example company"
-        - praetorian chariot add preseed --type "whois+company" --title "Example Company" --value "example company" --status "A"
+        - guard add preseed -t "whois+company" -l "Example Company" -v "example company"
+        - guard add preseed --type "whois+company" --title "Example Company" --value "example company" --status "A"
     """
     sdk.preseeds.add(type, title, value, status)
 
@@ -269,7 +269,7 @@ def setting(sdk, name, value):
 
     \b
     Example usages:
-        - praetorian chariot add setting --name "rate-limit" --value '{"capability-rate-limit": 100}'
+        - guard add setting --name "rate-limit" --value '{"capability-rate-limit": 100}'
     """
     sdk.settings.add(name, value)
 
@@ -297,10 +297,10 @@ def configuration(sdk, name, entry, string_value, integer_value, float_value):
 
     \b
     Example usages:
-        - praetorian chariot add configuration --name "nuclei" --entry extra-tags=http,sql --entry something=else
-        - praetorian chariot add configuration --name "billing-status" --string PAID_MS
-        - praetorian chariot add configuration --name "request-timeout" --integer 60
-        - praetorian chariot add configuration --name "scoring-threshold" --float 0.85
+        - guard add configuration --name "nuclei" --entry extra-tags=http,sql --entry something=else
+        - guard add configuration --name "billing-status" --string PAID_MS
+        - guard add configuration --name "request-timeout" --integer 60
+        - guard add configuration --name "scoring-threshold" --float 0.85
     """
     config_value = parse_configuration_value(entry, string_value, integer_value, float_value)
     sdk.configurations.add(name, config_value)
@@ -317,8 +317,8 @@ def key(sdk, name, expires):
 
     \b
     Example usages:
-        - praetorian chariot add key --name "my-automation-key"
-        - praetorian chariot add key --name "ci-cd-key"
+        - guard add key --name "my-automation-key"
+        - guard add key --name "ci-cd-key"
     """
 
     expiresT = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=expires)
@@ -342,8 +342,8 @@ def webpage(sdk, url, parent):
 
     \b
     Example usages:
-        - praetorian chariot add webpage --url https://app.example.com/login
-        - praetorian chariot add webpage --url https://app.example.com/admin --parent "#webapplication#https://app.example.com"
+        - guard add webpage --url https://app.example.com/login
+        - guard add webpage --url https://app.example.com/admin --parent "#webapplication#https://app.example.com"
     """
     sdk.webpage.add(url, parent)
 
@@ -367,9 +367,9 @@ def credential(sdk, resource_key, category, cred_type, label, parameters):
 
     \b
     Example usages:
-        - praetorian chariot add credential --resource-key "C.0c6cf7104f516b08-OGMPG" --category env-integration --type active-directory --label "Robb Stark" --param username=robb.stark --param password=sexywolfy --param domain=north.sevenkingdoms.local
-        - praetorian chariot add credential -r "C.example-key" -c cloud -t aws --label "AWS Production" -p region=us-east-1 -p role_arn=arn:aws:iam::123456789012:role/MyRole
-        - praetorian chariot add credential -r "C.example-key" -c integration -t static --label "API Token" -p token=abc123xyz
+        - guard add credential --resource-key "C.0c6cf7104f516b08-OGMPG" --category env-integration --type active-directory --label "Robb Stark" --param username=robb.stark --param password=sexywolfy --param domain=north.sevenkingdoms.local
+        - guard add credential -r "C.example-key" -c cloud -t aws --label "AWS Production" -p region=us-east-1 -p role_arn=arn:aws:iam::123456789012:role/MyRole
+        - guard add credential -r "C.example-key" -c integration -t static --label "API Token" -p token=abc123xyz
     """
     # Parse parameters from key=value format
     params = {}

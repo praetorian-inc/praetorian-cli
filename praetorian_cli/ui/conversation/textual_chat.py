@@ -116,7 +116,7 @@ class ConversationApp(App):
     }
     """
     
-    TITLE = "Chariot AI Assistant"
+    TITLE = "Guard AI Assistant"
     
     # Reactive attributes
     conversation_id: reactive[Optional[str]] = reactive(None)
@@ -157,7 +157,7 @@ class ConversationApp(App):
         self.query_one("#message-input").focus()
         
         # Show welcome message
-        self.add_system_message("Welcome to Chariot AI Assistant! Type 'help' for commands or ask about your security data.")
+        self.add_system_message("Welcome to Guard AI Assistant! Type 'help' for commands or ask about your security data.")
     
     @on(Input.Submitted, "#message-input")
     async def on_input_submitted(self, event: Input.Submitted) -> None:

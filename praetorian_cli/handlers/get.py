@@ -26,8 +26,8 @@ def asset(chariot, key, details):
 
     \b
     Example usages:
-        - praetorian chariot get asset "#asset#api.example.com#1.2.3.4"
-        - praetorian chariot get asset "#asset#api.example.com#1.2.3.4" --details
+        - guard get asset "#asset#api.example.com#1.2.3.4"
+        - guard get asset "#asset#api.example.com#1.2.3.4" --details
     """
     print_json(chariot.assets.get(key, details))
 
@@ -45,8 +45,8 @@ def risk(chariot, key, details):
 
     \b
     Example usages:
-        - praetorian chariot get risk "#risk#api.example.com#CVE-2024-23049"
-        - praetorian chariot get risk "#risk#api.example.com#CVE-2024-23049" --details
+        - guard get risk "#risk#api.example.com#CVE-2024-23049"
+        - guard get risk "#risk#api.example.com#CVE-2024-23049" --details
      """
     print_json(chariot.risks.get(key, details))
 
@@ -63,7 +63,7 @@ def attribute(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot get attribute "#attribute#source#kev#risk#api.example.com#CVE-2024-23049"
+        - guard get attribute "#attribute#source#kev#risk#api.example.com#CVE-2024-23049"
     """
     print_json(chariot.attributes.get(key))
 
@@ -80,7 +80,7 @@ def account(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot get account "#account#peter@example.com#john@praetorian.com"
+        - guard get account "#account#peter@example.com#john@praetorian.com"
     """
     print_json(chariot.accounts.get(key))
 
@@ -97,7 +97,7 @@ def integration(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot get integration "#account#john@praetorian.com#azure#556bee78-30d0-4a4c-8e4f-8ac2e19ce3d5"
+        - guard get integration "#account#john@praetorian.com#azure#556bee78-30d0-4a4c-8e4f-8ac2e19ce3d5"
     """
     print_json(chariot.integrations.get(key))
 
@@ -114,7 +114,7 @@ def job(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot get job "#job#api.example.com#1.2.3.4#portscan"
+        - guard get job "#job#api.example.com#1.2.3.4#portscan"
     """
     print_json(chariot.jobs.get(key))
 
@@ -132,9 +132,9 @@ def file(chariot, name, path):
 
     \b
     Example usage:
-        - praetorian chariot get file "#file#proofs/example.azurewebsites.net/jira-unauthenticated-user-picker"
-        - praetorian chariot get file "proofs/example.azurewebsites.net/jira-unauthenticated-user-picker"
-        - praetorian chariot get file "proofs/example.azurewebsites.net/jira-unauthenticated-user-picker" --path ~/Downloads
+        - guard get file "#file#proofs/example.azurewebsites.net/jira-unauthenticated-user-picker"
+        - guard get file "proofs/example.azurewebsites.net/jira-unauthenticated-user-picker"
+        - guard get file "proofs/example.azurewebsites.net/jira-unauthenticated-user-picker" --path ~/Downloads
     """
     if name.startswith('#'):
         downloaded_filepath = chariot.files.save(name.split('#')[-1], path)
@@ -157,9 +157,9 @@ def definition(chariot, name, path, global_):
 
     \b
     Example usage:
-        - praetorian chariot get definition jira-unauthenticated-user-picker
-        - praetorian chariot get definition CVE-2024-23049
-        - praetorian chariot get definition CVE-2024-23049 --global
+        - guard get definition jira-unauthenticated-user-picker
+        - guard get definition CVE-2024-23049
+        - guard get definition CVE-2024-23049 --global
      """
     downloaded_path = chariot.definitions.get(name, path, global_=global_)
     click.echo(f'Saved definition at {downloaded_path}')
@@ -172,7 +172,7 @@ def webhook(chariot):
 
     \b
     Example usage:
-        - praetorian chariot get webhook
+        - guard get webhook
     """
     if chariot.webhook.get_record():
         click.echo(chariot.webhook.get_url())
@@ -192,8 +192,8 @@ def seed(chariot, key):
 
     \b
     Example usages:
-        - praetorian chariot get seed "#asset#example.com#example.com"
-        - praetorian chariot get seed "#addomain#corp.local#corp.local"
+        - guard get seed "#asset#example.com#example.com"
+        - guard get seed "#addomain#corp.local#corp.local"
     """
     print_json(chariot.seeds.get(key))
 
@@ -211,8 +211,8 @@ def preseed(chariot, key, details):
 
     \b
     Example usages:
-        - praetorian chariot get preseed "#preseed#whois+company#Example Companys#example company"
-        - praetorian chariot get preseed "#preseed#whois+company#Example Companys#example company" --details
+        - guard get preseed "#preseed#whois+company#Example Companys#example company"
+        - guard get preseed "#preseed#whois+company#Example Companys#example company" --details
     """
     print_json(chariot.preseeds.get(key, details))
 
@@ -229,7 +229,7 @@ def setting(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot get setting "#setting#rate-limit"
+        - guard get setting "#setting#rate-limit"
     """
     print_json(chariot.settings.get(key))
 
@@ -247,7 +247,7 @@ def configuration(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot get configuration "#configuration#nuclei"
+        - guard get configuration "#configuration#nuclei"
     """
     print_json(chariot.configurations.get(key))
 
@@ -270,8 +270,8 @@ def credential(chariot, credential_id, category, type, format, parameters):
 
     \b
     Example usages:
-        - praetorian chariot get credential aws-prod --category integration --type aws --format json
-        - praetorian chariot get credential ssh-key-1 --category cloud --type ssh_key --format pem
+        - guard get credential aws-prod --category integration --type aws --format json
+        - guard get credential ssh-key-1 --category cloud --type ssh_key --format pem
     """
     
     params = {}
@@ -295,7 +295,7 @@ def scanner(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot get scanner "#scanner#127.0.0.1"
+        - guard get scanner "#scanner#127.0.0.1"
     """
     print_json(chariot.scanners.get(key))
 
@@ -315,7 +315,7 @@ def webpage(chariot, key):
 
     \b
     Example usages:
-        - praetorian chariot get webpage "#webpage#https://app.example.com/dashboard"
+        - guard get webpage "#webpage#https://app.example.com/dashboard"
     """
     print_json(chariot.webpage.get(key))
         
@@ -332,9 +332,9 @@ def schema(chariot, type, details):
 
     \b
     Example usages:
-        - praetorian chariot get schema
-        - praetorian chariot get schema --type asset
-        - praetorian chariot get schema --type asset --details
+        - guard get schema
+        - guard get schema --type asset
+        - guard get schema --type asset --details
     """
     data = chariot.schema.get(type)
     if type:

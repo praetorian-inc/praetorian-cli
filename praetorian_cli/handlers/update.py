@@ -25,8 +25,8 @@ def asset(chariot, key, status, surface):
 
     \b
     Example usages:
-        - praetorian chariot update asset "#asset#www.example.com#1.2.3.4" -s F
-        - praetorian chariot update asset "#asset#www.example.com#1.2.3.4" -f internal
+        - guard update asset "#asset#www.example.com#1.2.3.4" -s F
+        - guard update asset "#asset#www.example.com#1.2.3.4" -f internal
     """
     chariot.assets.update(key, status, surface)
 
@@ -46,10 +46,10 @@ def risk(chariot, key, status, comment, remove_comment):
 
     \b
     Example usages:
-        - praetorian chariot update risk "#risk#www.example.com#CVE-2024-23049" --status OH --comment "Open it as a high severity risk"
-        - praetorian chariot update risk "#risk#www.example.com#open-ssh-port" --status RH --comment "John stopped sshd on the server"
-        - praetorian chariot update risk "#risk#www.example.com#CVE-2024-23049" --remove-comment 0
-        - praetorian chariot update risk "#risk#www.example.com#CVE-2024-23049" --remove-comment -1
+        - guard update risk "#risk#www.example.com#CVE-2024-23049" --status OH --comment "Open it as a high severity risk"
+        - guard update risk "#risk#www.example.com#open-ssh-port" --status RH --comment "John stopped sshd on the server"
+        - guard update risk "#risk#www.example.com#CVE-2024-23049" --remove-comment 0
+        - guard update risk "#risk#www.example.com#CVE-2024-23049" --remove-comment -1
     """
     if comment and remove_comment is not None:
         raise click.UsageError("Cannot use --comment and --remove-comment together")
@@ -71,8 +71,8 @@ def seed(chariot, key, status):
 
     \b
     Example usages:
-        - praetorian chariot update seed "#asset#example.com#example.com" -s A
-        - praetorian chariot update seed "#asset#1.1.1.0/24#1.1.1.0/24" -s F
+        - guard update seed "#asset#example.com#example.com" -s A
+        - guard update seed "#asset#1.1.1.0/24#1.1.1.0/24" -s F
     """
     
     chariot.seeds.update(key, status)
@@ -91,6 +91,6 @@ def preseed(chariot, key, status):
 
     \b
     Example usages:
-        - praetorian chariot update preseed "#preseed#whois+company#Example Company" -s A
+        - guard update preseed "#preseed#whois+company#Example Company" -s A
     """
     chariot.preseeds.update(key, status)

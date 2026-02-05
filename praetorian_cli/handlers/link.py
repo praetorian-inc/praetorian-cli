@@ -27,7 +27,7 @@ def account(chariot, username):
 
     \b
     Example usages:
-        - praetorian chariot link account john@praetorian.com
+        - guard link account john@praetorian.com
     """
     chariot.accounts.add_collaborator(username)
 
@@ -50,8 +50,8 @@ def webpage_source(chariot, webpage_key, entity_key):
 
     \b
     Example usages:
-        - praetorian chariot link webpage-source "#webpage#https://example.com" "#file#proofs/scan.txt"
-        - praetorian chariot link webpage-source "#webpage#https://example.com/login" "#repository#https://github.com/org/repo.git#repo.git"
+        - guard link webpage-source "#webpage#https://example.com" "#file#proofs/scan.txt"
+        - guard link webpage-source "#webpage#https://example.com/login" "#repository#https://github.com/org/repo.git#repo.git"
     """
     result = chariot.webpage.link_source(webpage_key, entity_key)
     if result:

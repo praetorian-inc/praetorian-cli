@@ -23,7 +23,7 @@ def asset(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot delete asset "#asset#www.example.com#1.2.3.4"
+        - guard delete asset "#asset#www.example.com#1.2.3.4"
     """
     chariot.assets.delete(key)
 
@@ -43,7 +43,7 @@ def risk(chariot, key, status, comment):
 
     \b
     Example usage:
-        - praetorian chariot delete risk "#risk#example.com#CVE-2024-23049" --status DIO
+        - guard delete risk "#risk#example.com#CVE-2024-23049" --status DIO
     """
     chariot.risks.delete(key, status, comment)
 
@@ -60,7 +60,7 @@ def attribute(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot delete attribute "#attribute#source#kev#risk#api.example.com#CVE-2024-23049"
+        - guard delete attribute "#attribute#source#kev#risk#api.example.com#CVE-2024-23049"
     """
     chariot.attributes.delete(key)
 
@@ -71,7 +71,7 @@ def webhook(chariot):
     """ Delete webhook
 
     Example usage:
-        - praetorian chariot delete webhook
+        - guard delete webhook
     """
     if chariot.webhook.get_record():
         chariot.webhook.delete()
@@ -92,8 +92,8 @@ def seed(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot delete seed "#asset#example.com#example.com"
-        - praetorian chariot delete seed "#addomain#corp.local#corp.local"
+        - guard delete seed "#asset#example.com#example.com"
+        - guard delete seed "#addomain#corp.local#corp.local"
     """
     chariot.seeds.delete(key)
 
@@ -110,7 +110,7 @@ def file(chariot, filepath):
 
     \b
     Example usage:
-        - praetorian chariot delete file "home/report-dec-2024.pdf"
+        - guard delete file "home/report-dec-2024.pdf"
     """
     chariot.files.delete(filepath)
 
@@ -122,7 +122,7 @@ def purge(controller):
     """ Delete account and all related information
 
     Example usage:
-        - praetorian chariot purge
+        - guard purge
     """
     if click.confirm('This will delete all your data and revoke access, are you sure?', default=False):
         controller.purge()
@@ -144,7 +144,7 @@ def setting(chariot, name):
 
     \b
     Example usage:
-        - praetorian chariot delete setting "rate-limit"
+        - guard delete setting "rate-limit"
     """
     chariot.settings.delete(name)
 
@@ -162,7 +162,7 @@ def configuration(chariot, name):
 
     \b
     Example usage:
-        - praetorian chariot delete configuration "nuclei"
+        - guard delete configuration "nuclei"
     """
     chariot.configurations.delete(name)
 
@@ -179,7 +179,7 @@ def key(chariot, key):
 
     \b
     Example usage:
-        - praetorian chariot delete key "#key#550e8400-e29b-41d4-a716-446655440000"
+        - guard delete key "#key#550e8400-e29b-41d4-a716-446655440000"
     """
     chariot.keys.delete(key)
 
