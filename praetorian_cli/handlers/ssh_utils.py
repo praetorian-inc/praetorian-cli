@@ -24,6 +24,7 @@ class SSHArgumentParser:
             'key': None,
             'ssh_opts': None,
             'user': None,
+            'no_record': False,
             'passthrough': []  # collect unknown flags to pass through
         }
         
@@ -78,7 +79,11 @@ class SSHArgumentParser:
                     return None
                 options['user'] = args[i + 1]
                 i += 2
-                
+
+            elif arg == '--no-record':
+                options['no_record'] = True
+                i += 1
+
             elif arg.startswith('-'):
                 # Collect unknown options and their arguments if any
                 options['passthrough'].append(arg)
