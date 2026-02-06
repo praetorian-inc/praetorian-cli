@@ -16,6 +16,7 @@ from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
+from praetorian_cli.sdk.entities.schedules import Schedules
 from praetorian_cli.sdk.entities.schema import Schema
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
@@ -55,6 +56,7 @@ class Chariot:
         self.credentials = Credentials(self)
         self.webpage = Webpage(self)
         self.schema = Schema(self)
+        self.schedules = Schedules(self)
         self.proxy = proxy
 
         if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):
@@ -156,6 +158,11 @@ class Chariot:
 
     def delete(self, type: str, body: dict, params: dict) -> dict:
         resp = self.chariot_request('DELETE', self.url(f'/{type}'), json=body, params=params)
+        process_failure(resp)
+        return resp.json()
+
+    def patch(self, type: str, body: dict = None, params: dict = None) -> dict:
+        resp = self.chariot_request('PATCH', self.url(f'/{type}'), json=body or {}, params=params or {})
         process_failure(resp)
         return resp.json()
 
