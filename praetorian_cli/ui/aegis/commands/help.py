@@ -9,7 +9,7 @@ from ..constants import DEFAULT_COLORS
 def handle_help(menu, args):
     """Show help for commands or a specific command."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
-    if args and args[0] in ['ssh', 'list', 'info', 'job', 'set']:
+    if args and args[0] in ['ssh', 'list', 'info', 'job', 'schedule', 'set']:
         menu.console.print(f"\nHelp for '{args[0]}' command - see main help for details\n")
         menu.pause()
         return
@@ -34,6 +34,12 @@ def handle_help(menu, args):
     commands_table.add_row("job list", "List recent jobs for selected agent")
     commands_table.add_row("job capabilities [--details]", "List available capabilities")
     commands_table.add_row("job run <capability>", "Run capability on selected agent")
+    commands_table.add_row("schedule list", "List scheduled jobs")
+    commands_table.add_row("schedule add", "Create a new scheduled job")
+    commands_table.add_row("schedule view <id>", "View schedule details")
+    commands_table.add_row("schedule edit <id>", "Edit a schedule")
+    commands_table.add_row("schedule delete <id>", "Delete a schedule")
+    commands_table.add_row("schedule pause/resume <id>", "Pause or resume a schedule")
     commands_table.add_row("reload", "Refresh agent list from server")
     commands_table.add_row("help [command]", "Show this help or command-specific help")
     commands_table.add_row("clear", "Clear terminal screen")
@@ -65,6 +71,10 @@ def handle_help(menu, args):
     examples_table.add_row("job capabilities", "List available capabilities")
     examples_table.add_row("job caps --details", "Show full capability descriptions")
     examples_table.add_row("job run windows-enum", "Run capability on selected agent")
+    examples_table.add_row("schedule list", "List all scheduled jobs")
+    examples_table.add_row("schedule add", "Create a new scheduled job")
+    examples_table.add_row("schedule view abc123", "View schedule details")
+    examples_table.add_row("schedule pause abc123", "Pause a scheduled job")
     examples_table.add_row("info", "Show agent details")
     examples_table.add_row("info --raw", "Show raw agent data (JSON format)")
 
