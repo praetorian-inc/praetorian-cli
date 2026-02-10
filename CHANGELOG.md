@@ -1,5 +1,11 @@
 # Changelog
 
+# 2.3.1
+- [New Feature] Added capability schedule support
+  - See the SDK's `Schedule` 
+  - The `guard list schedules` and `get schedules` work as well.
+    - Updating and creating schedules is reserved for the SDK.
+
 # 2.3.0
 - [New Feature] Rebranded to the Guard platform
   - `guard` is a direct replacement to `praetorian chariot`

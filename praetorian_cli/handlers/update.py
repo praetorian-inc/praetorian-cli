@@ -94,3 +94,31 @@ def preseed(chariot, key, status):
         - guard update preseed "#preseed#whois+company#Example Company" -s A
     """
     chariot.preseeds.update(key, status)
+
+
+@update.command()
+@cli_handler
+@click.argument('schedule_id', required=True)
+@click.option('--pause', 'action', flag_value='pause', help='Pause the schedule')
+@click.option('--resume', 'action', flag_value='resume', help='Resume the schedule')
+def schedule(chariot, schedule_id, action):
+    """ Pause or resume a capability schedule
+
+    \b
+    Argument:
+        - SCHEDULE_ID: the ID of an existing schedule
+
+    \b
+    Example usages:
+        - guard update schedule abc123-def456 --pause
+        - guard update schedule abc123-def456 --resume
+    """
+    if not action:
+        raise click.UsageError('Must specify --pause or --resume')
+
+    if action == 'pause':
+        chariot.schedules.pause(schedule_id)
+        click.echo(f'Schedule {schedule_id} paused')
+    else:
+        chariot.schedules.resume(schedule_id)
+        click.echo(f'Schedule {schedule_id} resumed')

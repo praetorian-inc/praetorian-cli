@@ -345,3 +345,24 @@ def schema(chariot, type, details):
     else:
         for hit in data:
             click.echo(hit)
+
+
+@get.command()
+@cli_handler
+@click.argument('schedule_id', required=True)
+def schedule(chariot, schedule_id):
+    """ Get capability schedule details
+
+    \b
+    Argument:
+        - SCHEDULE_ID: the ID of an existing schedule
+
+    \b
+    Example usage:
+        - guard get schedule abc123-def456-789
+    """
+    result = chariot.schedules.get(schedule_id)
+    if result:
+        print_json(result)
+    else:
+        click.echo(f'Schedule not found: {schedule_id}')
