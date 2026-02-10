@@ -1,4 +1,5 @@
 from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
+from ..constants import DEFAULT_COLORS
 
 def _print_help(menu):
     help_text = """
@@ -78,7 +79,8 @@ def handle_ssh(menu, args):
             display_info=True
         )
     except Exception as e:
-        menu.console.print(f"[red]SSH error: {e}[/red]")
+        colors = getattr(menu, 'colors', DEFAULT_COLORS)
+        menu.console.print(f"[{colors['error']}]SSH error: {e}[/{colors['error']}]")
         menu.pause()
 
 

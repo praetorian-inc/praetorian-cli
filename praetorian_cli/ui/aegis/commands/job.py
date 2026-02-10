@@ -4,6 +4,14 @@ from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
 from ..utils import format_timestamp, format_job_status
 from ..constants import DEFAULT_COLORS
+from .job_helpers import (
+    interactive_capability_picker as _interactive_capability_picker,
+    select_domain as _select_domain,
+    select_credentials as _select_credentials,
+    configure_parameters as _configure_parameters,
+    capability_needs_credentials as _capability_needs_credentials,
+    resolve_addomain_target_key,
+)
 
 
 def handle_job(menu, args):
@@ -98,18 +106,20 @@ def list_jobs(menu):
         menu.pause()
 
     except Exception as e:
-        menu.console.print(f"[red]Error listing jobs: {e}[/red]")
+        menu.console.print(f"[{colors['error']}]Error listing jobs: {e}[/{colors['error']}]")
         menu.pause()
 
 
 def run_job(menu, args):
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
+
     if not menu.selected_agent:
         menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
         return
 
     hostname = menu.selected_agent.hostname or 'Unknown'
-    
+
     # Use interactive capability picker if no capability provided, otherwise validate the provided one
     suggested_capability = args[0] if args else None
     capability = _interactive_capability_picker(menu, suggested_capability)
@@ -119,37 +129,67 @@ def run_job(menu, args):
     # Validate capability using SDK
     capability_info = menu.sdk.aegis.validate_capability(capability)
     if not capability_info:
-        colors = getattr(menu, 'colors', DEFAULT_COLORS)
         menu.console.print(f"  [{colors['error']}]Invalid capability: '{capability}'[/{colors['error']}]")
         menu.console.print("  Use 'job capabilities' to see available options")
         menu.pause()
         return
 
     target_type = capability_info.get('target', 'asset').lower()
-    
+
     # Create appropriate target key
     if target_type == 'addomain':
         # For AD capabilities, use interactive domain selection
         domain = _select_domain(menu)
         if not domain:
             return  # User cancelled
-        target_key = f"#addomain#{domain}#{domain}"
+
+        # Query assets to get the actual domain asset key (with SID)
+        target_key = resolve_addomain_target_key(menu, domain)
+        if not target_key:
+            menu.console.print(f"  [{colors['error']}]No asset found for domain '{domain}'.[/{colors['error']}]")
+            menu.console.print(f"  [{colors['dim']}]The domain must exist as an asset before running jobs against it.[/{colors['dim']}]")
+            menu.console.print(f"  [{colors['dim']}]Add it first with: praetorian chariot add asset --dns {domain} --type addomain[/{colors['dim']}]")
+            menu.pause()
+            return
+
         target_display = f"domain {domain}"
     else:
         target_key = f"#asset#{hostname}#{hostname}"
         target_display = f"asset {hostname}"
     
     # Handle credentials for capabilities that need them
-    credentials = None
-    if any(keyword in capability.lower() for keyword in ['ad-', 'smb-', 'domain-', 'ldap', 'winrm']):
+    credentials = []
+    credential_display_name = None
+    if _capability_needs_credentials(capability_info):
         if Confirm.ask("  This capability may require credentials. Add them?"):
-            username = Prompt.ask("  Username")
-            password = Prompt.ask("  Password", password=True)
-            credentials = {"Username": username, "Password": password}
-    
+            credential_key, credential_display_name = _select_credentials(menu)
+            if credential_key:
+                # Parse credential key to extract UUID
+                # Format: #credential#<category>#<type>#<credential_id>
+                parts = credential_key.split('#')
+                if len(parts) >= 5:
+                    credential_id = parts[-1]  # Last part is the UUID
+                    # Pass UUID to jobs.add() - API will retrieve values server-side
+                    credentials.append(credential_id)
+
     # Create job configuration using SDK
-    config = menu.sdk.aegis.create_job_config(menu.selected_agent, credentials)
-    
+    config = menu.sdk.aegis.create_job_config(menu.selected_agent, None)
+
+    # Handle large artifact storage - always offer the option
+    # Default to True if capability metadata says it supports it, or if capability name suggests large output
+    capability_suggests_large = capability_info.get('largeArtifact', False) or any(
+        keyword in capability.lower() for keyword in ['snaffler', 'bloodhound', 'sharphound', 'umber', 'dump', 'collect', 'extract']
+    )
+    if Confirm.ask("  Enable large artifact storage? (Results will be uploaded to S3)", default=capability_suggests_large):
+        config['largeArtifact'] = 'true'
+
+    # Configure optional parameters if capability has them
+    # Skip credential params if credentials are attached
+    has_credential = len(credentials) > 0
+    custom_params = _configure_parameters(menu, capability_info, has_credential=has_credential)
+    if custom_params:
+        config.update(custom_params)
+
     # Confirm job execution
     if not Confirm.ask(f"\n  Run '{capability}' on {target_display}?"):
         menu.console.print("  Cancelled\n")
@@ -158,25 +198,29 @@ def run_job(menu, args):
 
     try:
         config_json = json.dumps(config)
-        
-        # Add job using SDK
-        jobs = menu.sdk.jobs.add(target_key, [capability], config_json)
+
+        # Add job using SDK with credential UUIDs (API retrieves values server-side)
+        jobs = menu.sdk.jobs.add(target_key, [capability], config_json, credentials=credentials)
         
         if jobs:
             job = jobs[0] if isinstance(jobs, list) else jobs
             job_key = job.get('key', '')
             status = job.get('status', 'unknown')
-            job_id = job_key.split('#')[-1][:12] if job_key else 'unknown'
-            
-            menu.console.print(f"\n[green]✓ Job {job_id} queued successfully[/green]")
+            job_id = job_key.split('#')[-1] if job_key else 'unknown'
+
+            menu.console.print(f"\n[{colors['success']}]✓ Job queued successfully[/{colors['success']}]")
+            menu.console.print(f"  Job ID: {job_id}")
+            menu.console.print(f"  Job Key: {job_key}")
             menu.console.print(f"  Capability: {capability}")
             menu.console.print(f"  Target: {target_display}")
             menu.console.print(f"  Status: {status}")
+            if credentials and credential_display_name:
+                menu.console.print(f"  Credential: {credential_display_name}")
         else:
-            menu.console.print("\n[red]Error: No job returned from API[/red]")
+            menu.console.print(f"\n[{colors['error']}]Error: No job returned from API[/{colors['error']}]")
             
     except Exception as e:
-        menu.console.print(f"\n[red]Job execution error: {e}[/red]")
+        menu.console.print(f"\n[{colors['error']}]Job execution error: {e}[/{colors['error']}]")
     
     menu.console.print()
     menu.pause()
@@ -228,149 +272,13 @@ def list_capabilities(menu, args):
             menu.console.print()
             menu.console.print(capabilities_table)
         else:
-            menu.console.print(f"[yellow]  No capabilities available for this agent[/yellow]")
+            menu.console.print(f"[{colors['warning']}]  No capabilities available for this agent[/{colors['warning']}]")
 
         menu.console.print()
         menu.pause()
     except Exception as e:
-        menu.console.print(f"[red]Error listing capabilities: {e}[/red]")
+        menu.console.print(f"[{colors['error']}]Error listing capabilities: {e}[/{colors['error']}]")
         menu.pause()
-
-
-def _interactive_capability_picker(menu, suggested=None):
-    """Interactive capability picker with numbered options"""
-    colors = getattr(menu, 'colors', DEFAULT_COLORS)
-    
-    if suggested:
-        # Validate the suggested capability first
-        capability_info = menu.sdk.aegis.validate_capability(suggested)
-        if capability_info:
-            # Show the suggested capability and ask for confirmation
-            desc = (capability_info.get('description', '') or '')[:60]
-            menu.console.print(f"\n  Suggested capability:")
-            menu.console.print(f"    {suggested}")
-            menu.console.print(f"    [{colors['dim']}]{desc}[/{colors['dim']}]")
-            
-            if Confirm.ask("  Use this capability?", default=True):
-                return suggested
-            # If they decline, continue to show the full picker below
-    
-    try:
-        # Determine agent OS for filtering
-        agent_os = _detect_agent_os(menu)
-        
-        # Get capabilities filtered by OS
-        caps = menu.sdk.aegis.get_capabilities(surface_filter='internal', agent_os=agent_os)
-        
-        if not caps:
-            # Fallback to all capabilities
-            caps = menu.sdk.aegis.get_capabilities(surface_filter='internal')
-        
-        if not caps:
-            menu.console.print("  No capabilities available.")
-            return None
-        
-        if agent_os:
-            menu.console.print(f"  [{colors['dim']}]Showing {agent_os.title()} capabilities[/{colors['dim']}]")
-        
-        # Sort and display with numbers
-        caps.sort(key=lambda x: x.get('name', ''))
-        
-        menu.console.print(f"\n  Select capability:")
-        for i, cap in enumerate(caps[:20], 1):  # Limit to 20 for usability
-            name = cap.get('name', 'unknown')
-            desc = (cap.get('description', '') or '')[:40]
-            menu.console.print(f"    {i:2d}. {name:<25} {desc}")
-        
-        if len(caps) > 20:
-            menu.console.print(f"    [{colors['dim']}]... and {len(caps) - 20} more capabilities[/{colors['dim']}]")
-        
-        menu.console.print(f"     0. Enter capability name manually")
-        
-        while True:
-            try:
-                choice = Prompt.ask("  Choice", default="1")
-                choice_num = int(choice.strip())
-                
-                if choice_num == 0:
-                    return Prompt.ask("  Enter capability name")
-                elif 1 <= choice_num <= min(len(caps), 20):
-                    return caps[choice_num - 1].get('name', '')
-                else:
-                    menu.console.print(f"  Please enter a number between 0 and {min(len(caps), 20)}")
-                    
-            except ValueError:
-                menu.console.print("  Please enter a valid number")
-            except KeyboardInterrupt:
-                menu.console.print("  Cancelled")
-                return None
-                
-    except Exception as e:
-        menu.console.print(f"  Error loading capabilities: {e}")
-        return Prompt.ask("  Enter capability name manually")
-
-
-def _detect_agent_os(menu):
-    """Detect the operating system of the selected agent"""
-    if not menu.selected_agent:
-        return None
-        
-    os_field = (menu.selected_agent.os or '').lower()
-    
-    if os_field:
-        if 'linux' in os_field or os_field in ['ubuntu', 'centos', 'debian', 'rhel', 'fedora', 'suse']:
-            return 'linux'
-        elif 'windows' in os_field or os_field in ['win32', 'win64', 'nt']:
-            return 'windows'
-    
-    return None
-
-
-def _select_domain(menu):
-    """Interactive domain selection"""
-    colors = getattr(menu, 'colors', DEFAULT_COLORS)
-    
-    try:
-        menu.console.print(f"  [{colors['dim']}]Looking for available domains...[/{colors['dim']}]")
-        
-        # Use SDK to get available AD domains
-        domains = menu.sdk.aegis.get_available_ad_domains()
-        
-        menu.console.print(f"  [{colors['dim']}]Found {len(domains)} domains[/{colors['dim']}]")
-        
-        if domains:
-            menu.console.print(f"\n  Available domains:")
-            for i, domain in enumerate(domains[:10], 1):  # Limit to 10
-                menu.console.print(f"    {i:2d}. {domain}")
-            
-            if len(domains) > 10:
-                menu.console.print(f"    [{colors['dim']}]... and {len(domains) - 10} more[/{colors['dim']}]")
-            
-            menu.console.print(f"     0. Enter domain manually")
-            
-            while True:
-                try:
-                    choice = Prompt.ask("  Choose domain", default="1")
-                    choice_num = int(choice.strip())
-                    
-                    if choice_num == 0:
-                        return Prompt.ask("  Enter domain name")
-                    elif 1 <= choice_num <= min(len(domains), 10):
-                        return domains[choice_num - 1]
-                    else:
-                        menu.console.print(f"  Please enter a number between 0 and {min(len(domains), 10)}")
-                        
-                except ValueError:
-                    menu.console.print("  Please enter a valid number")
-                except KeyboardInterrupt:
-                    return None
-        else:
-            menu.console.print(f"  [{colors['dim']}]No domains found in assets. You can still enter one manually.[/{colors['dim']}]")
-            return Prompt.ask("  Enter domain name (e.g., contoso.com, example.local)")
-            
-    except Exception as e:
-        menu.console.print(f"  [{colors['dim']}]Error during domain selection: {e}[/{colors['dim']}]")
-        return Prompt.ask("  Enter domain name (e.g., contoso.com, example.local)")
 
 
 def complete(menu, text, tokens):
