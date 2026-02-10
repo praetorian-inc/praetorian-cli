@@ -390,3 +390,21 @@ def webpages(chariot, parent, filter, details, offset, page):
         - guard list webpages --page all
     """
     render_list_results(chariot.webpage.list(parent, filter, offset, pagination_size(page)), details)
+
+
+@list.command()
+@click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')
+@pagination
+@cli_handler
+def schedules(chariot, details, offset, page):
+    """ List capability schedules
+
+    Retrieve and display a list of scheduled capability executions.
+
+    \b
+    Example usages:
+        - guard list schedules
+        - guard list schedules --details
+        - guard list schedules --page all
+    """
+    render_list_results(chariot.schedules.list(pagination_size(page)), details)
