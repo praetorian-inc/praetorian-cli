@@ -1,8 +1,11 @@
 from ..utils import parse_agent_identifier
+from ..constants import DEFAULT_COLORS
 
 
 def handle_set(menu, args):
     """Select an agent by index, client_id, or hostname."""
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
+
     if not args:
         menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
@@ -17,8 +20,8 @@ def handle_set(menu, args):
         menu.console.print(f"\n  Selected: {hostname}\n")
     else:
         displayed_count = len(menu.displayed_agents)
-        menu.console.print(f"\n[red]  Agent not found:[/red] {selection}")
-        menu.console.print(f"[dim]  Use agent number (1-{displayed_count}), client ID, or hostname[/dim]\n")
+        menu.console.print(f"\n[{colors['error']}]  Agent not found:[/{colors['error']}] {selection}")
+        menu.console.print(f"[{colors['dim']}]  Use agent number (1-{displayed_count}), client ID, or hostname[/{colors['dim']}]\n")
         menu.pause()
 
 

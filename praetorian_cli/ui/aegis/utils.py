@@ -38,13 +38,13 @@ def relative_time(ts_seconds: float, now_seconds: float) -> str:
 def format_job_status(status: str, colors: dict) -> Text:
     """Format job status for display with appropriate color"""
     status_upper = status.upper()
-    
+
     if status_upper.startswith('JP'):  # Job Passed
         return Text("PASSED", style=f"{colors['success']}")
     elif status_upper.startswith('JF'):  # Job Failed
         return Text("FAILED", style=f"{colors['error']}")
     elif status_upper.startswith('JR'):  # Job Running
-        return Text("RUNNING", style=f"{colors['warning']}")
+        return Text("RUNNING", style=f"{colors['accent']}")
     elif status_upper.startswith('JQ'):  # Job Queued
         return Text("QUEUED", style=f"{colors['info']}")
     else:
@@ -112,8 +112,8 @@ def get_agent_display_style(group: str, colors: dict) -> dict:
     if group == 'active_tunnel':
         return {
             'status': Text("online", style=f"{colors['success']}"),
-            'tunnel': Text("active", style=f"{colors['warning']}"),
-            'idx_style': f"{colors['warning']}",
+            'tunnel': Text("active", style=f"{colors['accent']}"),
+            'idx_style': f"{colors['accent']}",
             'hostname_style': "bold white"
         }
     elif group == 'online':

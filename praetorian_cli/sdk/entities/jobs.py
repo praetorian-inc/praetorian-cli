@@ -8,7 +8,7 @@ class Jobs:
     def __init__(self, api):
         self.api = api
 
-    def add(self, target_key, capabilities=[], config=None, credentials=[]):
+    def add(self, target_key, capabilities=None, config=None, credentials=None):
         """
         Add a job to execute capabilities against an asset or attribute.
 

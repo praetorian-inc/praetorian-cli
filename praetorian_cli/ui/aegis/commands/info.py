@@ -1,3 +1,6 @@
+from ..constants import DEFAULT_COLORS
+
+
 def handle_info(menu, args):
     """Show detailed information for the selected agent."""
     if not menu.selected_agent:
@@ -7,11 +10,12 @@ def handle_info(menu, args):
 
     # Check for raw flag
     raw = ('--raw' in args) or ('-r' in args)
-    
+
     try:
         _show_agent_info(menu, menu.selected_agent, raw=raw)
     except Exception as e:
-        menu.console.print(f"[red]Error getting agent info: {e}[/red]")
+        colors = getattr(menu, 'colors', DEFAULT_COLORS)
+        menu.console.print(f"[{colors['error']}]Error getting agent info: {e}[/{colors['error']}]")
         menu.pause()
 
 
@@ -20,18 +24,18 @@ def _show_agent_info(menu, agent, raw=False):
     import json
     from datetime import datetime
     
-    colors = getattr(menu, 'colors', {})
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
     hostname = agent.hostname or 'Unknown'
-    
+
     # Clear screen and show header
     menu.clear_screen()
     menu.console.print()
-    menu.console.print(f"  [{colors.get('primary', 'cyan')}]Agent Details[/{colors.get('primary', 'cyan')}]")
+    menu.console.print(f"  [{colors['primary']}]Agent Details[/{colors['primary']}]")
     menu.console.print()
 
     if raw:
         # Raw JSON dump with minimal styling
-        menu.console.print(f"  [{colors.get('dim', 'dim')}]Raw agent data:[/{colors.get('dim', 'dim')}]")
+        menu.console.print(f"  [{colors['dim']}]Raw agent data:[/{colors['dim']}]")
         menu.console.print()
         # Convert agent to dict for JSON serialization
         agent_dict = agent.to_dict() if hasattr(agent, 'to_dict') else agent.__dict__
@@ -80,21 +84,21 @@ def _show_agent_info(menu, agent, raw=False):
         is_online = (current_time - last_seen_seconds) < 60
         last_seen_str = datetime.fromtimestamp(last_seen_seconds).strftime("%Y-%m-%d %H:%M:%S")
         if is_online:
-            status_text = f"[{colors.get('success', 'green')}]● online[/{colors.get('success', 'green')}]"
+            status_text = f"[{colors['success']}]● online[/{colors['success']}]"
         else:
-            status_text = f"[{colors.get('error', 'red')}]○ offline[/{colors.get('error', 'red')}]"
+            status_text = f"[{colors['error']}]○ offline[/{colors['error']}]"
     else:
         last_seen_str = "never"
-        status_text = f"[{colors.get('error', 'red')}]○ offline[/{colors.get('error', 'red')}]"
+        status_text = f"[{colors['error']}]○ offline[/{colors['error']}]"
         is_online = False
 
     # Simple, clean output
     menu.console.print(f"  [bold white]{hostname}[/bold white]  {status_text}")
-    menu.console.print(f"  [{colors.get('dim', 'dim')}]{fqdn}[/{colors.get('dim', 'dim')}]")
+    menu.console.print(f"  [{colors['dim']}]{fqdn}[/{colors['dim']}]")
     menu.console.print()
     
     # System info
-    menu.console.print(f"  [{colors.get('dim', 'dim')}]System[/{colors.get('dim', 'dim')}]")
+    menu.console.print(f"  [{colors['dim']}]System[/{colors['dim']}]")
     menu.console.print(f"    OS:           {os_info} {os_version}")
     menu.console.print(f"    Architecture: {architecture}")
     if ip_info:
@@ -114,7 +118,7 @@ def _show_agent_info(menu, agent, raw=False):
         public_hostname = cf_status.hostname or 'N/A'
         authorized_users = cf_status.authorized_users or ''
         
-        menu.console.print(f"  [{colors.get('warning', 'yellow')}]Tunnel active[/{colors.get('warning', 'yellow')}]")
+        menu.console.print(f"  [{colors['warning']}]Tunnel active[/{colors['warning']}]")
         menu.console.print(f"    Name:      {tunnel_name}")
         menu.console.print(f"    Public:    {public_hostname}")
         
@@ -122,7 +126,7 @@ def _show_agent_info(menu, agent, raw=False):
             users_list = [u.strip() for u in authorized_users.split(',')]
             menu.console.print(f"    Authorized: {', '.join(users_list)}")
     else:
-        menu.console.print(f"  [{colors.get('dim', 'dim')}]No tunnel configured[/{colors.get('dim', 'dim')}]")
+        menu.console.print(f"  [{colors['dim']}]No tunnel configured[/{colors['dim']}]")
     
     menu.console.print()
     menu.pause()

@@ -39,7 +39,7 @@ class MockAegis:
         })
         return caps.get(name)
 
-    def create_job_config(self, agent, credentials=None):
+    def create_job_config(self, agent, credentials=None, **kwargs):
         # Return provided credentials or an empty config as JSON-ready dict
         return credentials or self._responses.get('config', {})
 
@@ -47,10 +47,63 @@ class MockAegis:
         return self._responses.get('domains', ['example.local'])
 
 
+class MockCredentials:
+    def __init__(self, responses=None):
+        self._responses = responses or {}
+        self.calls = []
+
+    def list(self, offset=None, pages=100000):
+        self.calls.append({
+            'method': 'list',
+            'offset': offset,
+            'pages': pages,
+        })
+        # Return (credentials, next_page_token)
+        credentials = self._responses.get('credentials', [])
+        return credentials, None
+
+    def get(self, credential_id, category, type, format, **parameters):
+        self.calls.append({
+            'method': 'get',
+            'credential_id': credential_id,
+            'category': category,
+            'type': type,
+            'format': format,
+            'parameters': parameters,
+        })
+        # Return credential values for the specified credential
+        return self._responses.get('credential_values', {
+            'credentialValueEnv': {
+                'USERNAME': 'testuser',
+                'PASSWORD': 'testpass',
+                'DOMAIN': 'example.local'
+            }
+        })
+
+
+class MockAssets:
+    def __init__(self, responses=None):
+        self._responses = responses or {}
+        self.calls = []
+
+    def list(self, key_prefix='', asset_type='', pages=100000):
+        self.calls.append({
+            'method': 'list',
+            'key_prefix': key_prefix,
+            'asset_type': asset_type,
+            'pages': pages,
+        })
+        # Return (assets, next_page_token)
+        assets = self._responses.get('assets', [])
+        return assets, None
+
+
 class MockSDK:
     def __init__(self, responses=None):
         self.aegis = MockAegis(responses=responses)
         self.jobs = MockJobs(responses=responses)
+        self.credentials = MockCredentials(responses=responses)
+        self.assets = MockAssets(responses=responses)
 
 
 class MockJobs:
@@ -58,12 +111,13 @@ class MockJobs:
         self._responses = responses or {}
         self.calls = []
 
-    def add(self, target_key, capabilities, config_json):
+    def add(self, target_key, capabilities, config_json, credentials=None):
         self.calls.append({
             'method': 'add',
             'target_key': target_key,
             'capabilities': capabilities,
             'config': config_json,
+            'credentials': credentials,
         })
         # Return a minimal job-like record the UI expects
         return [self._responses.get('job', {
