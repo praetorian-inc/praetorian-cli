@@ -43,6 +43,7 @@ from .commands.cp import handle_cp as cmd_handle_cp
 from .commands.info import handle_info as cmd_handle_info
 from .commands.job import handle_job as cmd_handle_job
 from .commands.schedule import handle_schedule as cmd_handle_schedule
+from .commands.proxy import handle_proxy as cmd_handle_proxy, stop_all_proxies
 
 from .commands.schedule_helpers import get_cached_schedules
 from .constants import DEFAULT_COLORS
@@ -124,6 +125,21 @@ class MenuCompleter(Completer):
                 from prompt_toolkit.document import Document as PtDocument
                 sub_doc = PtDocument(current_word, len(current_word))
                 yield from path_completer.get_completions(sub_doc, complete_event)
+
+        elif cmd == 'proxy':
+            subcommands = ['list', 'stop', 'help']
+            if not words or (len(words) == 1 and not after_cmd.endswith(' ')):
+                prefix = words[0].lower() if words else ''
+                for sub in subcommands:
+                    if sub.startswith(prefix):
+                        yield Completion(sub, start_position=-len(prefix))
+            elif len(words) >= 1 and words[0].lower() == 'stop':
+                # Suggest 'all' and active port numbers
+                proxies = getattr(self.menu, '_active_proxies', {})
+                options = ['all'] + [str(p) for p in sorted(proxies)]
+                for opt in options:
+                    if opt.startswith(current_word):
+                        yield Completion(opt, start_position=-len(current_word))
 
         elif cmd == 'job':
             subcommands = ['list', 'run', 'capabilities', 'caps']
@@ -328,8 +344,10 @@ class AegisMenu:
         
         self.colors = DEFAULT_COLORS
         
+        self._active_proxies: dict = {}
+
         self.commands = [
-            'set', 'ssh', 'cp', 'info', 'list', 'job', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
+            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
 
     def prefetch_agent_home(self, agent=None):
@@ -362,18 +380,21 @@ class AegisMenu:
         if self.agents:
             self.show_agents_list()
 
-        while True:
-            try:
-                self.show_main_menu()
-                choice = self.get_input()
+        try:
+            while True:
+                try:
+                    self.show_main_menu()
+                    choice = self.get_input()
 
-                if not self.handle_choice(choice):
-                    break
+                    if not self.handle_choice(choice):
+                        break
 
-            except KeyboardInterrupt:
-                # Ctrl-C during command execution - cancel and return to prompt
-                self.console.print(f"\n[{self.colors['dim']}]Cancelled[/{self.colors['dim']}]")
-                continue
+                except KeyboardInterrupt:
+                    # Ctrl-C during command execution - cancel and return to prompt
+                    self.console.print(f"\n[{self.colors['dim']}]Cancelled[/{self.colors['dim']}]")
+                    continue
+        finally:
+            stop_all_proxies(self)
     
     def handle_choice(self, choice: str) -> bool:
         """Dead simple command dispatch"""
@@ -425,6 +446,9 @@ class AegisMenu:
 
         elif command == 'schedule':
             cmd_handle_schedule(self, cmd_args)
+
+        elif command == 'proxy':
+            cmd_handle_proxy(self, cmd_args)
 
         else:
             self.console.print(f"\n  Unknown command: {command}")
