@@ -57,6 +57,70 @@ def ssh(ctx, sdk, client_id, user, args):
     sdk.aegis.ssh_to_agent(agent=agent, options=options, user=user, display_info=True)
 
 
+@aegis.command('cp')
+@cli_handler
+@click.argument('client_id', required=True)
+@click.argument('paths', nargs=2)
+@click.option('-u', '--user', help='SSH username')
+@click.option('-i', '--identity', 'key', help='Identity (private key) file')
+@click.option('--no-rsync', is_flag=True, help='Use scp instead of rsync')
+@click.pass_context
+def cp(ctx, sdk, client_id, paths, user, key, no_rsync):
+    """Copy files to/from an Aegis agent.
+
+    Use a ':' prefix to denote remote paths:
+
+    \b
+      Upload:   guard aegis cp <id> ./local_file :/remote/path/
+      Download: guard aegis cp <id> :/remote/file ./local_dir/
+    """
+    src, dst = paths
+
+    src_remote = src.startswith(':')
+    dst_remote = dst.startswith(':')
+
+    if src_remote and dst_remote:
+        click.echo("Error: both paths cannot be remote", err=True)
+        return
+    if not src_remote and not dst_remote:
+        click.echo("Error: one path must be remote (prefix with ':')", err=True)
+        return
+
+    agent = sdk.aegis.get_by_client_id(client_id)
+    if not agent:
+        click.echo(f"Agent not found: {client_id}", err=True)
+        return
+
+    if src_remote:
+        direction = 'download'
+        remote_path = src[1:]
+        local_path = dst
+    else:
+        direction = 'upload'
+        local_path = src
+        remote_path = dst[1:]
+
+    ssh_options = []
+    if key:
+        ssh_options.extend(['-i', key])
+
+    try:
+        rc = sdk.aegis.copy_to_agent(
+            agent=agent,
+            local_path=local_path,
+            remote_path=remote_path,
+            direction=direction,
+            user=user,
+            ssh_options=ssh_options,
+            display_info=True,
+            use_rsync=not no_rsync,
+        )
+        if rc != 0:
+            click.echo(f"Copy failed with exit code {rc}", err=True)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+
+
 @aegis.command('job')
 @cli_handler
 @click.option('-c', '--capability', 'capabilities', multiple=True, help='Capability to run (e.g., windows-smb-snaffler)')

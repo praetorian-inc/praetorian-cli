@@ -9,7 +9,7 @@ from ..constants import DEFAULT_COLORS
 def handle_help(menu, args):
     """Show help for commands or a specific command."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
-    if args and args[0] in ['ssh', 'list', 'info', 'job', 'schedule', 'set']:
+    if args and args[0] in ['ssh', 'cp', 'list', 'info', 'job', 'schedule', 'set']:
         menu.console.print(f"\nHelp for '{args[0]}' command - see main help for details\n")
         menu.pause()
         return
@@ -30,6 +30,7 @@ def handle_help(menu, args):
     commands_table.add_row("set <id>", "Select an agent by number, client_id, or hostname")
     commands_table.add_row("list [--all]", "List online agents (--all shows offline too)")
     commands_table.add_row("ssh [options]", "SSH to selected agent (use 'ssh --help' for options)")
+    commands_table.add_row("cp <src> <dst>", "Copy files to/from agent (use ':' for remote paths)")
     commands_table.add_row("info [--raw]", "Show detailed information for selected agent")
     commands_table.add_row("job list", "List recent jobs for selected agent")
     commands_table.add_row("job capabilities [--details]", "List available capabilities")
@@ -66,6 +67,8 @@ def handle_help(menu, args):
     examples_table.add_row("set 1", "Select first agent")
     examples_table.add_row("set abc", "Select agent by hostname")
     examples_table.add_row("ssh -D 1080", "SSH with SOCKS proxy on port 1080")
+    examples_table.add_row("cp ./file.txt :/tmp/file.txt", "Upload file to agent")
+    examples_table.add_row("cp :/etc/hosts ./hosts", "Download file from agent")
     examples_table.add_row("list --all", "Show all agents including offline")
     examples_table.add_row("job list", "List recent jobs")
     examples_table.add_row("job capabilities", "List available capabilities")

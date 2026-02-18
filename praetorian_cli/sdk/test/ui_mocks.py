@@ -20,6 +20,21 @@ class MockAegis:
             'display_info': display_info,
         })
 
+    def copy_to_agent(self, agent, local_path, remote_path, direction='upload',
+                      user=None, ssh_options=None, display_info=True, use_rsync=True):
+        self.calls.append({
+            'method': 'copy_to_agent',
+            'agent': agent,
+            'local_path': local_path,
+            'remote_path': remote_path,
+            'direction': direction,
+            'user': user,
+            'ssh_options': ssh_options or [],
+            'display_info': display_info,
+            'use_rsync': use_rsync,
+        })
+        return 0
+
     def run_job(self, agent, capabilities=None, config=None):
         self.calls.append({
             'method': 'run_job',
