@@ -1,6 +1,7 @@
 import json, requests, os
 
 from praetorian_cli.sdk.entities.accounts import Accounts
+from praetorian_cli.sdk.entities.ad import AD
 from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
@@ -47,6 +48,7 @@ class Chariot:
         self.scanners = Scanners(self)
         self.webhook = Webhook(self)
         self.statistics = Statistics(self)
+        self.ad = AD(self)
         self.aegis = Aegis(self)
         self.agents = Agents(self)
         self.settings = Settings(self)

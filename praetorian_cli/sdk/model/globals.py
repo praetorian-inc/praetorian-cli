@@ -112,6 +112,23 @@ class Kind(Enum):
     WEBPAGE = 'webpage'
     PORT = 'port'
 
+    # Active Directory object types
+    ADOBJECT = 'adobject'
+    ADUSER = 'aduser'
+    ADCOMPUTER = 'adcomputer'
+    ADGROUP = 'adgroup'
+    ADGPO = 'adgpo'
+    ADOU = 'adou'
+    ADCONTAINER = 'adcontainer'
+    ADLOCALGROUP = 'adlocalgroup'
+    ADLOCALUSER = 'adlocaluser'
+    ADROOTCA = 'adrootca'
+    ADENTERPRISECA = 'adenterpriseca'
+    ADCERTTEMPLATE = 'adcerttemplate'
+    ADNTAUTHSTORE = 'adntauthstore'
+    ADAIACA = 'adaiaca'
+    ADISSUANCEPOLICY = 'adissuancepolicy'
+
 EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}

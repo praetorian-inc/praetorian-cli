@@ -165,8 +165,8 @@ class MCPServer:
                         continue
                         
                     properties[param_name] = {
-                        "type": param_info["type"],
-                        "description": param_info["description"]
+                        "type": param_info.get("type", "string"),
+                        "description": param_info.get("description", f"Parameter {param_name}")
                     }
                     
                     if param_info.get("required", False):
