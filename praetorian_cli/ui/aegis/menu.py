@@ -4,8 +4,12 @@ Aegis Menu Interface - Clean operator interface
 Command-driven approach with intuitive UX
 """
 
+import logging
 import os
 import shlex
+import subprocess
+import threading
+import time
 
 # Verbosity setting for Aegis UI (quiet by default)
 VERBOSE = os.getenv('CHARIOT_AEGIS_VERBOSE') == '1'
@@ -19,7 +23,8 @@ from rich.text import Text
 from rich.box import MINIMAL
 
 from prompt_toolkit import prompt as pt_prompt
-from prompt_toolkit.completion import Completer, Completion, FuzzyCompleter
+from prompt_toolkit.completion import Completer, Completion, FuzzyCompleter, PathCompleter
+from prompt_toolkit.history import InMemoryHistory
 
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.model.aegis import Agent
@@ -35,9 +40,11 @@ from .commands.set import handle_set as cmd_handle_set
 from .commands.help import handle_help as cmd_handle_help
 from .commands.list import handle_list as cmd_handle_list
 from .commands.ssh import handle_ssh as cmd_handle_ssh
+from .commands.cp import handle_cp as cmd_handle_cp
 from .commands.info import handle_info as cmd_handle_info
 from .commands.job import handle_job as cmd_handle_job
 from .commands.schedule import handle_schedule as cmd_handle_schedule
+from .commands.proxy import handle_proxy as cmd_handle_proxy, stop_all_proxies
 
 from .commands.schedule_helpers import get_cached_schedules
 from .constants import DEFAULT_COLORS
@@ -45,6 +52,9 @@ from .constants import DEFAULT_COLORS
 
 class MenuCompleter(Completer):
     """Completer for the main menu with command and argument completion."""
+
+    # Cache TTL for remote directory listings (seconds)
+    _REMOTE_LS_TTL = 30
 
     def __init__(self, menu):
         self.menu = menu
@@ -67,11 +77,11 @@ class MenuCompleter(Completer):
             after_cmd = text.split(None, 1)[1] if len(text.split(None, 1)) > 1 else ''
             current_word = words[-1] if not text.endswith(' ') else ''
 
-            completions = self._get_argument_completions(cmd, after_cmd, current_word)
+            completions = self._get_argument_completions(cmd, after_cmd, current_word, document, complete_event)
             for comp in completions:
                 yield comp
 
-    def _get_argument_completions(self, cmd, after_cmd, current_word):
+    def _get_argument_completions(self, cmd, after_cmd, current_word, document=None, complete_event=None):
         """Get argument completions for a command."""
         words = after_cmd.split()
 
@@ -98,6 +108,39 @@ class MenuCompleter(Completer):
                 if idx_str.startswith(current_word) or hostname.lower().startswith(current_word.lower()):
                     display = f"{idx_str} - {hostname}"
                     yield Completion(idx_str, start_position=-len(current_word), display=display)
+
+        elif cmd == 'cp':
+            # Complete options when current word starts with '-'
+            if current_word.startswith('-'):
+                cp_opts = ['-u', '-i', '--no-rsync', '--user', '--help']
+                for opt in cp_opts:
+                    if opt.startswith(current_word):
+                        yield Completion(opt, start_position=-len(current_word))
+            elif current_word.startswith(':'):
+                # Remote file path completion via SSH
+                yield from self._get_remote_path_completions(current_word)
+            elif document is not None and complete_event is not None:
+                # Local file path completion for non-remote tokens
+                path_completer = PathCompleter(expanduser=True)
+                # Build a sub-document containing just the current word
+                from prompt_toolkit.document import Document as PtDocument
+                sub_doc = PtDocument(current_word, len(current_word))
+                yield from path_completer.get_completions(sub_doc, complete_event)
+
+        elif cmd == 'proxy':
+            subcommands = ['list', 'stop', 'help']
+            if not words or (len(words) == 1 and not after_cmd.endswith(' ')):
+                prefix = words[0].lower() if words else ''
+                for sub in subcommands:
+                    if sub.startswith(prefix):
+                        yield Completion(sub, start_position=-len(prefix))
+            elif len(words) >= 1 and words[0].lower() == 'stop':
+                # Suggest 'all' and active port numbers
+                proxies = getattr(self.menu, '_active_proxies', {})
+                options = ['all'] + [str(p) for p in sorted(proxies)]
+                for opt in options:
+                    if opt.startswith(current_word):
+                        yield Completion(opt, start_position=-len(current_word))
 
         elif cmd == 'job':
             subcommands = ['list', 'run', 'capabilities', 'caps']
@@ -139,32 +182,224 @@ class MenuCompleter(Completer):
         except Exception:
             pass
 
+    def _get_remote_path_completions(self, current_word):
+        """Complete remote paths (prefixed with ':') by listing files on the agent via SSH."""
+        agent = self.menu.selected_agent
+        if not agent or not getattr(agent, 'has_tunnel', False):
+            return
+
+        # Strip the ':' prefix to get the raw remote path
+        raw_path = current_word[1:]  # e.g. ":/tmp/fo" -> "/tmp/fo"
+
+        # Split into directory and filename prefix
+        if '/' in raw_path:
+            directory = raw_path.rsplit('/', 1)[0] or '/'
+            prefix = raw_path.rsplit('/', 1)[1]
+        else:
+            # No slash yet — e.g. ":~" or ":foo" — list home directory
+            directory = '~'
+            prefix = raw_path
+
+        entries = self._list_remote_files(agent, directory)
+        if entries is None:
+            return
+
+        # Pre-fetch visible subdirectories so drilling deeper is instant
+        try:
+            client_id = getattr(agent, 'client_id', '') or ''
+            public_hostname = agent.health_check.cloudflared_status.hostname
+            for entry in entries:
+                if entry.endswith('/'):
+                    dir_name = entry.rstrip('/')
+                    if dir_name.startswith(prefix):
+                        if directory == '~' and '/' not in raw_path:
+                            sub_dir = f'~/{dir_name}'
+                        elif directory == '/':
+                            sub_dir = f'/{dir_name}'
+                        else:
+                            sub_dir = f'{directory}/{dir_name}'
+                        sub_key = (client_id, sub_dir)
+                        _remote_ls_lookup_or_fetch(self.menu, sub_key, public_hostname, sub_dir)
+        except Exception:
+            pass
+
+        for entry in entries:
+            name = entry.rstrip('/')
+            is_dir = entry.endswith('/')
+            if name.startswith(prefix):
+                # Build the full completion text including the ':' prefix
+                if directory == '~' and '/' not in raw_path:
+                    completion_text = ':' + name + ('/' if is_dir else '')
+                elif directory == '/':
+                    completion_text = ':/' + name + ('/' if is_dir else '')
+                else:
+                    completion_text = ':' + directory + '/' + name + ('/' if is_dir else '')
+                yield Completion(
+                    completion_text,
+                    start_position=-len(current_word),
+                    display=entry,
+                    display_meta='dir' if is_dir else '',
+                )
+
+    def _list_remote_files(self, agent, directory):
+        """Return cached remote directory listing, or kick off a background fetch.
+
+        Cache and pending state live on self.menu (AegisMenu) so they
+        persist across prompt invocations.
+        """
+        try:
+            cf_status = agent.health_check.cloudflared_status
+            public_hostname = cf_status.hostname
+            if not public_hostname:
+                return None
+        except Exception:
+            return None
+
+        client_id = getattr(agent, 'client_id', '') or ''
+        cache_key = (client_id, directory)
+
+        return _remote_ls_lookup_or_fetch(
+            self.menu, cache_key, public_hostname, directory,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Remote file-listing helpers (shared between MenuCompleter and AegisMenu)
+# ---------------------------------------------------------------------------
+
+_REMOTE_LS_TTL = 30  # seconds
+
+
+def _remote_ls_lookup_or_fetch(menu, cache_key, public_hostname, directory):
+    """Return cached listing or kick off a background SSH fetch.
+
+    Returns list of entries when cached, None otherwise (non-blocking).
+    """
+    lock = getattr(menu, '_remote_ls_lock', None)
+    now = time.monotonic()
+
+    if lock:
+        lock.acquire()
+    try:
+        if cache_key in menu._remote_ls_cache:
+            ts, entries = menu._remote_ls_cache[cache_key]
+            if now - ts < _REMOTE_LS_TTL:
+                return entries
+
+        if cache_key in menu._remote_ls_pending:
+            return None
+
+        menu._remote_ls_pending.add(cache_key)
+    finally:
+        if lock:
+            lock.release()
+
+    try:
+        _, user = menu.sdk.aegis.api.get_current_user()
+    except Exception:
+        if lock:
+            with lock:
+                menu._remote_ls_pending.discard(cache_key)
+        else:
+            menu._remote_ls_pending.discard(cache_key)
+        return None
+
+    thread = threading.Thread(
+        target=_fetch_remote_files,
+        args=(menu, cache_key, user, public_hostname, directory),
+        daemon=True,
+    )
+    thread.start()
+    return None
+
+
+_logger = logging.getLogger(__name__)
+
+
+def _fetch_remote_files(menu, cache_key, user, public_hostname, directory):
+    """Background worker: SSH into the agent and cache the directory listing."""
+    lock = getattr(menu, '_remote_ls_lock', None)
+    try:
+        ssh_cmd = [
+            'ssh', '-o', 'ConnectTimeout=3', '-o', 'StrictHostKeyChecking=accept-new',
+            '-o', 'BatchMode=yes',
+            f'{user}@{public_hostname}',
+            'ls', '-1F', '--', directory,
+        ]
+        result = subprocess.run(
+            ssh_cmd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            entries = [line for line in result.stdout.splitlines() if line]
+            if lock:
+                with lock:
+                    menu._remote_ls_cache[cache_key] = (time.monotonic(), entries)
+            else:
+                menu._remote_ls_cache[cache_key] = (time.monotonic(), entries)
+    except Exception:
+        _logger.debug("remote ls failed for %s:%s", public_hostname, directory, exc_info=True)
+    finally:
+        if lock:
+            with lock:
+                menu._remote_ls_pending.discard(cache_key)
+        else:
+            menu._remote_ls_pending.discard(cache_key)
+
 
 class AegisMenu:
     """Aegis menu interface with modern command-driven UX"""
-    
+
     def __init__(self, sdk: Chariot):
         self.sdk: Chariot = sdk
         self.console = Console(theme=AEGIS_RICH_THEME)
         self.verbose = VERBOSE
         self.agents: List[Agent] = []
-        self.selected_agent: Optional[Agent] = None  
+        self.selected_agent: Optional[Agent] = None
         self._first_render = True
-        self.agent_computed_data = {}  
+        self.agent_computed_data = {}
         self.current_prompt = "> "
         self.displayed_agents: List[Agent] = []  # Track currently displayed agents
         self.agent_lookup: dict[str, str] = {}  # client_id -> hostname mapping for fast lookups
         self._schedule_cache: dict = {'ts': 0, 'items': []}  # Cached schedules with TTL
+        # Remote file listing cache (persists across prompts)
+        self._remote_ls_cache: dict = {}   # (client_id, dir) -> (timestamp, [entries])
+        self._remote_ls_pending: set = set()  # in-flight fetches
+        self._remote_ls_lock: threading.Lock = threading.Lock()  # guards cache + pending
+        # Command history (up/down arrow)
+        self._history = InMemoryHistory()
 
         self.user_email, self.username = self.sdk.get_current_user()
         
         self.colors = DEFAULT_COLORS
         
+        self._active_proxies: dict = {}
+
         self.commands = [
-            'set', 'ssh', 'info', 'list', 'job', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
+            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
-    
-    
+
+    def prefetch_agent_home(self, agent=None):
+        """Pre-fetch common directory listings for the selected agent.
+
+        Called automatically when an agent is selected via ``set`` so that
+        ``cp :`` completions are instant.  Pre-fetches both ``~`` and
+        ``/tmp`` since they are the most common transfer targets.
+        """
+        agent = agent or self.selected_agent
+        if not agent or not getattr(agent, 'has_tunnel', False):
+            return
+        try:
+            public_hostname = agent.health_check.cloudflared_status.hostname
+            if not public_hostname:
+                return
+        except Exception:
+            return
+        client_id = getattr(agent, 'client_id', '') or ''
+        for directory in ('~', '/tmp'):
+            _remote_ls_lookup_or_fetch(
+                self, (client_id, directory), public_hostname, directory,
+            )
+
     def run(self) -> None:
         """Main interface loop"""
         self.clear_screen()
@@ -173,18 +408,21 @@ class AegisMenu:
         if self.agents:
             self.show_agents_list()
 
-        while True:
-            try:
-                self.show_main_menu()
-                choice = self.get_input()
+        try:
+            while True:
+                try:
+                    self.show_main_menu()
+                    choice = self.get_input()
 
-                if not self.handle_choice(choice):
-                    break
+                    if not self.handle_choice(choice):
+                        break
 
-            except KeyboardInterrupt:
-                # Ctrl-C during command execution - cancel and return to prompt
-                self.console.print(f"\n[{self.colors['dim']}]Cancelled[/{self.colors['dim']}]")
-                continue
+                except KeyboardInterrupt:
+                    # Ctrl-C during command execution - cancel and return to prompt
+                    self.console.print(f"\n[{self.colors['dim']}]Cancelled[/{self.colors['dim']}]")
+                    continue
+        finally:
+            stop_all_proxies(self)
     
     def handle_choice(self, choice: str) -> bool:
         """Dead simple command dispatch"""
@@ -224,7 +462,10 @@ class AegisMenu:
             
         elif command == 'ssh':
             cmd_handle_ssh(self, cmd_args)
-            
+
+        elif command == 'cp':
+            cmd_handle_cp(self, cmd_args)
+
         elif command == 'info':
             cmd_handle_info(self, cmd_args)
             
@@ -233,6 +474,9 @@ class AegisMenu:
 
         elif command == 'schedule':
             cmd_handle_schedule(self, cmd_args)
+
+        elif command == 'proxy':
+            cmd_handle_proxy(self, cmd_args)
 
         else:
             self.console.print(f"\n  Unknown command: {command}")
@@ -387,10 +631,19 @@ class AegisMenu:
 
             # Use prompt_toolkit for auto-completion as you type
             completer = FuzzyCompleter(MenuCompleter(self))
+            pending = self._remote_ls_pending  # reference for closure
+
+            def _toolbar():
+                if pending:
+                    return ' loading remote files…'
+                return ''
+
             user_input = pt_prompt(
                 self.current_prompt,
                 completer=completer,
                 complete_while_typing=True,
+                bottom_toolbar=_toolbar,
+                history=self._history,
             )
             return user_input.strip()
         except KeyboardInterrupt:

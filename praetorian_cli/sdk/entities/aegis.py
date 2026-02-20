@@ -1,5 +1,8 @@
 from typing import List, Optional
+import shlex
+import shutil
 import subprocess
+import time
 from praetorian_cli.sdk.model.aegis import Agent
 from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
 
@@ -348,7 +351,162 @@ class Aegis:
 
         result = subprocess.run(ssh_command)
         return result.returncode
-    
+
+    def copy_to_agent(self, agent: Agent, local_path: str, remote_path: str,
+                      direction: str = 'upload', user: str | None = None,
+                      ssh_options: List[str] | None = None, display_info: bool = True,
+                      use_rsync: bool = True) -> int:
+        """Copy files to/from an Aegis agent using rsync (with scp fallback).
+
+        :param agent: Target agent
+        :param local_path: Local file or directory path
+        :param remote_path: Remote file or directory path
+        :param direction: 'upload' or 'download'
+        :param user: SSH username (resolved from API if omitted)
+        :param ssh_options: Extra SSH flags (e.g. ['-i', '~/.ssh/key'])
+        :param display_info: Print connection banner
+        :param use_rsync: Try rsync first; fall back to scp on failure
+        :return: Process exit code
+        """
+        ssh_options = ssh_options or []
+
+        if not user:
+            _, user = self.api.get_current_user()
+
+        is_valid, error_msg = validate_agent_for_ssh(agent)
+        if not is_valid:
+            raise Exception(error_msg)
+
+        hostname = agent.hostname or 'Unknown'
+        cf_status = agent.health_check.cloudflared_status
+        public_hostname = cf_status.hostname
+        tunnel_name = cf_status.tunnel_name or 'N/A'
+
+        remote_spec = f'{user}@{public_hostname}'
+
+        # Build the base SSH command string for rsync's -e flag
+        ssh_parts = ['ssh', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=30']
+        ssh_parts.extend(ssh_options)
+        ssh_cmd_str = shlex.join(ssh_parts)
+
+        if display_info:
+            action = 'Upload to' if direction == 'upload' else 'Download from'
+            print(f"\033[1;36m→ {action} {hostname}\033[0m")
+            print(f"\033[34m  Gateway: {public_hostname}\033[0m")
+            print(f"\033[33m  Tunnel:  {tunnel_name}\033[0m")
+            print(f"\033[35m  User:    {user}\033[0m")
+            if direction == 'upload':
+                print(f"\033[32m  Local:   {local_path}\033[0m")
+                print(f"\033[32m  Remote:  {remote_path}\033[0m")
+            else:
+                print(f"\033[32m  Remote:  {remote_path}\033[0m")
+                print(f"\033[32m  Local:   {local_path}\033[0m")
+            print("")
+
+        # Try rsync first if available and requested
+        rsync_path, _, _ = self._find_rsync()
+        if use_rsync and rsync_path:
+            cmd = self._build_rsync_command(ssh_cmd_str, local_path, remote_spec, remote_path, direction)
+            t0 = time.monotonic()
+            result = subprocess.run(cmd)
+            elapsed = time.monotonic() - t0
+            # Exit code 127 means rsync not found on the remote side
+            if result.returncode == 127:
+                print("\033[33mrsync not available on remote — falling back to scp\033[0m")
+            else:
+                self._print_transfer_summary(result.returncode, elapsed)
+                return result.returncode
+
+        # scp fallback
+        cmd = self._build_scp_command(ssh_options, local_path, remote_spec, remote_path, direction)
+        t0 = time.monotonic()
+        result = subprocess.run(cmd)
+        elapsed = time.monotonic() - t0
+        self._print_transfer_summary(result.returncode, elapsed)
+        return result.returncode
+
+    @staticmethod
+    def _find_rsync() -> tuple:
+        """Find the best local rsync binary and its version.
+
+        macOS ships openrsync at /usr/bin/rsync (reports as 2.6.9) which
+        shadows Homebrew's real rsync. This method prefers Homebrew's
+        binary when available.
+
+        Returns (path, major, minor) or (None, 0, 0) if not found.
+        """
+        import re
+        # Prefer Homebrew rsync over macOS openrsync
+        candidates = [
+            '/opt/homebrew/bin/rsync',  # Apple Silicon
+            '/usr/local/bin/rsync',     # Intel Mac
+        ]
+        # Fall back to whatever is on PATH
+        path_rsync = shutil.which('rsync')
+        if path_rsync:
+            candidates.append(path_rsync)
+
+        for path in candidates:
+            try:
+                out = subprocess.run(
+                    [path, '--version'], capture_output=True, text=True, timeout=5,
+                ).stdout
+                m = re.search(r'version\s+(\d+)\.(\d+)', out)
+                if m:
+                    major, minor = int(m.group(1)), int(m.group(2))
+                    # Skip openrsync (reports 2.6.9, missing modern flags)
+                    if 'openrsync' in out:
+                        continue
+                    return path, major, minor
+            except Exception:
+                continue
+
+        # No real rsync found; return whatever is on PATH (may be openrsync)
+        if path_rsync:
+            return path_rsync, 2, 6
+        return None, 0, 0
+
+    def _build_rsync_command(self, ssh_cmd_str: str, local_path: str,
+                             remote_spec: str, remote_path: str,
+                             direction: str) -> List[str]:
+        """Build an rsync command list.
+
+        Uses --info=progress2 for a single overall progress line when the
+        local rsync supports it (>= 3.1.0). Falls back to quiet -az for
+        stock macOS openrsync.
+        """
+        rsync_path, major, minor = self._find_rsync()
+        cmd = [rsync_path or 'rsync', '-az', '--partial']
+        if (major, minor) >= (3, 1):
+            cmd.append('--info=progress2')
+        cmd += ['-e', ssh_cmd_str]
+        if direction == 'upload':
+            cmd += [local_path, f'{remote_spec}:{remote_path}']
+        else:
+            cmd += [f'{remote_spec}:{remote_path}', local_path]
+        return cmd
+
+    def _build_scp_command(self, ssh_options: List[str], local_path: str,
+                           remote_spec: str, remote_path: str,
+                           direction: str) -> List[str]:
+        """Build an scp command list."""
+        cmd = ['scp', '-r', '-o', 'ConnectTimeout=10']
+        cmd.extend(ssh_options)
+        if direction == 'upload':
+            cmd += [local_path, f'{remote_spec}:{remote_path}']
+        else:
+            cmd += [f'{remote_spec}:{remote_path}', local_path]
+        return cmd
+
+    @staticmethod
+    def _print_transfer_summary(returncode: int, elapsed: float) -> None:
+        """Print a colorized one-line transfer summary."""
+        elapsed_str = f"{elapsed:.1f}s"
+        if returncode == 0:
+            print(f"\033[32m✓ Transfer complete ({elapsed_str})\033[0m")
+        else:
+            print(f"\033[31m✗ Transfer failed (exit code {returncode})\033[0m")
+
     def run_job(self, agent: Agent, capabilities: list = None, config: str = None):
         """
         Run a job on an Aegis agent.

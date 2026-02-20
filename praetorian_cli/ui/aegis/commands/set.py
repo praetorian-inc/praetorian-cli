@@ -18,6 +18,9 @@ def handle_set(menu, args):
         menu.selected_agent = selected_agent
         hostname = selected_agent.hostname
         menu.console.print(f"\n  Selected: {hostname}\n")
+        # Pre-fetch home directory listing so cp tab-completion is instant
+        if hasattr(menu, 'prefetch_agent_home'):
+            menu.prefetch_agent_home(selected_agent)
     else:
         displayed_count = len(menu.displayed_agents)
         menu.console.print(f"\n[{colors['error']}]  Agent not found:[/{colors['error']}] {selection}")

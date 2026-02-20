@@ -6,10 +6,17 @@ class MockConsole:
         self.lines.append(str(msg))
 
 
+class _MockAegisApi:
+    """Minimal mock for aegis.api (the Chariot instance) to satisfy get_current_user()."""
+    def get_current_user(self):
+        return ('testuser@example.com', 'testuser')
+
+
 class MockAegis:
     def __init__(self, responses=None):
         self.calls = []
         self._responses = responses or {}
+        self.api = _MockAegisApi()
 
     def ssh_to_agent(self, agent, options, user, display_info=True):
         self.calls.append({
@@ -19,6 +26,21 @@ class MockAegis:
             'user': user,
             'display_info': display_info,
         })
+
+    def copy_to_agent(self, agent, local_path, remote_path, direction='upload',
+                      user=None, ssh_options=None, display_info=True, use_rsync=True):
+        self.calls.append({
+            'method': 'copy_to_agent',
+            'agent': agent,
+            'local_path': local_path,
+            'remote_path': remote_path,
+            'direction': direction,
+            'user': user,
+            'ssh_options': ssh_options or [],
+            'display_info': display_info,
+            'use_rsync': use_rsync,
+        })
+        return 0
 
     def run_job(self, agent, capabilities=None, config=None):
         self.calls.append({
