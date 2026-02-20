@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
 
@@ -244,7 +245,7 @@ class Relationship:
         # AD: Trust Keys
         HAS_TRUST_KEYS = 'HasTrustKeys'
 
-    def __init__(self, label=None, source: 'Node | None' = None, target: 'Node | None' = None,
+    def __init__(self, label=None, source: 'Optional[Node]' = None, target: 'Optional[Node]' = None,
                  optional: bool = False, length: int = 0, labels: list = None):
         """Create a Relationship.
 
@@ -520,7 +521,8 @@ AD_ACL_RELATIONSHIPS = [
 ]
 
 # All AD relationships useful for attack path traversal
-AD_ATTACK_PATH_RELATIONSHIPS = AD_ACL_RELATIONSHIPS + [
+AD_ATTACK_PATH_RELATIONSHIPS = [
+    *AD_ACL_RELATIONSHIPS,
     _RL.MEMBER_OF, _RL.ADMIN_TO, _RL.CAN_RDP,
     _RL.CAN_PS_REMOTE, _RL.EXECUTE_DCOM, _RL.DCSYNC,
     _RL.ALLOWED_TO_DELEGATE, _RL.ALLOWED_TO_ACT,

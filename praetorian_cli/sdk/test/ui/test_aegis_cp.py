@@ -212,7 +212,9 @@ def test_cp_completion_remote_paths_via_ssh():
     assert mock_run.called
     ssh_cmd = mock_run.call_args[0][0]
     assert 'ssh' in ssh_cmd[0]
-    assert 'ls -1F /tmp' in ' '.join(ssh_cmd)
+    assert 'ls' in ssh_cmd
+    assert '-1F' in ssh_cmd
+    assert '/tmp' in ssh_cmd
 
     texts = [c.text for c in completions]
     assert any('remote_file.txt' in t for t in texts)

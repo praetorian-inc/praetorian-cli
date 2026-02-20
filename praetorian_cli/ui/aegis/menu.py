@@ -324,7 +324,7 @@ def _fetch_remote_files(menu, cache_key, user, public_hostname, directory):
             'ssh', '-o', 'ConnectTimeout=3', '-o', 'StrictHostKeyChecking=accept-new',
             '-o', 'BatchMode=yes',
             f'{user}@{public_hostname}',
-            f'ls -1F {directory}',
+            'ls', '-1F', '--', directory,
         ]
         result = subprocess.run(
             ssh_cmd, capture_output=True, text=True, timeout=5,

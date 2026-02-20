@@ -156,6 +156,12 @@ class AD:
         :return: A tuple containing (list of relationship results, next page offset)
         :rtype: tuple
         """
+        if not any([source_key, target_key, relationship_type, source_type, target_type]):
+            raise ValueError(
+                "At least one filter parameter (source_key, target_key, "
+                "relationship_type, source_type, or target_type) is required."
+            )
+
         rel_label = self._resolve_relationship(relationship_type) if relationship_type else None
 
         source_labels = self._resolve_type(source_type) if source_type else None
@@ -192,8 +198,8 @@ class AD:
         :return: A tuple containing (list of path results, next page offset)
         :rtype: tuple
         """
-        max_depth = int(max_depth)
-        shortest = int(shortest)
+        max_depth = max(1, min(int(max_depth), 10))
+        shortest = max(1, min(int(shortest), 10))
 
         target_node = Node(filters=key_equals(target_key))
         rel = Relationship(

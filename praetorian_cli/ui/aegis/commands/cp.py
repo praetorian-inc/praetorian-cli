@@ -1,3 +1,5 @@
+import os
+
 from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
 from ..constants import DEFAULT_COLORS
 
@@ -100,10 +102,10 @@ def handle_cp(menu, args):
     if src_remote:
         direction = 'download'
         remote_path = src[1:]
-        local_path = dst
+        local_path = os.path.expandvars(os.path.expanduser(dst))
     else:
         direction = 'upload'
-        local_path = src
+        local_path = os.path.expandvars(os.path.expanduser(src))
         remote_path = dst[1:]
 
     ssh_options = []
