@@ -244,7 +244,7 @@ class Relationship:
         # AD: Trust Keys
         HAS_TRUST_KEYS = 'HasTrustKeys'
 
-    def __init__(self, label=None, source: 'Node' = None, target: 'Node' = None,
+    def __init__(self, label=None, source: 'Node | None' = None, target: 'Node | None' = None,
                  optional: bool = False, length: int = 0, labels: list = None):
         """Create a Relationship.
 
@@ -284,7 +284,7 @@ class Relationship:
         if len(self._labels) == 1:
             ret = dict(label=self._labels[0].value)
         elif len(self._labels) > 1:
-            ret = dict(label=[l.value for l in self._labels])
+            ret = dict(label=[label.value for label in self._labels])
         else:
             ret = dict()
         if self.source:

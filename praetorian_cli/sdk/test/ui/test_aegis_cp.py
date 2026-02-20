@@ -38,14 +38,14 @@ class Menu(MockMenuBase):
 def test_handle_cp_help_message():
     menu = Menu()
     handle_cp(menu, ["help"])
-    assert any("CP Command" in l for l in menu.console.lines)
+    assert any("CP Command" in line for line in menu.console.lines)
     assert len(menu.sdk.aegis.calls) == 0
 
 
 def test_handle_cp_dash_h_message():
     menu = Menu()
     handle_cp(menu, ["-h"])
-    assert any("CP Command" in l for l in menu.console.lines)
+    assert any("CP Command" in line for line in menu.console.lines)
     assert len(menu.sdk.aegis.calls) == 0
 
 
@@ -74,14 +74,14 @@ def test_handle_cp_download():
 def test_handle_cp_both_remote_error():
     menu = Menu()
     handle_cp(menu, [":/remote1", ":/remote2"])
-    assert any("both paths cannot be remote" in l for l in menu.console.lines)
+    assert any("both paths cannot be remote" in line for line in menu.console.lines)
     assert len(menu.sdk.aegis.calls) == 0
 
 
 def test_handle_cp_neither_remote_error():
     menu = Menu()
     handle_cp(menu, ["./local1", "./local2"])
-    assert any("one path must be remote" in l for l in menu.console.lines)
+    assert any("one path must be remote" in line for line in menu.console.lines)
     assert len(menu.sdk.aegis.calls) == 0
 
 
@@ -89,14 +89,14 @@ def test_handle_cp_no_agent_selected():
     menu = Menu()
     menu.selected_agent = None
     handle_cp(menu, ["./file", ":/tmp/file"])
-    assert any("No agent selected" in l for l in menu.console.lines)
+    assert any("No agent selected" in line for line in menu.console.lines)
     assert len(menu.sdk.aegis.calls) == 0
 
 
 def test_handle_cp_wrong_arg_count():
     menu = Menu()
     handle_cp(menu, ["./only_one_path"])
-    assert any("exactly two paths" in l for l in menu.console.lines)
+    assert any("exactly two paths" in line for line in menu.console.lines)
     assert len(menu.sdk.aegis.calls) == 0
 
 
@@ -203,6 +203,8 @@ def test_cp_completion_remote_paths_via_ssh():
             if ('C.1', '/tmp') in menu._remote_ls_cache:
                 break
             _time.sleep(0.05)
+        else:
+            pytest.fail("Timed out waiting for remote ls cache to be populated")
 
         # Second call returns cached results
         completions = list(completer.get_completions(doc, event))

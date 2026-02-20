@@ -6,10 +6,17 @@ class MockConsole:
         self.lines.append(str(msg))
 
 
+class _MockAegisApi:
+    """Minimal mock for aegis.api (the Chariot instance) to satisfy get_current_user()."""
+    def get_current_user(self):
+        return ('testuser@example.com', 'testuser')
+
+
 class MockAegis:
     def __init__(self, responses=None):
         self.calls = []
         self._responses = responses or {}
+        self.api = _MockAegisApi()
 
     def ssh_to_agent(self, agent, options, user, display_info=True):
         self.calls.append({

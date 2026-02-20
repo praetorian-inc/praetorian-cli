@@ -27,19 +27,19 @@ class Menu(MockMenuBase):
 def test_help_explicit():
     menu = Menu()
     handle_proxy(menu, ['help'])
-    assert any('Proxy Command' in l for l in menu.console.lines)
+    assert any('Proxy Command' in line for line in menu.console.lines)
 
 
 def test_help_no_args():
     menu = Menu()
     handle_proxy(menu, [])
-    assert any('Proxy Command' in l for l in menu.console.lines)
+    assert any('Proxy Command' in line for line in menu.console.lines)
 
 
 def test_help_dash_h():
     menu = Menu()
     handle_proxy(menu, ['-h'])
-    assert any('Proxy Command' in l for l in menu.console.lines)
+    assert any('Proxy Command' in line for line in menu.console.lines)
 
 
 # --- validation ---
@@ -48,32 +48,32 @@ def test_no_agent_selected():
     menu = Menu()
     menu.selected_agent = None
     handle_proxy(menu, ['1080'])
-    assert any('No agent selected' in l for l in menu.console.lines)
+    assert any('No agent selected' in line for line in menu.console.lines)
 
 
 def test_no_tunnel():
     menu = Menu()
     menu.selected_agent.has_tunnel = False
     handle_proxy(menu, ['1080'])
-    assert any('no active tunnel' in l for l in menu.console.lines)
+    assert any('no active tunnel' in line for line in menu.console.lines)
 
 
 def test_invalid_port_string():
     menu = Menu()
     handle_proxy(menu, ['abc'])
-    assert any('Invalid port' in l for l in menu.console.lines)
+    assert any('Invalid port' in line for line in menu.console.lines)
 
 
 def test_port_out_of_range():
     menu = Menu()
     handle_proxy(menu, ['99999'])
-    assert any('between 1 and 65535' in l for l in menu.console.lines)
+    assert any('between 1 and 65535' in line for line in menu.console.lines)
 
 
 def test_port_zero():
     menu = Menu()
     handle_proxy(menu, ['0'])
-    assert any('between 1 and 65535' in l for l in menu.console.lines)
+    assert any('between 1 and 65535' in line for line in menu.console.lines)
 
 
 # --- start ---
@@ -88,7 +88,7 @@ def test_start_success(mock_popen):
     handle_proxy(menu, ['1080'])
 
     assert 1080 in menu._active_proxies
-    assert any('started' in l for l in menu.console.lines)
+    assert any('started' in line for line in menu.console.lines)
     mock_popen.assert_called_once()
     cmd = mock_popen.call_args[0][0]
     assert '-D' in cmd
@@ -122,7 +122,7 @@ def test_port_conflict(mock_popen):
 
     # Try starting same port
     handle_proxy(menu, ['1080'])
-    assert any('already running' in l for l in menu.console.lines)
+    assert any('already running' in line for line in menu.console.lines)
 
 
 @patch('praetorian_cli.ui.aegis.commands.proxy.subprocess.Popen')
@@ -134,7 +134,7 @@ def test_immediate_failure(mock_popen):
     menu = Menu()
     handle_proxy(menu, ['1080'])
     assert 1080 not in menu._active_proxies
-    assert any('Failed to start' in l for l in menu.console.lines)
+    assert any('Failed to start' in line for line in menu.console.lines)
 
 
 # --- list ---
@@ -142,7 +142,7 @@ def test_immediate_failure(mock_popen):
 def test_list_empty():
     menu = Menu()
     handle_proxy(menu, ['list'])
-    assert any('No active proxies' in l for l in menu.console.lines)
+    assert any('No active proxies' in line for line in menu.console.lines)
 
 
 @patch('praetorian_cli.ui.aegis.commands.proxy.subprocess.Popen')
@@ -158,8 +158,8 @@ def test_list_with_entries(mock_popen):
     handle_proxy(menu, ['list'])
     # MockConsole stores Rich Table objects; verify a table was printed
     # and "No active proxies" was NOT printed
-    assert not any('No active proxies' in l for l in menu.console.lines)
-    assert any('Table' in str(type(l)) or 'Table' in l for l in menu.console.lines)
+    assert not any('No active proxies' in line for line in menu.console.lines)
+    assert any('Table' in str(type(line)) or 'Table' in line for line in menu.console.lines)
 
 
 # --- stop ---
@@ -202,13 +202,13 @@ def test_stop_all(mock_popen):
 def test_stop_nonexistent():
     menu = Menu()
     handle_proxy(menu, ['stop', '9999'])
-    assert any('No proxy running' in l for l in menu.console.lines)
+    assert any('No proxy running' in line for line in menu.console.lines)
 
 
 def test_stop_missing_arg():
     menu = Menu()
     handle_proxy(menu, ['stop'])
-    assert any('Usage' in l for l in menu.console.lines)
+    assert any('Usage' in line for line in menu.console.lines)
 
 
 # --- stop_all_proxies cleanup ---

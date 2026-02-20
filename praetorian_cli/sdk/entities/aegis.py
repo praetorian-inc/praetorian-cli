@@ -1,4 +1,5 @@
 from typing import List, Optional
+import shlex
 import shutil
 import subprocess
 import time
@@ -352,8 +353,8 @@ class Aegis:
         return result.returncode
 
     def copy_to_agent(self, agent: Agent, local_path: str, remote_path: str,
-                      direction: str = 'upload', user: str = None,
-                      ssh_options: List[str] = None, display_info: bool = True,
+                      direction: str = 'upload', user: str | None = None,
+                      ssh_options: List[str] | None = None, display_info: bool = True,
                       use_rsync: bool = True) -> int:
         """Copy files to/from an Aegis agent using rsync (with scp fallback).
 
@@ -386,7 +387,7 @@ class Aegis:
         # Build the base SSH command string for rsync's -e flag
         ssh_parts = ['ssh', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=30']
         ssh_parts.extend(ssh_options)
-        ssh_cmd_str = ' '.join(ssh_parts)
+        ssh_cmd_str = shlex.join(ssh_parts)
 
         if display_info:
             action = 'Upload to' if direction == 'upload' else 'Download from'

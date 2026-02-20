@@ -127,6 +127,6 @@ def handle_cp(menu, args):
         menu.pause()
 
 
-def complete(menu, text, tokens):
+def complete(_menu, text, _tokens):
     opts = ['help', '-h', '--help', '-u', '--user', '-i', '--no-rsync']
     return [o for o in opts if o.startswith(text)]

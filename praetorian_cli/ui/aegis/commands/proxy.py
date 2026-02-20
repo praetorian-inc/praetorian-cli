@@ -48,7 +48,7 @@ def _handle_start(menu, args):
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
     if not menu.selected_agent:
-        menu.console.print(f"\n  No agent selected. Use 'set <id>' to select one.\n")
+        menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
         return
 
@@ -108,8 +108,10 @@ def _handle_start(menu, args):
     if not user:
         try:
             _, user = menu.sdk.aegis.api.get_current_user()
-        except Exception:
-            user = 'root'
+        except Exception as e:
+            menu.console.print(f"[{colors['error']}]Failed to detect SSH user: {e}. Use -u to specify one.[/{colors['error']}]")
+            menu.pause()
+            return
 
     info = _start_proxy_process(port, agent, user, public_hostname)
     if info is None or info.process.poll() is not None:
@@ -167,7 +169,10 @@ def _start_proxy_process(port, agent, user, hostname):
 
 
 def _monitor_proxy(info):
-    """Daemon thread — poll process, auto-reconnect on death."""
+    """Daemon thread — poll process, auto-reconnect on death with backoff."""
+    _BASE_DELAY = 2.0
+    _MAX_BACKOFF = 60.0
+
     while not info.stop_event.is_set():
         info.stop_event.wait(timeout=2.0)
         if info.stop_event.is_set():
@@ -177,6 +182,9 @@ def _monitor_proxy(info):
             if info.reconnect_count >= info.max_reconnects:
                 break
             info.reconnect_count += 1
+            delay = min(_BASE_DELAY * (2 ** (info.reconnect_count - 1)), _MAX_BACKOFF)
+            if info.stop_event.wait(timeout=delay):
+                break
             try:
                 info.process = subprocess.Popen(
                     info._ssh_cmd,
@@ -184,6 +192,9 @@ def _monitor_proxy(info):
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
+                # Reset backoff on successful restart
+                if info.process.poll() is None:
+                    info.reconnect_count = 0
             except Exception:
                 break
 

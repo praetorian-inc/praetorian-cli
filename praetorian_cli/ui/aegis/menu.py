@@ -4,6 +4,7 @@ Aegis Menu Interface - Clean operator interface
 Command-driven approach with intuitive UX
 """
 
+import logging
 import os
 import shlex
 import subprocess
@@ -274,21 +275,35 @@ def _remote_ls_lookup_or_fetch(menu, cache_key, public_hostname, directory):
 
     Returns list of entries when cached, None otherwise (non-blocking).
     """
+    lock = getattr(menu, '_remote_ls_lock', None)
     now = time.monotonic()
-    if cache_key in menu._remote_ls_cache:
-        ts, entries = menu._remote_ls_cache[cache_key]
-        if now - ts < _REMOTE_LS_TTL:
-            return entries
 
-    if cache_key in menu._remote_ls_pending:
-        return None
+    if lock:
+        lock.acquire()
+    try:
+        if cache_key in menu._remote_ls_cache:
+            ts, entries = menu._remote_ls_cache[cache_key]
+            if now - ts < _REMOTE_LS_TTL:
+                return entries
+
+        if cache_key in menu._remote_ls_pending:
+            return None
+
+        menu._remote_ls_pending.add(cache_key)
+    finally:
+        if lock:
+            lock.release()
 
     try:
         _, user = menu.sdk.aegis.api.get_current_user()
     except Exception:
+        if lock:
+            with lock:
+                menu._remote_ls_pending.discard(cache_key)
+        else:
+            menu._remote_ls_pending.discard(cache_key)
         return None
 
-    menu._remote_ls_pending.add(cache_key)
     thread = threading.Thread(
         target=_fetch_remote_files,
         args=(menu, cache_key, user, public_hostname, directory),
@@ -298,8 +313,12 @@ def _remote_ls_lookup_or_fetch(menu, cache_key, public_hostname, directory):
     return None
 
 
+_logger = logging.getLogger(__name__)
+
+
 def _fetch_remote_files(menu, cache_key, user, public_hostname, directory):
     """Background worker: SSH into the agent and cache the directory listing."""
+    lock = getattr(menu, '_remote_ls_lock', None)
     try:
         ssh_cmd = [
             'ssh', '-o', 'ConnectTimeout=3', '-o', 'StrictHostKeyChecking=accept-new',
@@ -312,11 +331,19 @@ def _fetch_remote_files(menu, cache_key, user, public_hostname, directory):
         )
         if result.returncode == 0:
             entries = [line for line in result.stdout.splitlines() if line]
-            menu._remote_ls_cache[cache_key] = (time.monotonic(), entries)
+            if lock:
+                with lock:
+                    menu._remote_ls_cache[cache_key] = (time.monotonic(), entries)
+            else:
+                menu._remote_ls_cache[cache_key] = (time.monotonic(), entries)
     except Exception:
-        pass
+        _logger.debug("remote ls failed for %s:%s", public_hostname, directory, exc_info=True)
     finally:
-        menu._remote_ls_pending.discard(cache_key)
+        if lock:
+            with lock:
+                menu._remote_ls_pending.discard(cache_key)
+        else:
+            menu._remote_ls_pending.discard(cache_key)
 
 
 class AegisMenu:
@@ -337,6 +364,7 @@ class AegisMenu:
         # Remote file listing cache (persists across prompts)
         self._remote_ls_cache: dict = {}   # (client_id, dir) -> (timestamp, [entries])
         self._remote_ls_pending: set = set()  # in-flight fetches
+        self._remote_ls_lock: threading.Lock = threading.Lock()  # guards cache + pending
         # Command history (up/down arrow)
         self._history = InMemoryHistory()
 

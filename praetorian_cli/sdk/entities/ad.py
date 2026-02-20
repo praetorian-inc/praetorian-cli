@@ -164,16 +164,13 @@ class AD:
         source_filters = key_equals(source_key) if source_key else None
         target_filters = key_equals(target_key) if target_key else None
 
-        source_node = Node(labels=source_labels, filters=source_filters)
         target_node = Node(labels=target_labels, filters=target_filters)
 
         rel = Relationship(label=rel_label, target=target_node) if rel_label else \
             Relationship(labels=AD_ACL_RELATIONSHIPS, target=target_node)
 
-        node = Node(labels=source_labels, filters=source_filters, relationships=[rel])
-
-        # Return the target node results (the source is the anchor)
-        return self._run(Query(node=node), pages)
+        source_node = Node(labels=source_labels, filters=source_filters, relationships=[rel])
+        return self._run(Query(node=source_node), pages)
 
     def find_attack_path(self, source_key, target_key, max_depth=5, shortest=1, pages=1):
         """
