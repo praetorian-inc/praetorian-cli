@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.3.2
+- [Bug fix] Change the authentication headers
+
 # 2.3.1
 - [New Feature] Added capability schedule support
   - See the SDK's `Schedule` 
