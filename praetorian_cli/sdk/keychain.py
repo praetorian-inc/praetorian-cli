@@ -95,7 +95,10 @@ class Keychain:
             if self.has_api_key():
                 response = requests.get(
                     f"{self.base_url()}/token",
-                    params={'id': self.api_key_id(), 'key': self.api_key_secret()}
+                    headers={
+                        'X-GUARD-API-KEY-ID': self.api_key_id(),
+                        'X-GUARD-API-KEY-SECRET': self.api_key_secret(),
+                    }
                 )
                 if response.status_code != 200:
                     error(f"API key authentication failed: {response.text}")
