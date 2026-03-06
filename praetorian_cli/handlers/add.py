@@ -24,7 +24,8 @@ def add():
 @click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), required=False,
               default=Asset.ACTIVE.value, help=f'Status of the asset', show_default=True)
 @click.option('-f', '--surface', required=False, default='', help=f'Attack surface of the asset', show_default=False)
-def asset(sdk, name, dns, asset_type, status, surface):
+@click.option('-r', '--resource-type', required=False, default='', help='Cloud resource type (e.g., compute.googleapis.com/Instance, AWS::EC2::Instance)')
+def asset(sdk, name, dns, asset_type, status, surface, resource_type):
     """ Add an asset
 
     Add an asset to the Guard database. This command requires a DNS name for the asset.
@@ -32,7 +33,11 @@ def asset(sdk, name, dns, asset_type, status, surface):
     such as IP address. If no name is provided, the DNS name will be used as the name.
     The DNS is the group and the name is the specific identifier. This is for legacy reasons.
 
-    The type can be one of the following: asset, addomain, repository, webapplication.
+    The type can be one of the following: asset, addomain, repository, webapplication,
+    gcpresource, awsresource, azureresource.
+
+    For cloud resource types (gcpresource, awsresource, azureresource), the --resource-type
+    flag is required. See cloud_resource_type.go for the full list of valid resource types.
 
     \b
     Example assets:
@@ -46,10 +51,11 @@ def asset(sdk, name, dns, asset_type, status, surface):
         - guard add asset --dns example.com --name 1.2.3.4
         - guard add asset --dns internal.example.com --name 10.2.3.4 --surface internal
         - guard add asset --dns https://example.com --name 'Example Web Application' --type webapplication
+        - guard add asset --dns my-project-id --name 'projects/my-proj/zones/us-central1-a/instances/vm1' --type gcpresource --resource-type 'compute.googleapis.com/Instance'
     """
     if not name:
         name = dns
-    sdk.assets.add(dns, name, asset_type, status, surface)
+    sdk.assets.add(dns, name, asset_type, status, surface, resource_type=resource_type)
 
 
 @add.command()

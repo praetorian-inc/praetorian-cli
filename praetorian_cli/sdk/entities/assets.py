@@ -10,7 +10,7 @@ class Assets:
     def __init__(self, api):
         self.api = api
 
-    def add(self, group, identifier, type=Kind.ASSET.value, status=Asset.ACTIVE.value, surface=''):
+    def add(self, group, identifier, type=Kind.ASSET.value, status=Asset.ACTIVE.value, surface='', resource_type=''):
         """
         Add an asset to the account.
 
@@ -24,10 +24,15 @@ class Assets:
         :type status: str
         :param surface: Attack surface classification (e.g., 'internal', 'external', 'web', 'api')
         :type surface: str
+        :param resource_type: Cloud resource type (e.g., 'compute.googleapis.com/Instance', 'AWS::EC2::Instance')
+        :type resource_type: str
         :return: The asset that was added
         :rtype: dict
         """
-        return self.api.upsert('asset', dict(group=group, identifier=identifier, status=status, attackSurface=[surface], type=type))[0]
+        payload = dict(group=group, identifier=identifier, status=status, attackSurface=[surface], type=type)
+        if resource_type:
+            payload['resourceType'] = resource_type
+        return self.api.upsert('asset', payload)[0]
 
     def get(self, key, details=False):
         """
