@@ -29,3 +29,6 @@ def setting_key(name):
 
 def configuration_key(name):
     return f'#configuration#{name}'
+
+def generic_key(dns, name):
+    return f'#generic#{dns}#{name}'

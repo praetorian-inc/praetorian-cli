@@ -20,7 +20,7 @@ def add():
 @cli_handler
 @click.option('-d', '--dns', required=True, help='The DNS of the asset')
 @click.option('-n', '--name', required=False, help='The name of the asset, e.g, IP address')
-@click.option('-t', '--type', 'asset_type', required=False, help='The type of the asset (asset, repository, etc.)', default=Kind.ASSET.value)
+@click.option('-t', '--type', 'asset_type', required=False, help='The type of the asset (asset, generic, repository, etc.)', default=Kind.ASSET.value)
 @click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), required=False,
               default=Asset.ACTIVE.value, help=f'Status of the asset', show_default=True)
 @click.option('-f', '--surface', required=False, default='', help=f'Attack surface of the asset', show_default=False)
@@ -33,7 +33,7 @@ def asset(sdk, name, dns, asset_type, status, surface, resource_type):
     such as IP address. If no name is provided, the DNS name will be used as the name.
     The DNS is the group and the name is the specific identifier. This is for legacy reasons.
 
-    The type can be one of the following: asset, addomain, repository, webapplication,
+    The type can be one of the following: asset, generic, addomain, repository, webapplication,
     gcpresource, awsresource, azureresource.
 
     For cloud resource types (gcpresource, awsresource, azureresource), the --resource-type
@@ -52,6 +52,7 @@ def asset(sdk, name, dns, asset_type, status, surface, resource_type):
         - guard add asset --dns internal.example.com --name 10.2.3.4 --surface internal
         - guard add asset --dns https://example.com --name 'Example Web Application' --type webapplication
         - guard add asset --dns my-project-id --name 'projects/my-proj/zones/us-central1-a/instances/vm1' --type gcpresource --resource-type 'compute.googleapis.com/Instance'
+        - guard add asset --dns "my-custom-id" --name "any string here" --type generic
     """
     if not name:
         name = dns
