@@ -18,8 +18,8 @@ def add():
 
 @add.command()
 @cli_handler
-@click.option('-g', '--group', required=True, help='The group of the asset (e.g., domain name, project ID)')
-@click.option('-i', '--identifier', required=False, help='The specific identifier of the asset (e.g., IP address)')
+@click.option('-g', '--group', '--dns', required=True, help='The group of the asset (e.g., domain name, project ID)')
+@click.option('-i', '--identifier', '--name', required=False, help='The specific identifier of the asset (e.g., IP address)')
 @click.option('-t', '--type', 'asset_type', required=False, help='The type of the asset (asset, generic, repository, etc.)', default=Kind.ASSET.value)
 @click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), required=False,
               default=Asset.ACTIVE.value, help=f'Status of the asset', show_default=True)
