@@ -9,7 +9,7 @@ class Risks:
     def __init__(self, api):
         self.api = api
 
-    def add(self, asset_key, name, status, comment=None, capability='', display_name=None):
+    def add(self, asset_key, name, status, comment=None, capability='', title=None):
         """
         Add a risk to an existing asset.
 
@@ -23,14 +23,14 @@ class Risks:
         :type comment: str or None
         :param capability: Optional capability that discovered this risk
         :type capability: str
-        :param display_name: Optional human-readable display name for the risk
-        :type display_name: str or None
+        :param title: Optional human-readable title for the risk
+        :type title: str or None
         :return: The created risk object
         :rtype: dict
         """
         body = dict(key=asset_key, name=name, status=status, comment=comment, source=capability)
-        if display_name is not None:
-            body['displayName'] = display_name
+        if title is not None:
+            body['title'] = title
         return self.api.upsert('risk', body)['risks'][0]
 
     def get(self, key, details=False):
@@ -49,7 +49,7 @@ class Risks:
             risk['affected_assets'] = self.affected_assets(key)
         return risk
 
-    def update(self, key, status=None, comment=None, remove_comment=None, display_name=None):
+    def update(self, key, status=None, comment=None, remove_comment=None, title=None):
         """
         Update a risk's status and/or comment, or remove a comment.
 
@@ -61,8 +61,8 @@ class Risks:
         :type comment: str or None
         :param remove_comment: Index of comment to remove (0, 1, ... or -1 for most recent)
         :type remove_comment: int or None
-        :param display_name: Optional human-readable display name for the risk
-        :type display_name: str or None
+        :param title: Optional human-readable title for the risk
+        :type title: str or None
         :return: API response containing update results
         :rtype: dict
         """
@@ -71,8 +71,8 @@ class Risks:
             params = params | dict(status=status)
         if comment:
             params = params | dict(comment=comment)
-        if display_name is not None:
-            params['displayName'] = display_name
+        if title is not None:
+            params['title'] = title
         if remove_comment is not None:
             index = self.resolve_comment_entry_index(key, remove_comment)
             params = params | dict(remove=index)
