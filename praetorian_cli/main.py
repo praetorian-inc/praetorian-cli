@@ -1,3 +1,5 @@
+import sys
+
 import click
 
 import praetorian_cli.handlers.add
@@ -14,7 +16,7 @@ import praetorian_cli.handlers.search
 import praetorian_cli.handlers.test
 import praetorian_cli.handlers.unlink
 import praetorian_cli.handlers.update
-from praetorian_cli.handlers.chariot import chariot
+from praetorian_cli.handlers.chariot import chariot, prompt_account_selection
 from praetorian_cli.handlers.configure import configure
 from praetorian_cli.sdk.keychain import Keychain
 
@@ -30,7 +32,7 @@ def main(click_context, profile, account, debug, proxy):
     if debug:
         click.echo('Running in debug mode.')
     chariot.is_debug = debug
-    click_context.obj = {'keychain': Keychain(profile, account), 'proxy': proxy}
+    click_context.obj = {'keychain': Keychain(profile, account), 'proxy': proxy, 'explicit_account': account is not None}
     praetorian_cli.handlers.script.load_dynamic_commands()
 
 
@@ -51,7 +53,12 @@ def guard_main(click_context, profile, account, debug, proxy):
     if debug:
         click.echo('Running in debug mode.')
     chariot.is_debug = debug
-    click_context.obj = Chariot(Keychain(profile, account), proxy=proxy)
+    sdk = Chariot(Keychain(profile, account), proxy=proxy)
+
+    if account is None and sys.stdin.isatty():
+        prompt_account_selection(sdk)
+
+    click_context.obj = sdk
     praetorian_cli.handlers.script.load_dynamic_commands()
 
 
