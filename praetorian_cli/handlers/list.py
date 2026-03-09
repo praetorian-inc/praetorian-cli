@@ -12,7 +12,7 @@ def list():
 
 
 @list.command()
-@list_params('DNS', has_type=True)
+@list_params('group', has_type=True)
 def assets(chariot, filter, model_type, details, offset, page):
     """ List assets
 
@@ -30,7 +30,7 @@ def assets(chariot, filter, model_type, details, offset, page):
 
 
 @list.command()
-@list_params('DNS of the associated assets')
+@list_params('group of the associated assets')
 def risks(chariot, filter, details, offset, page):
     """ List risks
 
@@ -98,7 +98,7 @@ def integrations(chariot, filter, details, offset, page):
 
 
 @list.command()
-@list_params('DNS of the job asset')
+@list_params('group of the job asset')
 def jobs(chariot, filter, details, offset, page):
     """
     List jobs
@@ -177,7 +177,7 @@ def attributes(chariot, filter, key, details, offset, page):
 
 
 @list.command()
-@list_params('DNS')
+@list_params('group')
 @click.option('-t', '--type', help='Filter by seed type (e.g., asset, addomain)')
 def seeds(chariot, type, filter, details, offset, page):
     """ List seeds
@@ -198,7 +198,7 @@ def seeds(chariot, type, filter, details, offset, page):
 
 
 @list.command()
-@list_params('DNS')
+@list_params('group')
 def preseeds(chariot, filter, details, offset, page):
     """ List adjacent domain discovery patterns (pre-seeds)
 
