@@ -37,7 +37,7 @@ def asset(chariot, key, status, surface):
 @click.option('-s', '--status', type=click.Choice([s.value for s in Risk]), help=f'Status of the risk')
 @click.option('-c', '--comment', default='', help='Comment for the risk')
 @click.option('-r', '--remove-comment', type=int, default=None, help='Remove comment at index (0, 1, ... or -1 for most recent)')
-@click.option('--display-name', '-dn', default='', help='Human-readable display name for the risk')
+@click.option('--display-name', '-dn', default=None, help='Human-readable display name for the risk')
 def risk(chariot, key, status, comment, remove_comment, display_name):
     """ Update the status and comment of a risk
 

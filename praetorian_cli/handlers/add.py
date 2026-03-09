@@ -144,7 +144,7 @@ def webhook(sdk):
               help=f'Status of the risk')
 @click.option('-c', '--comment', default='', help='Comment for the risk')
 @click.option('-cap', '--capability', default='', help='Capability that discoverd the risk')
-@click.option('--display-name', '-dn', default='', help='Human-readable display name for the risk')
+@click.option('--display-name', '-dn', default=None, help='Human-readable display name for the risk')
 def risk(sdk, name, asset, status, comment, capability, display_name):
     """ Add a risk
 
