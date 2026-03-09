@@ -37,7 +37,8 @@ def asset(chariot, key, status, surface):
 @click.option('-s', '--status', type=click.Choice([s.value for s in Risk]), help=f'Status of the risk')
 @click.option('-c', '--comment', default='', help='Comment for the risk')
 @click.option('-r', '--remove-comment', type=int, default=None, help='Remove comment at index (0, 1, ... or -1 for most recent)')
-def risk(chariot, key, status, comment, remove_comment):
+@click.option('--display-name', '-dn', default='', help='Human-readable display name for the risk')
+def risk(chariot, key, status, comment, remove_comment, display_name):
     """ Update the status and comment of a risk
 
     \b
@@ -54,7 +55,7 @@ def risk(chariot, key, status, comment, remove_comment):
     if comment and remove_comment is not None:
         raise click.UsageError("Cannot use --comment and --remove-comment together")
 
-    chariot.risks.update(key, status, comment, remove_comment)
+    chariot.risks.update(key, status, comment, remove_comment, display_name)
 
 
 @update.command()
