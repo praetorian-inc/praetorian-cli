@@ -17,6 +17,18 @@ def handle_set(menu, args):
     if selected_agent:
         menu.selected_agent = selected_agent
         hostname = selected_agent.hostname
+
+        # In multi-account mode, assume into the agent's account so SDK
+        # calls (asset search, domain lookup, etc.) target the right tenant.
+        if getattr(menu, 'multi_account_mode', False):
+            acct_info = menu.agent_account_map.get(selected_agent.client_id, {})
+            acct_email = acct_info.get('account_email')
+            if acct_email:
+                try:
+                    menu.sdk.accounts.assume_role(acct_email)
+                except Exception as e:
+                    menu.console.print(f"[{colors['warning']}]  Warning: failed to assume account {acct_email}: {e}[/{colors['warning']}]")
+
         menu.console.print(f"\n  Selected: {hostname}\n")
         # Pre-fetch home directory listing so cp tab-completion is instant
         if hasattr(menu, 'prefetch_agent_home'):
