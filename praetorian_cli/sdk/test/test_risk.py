@@ -83,9 +83,11 @@ class TestRisk:
         assert risk['title'] == title
 
     def test_update_risk_with_title(self):
+        r = self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value, title='Original Title')
+        risk_key = r['key']
         title = f'Updated Title {self.risk_name}'
-        self.sdk.risks.update(self.risk_key, title=title)
-        risk = self.get_risk()
+        self.sdk.risks.update(risk_key, title=title)
+        risk = self.sdk.risks.get(risk_key)
         assert risk['title'] == title
 
     def teardown_class(self):
