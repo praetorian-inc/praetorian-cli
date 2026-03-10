@@ -24,6 +24,20 @@ from .job_helpers import (
 )
 
 
+def _assume_schedule_account(menu, schedule_id):
+    """In multi-account mode, assume into the account owning this schedule."""
+    if not getattr(menu, 'multi_account_mode', False):
+        return True
+    acct_info = getattr(menu, 'schedule_account_map', {}).get(schedule_id, {})
+    acct_email = acct_info.get('account_email')
+    if acct_email:
+        try:
+            menu.sdk.accounts.assume_role(acct_email)
+        except Exception:
+            return False
+    return True
+
+
 def handle_schedule(menu, args):
     """Handle schedule command with subcommands: list, view, add, edit, delete, pause, resume."""
     if not args:
@@ -86,12 +100,12 @@ def list_schedules(menu):
         if multi_account and getattr(menu, 'selected_accounts', None):
             schedule_tuples = load_schedules_for_accounts(menu.sdk, menu.selected_accounts)
             schedules = [s for s, _ in schedule_tuples]
-            schedule_account_map = {}
+            menu.schedule_account_map = {}
             for sched, acct_info in schedule_tuples:
-                schedule_account_map[sched.get('scheduleId', '')] = acct_info
+                menu.schedule_account_map[sched.get('scheduleId', '')] = acct_info
         else:
             schedules, _ = menu.sdk.schedules.list()
-            schedule_account_map = {}
+            menu.schedule_account_map = {}
 
         if not schedules:
             menu.console.print("\n  No scheduled jobs found\n")
@@ -169,7 +183,7 @@ def list_schedules(menu):
 
             row_cells = []
             if multi_account:
-                acct_info = schedule_account_map.get(schedule.get('scheduleId', ''), {})
+                acct_info = menu.schedule_account_map.get(schedule.get('scheduleId', ''), {})
                 acct_name = truncate_email(acct_info.get('display_name', ''), 19)
                 acct_status = acct_info.get('status', '')
                 acct_status_style = colors['success'] if acct_status.upper() == 'ACTIVE' else colors['dim']
@@ -201,6 +215,8 @@ def view_schedule(menu, args):
             menu.console.print(f"\n  Schedule not found: {suggested_id}")
         menu.pause()
         return
+
+    _assume_schedule_account(menu, schedule_id)
 
     try:
         # Use cached agent lookup from menu
@@ -413,6 +429,8 @@ def edit_schedule(menu, args):
         menu.pause()
         return
 
+    _assume_schedule_account(menu, schedule_id)
+
     try:
         menu.console.print(f"\n  [bold {colors['primary']}]Edit Schedule: {schedule_id[:10]}[/]")
         menu.console.print(f"  Capability: {schedule.get('capabilityName', 'N/A')}")
@@ -485,6 +503,8 @@ def delete_schedule(menu, args):
         menu.pause()
         return
 
+    _assume_schedule_account(menu, schedule_id)
+
     try:
         menu.console.print(f"\n  Schedule: {schedule_id[:10]}")
         menu.console.print(f"  Capability: {schedule.get('capabilityName', 'N/A')}")
@@ -520,6 +540,8 @@ def pause_schedule(menu, args):
         menu.pause()
         return
 
+    _assume_schedule_account(menu, full_id)
+
     try:
         result = menu.sdk.schedules.pause(full_id)
         invalidate_schedule_cache(menu)
@@ -546,6 +568,8 @@ def resume_schedule(menu, args):
             menu.console.print(f"\n[{colors['error']}]Schedule not found: {suggested_id}[/{colors['error']}]")
         menu.pause()
         return
+
+    _assume_schedule_account(menu, full_id)
 
     try:
         result = menu.sdk.schedules.resume(full_id)
