@@ -173,8 +173,13 @@ class TestDiscoverAegisAccounts:
         mock_requests.get.side_effect = _mock_requests_get(agents_map, {})
         discover_aegis_accounts(sdk)
 
-        # Should have made bulk metadata calls + per-account agent checks
-        assert mock_requests.get.call_count >= 2
+        # Verify per-account agent checks were made with correct account headers
+        checked_accounts = {
+            call.kwargs.get('headers', {}).get('account')
+            for call in mock_requests.get.call_args_list
+            if '/agent/enhanced' in call.args[0]
+        }
+        assert checked_accounts == {'a@praetorian.com', 'b@praetorian.com'}
 
     @patch('praetorian_cli.sdk.entities.account_discovery.requests')
     def test_frozen_account_shows_paused(self, mock_requests):

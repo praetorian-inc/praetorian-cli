@@ -29,7 +29,7 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
         account_email, display_name, status, account_type, agent_count
     """
     accounts, _ = sdk.accounts.list()
-    current = sdk.accounts.current_principal()
+    current = sdk.accounts.login_principal()
 
     # Get unique authorized account emails (accounts we can assume into)
     authorized = set()
@@ -44,6 +44,7 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
     # Pre-compute shared values
     base_url = sdk.keychain.base_url()
     auth_headers = dict(sdk.keychain.headers())
+    auth_headers.pop('account', None)  # Ensure tenant-agnostic bulk fetch
 
     # Fetch all metadata in bulk (3 calls instead of N*2 per-account calls)
     metadata = _fetch_all_metadata(base_url, auth_headers)

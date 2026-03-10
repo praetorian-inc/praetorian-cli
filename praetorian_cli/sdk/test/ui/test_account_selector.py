@@ -106,16 +106,29 @@ class TestAccountSelector:
 
 
 class TestNoAccountDetection:
-    def test_keychain_account_none_triggers_multi_account(self):
+    @patch('praetorian_cli.sdk.entities.account_discovery.discover_aegis_accounts', return_value=[])
+    def test_keychain_account_none_triggers_multi_account(self, mock_discover):
+        from praetorian_cli.ui.aegis.menu import run_aegis_menu
+
         sdk = MagicMock()
         sdk.keychain.account = None
-        sdk.is_praetorian_user.return_value = True
 
-        assert sdk.keychain.account is None
-        assert sdk.is_praetorian_user()
+        run_aegis_menu(sdk)
 
-    def test_keychain_account_set_skips_multi_account(self):
+        mock_discover.assert_called_once()
+
+    @patch('praetorian_cli.sdk.entities.account_discovery.discover_aegis_accounts')
+    def test_keychain_account_set_skips_multi_account(self, mock_discover):
+        from praetorian_cli.ui.aegis.menu import run_aegis_menu
+
         sdk = MagicMock()
         sdk.keychain.account = 'client@praetorian.com'
 
-        assert sdk.keychain.account is not None
+        with patch('praetorian_cli.ui.aegis.menu.AegisMenu') as mock_menu_cls:
+            mock_menu_instance = MagicMock()
+            mock_menu_cls.return_value = mock_menu_instance
+            run_aegis_menu(sdk)
+
+        mock_discover.assert_not_called()
+        mock_menu_cls.assert_called_once_with(sdk)
+        mock_menu_instance.run.assert_called_once()
