@@ -265,7 +265,7 @@ def _expand_status_code(code: str) -> str:
 
 
 def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=None) -> List[tuple]:
-    """Load agents from multiple accounts concurrently.
+    """Load agents from multiple accounts concurrently with retry.
 
     Args:
         sdk: Chariot SDK instance
@@ -273,7 +273,9 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
         on_progress: Optional callback(checked: int, total: int, display_name: str)
 
     Returns:
-        List of (Agent, account_info) tuples.
+        Tuple of (agent_tuples, failed_account_names) where agent_tuples is
+        a list of (Agent, account_info) tuples and failed_account_names is
+        a list of display names for accounts that failed after retry.
     """
     from praetorian_cli.sdk.entities.aegis import Agent
 
@@ -281,9 +283,10 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
     auth_headers = dict(sdk.keychain.headers())
     total = len(selected_accounts)
     checked = [0]
+    failed_accounts = []
     lock = threading.Lock()
 
-    def _load_one(acct):
+    def _load_one(acct, attempt=1):
         email = acct['account_email']
         try:
             headers = dict(auth_headers)
@@ -295,11 +298,11 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
             )
             if resp.status_code == 200:
                 return [(Agent.from_dict(d), acct) for d in resp.json()]
-            logger.debug('Agent load for %s returned status %d', email, resp.status_code)
-            return []
+            logger.debug('Agent load for %s returned status %d (attempt %d)', email, resp.status_code, attempt)
+            return None  # Signal failure (distinct from empty account)
         except Exception as e:
-            logger.debug('Agent load failed for %s: %s', email, e)
-            return []
+            logger.debug('Agent load failed for %s: %s (attempt %d)', email, e, attempt)
+            return None
         finally:
             with lock:
                 checked[0] += 1
@@ -307,12 +310,41 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
                     on_progress(checked[0], total, acct.get('display_name', email))
 
     results = []
+    retry_accounts = []
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(_load_one, acct): acct for acct in selected_accounts}
         for future in as_completed(futures):
-            results.extend(future.result())
+            result = future.result()
+            if result is None:
+                retry_accounts.append(futures[future])
+            else:
+                results.extend(result)
 
-    return results
+    # Retry failed accounts once
+    if retry_accounts:
+        logger.debug('Retrying %d failed account(s)', len(retry_accounts))
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(_load_one, acct, 2): acct for acct in retry_accounts}
+            for future in as_completed(futures):
+                result = future.result()
+                if result is None:
+                    acct = futures[future]
+                    with lock:
+                        failed_accounts.append(acct.get('display_name', acct['account_email']))
+                else:
+                    results.extend(result)
+
+    if failed_accounts:
+        logger.warning('Failed to load agents for: %s', ', '.join(failed_accounts))
+
+    # Sort deterministically by account name then hostname to avoid
+    # non-deterministic ordering from concurrent thread completion.
+    results.sort(key=lambda t: (
+        t[1].get('display_name', '').lower(),
+        t[0].hostname.lower() if t[0].hostname else '',
+    ))
+
+    return results, failed_accounts
 
 
 def load_schedules_for_accounts(sdk, selected_accounts: List[dict]) -> List[tuple]:

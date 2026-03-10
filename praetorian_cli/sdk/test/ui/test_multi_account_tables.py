@@ -53,11 +53,11 @@ class TestMultiAccountAgentLoading:
         agent3 = _make_agent('srv3')
 
         with patch('praetorian_cli.ui.aegis.menu.load_agents_for_accounts') as mock_load:
-            mock_load.return_value = [
+            mock_load.return_value = ([
                 (agent1, menu.selected_accounts[0]),
                 (agent2, menu.selected_accounts[0]),
                 (agent3, menu.selected_accounts[1]),
-            ]
+            ], [])
             menu.load_agents()
 
         assert len(menu.agents) == 3

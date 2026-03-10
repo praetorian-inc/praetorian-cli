@@ -260,13 +260,13 @@ class TestLoadAgentsForAccounts:
             {'account_email': 'acme@praetorian.com', 'display_name': 'Acme', 'status': 'Active'},
             {'account_email': 'beta@praetorian.com', 'display_name': 'Beta', 'status': 'Completed'},
         ]
-        result = load_agents_for_accounts(sdk, selected)
+        result, failed = load_agents_for_accounts(sdk, selected)
 
         assert len(result) == 3
-        # Results come from concurrent threads, sort for stable assertions
-        by_acct = sorted(result, key=lambda r: r[1]['display_name'])
-        assert by_acct[0][1]['display_name'] == 'Acme'
-        assert by_acct[2][1]['display_name'] == 'Beta'
+        assert failed == []
+        # Results are now sorted deterministically by account name, hostname
+        assert result[0][1]['display_name'] == 'Acme'
+        assert result[2][1]['display_name'] == 'Beta'
 
     @patch('praetorian_cli.sdk.entities.account_discovery.requests')
     def test_loads_schedules_from_multiple_accounts(self, mock_requests):

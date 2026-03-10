@@ -697,7 +697,7 @@ class AegisMenu:
                     )
 
                 try:
-                    agent_tuples = load_agents_for_accounts(self.sdk, self.selected_accounts, on_progress=_on_progress)
+                    agent_tuples, failed = load_agents_for_accounts(self.sdk, self.selected_accounts, on_progress=_on_progress)
                     self.agents = []
                     self.agent_account_map = {}
                     for agent, acct_info in agent_tuples:
@@ -705,6 +705,9 @@ class AegisMenu:
                         self.agent_account_map[agent.client_id] = acct_info
                 finally:
                     status.stop()
+
+                if failed:
+                    self.console.print(f"[{self.colors['warning']}]Failed to load agents for: {', '.join(failed)}[/{self.colors['warning']}]")
             else:
                 with self.console.status(
                     f"[{self.colors['dim']}]Loading agents...[/{self.colors['dim']}]",
