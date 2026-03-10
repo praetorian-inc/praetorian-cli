@@ -76,5 +76,17 @@ class TestRisk:
     def get_risk(self):
         return self.sdk.risks.get(self.risk_key)
 
+    def test_add_risk_with_title(self):
+        title = f'Test Title {self.risk_name}'
+        r = self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value, title=title)
+        risk = self.sdk.risks.get(r['key'])
+        assert risk['title'] == title
+
+    def test_update_risk_with_title(self):
+        title = f'Updated Title {self.risk_name}'
+        self.sdk.risks.update(self.risk_key, title=title)
+        risk = self.get_risk()
+        assert risk['title'] == title
+
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
