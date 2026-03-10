@@ -148,7 +148,7 @@ def run_job(menu, args):
         if not target_key:
             menu.console.print(f"  [{colors['error']}]No asset found for domain '{domain}'.[/{colors['error']}]")
             menu.console.print(f"  [{colors['dim']}]The domain must exist as an asset before running jobs against it.[/{colors['dim']}]")
-            menu.console.print(f"  [{colors['dim']}]Add it first with: praetorian chariot add asset --dns {domain} --type addomain[/{colors['dim']}]")
+            menu.console.print(f"  [{colors['dim']}]Add it first with: praetorian chariot add asset --group {domain} --type addomain[/{colors['dim']}]")
             menu.pause()
             return
 

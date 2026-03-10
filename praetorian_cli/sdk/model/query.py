@@ -302,6 +302,7 @@ class Relationship:
 class Node:
     class Label(Enum):
         ASSET = 'Asset'
+        GENERIC = 'Generic'
         REPOSITORY = 'Repository'
         INTEGRATION = 'Integration'
         ADDOMAIN = 'ADDomain'
@@ -389,6 +390,7 @@ WEBPAGE_NODE = [Node.Label.WEBPAGE]
 
 KIND_TO_LABEL = {
     Kind.ASSET.value: Node.Label.ASSET,
+    Kind.GENERIC.value: Node.Label.GENERIC,
     Kind.RISK.value: Node.Label.RISK,
     Kind.ATTRIBUTE.value: Node.Label.ATTRIBUTE,
     Kind.PORT.value: Node.Label.PORT,

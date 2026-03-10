@@ -100,6 +100,7 @@ class AgentType(Enum):
 
 class Kind(Enum):
     ASSET = 'asset'
+    GENERIC = 'generic'
     REPOSITORY = 'repository'
     INTEGRATION = 'integration'
     ADDOMAIN = 'addomain'
