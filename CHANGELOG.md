@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.3.3
+- [New Feature] Updated to allow for the new Full-text search field in Guard queries.
+
 # 2.3.2
 - [Bug fix] Change the authentication headers
 
