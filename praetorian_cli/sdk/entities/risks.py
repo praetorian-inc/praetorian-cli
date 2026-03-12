@@ -103,7 +103,7 @@ class Risks:
         """
         List risks with optional filtering and pagination.
 
-        :param contains_filter: Fulltext search term to apply to risks. Uses Lucene-indexed fulltext search across risk fields.
+        :param contains_filter: Filter to apply to the risk key. Ensure the risk's key contains the filter.
         :type contains_filter: str
         :param offset: The offset of the page you want to retrieve results. If not supplied, retrieves from the first page
         :type offset: str or None
