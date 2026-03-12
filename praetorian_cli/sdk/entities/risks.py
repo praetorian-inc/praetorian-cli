@@ -1,5 +1,5 @@
 from praetorian_cli.sdk.model.globals import Kind
-from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, PORT_NODE, Filter, WEBPAGE_NODE
+from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, PORT_NODE, WEBPAGE_NODE
 
 
 class Risks:
@@ -112,15 +112,10 @@ class Risks:
         :return: A tuple containing (list of matching risks, next page offset)
         :rtype: tuple
         """
-        filters = []
-        if contains_filter:
-            contains_filter_filter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.CONTAINS, value=contains_filter)
-            filters.append(contains_filter_filter)
-
         query = Query(
             Node(
                 labels=[Node.Label.RISK],
-                filters=filters
+                search=contains_filter if contains_filter else None
             )
         )
 
