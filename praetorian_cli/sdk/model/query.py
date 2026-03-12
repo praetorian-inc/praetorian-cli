@@ -333,10 +333,11 @@ class Node:
         ADISSUANCEPOLICY = 'ADIssuancePolicy'
 
     def __init__(self, labels: list[Label] = None, filters: list[Filter] = None,
-                 relationships: list[Relationship] = None):
+                 relationships: list[Relationship] = None, search: str = None):
         self.labels = labels
         self.filters = filters
         self.relationships = relationships
+        self.search = search
 
     def to_dict(self):
         ret = dict()
@@ -344,6 +345,8 @@ class Node:
             ret |= dict(labels=[x.value for x in self.labels])
         if self.filters:
             ret |= dict(filters=[x.to_dict() for x in self.filters])
+        if self.search:
+            ret |= dict(search=self.search)
         if self.relationships:
             ret |= dict(relationships=[x.to_dict() for x in self.relationships])
         return ret

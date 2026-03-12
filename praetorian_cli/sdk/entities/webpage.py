@@ -122,10 +122,8 @@ class Webpage:
             parentFilter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.EQUAL, value=parent_key)
             relationship = Relationship(label=Relationship.Label.HAS_WEBPAGE, target=Node(labels=[Node.Label.WEBAPPLICATION], filters=[parentFilter]))
             relationships.append(relationship)
-        if filter:
-            urlFilter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.CONTAINS, value=filter)
-            filters.append(urlFilter)
-        node = Node(labels=[Node.Label.WEBPAGE], filters=filters, relationships=relationships)
+        node = Node(labels=[Node.Label.WEBPAGE], filters=filters, relationships=relationships,
+                    search=filter if filter else None)
         query = Query(node=node, page=offset)
         return self.api.search.by_query(query, pages)
 
