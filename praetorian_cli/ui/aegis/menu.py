@@ -28,8 +28,9 @@ from prompt_toolkit.history import InMemoryHistory
 
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.model.aegis import Agent
+from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts, truncate_email
 
-from .theme import AEGIS_RICH_THEME
+from .theme import AEGIS_RICH_THEME, AEGIS_COLORS
 from .utils import (
     relative_time, format_os_display,
     compute_agent_groups, get_agent_display_style
@@ -374,6 +375,11 @@ class AegisMenu:
         
         self._active_proxies: dict = {}
 
+        # Multi-account state
+        self.multi_account_mode = False
+        self.selected_accounts: list = []
+        self.agent_account_map: dict = {}  # client_id -> account_info dict
+
         self.commands = [
             'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
@@ -447,6 +453,8 @@ class AegisMenu:
             
         elif command in ['r', 'reload']:
             self.reload_agents()
+            self.show_agents_list()
+            self.pause()
             
         elif command == 'clear':
             self.clear_screen()
@@ -560,6 +568,10 @@ class AegisMenu:
             pad_edge=False
         )
         
+        if self.multi_account_mode:
+            table.add_column("ACCOUNT", style=f"{self.colors['dim']}", width=19, no_wrap=True)
+            table.add_column("ACCT STATUS", width=12, no_wrap=True)
+
         table.add_column("", style=f"{self.colors['dim']}", width=4, justify="right", no_wrap=True)
         table.add_column("HOSTNAME", style="white", min_width=25, no_wrap=False)
         table.add_column("OS", style=f"{self.colors['dim']}", width=16, no_wrap=True)
@@ -592,14 +604,24 @@ class AegisMenu:
             else:
                 last_seen = "—"
             
-            table.add_row(
+            row_cells = []
+            if self.multi_account_mode:
+                acct_info = self.agent_account_map.get(agent.client_id, {})
+                acct_name = truncate_email(acct_info.get('display_name', ''), 19)
+                acct_status = acct_info.get('status', '')
+                acct_status_style = self.colors['success'] if acct_status.upper() == 'ACTIVE' else self.colors['dim']
+                row_cells.append(Text(acct_name, style=self.colors['dim']))
+                row_cells.append(Text(acct_status, style=acct_status_style))
+
+            row_cells.extend([
                 Text(str(i), style=idx_style),
                 Text(hostname, style=hostname_style),
                 os_display,
                 status,
                 tunnel,
-                last_seen
-            )
+                last_seen,
+            ])
+            table.add_row(*row_cells)
         
         self.console.print(table)
         self.console.print()
@@ -655,21 +677,52 @@ class AegisMenu:
             return "quit"
 
     def load_agents(self) -> None:
-        """Load agents from SDK and build lookup cache"""
-        try:
-            with self.console.status(
-                f"[{self.colors['dim']}]Loading agents...[/{self.colors['dim']}]",
-                spinner="dots",
-                spinner_style=f"{self.colors['primary']}"
-            ):
-                agents, _ = self.sdk.aegis.list()
-                self.agents = agents or []
+        """Load agents from SDK and build lookup cache.
 
-                # Build agent_lookup for fast client_id -> hostname mapping
-                self.agent_lookup = {}
-                for agent in self.agents:
-                    if agent.client_id and agent.hostname:
-                        self.agent_lookup[agent.client_id] = agent.hostname
+        In multi-account mode, aggregates agents from all selected accounts
+        and maintains agent_account_map for account context display.
+        """
+        try:
+            if self.multi_account_mode and self.selected_accounts:
+                status = self.console.status(
+                    f"[{self.colors['dim']}]Loading agents...[/{self.colors['dim']}]",
+                    spinner="dots",
+                    spinner_style=f"{self.colors['primary']}"
+                )
+                status.start()
+
+                def _on_progress(checked, total, name):
+                    status.update(
+                        f"[{self.colors['dim']}]Loading agents... ({checked}/{total}) {name}[/{self.colors['dim']}]"
+                    )
+
+                try:
+                    agent_tuples, failed = load_agents_for_accounts(self.sdk, self.selected_accounts, on_progress=_on_progress)
+                    self.agents = []
+                    self.agent_account_map = {}
+                    for agent, acct_info in agent_tuples:
+                        self.agents.append(agent)
+                        self.agent_account_map[agent.client_id] = acct_info
+                finally:
+                    status.stop()
+
+                if failed:
+                    self.console.print(f"[{self.colors['warning']}]Failed to load agents for: {', '.join(failed)}[/{self.colors['warning']}]")
+            else:
+                with self.console.status(
+                    f"[{self.colors['dim']}]Loading agents...[/{self.colors['dim']}]",
+                    spinner="dots",
+                    spinner_style=f"{self.colors['primary']}"
+                ):
+                    agents, _ = self.sdk.aegis.list()
+                    self.agents = agents or []
+                    self.agent_account_map = {}
+
+            # Build agent_lookup for fast client_id -> hostname mapping
+            self.agent_lookup = {}
+            for agent in self.agents:
+                if agent.client_id and agent.hostname:
+                    self.agent_lookup[agent.client_id] = agent.hostname
 
             if self.verbose or not self.agents:
                 agent_count = len(self.agents)
@@ -682,6 +735,7 @@ class AegisMenu:
             self.console.print(f"[{self.colors['error']}]✗ Error loading agents: {e}[/{self.colors['error']}]")
             self.agents = []
             self.agent_lookup = {}
+            self.agent_account_map = {}
     
     def pause(self):
         """Professional pause with styling"""
@@ -691,6 +745,42 @@ class AegisMenu:
 
 
 def run_aegis_menu(sdk: Chariot) -> None:
-    """Run the Aegis menu interface"""
-    menu = AegisMenu(sdk)
-    menu.run()
+    """Run the Aegis menu interface.
+
+    If no account is selected (sdk.keychain.account is None), shows the
+    multi-account selector first. Otherwise runs single-account mode.
+    """
+    if not sdk.keychain.account:
+        # Multi-account mode: show account selector
+        from praetorian_cli.ui.aegis.account_selector import run_account_selector
+        from praetorian_cli.sdk.entities.account_discovery import discover_aegis_accounts
+
+        console = Console(theme=AEGIS_RICH_THEME)
+
+        with console.status(
+            f"[{AEGIS_COLORS['dim']}]Discovering accounts with aegis agents...[/{AEGIS_COLORS['dim']}]",
+            spinner="dots",
+            spinner_style=AEGIS_COLORS['primary'],
+        ) as status:
+            def _on_progress(checked, total, email):
+                status.update(
+                    f"[{AEGIS_COLORS['dim']}]Checking account {checked}/{total}: {email}[/{AEGIS_COLORS['dim']}]"
+                )
+
+            accounts = discover_aegis_accounts(sdk, on_progress=_on_progress)
+        if not accounts:
+            console.print(f"[{AEGIS_COLORS['warning']}]No accounts with aegis agents found.[/{AEGIS_COLORS['warning']}]")
+            return
+
+        selected = run_account_selector(accounts, AEGIS_COLORS, console)
+        if not selected:
+            return  # User cancelled
+
+        menu = AegisMenu(sdk)
+        menu.multi_account_mode = True
+        menu.selected_accounts = selected
+        menu.run()
+    else:
+        # Single-account mode (existing behavior)
+        menu = AegisMenu(sdk)
+        menu.run()
