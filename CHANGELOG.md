@@ -1,5 +1,10 @@
 # Changelog
 
+# 2.3.4
+- [New Feature] Added `--tag`/`-g` flag to `add risk` and `update risk` CLI commands for tagging risks
+- [New Feature] Added required `--role`/`-r` option (`admin`, `analyst`, `readonly`) to the `link account` CLI command for RBAC-aware collaborator account creation
+- [Bug Fix] Fixed tags in risk add/update being double-nested, which caused 400 errors from the API
+
 # 2.3.3
 - [New Feature] Updated to allow for the new Full-text search field in Guard queries.
 
