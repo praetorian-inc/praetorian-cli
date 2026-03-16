@@ -116,8 +116,6 @@ class TestZCli:
     def test_risk_tags_structure_cli(self):
         """Regression test: tags must be a flat list, not double-nested.
 
-        PR #183 introduced a bug where add/update set body['tags'] = {'tags': list(tags)}
-        instead of body['tags'] = list(tags), causing 400 errors from the API.
         The substring checks in test_risk_cli cannot detect this structural issue.
         """
         o = make_test_values(lambda: None)
