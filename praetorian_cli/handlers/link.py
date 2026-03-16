@@ -13,7 +13,10 @@ def link():
 @link.command()
 @cli_handler
 @click.argument('username')
-def account(chariot, username):
+@click.option('--role', '-r', required=True,
+              type=click.Choice(['admin', 'analyst', 'readonly'], case_sensitive=False),
+              help='Role to assign to the collaborator.')
+def account(chariot, username, role):
     """ Add a collaborator account to your account
 
     This allows them to assume access into your account
@@ -21,15 +24,14 @@ def account(chariot, username):
 
     \b
     Arguments:
-        - NAME: their email address
-
-
+        - USERNAME: their email address
 
     \b
     Example usages:
-        - guard link account john@praetorian.com
+        - guard link account john@praetorian.com --role admin
+        - guard link account analyst@example.com -r readonly
     """
-    chariot.accounts.add_collaborator(username)
+    chariot.accounts.add_collaborator(username, role=role)
 
 
 @link.command('webpage-source')

@@ -43,16 +43,18 @@ class Accounts:
 
         return results, next_offset
 
-    def add_collaborator(self, collaborator_email):
+    def add_collaborator(self, collaborator_email, role=''):
         """
         Add a collaborator to the account of the current principal.
 
         :param collaborator_email: Email address of the collaborator to add
         :type collaborator_email: str
+        :param role: Role to assign to the collaborator (admin, analyst, or readonly)
+        :type role: str
         :return: The created account entity with member information
         :rtype: dict
         """
-        return self.api.link_account(collaborator_email)
+        return self.api.link_account(collaborator_email, role=role)
 
     def delete_collaborator(self, collaborator_email):
         """
