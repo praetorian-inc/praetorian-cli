@@ -87,7 +87,8 @@ class TestZCli:
         o = make_test_values(lambda: None)
         self.verify(f'add asset -i {o.asset_name} -g {o.asset_dns}')
 
-        self.verify(f'add risk {o.risk_name} -a "{o.asset_key}" -s {AddRisk.TRIAGE_HIGH.value}')
+        self.verify(f'add risk {o.risk_name} -a "{o.asset_key}" -s {AddRisk.TRIAGE_HIGH.value} -g critical -g needs-review')
+        self.verify(f'get risk "{o.risk_key}"', ['"tags"', '"critical"', '"needs-review"'])
 
         self.verify('list risks -p all', [o.risk_key])
         self.verify(f'list risks -f "{o.asset_dns}"', [o.risk_key])
@@ -101,6 +102,9 @@ class TestZCli:
 
         self.verify(f'update risk "{o.risk_key}" -s {Risk.OPEN_LOW.value}')
         self.verify(f'get risk "{o.risk_key}"', [o.risk_key, f'"status": "{Risk.OPEN_LOW.value}"'])
+
+        self.verify(f'update risk "{o.risk_key}" -g resolved -g verified')
+        self.verify(f'get risk "{o.risk_key}"', ['"tags"', '"resolved"', '"verified"'])
 
         self.verify(f'delete risk "{o.risk_key}" -s {Risk.DELETED_OTHER_LOW.value}')
         self.verify(f'get risk "{o.risk_key}"', [

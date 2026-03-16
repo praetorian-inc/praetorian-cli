@@ -90,5 +90,19 @@ class TestRisk:
         risk = self.sdk.risks.get(risk_key)
         assert risk['title'] == title
 
+    def test_add_risk_with_tags(self):
+        tags = ('critical', 'needs-review')
+        r = self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value, tags=tags)
+        risk = self.sdk.risks.get(r['key'])
+        assert risk['tags']['tags'] == list(tags)
+
+    def test_update_risk_with_tags(self):
+        r = self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value)
+        risk_key = r['key']
+        tags = ('resolved', 'verified')
+        self.sdk.risks.update(risk_key, tags=tags)
+        risk = self.sdk.risks.get(risk_key)
+        assert risk['tags']['tags'] == list(tags)
+
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
