@@ -34,7 +34,7 @@ class Risks:
         if title is not None:
             body['title'] = title
         if tags:
-            body['tags'] = {'tags': list(tags)}
+            body['tags'] = list(tags)
         return self.api.upsert('risk', body)['risks'][0]
 
     def get(self, key, details=False):
@@ -80,7 +80,7 @@ class Risks:
         if title is not None:
             params['title'] = title
         if tags:
-            params['tags'] = {'tags': list(tags)}
+            params['tags'] = list(tags)
         if remove_comment is not None:
             index = self.resolve_comment_entry_index(key, remove_comment)
             params = params | dict(remove=index)
