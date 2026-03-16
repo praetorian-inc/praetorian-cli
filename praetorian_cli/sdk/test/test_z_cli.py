@@ -113,6 +113,37 @@ class TestZCli:
 
         clean_test_entities(self.sdk, o)
 
+    def test_risk_tags_structure_cli(self):
+        """Regression test: tags must be a flat list, not double-nested.
+
+        PR #183 introduced a bug where add/update set body['tags'] = {'tags': list(tags)}
+        instead of body['tags'] = list(tags), causing 400 errors from the API.
+        The substring checks in test_risk_cli cannot detect this structural issue.
+        """
+        o = make_test_values(lambda: None)
+        self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
+
+        # Verify add risk with tags produces correct structure
+        self.verify(f'add risk {o.risk_name} -a "{o.asset_key}" -s {AddRisk.TRIAGE_HIGH.value} -g phase_web -g needs-triage',
+                    ignore_stdout=True)
+        risk = self.run_json(f'get risk "{o.risk_key}"')
+        assert isinstance(risk['tags']['tags'], list), \
+            f'Expected tags.tags to be a list, got {type(risk["tags"]["tags"])}: {risk["tags"]}'
+        assert all(isinstance(t, str) for t in risk['tags']['tags']), \
+            f'Expected all tags to be strings, got: {risk["tags"]["tags"]}'
+        assert set(risk['tags']['tags']) == {'phase_web', 'needs-triage'}
+
+        # Verify update risk with tags produces correct structure
+        self.verify(f'update risk "{o.risk_key}" -g resolved -g verified', ignore_stdout=True)
+        risk = self.run_json(f'get risk "{o.risk_key}"')
+        assert isinstance(risk['tags']['tags'], list), \
+            f'Expected tags.tags to be a list after update, got {type(risk["tags"]["tags"])}: {risk["tags"]}'
+        assert all(isinstance(t, str) for t in risk['tags']['tags']), \
+            f'Expected all tags to be strings after update, got: {risk["tags"]["tags"]}'
+        assert set(risk['tags']['tags']) == {'resolved', 'verified'}
+
+        clean_test_entities(self.sdk, o)
+
     def test_definition_cli(self):
         definition_name = f'test-definition-{epoch_micro()}'
         local_filepath = f'{definition_name}.md'
@@ -399,6 +430,14 @@ class TestZCli:
         self.verify('configure --help', expected_stdout=['Configure the CLI'])
         self.verify('--help', expected_stdout=['configure', 'list', 'add', 'delete', 'update'])
         self.verify('list --help', expected_stdout=['assets', 'risks', 'accounts'])
+
+    def run_json(self, command):
+        """Run a CLI command and return parsed JSON output."""
+        result = run(f'guard --profile "{self.sdk.keychain.profile}" {command}', capture_output=True,
+                     text=True, shell=True)
+        assert result.returncode == 0, f'CLI "{command}" failed with exit code {result.returncode}; stderr: {result.stderr}'
+        assert len(result.stderr) == 0, f'CLI "{command}" should not have content in stderr; instead, got {result.stderr}'
+        return json.loads(result.stdout)
 
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
         result = run(f'guard --profile "{self.sdk.keychain.profile}" {command}', capture_output=True,
