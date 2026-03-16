@@ -38,7 +38,8 @@ def asset(chariot, key, status, surface):
 @click.option('-c', '--comment', default='', help='Comment for the risk')
 @click.option('-r', '--remove-comment', type=int, default=None, help='Remove comment at index (0, 1, ... or -1 for most recent)')
 @click.option('--title', '-t', default=None, help='Human-readable title for the risk')
-def risk(chariot, key, status, comment, remove_comment, title):
+@click.option('-g', '--tag', 'tags', multiple=True, help='Tag for the risk (can be specified multiple times)')
+def risk(chariot, key, status, comment, remove_comment, title, tags):
     """ Update the status and comment of a risk
 
     \b
@@ -51,11 +52,12 @@ def risk(chariot, key, status, comment, remove_comment, title):
         - guard update risk "#risk#www.example.com#open-ssh-port" --status RH --comment "John stopped sshd on the server"
         - guard update risk "#risk#www.example.com#CVE-2024-23049" --remove-comment 0
         - guard update risk "#risk#www.example.com#CVE-2024-23049" --remove-comment -1
+        - guard update risk "#risk#www.example.com#CVE-2024-23049" --tag resolved --tag verified
     """
     if comment and remove_comment is not None:
         raise click.UsageError("Cannot use --comment and --remove-comment together")
 
-    chariot.risks.update(key, status, comment, remove_comment, title)
+    chariot.risks.update(key, status, comment, remove_comment, title, tags)
 
 
 @update.command()
