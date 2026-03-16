@@ -79,7 +79,7 @@ class Risks:
             params = params | dict(comment=comment)
         if title is not None:
             params['title'] = title
-        if tags is not None:
+        if tags:
             params['tags'] = {'tags': list(tags)}
         if remove_comment is not None:
             index = self.resolve_comment_entry_index(key, remove_comment)
