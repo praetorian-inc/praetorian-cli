@@ -18,7 +18,7 @@ class TestZCli:
     def test_asset_cli(self):
         o = make_test_values(lambda: None)
 
-        self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
+        self.verify(f'add asset -i {o.asset_name} -g {o.asset_dns}')
 
         self.verify('list assets -p all', [o.asset_key])
         self.verify(f'list assets -f "#asset#{o.asset_dns}"', [o.asset_key])
@@ -85,7 +85,7 @@ class TestZCli:
 
     def test_risk_cli(self):
         o = make_test_values(lambda: None)
-        self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
+        self.verify(f'add asset -i {o.asset_name} -g {o.asset_dns}')
 
         self.verify(f'add risk {o.risk_name} -a "{o.asset_key}" -s {AddRisk.TRIAGE_HIGH.value} -g critical -g needs-review')
         self.verify(f'get risk "{o.risk_key}"', ['"tags"', '"critical"', '"needs-review"'])
@@ -158,7 +158,7 @@ class TestZCli:
 
     def test_attribute_cli(self):
         o = make_test_values(lambda: None)
-        self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
+        self.verify(f'add asset -i {o.asset_name} -g {o.asset_dns}')
         self.verify(f'add attribute -n {o.attribute_name} -v {o.attribute_value} -k "{o.asset_key}"')
 
         self.verify('list attributes -p all', [o.asset_attribute_key])
@@ -175,7 +175,7 @@ class TestZCli:
 
     def test_search_cli(self):
         o = make_test_values(lambda: None)
-        self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
+        self.verify(f'add asset -i {o.asset_name} -g {o.asset_dns}')
 
         self.verify(f'search -t "#asset#{o.asset_dns}" -p all', [o.asset_key])
         self.verify(f'search -t "#asset#{o.asset_dns}" -p all --desc', [o.asset_key])

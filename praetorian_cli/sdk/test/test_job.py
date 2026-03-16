@@ -12,6 +12,12 @@ class TestJob:
         self.sdk = setup_chariot()
         make_test_values(self)
 
+        self.was_frozen = False
+        frozen_setting = self.sdk.settings.get('#setting#frozen')
+        if frozen_setting and frozen_setting.get('value') == 'true':
+            self.was_frozen = True
+            self.sdk.settings.add('frozen', 'false')
+
     def test_add_job(self):
         result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
         self.sdk.jobs.add(result['key'])
@@ -48,3 +54,5 @@ class TestJob:
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
+        if self.was_frozen:
+            self.sdk.settings.add('frozen', 'true')

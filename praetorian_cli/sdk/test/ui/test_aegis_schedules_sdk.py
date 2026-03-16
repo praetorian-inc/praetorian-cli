@@ -12,7 +12,7 @@ class TestCreate:
 
     def _make_schedules(self):
         api = MagicMock()
-        api.post.return_value = {'scheduleId': 'new-id', 'status': 'active'}
+        api.post.return_value = {'scheduleId': 'fff0-aaa1', 'status': 'active'}
         return Schedules(api), api
 
     def test_create_minimal_body(self):
@@ -67,7 +67,7 @@ class TestCreate:
             weekly_schedule=weekly,
             start_date='2024-01-15T00:00:00Z',
         )
-        assert result['scheduleId'] == 'new-id'
+        assert result['scheduleId'] == 'fff0-aaa1'
 
 
 class TestUpdate:
@@ -75,17 +75,17 @@ class TestUpdate:
 
     def _make_schedules(self):
         api = MagicMock()
-        api.put.return_value = {'scheduleId': 'test-id', 'status': 'active'}
+        api.put.return_value = {'scheduleId': 'aaa0-bbb1', 'status': 'active'}
         return Schedules(api), api
 
     def test_update_only_weekly_schedule(self):
         sched, api = self._make_schedules()
         weekly = {'tuesday': {'enabled': True, 'time': '14:00'}}
 
-        sched.update(schedule_id='test-id', weekly_schedule=weekly)
+        sched.update(schedule_id='aaa0-bbb1', weekly_schedule=weekly)
 
         api.put.assert_called_once()
-        assert api.put.call_args[0][0] == 'capability/schedule/test-id'
+        assert api.put.call_args[0][0] == 'capability/schedule/aaa0-bbb1'
         body = api.put.call_args[0][1]
         assert body['weeklySchedule'] == weekly
         assert 'startDate' not in body
@@ -94,7 +94,7 @@ class TestUpdate:
     def test_update_no_fields_sends_empty_body(self):
         sched, api = self._make_schedules()
 
-        sched.update(schedule_id='test-id')
+        sched.update(schedule_id='aaa0-bbb1')
 
         body = api.put.call_args[0][1]
         assert body == {}
@@ -108,9 +108,9 @@ class TestDelete:
         api.delete.return_value = {}
         sched = Schedules(api)
 
-        sched.delete('del-id')
+        sched.delete('ddd0-eee1')
 
-        api.delete.assert_called_once_with('capability/schedule/del-id', {}, {})
+        api.delete.assert_called_once_with('capability/schedule/ddd0-eee1', {}, {})
 
 
 class TestPause:
@@ -118,12 +118,12 @@ class TestPause:
 
     def test_pause_calls_api_patch(self):
         api = MagicMock()
-        api.patch.return_value = {'scheduleId': 'sched-id', 'status': 'paused'}
+        api.patch.return_value = {'scheduleId': 'ccc0-ddd1', 'status': 'paused'}
         sched = Schedules(api)
 
-        result = sched.pause('sched-id')
+        result = sched.pause('ccc0-ddd1')
 
-        api.patch.assert_called_once_with('capability/schedule/sched-id/pause')
+        api.patch.assert_called_once_with('capability/schedule/ccc0-ddd1/pause')
         assert result['status'] == 'paused'
 
 
@@ -132,12 +132,12 @@ class TestResume:
 
     def test_resume_calls_api_patch(self):
         api = MagicMock()
-        api.patch.return_value = {'scheduleId': 'sched-id', 'status': 'active'}
+        api.patch.return_value = {'scheduleId': 'ccc0-ddd1', 'status': 'active'}
         sched = Schedules(api)
 
-        result = sched.resume('sched-id')
+        result = sched.resume('ccc0-ddd1')
 
-        api.patch.assert_called_once_with('capability/schedule/sched-id/resume')
+        api.patch.assert_called_once_with('capability/schedule/ccc0-ddd1/resume')
         assert result['status'] == 'active'
 
 
@@ -177,10 +177,10 @@ class TestGet:
     def test_get_builds_correct_key(self):
         api = MagicMock()
         api.search = MagicMock()
-        api.search.by_exact_key.return_value = {'scheduleId': 'test-id'}
+        api.search.by_exact_key.return_value = {'scheduleId': 'aaa0-bbb1'}
         sched = Schedules(api)
 
-        result = sched.get('test-id')
+        result = sched.get('aaa0-bbb1')
 
-        api.search.by_exact_key.assert_called_once_with('#capability_schedule#test-id')
-        assert result['scheduleId'] == 'test-id'
+        api.search.by_exact_key.assert_called_once_with('#capability_schedule#aaa0-bbb1')
+        assert result['scheduleId'] == 'aaa0-bbb1'
