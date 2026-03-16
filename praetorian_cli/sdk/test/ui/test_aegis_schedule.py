@@ -465,7 +465,7 @@ class TestAddSchedule:
 
         # Mock capability picker to return a capability name
         monkeypatch.setattr(
-            'praetorian_cli.ui.aegis.commands.schedule._interactive_capability_picker',
+            'praetorian_cli.ui.aegis.commands.schedule.interactive_capability_picker',
             lambda m: 'windows-smb-snaffler'
         )
 
