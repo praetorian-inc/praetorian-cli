@@ -209,7 +209,7 @@ class TestZCli:
     def test_account_cli(self):
         o = make_test_values(lambda: None)
 
-        self.verify(f'link account {o.email}')
+        self.verify(f'link account {o.email} --role admin')
         self.verify(f'list accounts', [o.email])
         self.verify(f'list accounts -d', [o.email, '"key"'])
         self.verify(f'list accounts -f {o.email}', [o.email])

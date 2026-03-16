@@ -183,8 +183,11 @@ class Chariot:
     def upsert(self, type: str, body: dict, params: dict = {}) -> dict:
         return self.put(type, body, params)
 
-    def link_account(self, username: str, value: str = '', config: dict = {}) -> dict:
-        resp = self.chariot_request('POST', self.url(f'/account/{username}'), json=dict(config=config, value=value))
+    def link_account(self, username: str, role: str = '', value: str = '', config: dict = {}) -> dict:
+        body = dict(config=config, value=value)
+        if role:
+            body['role'] = role
+        resp = self.chariot_request('POST', self.url(f'/account/{username}'), json=body)
         process_failure(resp)
         return resp.json()
 
