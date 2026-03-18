@@ -31,6 +31,6 @@ def test_list_loads_when_empty():
 def test_list_with_all_flag():
     menu = Menu(agents=[object()])
     handle_list(menu, ['--all'])
-    assert menu.loaded is False
+    assert menu.loaded is True  # always reloads for fresh last_seen_at
     assert menu.show_args == [True]
     assert menu.paused is True

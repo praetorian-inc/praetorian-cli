@@ -2,9 +2,11 @@
 
 from datetime import datetime, timezone
 from rich.table import Table
+from rich.text import Text
 from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
 from ..constants import DEFAULT_COLORS
+from praetorian_cli.sdk.entities.account_discovery import load_schedules_for_accounts, truncate_email
 from .schedule_helpers import (
     DAYS, DAY_ABBREVS,
     format_target, format_days, format_status,
@@ -20,6 +22,20 @@ from .job_helpers import (
     capability_needs_credentials,
     resolve_addomain_target_key,
 )
+
+
+def _assume_schedule_account(menu, schedule_id):
+    """In multi-account mode, assume into the account owning this schedule."""
+    if not getattr(menu, 'multi_account_mode', False):
+        return True
+    acct_info = getattr(menu, 'schedule_account_map', {}).get(schedule_id, {})
+    acct_email = acct_info.get('account_email')
+    if acct_email:
+        try:
+            menu.sdk.accounts.assume_role(acct_email)
+        except Exception:
+            return False
+    return True
 
 
 def handle_schedule(menu, args):
@@ -76,10 +92,20 @@ def show_schedule_help(menu):
 
 
 def list_schedules(menu):
-    """List all schedules for the current user."""
+    """List all schedules for the current user (or all selected accounts in multi-account mode)."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
+    multi_account = getattr(menu, 'multi_account_mode', False)
+
     try:
-        schedules, _ = menu.sdk.schedules.list()
+        if multi_account and getattr(menu, 'selected_accounts', None):
+            schedule_tuples = load_schedules_for_accounts(menu.sdk, menu.selected_accounts)
+            schedules = [s for s, _ in schedule_tuples]
+            menu.schedule_account_map = {}
+            for sched, acct_info in schedule_tuples:
+                menu.schedule_account_map[sched.get('scheduleId', '')] = acct_info
+        else:
+            schedules, _ = menu.sdk.schedules.list()
+            menu.schedule_account_map = {}
 
         if not schedules:
             menu.console.print("\n  No scheduled jobs found\n")
@@ -101,6 +127,10 @@ def list_schedules(menu):
             padding=(0, 2),
             pad_edge=False
         )
+
+        if multi_account:
+            table.add_column("ACCOUNT", style=f"{colors['dim']}", width=19, no_wrap=True)
+            table.add_column("ACCT STATUS", width=12, no_wrap=True)
 
         table.add_column("ID", style=f"bold {colors['accent']}", width=10, no_wrap=True)
         table.add_column("CAPABILITY", style="white", min_width=20, no_wrap=True)
@@ -151,7 +181,17 @@ def list_schedules(menu):
             # Format next execution
             next_display = format_next_execution(next_exec)
 
-            table.add_row(schedule_id, capability, agent_display, target_display, days_display, status_display, next_display)
+            row_cells = []
+            if multi_account:
+                acct_info = menu.schedule_account_map.get(schedule.get('scheduleId', ''), {})
+                acct_name = truncate_email(acct_info.get('display_name', ''), 19)
+                acct_status = acct_info.get('status', '')
+                acct_status_style = colors['success'] if acct_status.upper() == 'ACTIVE' else colors['dim']
+                row_cells.append(Text(acct_name, style=colors['dim']))
+                row_cells.append(Text(acct_status, style=acct_status_style))
+
+            row_cells.extend([schedule_id, capability, agent_display, target_display, days_display, status_display, next_display])
+            table.add_row(*row_cells)
 
         menu.console.print(table)
         menu.console.print()
@@ -175,6 +215,8 @@ def view_schedule(menu, args):
             menu.console.print(f"\n  Schedule not found: {suggested_id}")
         menu.pause()
         return
+
+    _assume_schedule_account(menu, schedule_id)
 
     try:
         # Use cached agent lookup from menu
@@ -387,6 +429,8 @@ def edit_schedule(menu, args):
         menu.pause()
         return
 
+    _assume_schedule_account(menu, schedule_id)
+
     try:
         menu.console.print(f"\n  [bold {colors['primary']}]Edit Schedule: {schedule_id[:10]}[/]")
         menu.console.print(f"  Capability: {schedule.get('capabilityName', 'N/A')}")
@@ -459,6 +503,8 @@ def delete_schedule(menu, args):
         menu.pause()
         return
 
+    _assume_schedule_account(menu, schedule_id)
+
     try:
         menu.console.print(f"\n  Schedule: {schedule_id[:10]}")
         menu.console.print(f"  Capability: {schedule.get('capabilityName', 'N/A')}")
@@ -494,6 +540,8 @@ def pause_schedule(menu, args):
         menu.pause()
         return
 
+    _assume_schedule_account(menu, full_id)
+
     try:
         result = menu.sdk.schedules.pause(full_id)
         invalidate_schedule_cache(menu)
@@ -520,6 +568,8 @@ def resume_schedule(menu, args):
             menu.console.print(f"\n[{colors['error']}]Schedule not found: {suggested_id}[/{colors['error']}]")
         menu.pause()
         return
+
+    _assume_schedule_account(menu, full_id)
 
     try:
         result = menu.sdk.schedules.resume(full_id)
