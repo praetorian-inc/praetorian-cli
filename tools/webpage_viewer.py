@@ -1,4 +1,3 @@
-#!/Users/evanleleux/Desktop/workspace/eng/praetorian-cli/.venv/bin/python3
 """
 Webpage Screenshot Viewer
 
