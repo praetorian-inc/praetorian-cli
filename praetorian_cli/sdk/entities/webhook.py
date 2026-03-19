@@ -48,7 +48,7 @@ class Webhook:
             ```
         """
         pin = str(uuid4())
-        self.api.link_account('hook', pin)
+        self.api.link_account('hook', role='readonly', value=pin)
         return self.webhook_url(pin)
 
     def get_url(self):
