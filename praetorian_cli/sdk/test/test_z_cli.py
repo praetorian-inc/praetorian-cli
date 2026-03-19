@@ -119,26 +119,26 @@ class TestZCli:
         The substring checks in test_risk_cli cannot detect this structural issue.
         """
         o = make_test_values(lambda: None)
-        self.verify(f'add asset -n {o.asset_name} -d {o.asset_dns}')
+        self.verify(f'add asset -i {o.asset_name} -g {o.asset_dns}')
 
         # Verify add risk with tags produces correct structure
         self.verify(f'add risk {o.risk_name} -a "{o.asset_key}" -s {AddRisk.TRIAGE_HIGH.value} -g phase_web -g needs-triage',
                     ignore_stdout=True)
         risk = self.run_json(f'get risk "{o.risk_key}"')
-        assert isinstance(risk['tags']['tags'], list), \
-            f'Expected tags.tags to be a list, got {type(risk["tags"]["tags"])}: {risk["tags"]}'
-        assert all(isinstance(t, str) for t in risk['tags']['tags']), \
-            f'Expected all tags to be strings, got: {risk["tags"]["tags"]}'
-        assert set(risk['tags']['tags']) == {'phase_web', 'needs-triage'}
+        assert isinstance(risk['tags'], list), \
+            f'Expected tags to be a list, got {type(risk["tags"])}: {risk["tags"]}'
+        assert all(isinstance(t, str) for t in risk['tags']), \
+            f'Expected all tags to be strings, got: {risk["tags"]}'
+        assert set(risk['tags']) == {'phase_web', 'needs-triage'}
 
         # Verify update risk with tags produces correct structure
         self.verify(f'update risk "{o.risk_key}" -g resolved -g verified', ignore_stdout=True)
         risk = self.run_json(f'get risk "{o.risk_key}"')
-        assert isinstance(risk['tags']['tags'], list), \
-            f'Expected tags.tags to be a list after update, got {type(risk["tags"]["tags"])}: {risk["tags"]}'
-        assert all(isinstance(t, str) for t in risk['tags']['tags']), \
-            f'Expected all tags to be strings after update, got: {risk["tags"]["tags"]}'
-        assert set(risk['tags']['tags']) == {'resolved', 'verified'}
+        assert isinstance(risk['tags'], list), \
+            f'Expected tags to be a list after update, got {type(risk["tags"])}: {risk["tags"]}'
+        assert all(isinstance(t, str) for t in risk['tags']), \
+            f'Expected all tags to be strings after update, got: {risk["tags"]}'
+        assert set(risk['tags']) == {'resolved', 'verified'}
 
         clean_test_entities(self.sdk, o)
 
