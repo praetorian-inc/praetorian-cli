@@ -846,19 +846,9 @@ class GuardConsole:
 
             self.console.print(Panel(status_text, title='Job Status', border_style=color))
 
-            # If job completed, show findings
-            if status_code == 'JP':
-                try:
-                    risks, _ = self.sdk.search.by_source(job_key, 'risk')
-                    if risks:
-                        self.console.print(f'\n[heading]Findings ({len(risks)})[/heading]')
-                        self._render_results(risks, 'Findings')
-                    else:
-                        self.console.print('[dim]No findings produced.[/dim]')
-                except Exception:
-                    pass
-            elif status_code == 'JF':
-                self.console.print(f'[dim]Job failed. Check logs for details.[/dim]')
+            # Show full results for completed/failed jobs
+            if status_code in ('JP', 'JF'):
+                self._render_job_results(job, cap)
 
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
@@ -1013,23 +1003,110 @@ class GuardConsole:
                         latest = sorted(matching, key=lambda j: j.get('created', 0), reverse=True)[0]
                         st = latest.get('status', '')
                         if st.startswith('JP'):
-                            self.console.print(f'[success]Job completed.[/success]')
-                            risks, _ = self.sdk.search.by_source(latest['key'], 'risk')
-                            if risks:
-                                self._render_results(risks, f'Findings from {capability}')
-                            else:
-                                self.console.print('[dim]No findings produced.[/dim]')
+                            elapsed = int(time.time() - start_time)
+                            self.console.print(f'\n[success]Job completed in {elapsed}s[/success]')
+                            self._render_job_results(latest, capability)
                             return
                         elif st.startswith('JF'):
-                            self.console.print(f'[error]Job failed.[/error]')
-                            self.console.print_json(json.dumps(latest, indent=2))
+                            self.console.print(f'\n[error]Job failed.[/error]')
+                            self._render_job_results(latest, capability)
                             return
                         else:
-                            status.update(f'Job status: {st}...')
+                            elapsed = int(time.time() - start_time)
+                            status.update(f'{capability} running ({elapsed}s)...')
                 except Exception:
                     pass
                 time.sleep(5)
         self.console.print('[warning]Timed out waiting for job (5 min).[/warning]')
+
+    def _render_job_results(self, job: dict, capability: str):
+        """Render rich results from a completed job — findings, assets, ports, attributes."""
+        job_key = job.get('key', '')
+        dns = job.get('dns', '')
+        status_code = job.get('status', '')[:2]
+
+        # Fetch all results produced by this job
+        risks = []
+        assets = []
+        attributes = []
+        try:
+            risks, _ = self.sdk.search.by_source(job_key, 'risk')
+        except Exception:
+            pass
+        try:
+            assets, _ = self.sdk.search.by_source(job_key, 'asset')
+        except Exception:
+            pass
+        try:
+            attributes, _ = self.sdk.search.by_source(job_key, 'attribute')
+        except Exception:
+            pass
+
+        # Build summary
+        summary_parts = []
+        if risks:
+            summary_parts.append(f'{len(risks)} finding(s)')
+        if assets:
+            summary_parts.append(f'{len(assets)} asset(s) discovered')
+        if attributes:
+            summary_parts.append(f'{len(attributes)} attribute(s)')
+        if not summary_parts:
+            summary_parts.append('no new results')
+
+        color = self.colors['success'] if status_code == 'JP' else self.colors['error']
+        status_label = 'PASSED' if status_code == 'JP' else 'FAILED'
+
+        header = Text()
+        header.append(f'{capability}', style=f'bold {self.colors["primary"]}')
+        header.append(f' → {dns}\n', style='white')
+        header.append(f'Status: ', style=self.colors['dim'])
+        header.append(f'{status_label}', style=f'bold {color}')
+        header.append(f' — {", ".join(summary_parts)}', style=self.colors['dim'])
+        self.console.print(Panel(header, title='Job Complete', border_style=color))
+
+        # Show discovered assets (e.g., from portscan, subdomain)
+        if assets:
+            table = Table(title=f'Discovered Assets ({len(assets)})', border_style=self.colors['primary'])
+            table.add_column('Key', style=self.colors['primary'])
+            table.add_column('Name', style='white')
+            table.add_column('Class', style=self.colors['accent'])
+            table.add_column('Status', style=self.colors['dim'])
+            for a in assets[:20]:
+                table.add_row(
+                    a.get('key', ''), a.get('name', a.get('dns', '')),
+                    a.get('class', ''), a.get('status', ''),
+                )
+            self.console.print(table)
+            if len(assets) > 20:
+                self.console.print(f'[dim]...and {len(assets) - 20} more[/dim]')
+
+        # Show attributes (e.g., open ports from portscan)
+        if attributes:
+            table = Table(title=f'Attributes ({len(attributes)})', border_style=self.colors['primary'])
+            table.add_column('Name', style=f'bold {self.colors["primary"]}')
+            table.add_column('Value', style='white')
+            for attr in attributes[:30]:
+                table.add_row(attr.get('name', ''), str(attr.get('value', '')))
+            self.console.print(table)
+            if len(attributes) > 30:
+                self.console.print(f'[dim]...and {len(attributes) - 30} more[/dim]')
+
+        # Show findings/risks
+        if risks:
+            table = Table(title=f'Findings ({len(risks)})', border_style=self.colors['error'])
+            table.add_column('Risk', style=f'bold {self.colors["primary"]}')
+            table.add_column('Severity', style=self.colors['accent'])
+            table.add_column('Asset', style='white')
+            table.add_column('Status', style=self.colors['dim'])
+            for r in risks[:20]:
+                name = r.get('name', r.get('title', ''))
+                priority = r.get('priority', '')
+                severity_map = {0: 'CRITICAL', 10: 'HIGH', 20: 'MEDIUM', 30: 'LOW', 40: 'INFO', 60: 'EXPOSURE'}
+                severity = severity_map.get(priority, str(priority))
+                table.add_row(name, severity, r.get('dns', ''), r.get('status', ''))
+            self.console.print(table)
+            if len(risks) > 20:
+                self.console.print(f'[dim]...and {len(risks) - 20} more[/dim]')
 
     def _cmd_capabilities(self, args):
         """List available capabilities from the backend."""
@@ -1269,7 +1346,7 @@ class GuardConsole:
                         return content
                     elif role == 'tool call':
                         # Parse tool call content for display
-                        tool_name = self._parse_tool_name(content)
+                        tool_name = self._parse_tool_name(content, msg)
                         if pending_tool:
                             self.console.print(f' [success]done[/success]')
                         self.console.print(f'  [dim]→[/dim] [accent]{tool_name}[/accent]', end='')
@@ -1289,29 +1366,33 @@ class GuardConsole:
         self.console.print('\n[warning]Timed out waiting for response[/warning]')
         return None
 
-    def _parse_tool_name(self, content: str) -> str:
+    def _parse_tool_name(self, content: str, msg: dict = None) -> str:
         """Extract a human-readable tool name from a tool call message."""
-        try:
-            data = json.loads(content) if isinstance(content, str) else content
-            if isinstance(data, dict):
-                # Common patterns: {"name": "query", ...} or {"tool": "query", ...}
-                name = data.get('name', data.get('tool', data.get('type', '')))
-                if name:
-                    # Add context if available
-                    inp = data.get('input', data.get('arguments', {}))
-                    if isinstance(inp, dict):
-                        if 'capability' in inp:
-                            return f'{name}({inp["capability"]})'
-                        if 'agent' in inp:
-                            return f'{name}({inp["agent"]})'
-                        if 'query' in inp:
-                            return f'{name}'
-                    return str(name)
-        except (json.JSONDecodeError, TypeError, AttributeError):
-            pass
-        # Fallback: truncate raw content
-        text = str(content).strip()
-        return text[:40] + '...' if len(text) > 40 else text or 'tool'
+        # Try toolUseContent field first (structured tool input)
+        tool_content = msg.get('toolUseContent', '') if msg else ''
+        # Try the message name field (some backends store tool name there)
+        msg_name = msg.get('name', '') if msg else ''
+        if msg_name and msg_name not in ('user', 'chariot', 'tool call', 'tool response'):
+            return msg_name
+
+        for raw in (tool_content, content):
+            if not raw:
+                continue
+            try:
+                data = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(data, dict):
+                    name = data.get('name', data.get('tool', data.get('type', '')))
+                    if name:
+                        inp = data.get('input', data.get('arguments', {}))
+                        if isinstance(inp, dict):
+                            if 'capability' in inp:
+                                return f'{name}({inp["capability"]})'
+                            if 'agent' in inp:
+                                return f'{name}({inp["agent"]})'
+                        return str(name)
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                continue
+        return 'tool'
 
     def _parse_tool_result(self, content: str) -> str:
         """Extract a brief summary from a tool response message."""
