@@ -275,12 +275,24 @@ class GuardConsole:
             table.add_row('Conversation', self.context.conversation_id[:8] + '...' if self.context.conversation_id else '[dim]none[/dim]')
             self.console.print(table)
         elif target in ('targets', 'hosts'):
-            # Show valid targets for the active tool
             self._show_targets()
         elif target in ('options', 'info'):
             self._cmd_options(args[1:])
         elif target == 'tools':
             self._cmd_run([])
+        elif target == 'assets':
+            self._cmd_assets(args[1:])
+        elif target == 'risks':
+            self._cmd_risks(args[1:])
+        elif target == 'jobs':
+            self._cmd_jobs(args[1:])
+        elif target in ('accounts', 'engagements'):
+            self._cmd_accounts(args[1:])
+        elif target.isdigit():
+            # "show 1" — show detail of item # from last listing
+            self._show_detail_by_number(int(target))
+        else:
+            self.console.print(f'[dim]Unknown: show {target}. Try: context, targets, assets, risks, jobs, tools, options, or a number.[/dim]')
 
     def _show_targets(self):
         """Show available targets (assets/seeds/ports) for the active tool."""
@@ -341,6 +353,122 @@ class GuardConsole:
 
         self.console.print(table)
         self.console.print(f'\n[dim]Use "set target <key>" or "set target <#>" to select a target[/dim]')
+
+    def _show_detail_by_number(self, num: int):
+        """Show detail of item # from the last listing (_target_list)."""
+        if not hasattr(self, '_target_list') or not self._target_list:
+            self.console.print('[dim]No listing loaded. Run "assets", "risks", or "show targets" first.[/dim]')
+            return
+        idx = num - 1
+        if idx < 0 or idx >= len(self._target_list):
+            self.console.print(f'[error]Invalid number (1-{len(self._target_list)}).[/error]')
+            return
+        key = self._target_list[idx]
+        try:
+            if '#risk#' in key:
+                result = self.sdk.risks.get(key, details=True)
+                if result:
+                    self._render_entity_detail(result, 'Risk')
+                else:
+                    self.console.print(f'[dim]Not found: {key}[/dim]')
+            elif '#asset#' in key or '#webapplication#' in key:
+                result = self.sdk.assets.get(key, details=True)
+                if result:
+                    self._render_entity_detail(result, 'Asset')
+                else:
+                    self.console.print(f'[dim]Not found: {key}[/dim]')
+            else:
+                result = self.sdk.search.by_exact_key(key, get_attributes=True)
+                if result:
+                    self.console.print_json(json.dumps(result, indent=2))
+                else:
+                    self.console.print(f'[dim]Not found: {key}[/dim]')
+        except Exception as e:
+            self.console.print(f'[error]{e}[/error]')
+
+    def _render_entity_detail(self, entity: dict, entity_type: str):
+        """Render a rich detail view for an asset or risk."""
+        key = entity.get('key', '')
+        name = entity.get('name', entity.get('dns', ''))
+        status = entity.get('status', '')
+        created = entity.get('created', '')
+
+        # Header
+        header = Text()
+        header.append(f'{name}\n', style=f'bold {self.colors["primary"]}')
+        header.append(f'Key: {key}\n', style=self.colors['dim'])
+        header.append(f'Status: ', style=self.colors['dim'])
+        header.append(f'{status}', style=f'bold {self.colors["accent"]}')
+        if created:
+            header.append(f'  Created: {created}', style=self.colors['dim'])
+
+        if entity_type == 'Risk':
+            priority = entity.get('priority', '')
+            severity_map = {0: 'CRITICAL', 10: 'HIGH', 20: 'MEDIUM', 30: 'LOW', 40: 'INFO', 60: 'EXPOSURE'}
+            severity = severity_map.get(priority, str(priority))
+            header.append(f'\nSeverity: ', style=self.colors['dim'])
+            header.append(f'{severity}', style=f'bold {self.colors["error"]}' if priority <= 10 else f'{self.colors["accent"]}')
+            title = entity.get('title', '')
+            if title:
+                header.append(f'\nTitle: {title}', style='white')
+
+        if entity_type == 'Asset':
+            cls = entity.get('class', '')
+            dns = entity.get('dns', '')
+            surface = entity.get('attackSurface', [])
+            if cls:
+                header.append(f'\nClass: {cls}', style=self.colors['dim'])
+            if dns and dns != name:
+                header.append(f'  DNS: {dns}', style=self.colors['dim'])
+            if surface:
+                header.append(f'  Surface: {", ".join(surface)}', style=self.colors['dim'])
+
+        self.console.print(Panel(header, title=entity_type, border_style=self.colors['primary']))
+
+        # Attributes
+        attrs = entity.get('attributes', [])
+        if attrs:
+            table = Table(title=f'Attributes ({len(attrs)})', border_style=self.colors['dim'])
+            table.add_column('Name', style=self.colors['primary'])
+            table.add_column('Value', style='white')
+            for a in attrs[:20]:
+                table.add_row(a.get('name', ''), str(a.get('value', '')))
+            self.console.print(table)
+
+        # Associated risks (for assets)
+        assoc_risks = entity.get('associated_risks', [])
+        if assoc_risks:
+            table = Table(title=f'Associated Risks ({len(assoc_risks)})', border_style=self.colors['error'])
+            table.add_column('Risk', style=self.colors['primary'])
+            table.add_column('Status', style=self.colors['accent'])
+            for r in assoc_risks[:10]:
+                table.add_row(r.get('name', r.get('key', '')), r.get('status', ''))
+            self.console.print(table)
+
+        # Affected assets (for risks)
+        affected = entity.get('affected_assets', [])
+        if affected:
+            table = Table(title=f'Affected Assets ({len(affected)})', border_style=self.colors['primary'])
+            table.add_column('Asset', style=self.colors['primary'])
+            table.add_column('Status', style=self.colors['accent'])
+            for a in affected[:10]:
+                table.add_row(a.get('key', ''), a.get('status', ''))
+            self.console.print(table)
+
+        # History (for risks)
+        history = entity.get('history', [])
+        if history:
+            table = Table(title='History', border_style=self.colors['dim'])
+            table.add_column('Date', style=self.colors['dim'])
+            table.add_column('By', style='white')
+            table.add_column('Change', style=self.colors['accent'])
+            for h in history[:10]:
+                table.add_row(
+                    h.get('updated', ''),
+                    h.get('by', ''),
+                    f'{h.get("from", "")} → {h.get("to", "")}',
+                )
+            self.console.print(table)
 
     def _cmd_use(self, args):
         """Select a tool or switch engagement — context-aware."""
