@@ -32,7 +32,7 @@ CONSOLE_COMMANDS = [
     'accounts', 'engagements', 'home', 'su',
     'search', 'find', 'assets', 'risks', 'jobs', 'info',
     'scan', 'tag',
-    'run', 'status', 'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
+    'run', 'status', 'download', 'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
     'trajan', 'cato', 'priscus', 'seneca', 'titus',
     'nuclei', 'portscan', 'subdomain', 'crawler', 'capabilities',
     'evidence', 'report',
@@ -144,6 +144,7 @@ class GuardConsole:
             'tag': self._cmd_tag,
             'run': self._cmd_run,
             'status': self._cmd_status,
+            'download': self._cmd_download,
             'capabilities': self._cmd_capabilities,
             'evidence': self._cmd_evidence,
             'report': self._cmd_report,
@@ -981,6 +982,97 @@ class GuardConsole:
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
 
+    def _cmd_download(self, args):
+        """Download job outputs, proofs, and files to a local directory."""
+        import os
+
+        # Parse arguments
+        target = args[0] if args else 'all'
+        output_dir = None
+        for i, a in enumerate(args):
+            if a in ('--output', '-o') and i + 1 < len(args):
+                output_dir = args[i + 1]
+
+        # Build output directory
+        account_name = self.context.account or 'default'
+        # Clean account name for filesystem
+        safe_name = account_name.replace('@', '_at_').replace('+', '_')
+        for c in '<>:"/\\|?*':
+            safe_name = safe_name.replace(c, '_')
+
+        if not output_dir:
+            output_dir = os.path.join(os.getcwd(), 'guard-output', safe_name)
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        if target == 'all':
+            self.console.print(f'[info]Downloading all outputs to {output_dir}/[/info]')
+            self._download_category('proofs', output_dir)
+            self._download_category('agents', output_dir)
+            self._download_category('definitions', output_dir)
+        elif target == 'proofs':
+            self.console.print(f'[info]Downloading proofs to {output_dir}/[/info]')
+            self._download_category('proofs', output_dir)
+        elif target == 'agents':
+            self.console.print(f'[info]Downloading agent outputs to {output_dir}/[/info]')
+            self._download_category('agents', output_dir)
+        elif target == 'definitions':
+            self.console.print(f'[info]Downloading definitions to {output_dir}/[/info]')
+            self._download_category('definitions', output_dir)
+        elif target == 'files':
+            self.console.print(f'[info]Downloading all files to {output_dir}/[/info]')
+            self._download_category('', output_dir)
+        else:
+            # Treat as a file path prefix to download
+            self.console.print(f'[info]Downloading {target} to {output_dir}/[/info]')
+            self._download_category(target, output_dir)
+
+        self.console.print(f'[success]Downloads saved to {output_dir}/[/success]')
+
+    def _download_category(self, prefix: str, output_dir: str):
+        """Download all files matching a prefix to local directory."""
+        import os
+
+        try:
+            files, _ = self.sdk.files.list(prefix, pages=10)
+        except Exception as e:
+            self.console.print(f'[error]Failed to list files: {e}[/error]')
+            return
+
+        if not files:
+            self.console.print(f'[dim]No files found for: {prefix or "all"}[/dim]')
+            return
+
+        self.console.print(f'[dim]Found {len(files)} files...[/dim]')
+        downloaded = 0
+        errors = 0
+
+        for f in files:
+            file_key = f.get('key', '')
+            # Extract the path from #file#<path>
+            if file_key.startswith('#file#'):
+                file_path = file_key[6:]  # strip #file#
+            else:
+                file_path = f.get('name', file_key)
+
+            if not file_path or file_path.startswith('#'):
+                continue
+
+            # Build local path
+            local_path = os.path.join(output_dir, file_path)
+            local_dir = os.path.dirname(local_path)
+
+            try:
+                os.makedirs(local_dir, exist_ok=True)
+                content = self.sdk.files.get(file_path)
+                with open(local_path, 'wb') as fp:
+                    fp.write(content)
+                downloaded += 1
+            except Exception:
+                errors += 1
+
+        self.console.print(f'[dim]  Downloaded: {downloaded}, Errors: {errors}[/dim]')
+
     def _cmd_info(self, args):
         if not args:
             self.console.print('[dim]Usage: info <key>[/dim]')
@@ -1676,6 +1768,8 @@ class GuardConsole:
         help_table.add_row('jobs [filter]', 'List jobs (filter by target/capability)')
         help_table.add_row('status', 'Check status of last job')
         help_table.add_row('status <job_key>', 'Check status of specific job')
+        help_table.add_row('download [proofs|agents|all]', 'Download job outputs to local dir')
+        help_table.add_row('download <prefix> -o <dir>', 'Download specific files to dir')
         help_table.add_row('info <key>', 'Get entity details')
 
         help_table.add_row('', '')
