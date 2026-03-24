@@ -1333,27 +1333,34 @@ class GuardConsole:
         name_filter = args[0] if args else ''
         try:
             result = self.sdk.capabilities.list(name=name_filter)
-            if isinstance(result, dict):
+            # result can be a list directly or a dict with a key
+            if isinstance(result, list):
+                caps = result
+            elif isinstance(result, dict):
                 caps = result.get('capabilities', result.get('data', []))
             elif isinstance(result, tuple):
                 caps = result[0] if result[0] else []
             else:
-                caps = result
-            if isinstance(caps, list):
-                table = Table(title='Capabilities', border_style=self.colors['primary'])
+                caps = []
+
+            if isinstance(caps, list) and caps:
+                table = Table(title=f'Capabilities ({len(caps)})', border_style=self.colors['primary'])
                 table.add_column('Name', style=f'bold {self.colors["primary"]}')
                 table.add_column('Target', style=self.colors['accent'])
+                table.add_column('Executor', style=self.colors['dim'])
                 table.add_column('Description')
                 for cap in caps:
                     if isinstance(cap, dict):
-                        table.add_row(
-                            cap.get('Name', cap.get('name', '')),
-                            cap.get('Target', cap.get('target', '')),
-                            cap.get('Description', cap.get('description', ''))[:60],
-                        )
+                        name = str(cap.get('name', cap.get('Name', '')))
+                        target = cap.get('target', cap.get('Target', ''))
+                        if isinstance(target, list):
+                            target = ','.join(target)
+                        desc = str(cap.get('description', cap.get('Description', '')))[:50]
+                        executor = str(cap.get('executor', ''))
+                        table.add_row(name, str(target), executor, desc)
                 self.console.print(table)
             else:
-                self.console.print_json(json.dumps(result, indent=2))
+                self.console.print('[dim]No capabilities found.[/dim]')
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
 
@@ -1537,8 +1544,18 @@ class GuardConsole:
         if not self.context.conversation_id and 'conversation' in result:
             self.context.conversation_id = result['conversation'].get('uuid')
 
-        # Poll for response — show tool calls live
+        # Snapshot existing messages so we only process NEW ones from this request
         last_key = ''
+        try:
+            existing, _ = self.sdk.search.by_key_prefix(
+                f'#message#{self.context.conversation_id}#', user=True
+            )
+            if existing:
+                last_key = max(m.get('key', '') for m in existing)
+        except Exception:
+            pass
+
+        # Poll for response — show tool calls live
         max_wait = 180
         start_time = time.time()
         pending_tool = None
