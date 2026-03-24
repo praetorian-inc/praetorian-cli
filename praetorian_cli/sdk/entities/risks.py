@@ -1,3 +1,5 @@
+import re
+
 from praetorian_cli.sdk.model.globals import Kind
 from praetorian_cli.sdk.model.query import Relationship, Node, Query, risk_of_key, ASSET_NODE, PORT_NODE, WEBPAGE_NODE
 
@@ -200,6 +202,111 @@ class Risks:
             raise Exception(f"Note index {note_index} is out of range (0 to {len(note_indices) - 1})")
 
         return note_indices[note_index]
+
+    def hydrate_evidence(self, key):
+        """
+        Fetch all evidence associated with a risk from all sources: attributes, webpages,
+        files, and definitions. Returns a normalized dict with the risk record, parsed
+        definition, evidence items, and affected assets.
+
+        :param key: The key of the risk
+        :type key: str
+        :return: A dict with keys: risk, definition, evidence, affected_assets
+        :rtype: dict
+        """
+        # 1. Get the risk record with details (attributes + affected_assets)
+        risk_record = self.get(key, details=True)
+
+        # 2. Fetch attributes associated with the risk
+        attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
+
+        # 3. Fetch webpages associated with the risk
+        webpages, _ = self.api.search.by_source(key, Kind.WEBPAGE.value)
+
+        # 4. Try to fetch the risk definition
+        # Extract the risk name from the key (format: #risk#{asset_dns}#{risk_name})
+        parts = key.split('#')
+        risk_name = parts[-1] if parts else key
+
+        definition = None
+        try:
+            # Try account-level definition first
+            raw_definition = self.api.files.get_utf8(f'definitions/{risk_name}')
+            definition = self._parse_definition(raw_definition)
+        except Exception:
+            try:
+                # Fall back to global definition
+                raw_definition = self.api.files.get_utf8(f'definitions/{risk_name}', _global=True)
+                definition = self._parse_definition(raw_definition)
+            except Exception:
+                definition = None
+
+        # 5. Build evidence list
+        evidence = []
+        for attr in attributes:
+            evidence.append({
+                'source': 'attribute',
+                'name': attr.get('name', ''),
+                'value': attr.get('value', ''),
+            })
+        for wp in webpages:
+            evidence.append({
+                'source': 'webpage',
+                'url': wp.get('name', ''),
+                'content': wp.get('value', ''),
+            })
+
+        # 6. Get affected assets from the risk record (already fetched via details=True)
+        affected_assets = risk_record.get('affected_assets', []) if risk_record else []
+
+        return {
+            'risk': risk_record,
+            'definition': definition,
+            'evidence': evidence,
+            'affected_assets': affected_assets,
+        }
+
+    @staticmethod
+    def _parse_definition(raw_markdown):
+        """
+        Parse a definition markdown string and extract known sections:
+        Description, Impact, Recommendation, References.
+
+        :param raw_markdown: The raw markdown text of the definition
+        :type raw_markdown: str
+        :return: A dict with keys: description, impact, recommendation, references, raw
+        :rtype: dict
+        """
+        sections = {
+            'description': '',
+            'impact': '',
+            'recommendation': '',
+            'references': [],
+            'raw': raw_markdown,
+        }
+
+        # Split on ## headers
+        parts = re.split(r'^##\s+', raw_markdown, flags=re.MULTILINE)
+
+        for part in parts:
+            lines = part.strip().split('\n', 1)
+            if len(lines) < 1:
+                continue
+            header = lines[0].strip().lower()
+            body = lines[1].strip() if len(lines) > 1 else ''
+
+            if header == 'description':
+                sections['description'] = body
+            elif header == 'impact':
+                sections['impact'] = body
+            elif header == 'recommendation':
+                sections['recommendation'] = body
+            elif header == 'references':
+                # Parse references as a list of non-empty lines
+                refs = [line.strip().lstrip('- ').strip() for line in body.split('\n') if line.strip()]
+                sections['references'] = refs
+
+        return sections
 
 
 def get_note_entries(risk):

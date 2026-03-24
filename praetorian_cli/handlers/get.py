@@ -36,7 +36,8 @@ def asset(chariot, key, details):
 @cli_handler
 @click.argument('key', required=True)
 @click.option('-d', '--details', is_flag=True, help='Further retrieve the attributes and affected assets of the risk')
-def risk(chariot, key, details):
+@click.option('-e', '--evidence', is_flag=True, help='Retrieve all evidence from all sources (attributes, webpages, files, definitions)')
+def risk(chariot, key, details, evidence):
     """ Get risk details
 
     \b
@@ -47,8 +48,12 @@ def risk(chariot, key, details):
     Example usages:
         - guard get risk "#risk#api.example.com#CVE-2024-23049"
         - guard get risk "#risk#api.example.com#CVE-2024-23049" --details
+        - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence
      """
-    print_json(chariot.risks.get(key, details))
+    if evidence:
+        print_json(chariot.risks.hydrate_evidence(key))
+    else:
+        print_json(chariot.risks.get(key, details))
 
 
 @get.command()
