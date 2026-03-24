@@ -1199,32 +1199,42 @@ class GuardConsole:
 
     def _try_queue_job(self, target_key, capability, config_str):
         """Try to queue a job. If frozen/blocked, fallback to the login user's own account."""
-        with self.console.status(f'Queuing {capability}...', spinner='dots', spinner_style=self.colors['primary']):
+        # First attempt
+        first_error = None
+        try:
+            result = self.sdk.jobs.add(target_key, [capability], config_str)
+        except Exception as e:
+            first_error = e
+
+        if first_error is None:
+            # Success on first try
+            pass
+        else:
+            error_msg = str(first_error).lower()
+            is_frozen = 'frozen' in error_msg or 'blocked' in error_msg
+
+            if not is_frozen:
+                self.console.print(f'[error]{first_error}[/error]')
+                return None
+
+            # Frozen/blocked — fallback by clearing impersonation
+            login_user = None
+            try:
+                login_user = self.sdk.accounts.login_principal()
+            except Exception:
+                pass
+            display_user = login_user or 'API key owner'
+
+            self.console.print(f'[dim]Account frozen — retrying as {display_user}[/dim]')
+            saved = self.sdk.keychain.account
+            self.sdk.keychain.account = None
             try:
                 result = self.sdk.jobs.add(target_key, [capability], config_str)
-            except Exception as e:
-                error_msg = str(e).lower()
-                # If frozen or blocked, try falling back to the Praetorian user
-                if self.context.account and ('frozen' in error_msg or 'blocked' in error_msg):
-                    login_user = self.sdk.accounts.login_principal()
-                    if login_user and login_user.endswith('@praetorian.com'):
-                        self.console.print(f'[dim]Account frozen — retrying as {login_user}[/dim]')
-                        saved = self.sdk.keychain.account
-                        self.sdk.keychain.account = None
-                        try:
-                            result = self.sdk.jobs.add(target_key, [capability], config_str)
-                        except Exception as e2:
-                            self.console.print(f'[error]Fallback also failed: {e2}[/error]')
-                            self.sdk.keychain.account = saved
-                            return None
-                        finally:
-                            self.sdk.keychain.account = saved
-                    else:
-                        self.console.print(f'[error]{e}[/error]')
-                        return None
-                else:
-                    self.console.print(f'[error]{e}[/error]')
-                    return None
+            except Exception as e2:
+                self.console.print(f'[error]Fallback also failed: {e2}[/error]')
+                return None
+            finally:
+                self.sdk.keychain.account = saved
 
         job_key = ''
         if isinstance(result, list) and result:
