@@ -143,7 +143,7 @@ class MenuCompleter(Completer):
                         yield Completion(opt, start_position=-len(current_word))
 
         elif cmd == 'job':
-            subcommands = ['list', 'run', 'capabilities', 'caps']
+            subcommands = ['list', 'run', 'status', 'artifacts', 'capabilities', 'caps']
             if not words or (len(words) == 1 and not after_cmd.endswith(' ')):
                 prefix = words[0].lower() if words else ''
                 for sub in subcommands:
