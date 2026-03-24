@@ -1188,27 +1188,54 @@ class GuardConsole:
             if response_text:
                 self.console.print(Markdown(response_text))
         else:
-            # Direct job execution
+            # Direct job execution — with fallback to own account if frozen/blocked
             config_str = json.dumps(config) if config else None
-            with self.console.status(f'Queuing {capability}...', spinner='dots', spinner_style=self.colors['primary']):
-                try:
-                    result = self.sdk.jobs.add(target_key, [capability], config_str)
-                    # Extract key info from result
-                    job_key = ''
-                    if isinstance(result, list) and result:
-                        job_key = result[0].get('key', '')
-                    elif isinstance(result, dict):
-                        job_key = result.get('key', '')
-                    self.context._last_job_key = job_key
-                    self.console.print(f'[success]Job queued: {capability} → {target_key}[/success]')
-                    self.console.print(f'[dim]Job key: {job_key}[/dim]')
-                    self.console.print(f'[dim]Use "status" to check progress, or "run --wait" to wait for results.[/dim]')
-                except Exception as e:
-                    self.console.print(f'[error]Failed: {e}[/error]')
-                    return
+            result = self._try_queue_job(target_key, capability, config_str)
+            if result is None:
+                return
 
             if wait:
                 self._wait_for_job(target_key, capability)
+
+    def _try_queue_job(self, target_key, capability, config_str):
+        """Try to queue a job. If frozen/blocked, fallback to the login user's own account."""
+        with self.console.status(f'Queuing {capability}...', spinner='dots', spinner_style=self.colors['primary']):
+            try:
+                result = self.sdk.jobs.add(target_key, [capability], config_str)
+            except Exception as e:
+                error_msg = str(e).lower()
+                # If frozen or blocked, try falling back to the Praetorian user
+                if self.context.account and ('frozen' in error_msg or 'blocked' in error_msg):
+                    login_user = self.sdk.accounts.login_principal()
+                    if login_user and login_user.endswith('@praetorian.com'):
+                        self.console.print(f'[dim]Account frozen — retrying as {login_user}[/dim]')
+                        saved = self.sdk.keychain.account
+                        self.sdk.keychain.account = None
+                        try:
+                            result = self.sdk.jobs.add(target_key, [capability], config_str)
+                        except Exception as e2:
+                            self.console.print(f'[error]Fallback also failed: {e2}[/error]')
+                            self.sdk.keychain.account = saved
+                            return None
+                        finally:
+                            self.sdk.keychain.account = saved
+                    else:
+                        self.console.print(f'[error]{e}[/error]')
+                        return None
+                else:
+                    self.console.print(f'[error]{e}[/error]')
+                    return None
+
+        job_key = ''
+        if isinstance(result, list) and result:
+            job_key = result[0].get('key', '')
+        elif isinstance(result, dict):
+            job_key = result.get('key', '')
+        self.context._last_job_key = job_key
+        self.console.print(f'[success]Job queued: {capability} → {target_key}[/success]')
+        self.console.print(f'[dim]Job key: {job_key}[/dim]')
+        self.console.print(f'[dim]Use "status" to check progress, or "run --wait" to wait for results.[/dim]')
+        return result
 
     def _wait_for_job(self, target_key, capability):
         """Poll for job completion and show results."""
