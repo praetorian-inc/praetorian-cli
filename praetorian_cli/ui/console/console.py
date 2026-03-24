@@ -29,7 +29,7 @@ from praetorian_cli.ui.console.context import EngagementContext
 CONSOLE_COMMANDS = [
     'set', 'unset', 'show', 'switch',
     'use', 'options', 'execute', 'exploit', 'back',
-    'accounts', 'engagements',
+    'accounts', 'engagements', 'home', 'su',
     'search', 'find', 'assets', 'risks', 'jobs', 'info',
     'scan', 'tag',
     'run', 'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
@@ -134,6 +134,8 @@ class GuardConsole:
             'accounts': self._cmd_accounts,
             'engagements': self._cmd_accounts,
             'switch': self._cmd_switch,
+            'home': self._cmd_home,
+            'su': self._cmd_home,
             'assets': self._cmd_assets,
             'risks': self._cmd_risks,
             'jobs': self._cmd_jobs,
@@ -531,6 +533,16 @@ class GuardConsole:
         self._target_list = []
         self.console.print(f'[success]Switched to {target}[/success]')
         self._show_engagement_status()
+
+    def _cmd_home(self, args):
+        """Return to your own account — unimpersonate."""
+        self.context.account = None
+        self.context.clear_conversation()
+        self.context.clear_tool()
+        self.sdk.keychain.account = None
+        self._target_list = []
+        login = self.sdk.accounts.login_principal() or 'your account'
+        self.console.print(f'[success]Returned to {login}[/success]')
 
     def _show_engagement_status(self):
         """Show a summary panel for the active engagement after switching."""
@@ -1318,6 +1330,7 @@ class GuardConsole:
         help_table.add_row('accounts / engagements', 'List accounts you can access')
         help_table.add_row('engagements use <#>', 'Switch to engagement (shows stats)')
         help_table.add_row('switch <# or email>', 'Switch to engagement (shows stats)')
+        help_table.add_row('home / su', 'Return to your own account')
         help_table.add_row('engagements create email=... name=...', 'Create new customer')
         help_table.add_row('engagements vault client=... sow=... sku=... github-user=...', 'Create vault repo')
         help_table.add_row('engagements onboard email=... name=... seed=...', 'Full onboarding')
