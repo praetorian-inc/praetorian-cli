@@ -38,6 +38,7 @@ CONSOLE_COMMANDS = [
     'evidence', 'report',
     'ask', 'marcus',
     'aegis',
+    'configure', 'login',
     'help', 'history', 'clear', 'quit', 'exit',
 ]
 
@@ -146,6 +147,8 @@ class GuardConsole:
             'ask': self._cmd_ask,
             'marcus': self._cmd_marcus,
             'aegis': self._cmd_aegis,
+            'configure': self._cmd_configure,
+            'login': self._cmd_configure,
             'help': self._cmd_help,
             'clear': self._cmd_clear,
             'quit': self._cmd_quit_or_back,
@@ -213,13 +216,17 @@ class GuardConsole:
             else:
                 self.console.print('[error]Mode must be "query" or "agent"[/error]')
         elif key in ('target', 'rhost', 'rhosts'):
-            # Resolve numeric refs from show targets
-            if value.isdigit() and hasattr(self, '_target_list'):
-                idx = int(value) - 1
-                if 0 <= idx < len(self._target_list):
-                    value = self._target_list[idx]
+            # Resolve numeric refs from show targets / assets / risks listings
+            if value.isdigit():
+                if hasattr(self, '_target_list') and self._target_list:
+                    idx = int(value) - 1
+                    if 0 <= idx < len(self._target_list):
+                        value = self._target_list[idx]
+                    else:
+                        self.console.print(f'[error]Invalid number (1-{len(self._target_list)}). Run "show targets" or "assets" first.[/error]')
+                        return
                 else:
-                    self.console.print(f'[error]Invalid number. Run "show targets" first.[/error]')
+                    self.console.print(f'[dim]No target list loaded. Run "show targets", "assets", or "risks" first.[/dim]')
                     return
             # Resolve friendly names to Guard keys
             if not value.startswith('#') and self.context.active_tool:
@@ -517,8 +524,11 @@ class GuardConsole:
 
         self.context.account = target
         self.context.clear_conversation()
+        self.context.clear_tool()
         # Update SDK impersonation so all API calls use this account
         self.sdk.keychain.account = target
+        # Clear stale target/account lists from previous engagement
+        self._target_list = []
         self.console.print(f'[success]Switched to {target}[/success]')
         self._show_engagement_status()
 
@@ -1373,6 +1383,38 @@ class GuardConsole:
 
         self.console.print(help_table)
 
+    def _cmd_configure(self, args):
+        """Configure API keys — runs inline in the console."""
+        from praetorian_cli.sdk.keychain import Keychain, DEFAULT_API, DEFAULT_CLIENT_ID, DEFAULT_PROFILE
+        try:
+            api_key_id = self.session.prompt(
+                HTML(f'<style fg="{COMPLEMENTARY_GOLD}">API Key ID: </style>')
+            ).strip()
+            api_key_secret = self.session.prompt(
+                HTML(f'<style fg="{COMPLEMENTARY_GOLD}">API Key Secret: </style>'),
+                is_password=True,
+            ).strip()
+
+            if not api_key_id or not api_key_secret:
+                self.console.print('[error]API Key ID and Secret are required.[/error]')
+                return
+
+            profile = DEFAULT_PROFILE
+            Keychain.configure(
+                username=None,
+                password=None,
+                profile=profile,
+                api=DEFAULT_API,
+                client_id=DEFAULT_CLIENT_ID,
+                account=None,
+                api_key_id=api_key_id,
+                api_key_secret=api_key_secret,
+            )
+            self.console.print(f'[success]Configured. Profile: {profile}[/success]')
+            self.console.print(f'[dim]Restart the console to use the new credentials.[/dim]')
+        except (KeyboardInterrupt, EOFError):
+            self.console.print('\n[dim]Cancelled.[/dim]')
+
     def _cmd_clear(self, args):
         self.console.clear()
 
@@ -1401,11 +1443,14 @@ class GuardConsole:
         table.add_column('Name', style='white')
         table.add_column('Status', style=self.colors['accent'])
 
+        # Update _target_list so "set target <#>" works from any listing
+        self._target_list = []
         for i, item in enumerate(results[:100], 1):
             key = item.get('key', '')
             name = item.get('name', item.get('dns', item.get('title', '')))
             status = item.get('status', '')
             table.add_row(str(i), key, str(name), status)
+            self._target_list.append(key)
 
         self.console.print(table)
         if len(results) > 100:
