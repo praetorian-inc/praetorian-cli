@@ -8,3 +8,4 @@
 env/
 test-*.*
 venv
+*.zip

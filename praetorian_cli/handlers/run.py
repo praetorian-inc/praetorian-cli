@@ -184,37 +184,55 @@ def run():
 @click.option('--credential', multiple=True, help='Credential ID(s) to use')
 @click.option('--wait', is_flag=True, default=False, help='Wait for job completion and show results')
 @click.option('--ask', 'use_agent', is_flag=True, default=False, help='Run via Marcus AI agent instead of direct job (enables analysis)')
-def tool(sdk, tool_name, target, extra_config, credential, wait, use_agent):
+@click.option('--local', is_flag=True, default=False, help='Run locally using installed binary (default if binary exists)')
+@click.option('--remote', is_flag=True, default=False, help='Force remote job execution on Guard backend')
+def tool(sdk, tool_name, target, extra_config, credential, wait, use_agent, local, remote):
     """ Execute a named security tool against a target
 
-    TARGET can be a Guard entity key (#asset#...) or a friendly name
-    (domain, IP, URL). The CLI will resolve it to the correct entity.
+    By default, runs LOCALLY if the binary is installed, otherwise schedules
+    a remote job on the Guard backend. Use --local or --remote to force.
 
     \b
     Example usages:
-        guard run tool portscan example.com
-        guard run tool portscan "#asset#example.com#1.2.3.4"
-        guard run tool brutus 10.0.1.5 --wait
-        guard run tool nuclei example.com --config '{"templates":"cves"}'
+        guard run tool brutus 10.0.1.5                 (local if installed)
+        guard run tool brutus 10.0.1.5 --remote        (force backend job)
+        guard run tool nuclei example.com --local       (force local binary)
         guard run tool titus github.com/org/repo
         guard run tool asset-analyzer example.com --ask
     """
+    from praetorian_cli.runners.local import is_installed as _is_installed
+
     tool_name = tool_name.lower()
     alias = TOOL_ALIASES.get(tool_name)
     if not alias:
         available = ', '.join(sorted(k for k in TOOL_ALIASES if k != 'secrets'))
         error(f'Unknown tool: {tool_name}. Available: {available}')
 
-    # Resolve target to a Guard key
-    target_key, warning = resolve_target(sdk, target, alias['target_type'])
-    if not target_key:
-        error(warning)
-    if warning:
-        click.echo(warning, err=True)
+    # Decide: local vs remote
+    run_local = False
+    if local:
+        run_local = True
+    elif remote or use_agent:
+        run_local = False
+    elif _is_installed(tool_name):
+        run_local = True  # Default to local if binary exists
 
-    if alias.get('agent') and (use_agent or not alias.get('capability')):
+    if run_local:
+        _run_local(sdk, tool_name, target, extra_config)
+    elif alias.get('agent') and (use_agent or not alias.get('capability')):
+        # Resolve for remote
+        target_key, warning = resolve_target(sdk, target, alias['target_type'])
+        if not target_key:
+            error(warning)
+        if warning:
+            click.echo(warning, err=True)
         _run_via_agent(sdk, alias, target_key)
     else:
+        target_key, warning = resolve_target(sdk, target, alias['target_type'])
+        if not target_key:
+            error(warning)
+        if warning:
+            click.echo(warning, err=True)
         _run_direct(sdk, alias, target_key, extra_config, list(credential), wait)
 
 
@@ -256,6 +274,186 @@ def capabilities(sdk, name, target):
     """
     result = sdk.capabilities.list(name=name, target=target)
     print_json(result)
+
+
+@run.command('install')
+@cli_handler
+@click.argument('tool_name')
+@click.option('--force', is_flag=True, default=False, help='Reinstall even if already installed')
+def install(sdk, tool_name, force):
+    """ Install a Praetorian capability binary locally
+
+    Downloads the latest release from GitHub and installs to ~/.praetorian/bin/.
+    Requires the GitHub CLI (gh) to be installed and authenticated.
+
+    \b
+    Example usages:
+        guard run install brutus
+        guard run install nuclei --force
+        guard run install all
+    """
+    from praetorian_cli.runners.local import install_tool, INSTALLABLE_TOOLS, is_installed
+
+    if tool_name == 'all':
+        for name in sorted(INSTALLABLE_TOOLS):
+            try:
+                if not force and is_installed(name):
+                    click.echo(f'{name}: already installed')
+                else:
+                    click.echo(f'{name}: installing...', nl=False)
+                    path = install_tool(name, force=force)
+                    click.echo(f' {path}')
+            except Exception as e:
+                click.echo(f' FAILED: {e}', err=True)
+        return
+
+    try:
+        click.echo(f'Installing {tool_name}...')
+        path = install_tool(tool_name, force=force)
+        click.echo(f'Installed: {path}')
+    except Exception as e:
+        error(str(e))
+
+
+@run.command('installed')
+@cli_handler
+def installed(sdk):
+    """ List locally installed capability binaries
+
+    \b
+    Example usage:
+        guard run installed
+    """
+    from praetorian_cli.runners.local import list_installed, INSTALLABLE_TOOLS
+
+    inst = list_installed()
+    click.echo(f'\n{"Tool":<16} {"Status":<12} {"Path"}')
+    click.echo(f'{"─"*16} {"─"*12} {"─"*50}')
+    for name in sorted(INSTALLABLE_TOOLS):
+        if name in inst:
+            click.echo(f'{name:<16} {"installed":<12} {inst[name]}')
+        else:
+            click.echo(f'{name:<16} {"—":<12}')
+
+
+def _run_local(sdk, tool_name, target, extra_config):
+    """Run a tool locally using the installed binary and upload results to Guard."""
+    from praetorian_cli.runners.local import LocalRunner
+
+    try:
+        runner = LocalRunner(tool_name)
+    except FileNotFoundError as e:
+        error(str(e))
+
+    # Strip Guard key prefix — local tools want raw targets (domain, IP, URL, path)
+    raw_target = target
+    if target.startswith('#'):
+        parts = target.split('#')
+        # Key format: #type#group#identifier — take identifier or group
+        raw_target = parts[-1] if len(parts) > 3 else parts[2] if len(parts) > 2 else target
+
+    # Build args based on tool
+    args = _build_local_args(tool_name, raw_target, extra_config)
+
+    click.echo(f'Running {tool_name} locally against {raw_target}...')
+    click.echo(f'Binary: {runner.binary_path}')
+    click.echo(f'Command: {tool_name} {" ".join(args)}')
+    click.echo('─' * 60)
+
+    # Run with live output
+    proc = runner.run_streaming(args)
+    output_lines = []
+    try:
+        for line in proc.stdout:
+            click.echo(line, nl=False)
+            output_lines.append(line)
+        proc.wait(timeout=600)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        click.echo('\nTimed out (10 min).', err=True)
+
+    stderr = proc.stderr.read() if proc.stderr else ''
+    if stderr:
+        click.echo(stderr, err=True)
+
+    click.echo('─' * 60)
+    exit_code = proc.returncode
+    click.echo(f'Exit code: {exit_code}')
+
+    # Upload output to Guard as a file
+    output_text = ''.join(output_lines)
+    if output_text.strip():
+        try:
+            import tempfile, os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, prefix=f'{tool_name}-') as f:
+                f.write(output_text)
+                tmp_path = f.name
+            guard_path = f'proofs/local/{tool_name}/{raw_target.replace("/", "_")}'
+            sdk.files.add(tmp_path, guard_path)
+            os.unlink(tmp_path)
+            click.echo(f'Output uploaded to Guard: {guard_path}')
+        except Exception as e:
+            click.echo(f'Failed to upload output: {e}', err=True)
+
+
+def _build_local_args(tool_name, target, extra_config):
+    """Build CLI arguments for a local tool run."""
+    config = {}
+    if extra_config:
+        try:
+            config = json.loads(extra_config)
+        except json.JSONDecodeError:
+            pass
+
+    # Tool-specific argument patterns
+    if tool_name == 'brutus':
+        args = ['-t', target]
+        if config.get('usernames'):
+            args.extend(['-u', config['usernames']])
+        if config.get('passwords'):
+            args.extend(['-p', config['passwords']])
+        return args
+    elif tool_name == 'nuclei':
+        args = ['-u', target, '-jsonl']
+        if config.get('templates'):
+            args.extend(['-t', config['templates']])
+        return args
+    elif tool_name == 'titus':
+        args = ['scan', target]
+        if config.get('validation') == 'true':
+            args.append('--validate')
+        return args
+    elif tool_name == 'trajan':
+        return ['scan', target]
+    elif tool_name == 'julius':
+        return ['-t', target]
+    elif tool_name == 'augustus':
+        return ['scan', '-t', target]
+    elif tool_name == 'cato':
+        return ['scan', '-u', target]
+    elif tool_name == 'nerva':
+        return ['-t', target]
+    elif tool_name == 'vespasian':
+        return ['discover', target]
+    elif tool_name == 'gato':
+        return ['enumerate', '-t', target]
+    elif tool_name == 'aurelian':
+        return ['scan']
+    elif tool_name == 'pius':
+        return ['discover', target]
+    elif tool_name == 'florian':
+        return ['scan', '-u', target]
+    elif tool_name == 'caligula':
+        return ['scan', target]
+    elif tool_name == 'hadrian':
+        return ['scan', '-u', target]
+    elif tool_name == 'nero':
+        return ['-t', target]
+    elif tool_name == 'constantine':
+        return ['scan', target]
+    else:
+        # Generic: pass target as first arg
+        return [target]
 
 
 def _run_direct(sdk, alias, target_key, extra_config, credentials, wait):

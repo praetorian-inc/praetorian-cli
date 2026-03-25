@@ -32,7 +32,8 @@ CONSOLE_COMMANDS = [
     'accounts', 'engagements', 'home', 'su',
     'search', 'find', 'assets', 'risks', 'jobs', 'info',
     'scan', 'tag',
-    'run', 'status', 'download', 'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
+    'run', 'status', 'download', 'install', 'installed',
+    'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
     'trajan', 'cato', 'priscus', 'seneca', 'titus',
     'nuclei', 'portscan', 'subdomain', 'crawler', 'capabilities',
     'evidence', 'report',
@@ -145,6 +146,8 @@ class GuardConsole:
             'run': self._cmd_run,
             'status': self._cmd_status,
             'download': self._cmd_download,
+            'install': self._cmd_install,
+            'installed': self._cmd_installed,
             'capabilities': self._cmd_capabilities,
             'evidence': self._cmd_evidence,
             'report': self._cmd_report,
@@ -1365,6 +1368,49 @@ class GuardConsole:
             if len(risks) > 20:
                 self.console.print(f'[dim]...and {len(risks) - 20} more[/dim]')
 
+    def _cmd_install(self, args):
+        """Install a capability binary locally from GitHub."""
+        from praetorian_cli.runners.local import install_tool, INSTALLABLE_TOOLS, is_installed
+        if not args:
+            self.console.print('[dim]Usage: install <tool_name|all>[/dim]')
+            self.console.print(f'[dim]Available: {", ".join(sorted(INSTALLABLE_TOOLS))}[/dim]')
+            return
+        tool_name = args[0].lower()
+        force = '--force' in args
+        if tool_name == 'all':
+            for name in sorted(INSTALLABLE_TOOLS):
+                try:
+                    if not force and is_installed(name):
+                        self.console.print(f'  {name}: [dim]already installed[/dim]')
+                    else:
+                        with self.console.status(f'Installing {name}...', spinner='dots', spinner_style=self.colors['primary']):
+                            path = install_tool(name, force=force)
+                        self.console.print(f'  {name}: [success]{path}[/success]')
+                except Exception as e:
+                    self.console.print(f'  {name}: [error]{e}[/error]')
+        else:
+            try:
+                with self.console.status(f'Installing {tool_name}...', spinner='dots', spinner_style=self.colors['primary']):
+                    path = install_tool(tool_name, force=force)
+                self.console.print(f'[success]Installed: {path}[/success]')
+            except Exception as e:
+                self.console.print(f'[error]{e}[/error]')
+
+    def _cmd_installed(self, args):
+        """List locally installed capability binaries."""
+        from praetorian_cli.runners.local import list_installed, INSTALLABLE_TOOLS
+        inst = list_installed()
+        table = Table(title='Local Binaries', border_style=self.colors['primary'])
+        table.add_column('Tool', style=f'bold {self.colors["primary"]}', min_width=16)
+        table.add_column('Status', min_width=10)
+        table.add_column('Path', style=self.colors['dim'])
+        for name in sorted(INSTALLABLE_TOOLS):
+            if name in inst:
+                table.add_row(name, f'[success]installed[/success]', inst[name])
+            else:
+                table.add_row(name, f'[dim]—[/dim]', '')
+        self.console.print(table)
+
     def _cmd_capabilities(self, args):
         """List available capabilities from the backend."""
         name_filter = args[0] if args else ''
@@ -1854,6 +1900,8 @@ class GuardConsole:
         help_table.add_row('nuclei <asset_key>', 'Vulnerability scanner')
         help_table.add_row('portscan <asset_key>', 'Port scanning')
         help_table.add_row('capabilities [name]', 'List all backend capabilities')
+        help_table.add_row('install <tool|all>', 'Install binary from GitHub')
+        help_table.add_row('installed', 'List locally installed binaries')
 
         help_table.add_row('', '')
         help_table.add_row('[heading]Evidence & Reports[/heading]', '')
