@@ -510,7 +510,7 @@ class GuardConsole:
             self.console.print(table)
 
     def _cmd_use(self, args):
-        """Select a tool or switch engagement — context-aware."""
+        """Select a tool/capability or switch engagement — context-aware."""
         from praetorian_cli.handlers.run import TOOL_ALIASES
         if not args:
             self._cmd_run([])  # show available tools
@@ -518,12 +518,18 @@ class GuardConsole:
 
         name = args[0]
 
-        # If it's a number, switch engagement (or hint to run accounts first)
+        # If it's a number, resolve from capability list or account list
         if name.isdigit():
-            if hasattr(self, '_account_list') and self._account_list:
+            idx = int(name) - 1
+            # Try capability list first (from "capabilities" command)
+            if hasattr(self, '_capability_list') and self._capability_list and 0 <= idx < len(self._capability_list):
+                self._cmd_use([self._capability_list[idx]])
+                return
+            # Then account list (from "accounts" command)
+            if hasattr(self, '_account_list') and self._account_list and 0 <= idx < len(self._account_list):
                 self._cmd_switch([name])
-            else:
-                self.console.print(f'[dim]Run "accounts" first to load the engagement list, then "use <#>".[/dim]')
+                return
+            self.console.print(f'[dim]Run "capabilities" or "accounts" first, then "use <#>".[/dim]')
             return
 
         # If it looks like an email, switch engagement
@@ -531,17 +537,56 @@ class GuardConsole:
             self._cmd_switch([name])
             return
 
-        # Otherwise, select a tool
         tool_name = name.lower()
-        if tool_name not in TOOL_ALIASES:
-            available = ', '.join(sorted(k for k in TOOL_ALIASES if k != 'secrets'))
-            self.console.print(f'[error]Unknown tool: {tool_name}. Available: {available}[/error]')
+
+        # Check named aliases first
+        if tool_name in TOOL_ALIASES:
+            alias = TOOL_ALIASES[tool_name]
+            self.context.active_tool = tool_name
+            self.context.active_tool_config = dict(alias.get('default_config', {}))
+            self.console.print(f'[info]Using {tool_name} — {alias["description"]}[/info]')
+            self.console.print(f'[dim]Target type: {alias["target_type"]}. Use "show targets" to see valid targets.[/dim]')
             return
-        alias = TOOL_ALIASES[tool_name]
-        self.context.active_tool = tool_name
-        self.context.active_tool_config = dict(alias.get('default_config', {}))
-        self.console.print(f'[info]Using {tool_name} — {alias["description"]}[/info]')
-        self.console.print(f'[dim]Target type: {alias["target_type"]}. Use "show targets" to see valid targets.[/dim]')
+
+        # Try resolving as a backend capability name (any of the 141 capabilities)
+        cap_info = self._resolve_backend_capability(tool_name)
+        if cap_info:
+            self.context.active_tool = tool_name
+            self.context.active_tool_config = {}
+            target_type = cap_info.get('target', 'asset')
+            if isinstance(target_type, list):
+                target_type = target_type[0] if target_type else 'asset'
+            desc = cap_info.get('description', '')[:60]
+            self.console.print(f'[info]Using {tool_name} — {desc}[/info]')
+            self.console.print(f'[dim]Target type: {target_type}. Use "show targets" to see valid targets.[/dim]')
+            # Dynamically add to TOOL_ALIASES for this session so execute/run work
+            TOOL_ALIASES[tool_name] = {
+                'capability': tool_name,
+                'agent': None,
+                'target_type': target_type,
+                'description': desc,
+            }
+            return
+
+        available = ', '.join(sorted(k for k in TOOL_ALIASES if k != 'secrets'))
+        self.console.print(f'[error]Unknown: {tool_name}. Named tools: {available}[/error]')
+        self.console.print(f'[dim]Or use any backend capability name — run "capabilities" to see all 141.[/dim]')
+
+    def _resolve_backend_capability(self, name):
+        """Check if a name matches a backend capability. Returns cap dict or None."""
+        if not hasattr(self, '_capabilities_cache'):
+            try:
+                result = self.sdk.capabilities.list(name='')
+                if isinstance(result, list):
+                    self._capabilities_cache = {c.get('name', '').lower(): c for c in result}
+                elif isinstance(result, dict):
+                    caps = result.get('capabilities', result.get('data', []))
+                    self._capabilities_cache = {c.get('name', '').lower(): c for c in caps}
+                else:
+                    self._capabilities_cache = {}
+            except Exception:
+                self._capabilities_cache = {}
+        return self._capabilities_cache.get(name.lower())
 
     def _cmd_options(self, args):
         """Show current tool options — Metasploit-style."""
@@ -1447,11 +1492,10 @@ class GuardConsole:
         self.console.print(table)
 
     def _cmd_capabilities(self, args):
-        """List available capabilities from the backend."""
+        """List available capabilities from the backend. Numbered for 'use <#>'."""
         name_filter = args[0] if args else ''
         try:
             result = self.sdk.capabilities.list(name=name_filter)
-            # result can be a list directly or a dict with a key
             if isinstance(result, list):
                 caps = result
             elif isinstance(result, dict):
@@ -1463,11 +1507,14 @@ class GuardConsole:
 
             if isinstance(caps, list) and caps:
                 table = Table(title=f'Capabilities ({len(caps)})', border_style=self.colors['primary'])
+                table.add_column('#', style=self.colors['dim'], width=4)
                 table.add_column('Name', style=f'bold {self.colors["primary"]}')
                 table.add_column('Target', style=self.colors['accent'])
                 table.add_column('Executor', style=self.colors['dim'])
                 table.add_column('Description')
-                for cap in caps:
+
+                self._capability_list = []
+                for i, cap in enumerate(caps, 1):
                     if isinstance(cap, dict):
                         name = str(cap.get('name', cap.get('Name', '')))
                         target = cap.get('target', cap.get('Target', ''))
@@ -1475,8 +1522,10 @@ class GuardConsole:
                             target = ','.join(target)
                         desc = str(cap.get('description', cap.get('Description', '')))[:50]
                         executor = str(cap.get('executor', ''))
-                        table.add_row(name, str(target), executor, desc)
+                        table.add_row(str(i), name, str(target), executor, desc)
+                        self._capability_list.append(name)
                 self.console.print(table)
+                self.console.print(f'\n[dim]Use "use <#>" or "use <name>" to select a capability.[/dim]')
             else:
                 self.console.print('[dim]No capabilities found.[/dim]')
         except Exception as e:
