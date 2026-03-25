@@ -12,6 +12,13 @@ from ..constants import DEFAULT_COLORS
 # Capability helpers
 # ---------------------------------------------------------------------------
 
+def _normalize_target(target):
+    """Normalize capability target field which may be a string or list."""
+    if isinstance(target, list):
+        return target[0].lower() if target else 'asset'
+    return (target or 'asset').lower()
+
+
 def _parse_capability_name(name):
     """Extract OS, category, and tool from capability name.
 
@@ -43,7 +50,7 @@ class CapabilityCompleter(Completer):
         for cap in self.capabilities:
             name = cap.get('name', '')
             name_lower = name.lower()
-            target = cap.get('target', 'asset').lower()
+            target = _normalize_target(cap.get('target', 'asset'))
             description = cap.get('description', '') or ''
             parsed = _parse_capability_name(name)
             category = parsed.get('category', '')
@@ -92,7 +99,7 @@ def interactive_capability_picker(menu, suggested=None):
         if capability_info:
             # Show the suggested capability and ask for confirmation
             desc = (capability_info.get('description', '') or '')[:60]
-            target = capability_info.get('target', 'asset')
+            target = _normalize_target(capability_info.get('target', 'asset'))
             menu.console.print(f"\n  Suggested capability:")
             menu.console.print(f"    {suggested} [{target}]")
             menu.console.print(f"    [{colors['dim']}]{desc}[/{colors['dim']}]")

@@ -19,6 +19,7 @@ from .job_helpers import (
     configure_parameters,
     capability_needs_credentials,
     resolve_addomain_target_key,
+    _normalize_target,
 )
 
 
@@ -267,7 +268,7 @@ def add_schedule(menu):
         menu.pause()
         return
 
-    target_type = capability_info.get('target', 'asset').lower()
+    target_type = _normalize_target(capability_info.get('target', 'asset'))
     hostname = menu.selected_agent.hostname or 'Unknown'
 
     # Create target key
