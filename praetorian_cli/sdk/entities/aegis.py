@@ -1,8 +1,12 @@
 from typing import List, Optional
+import json
 import shlex
 import shutil
 import subprocess
 import time
+
+import click
+
 from praetorian_cli.sdk.model.aegis import Agent
 from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
 
@@ -352,6 +356,29 @@ class Aegis:
         result = subprocess.run(ssh_command)
         return result.returncode
 
+    def build_ssh_command(self, agent: Agent, options: List[str] = None, user: str = None) -> str:
+        """Build an SSH command string for the given agent without executing it.
+
+        Returns the full command as a shell-safe string (via ``shlex.join``),
+        suitable for sending into a tmux pane with ``send-keys``.
+        """
+        options = options or []
+
+        if not user:
+            _, user = self.api.get_current_user()
+
+        is_valid, error_msg = validate_agent_for_ssh(agent)
+        if not is_valid:
+            raise Exception(error_msg)
+
+        cf_status = agent.health_check.cloudflared_status
+        public_hostname = cf_status.hostname
+
+        parts = ['ssh', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=30']
+        parts.extend(options)
+        parts.append(f'{user}@{public_hostname}')
+        return shlex.join(parts)
+
     def copy_to_agent(self, agent: Agent, local_path: str, remote_path: str,
                       direction: str = 'upload', user: str | None = None,
                       ssh_options: List[str] | None = None, display_info: bool = True,
@@ -539,6 +566,166 @@ class Aegis:
             'status': status,
         }
     
+    def ingest_result(self, filepath, dry_run=False, skip_files=False):
+        """Ingest a chariot_result.json file into Guard.
+
+        Parses assets, risks, and proof files from the result file and
+        pushes them to Guard in order: assets first, then risks (linked
+        to those assets), then proof files.
+
+        :param filepath: Path to the chariot_result.json file
+        :param dry_run: If True, parse and show summary without sending data
+        :param skip_files: If True, skip uploading proof file items
+        """
+        with open(filepath) as f:
+            data = json.load(f)
+
+        items = data.get('items')
+        if items is None:
+            raise Exception(f"No 'items' key found in {filepath}")
+
+        # Classify items: anything not risk/file is treated as an asset
+        assets = []
+        risks = []
+        files = []
+
+        for item in items:
+            item_type = item.get('_type', '')
+            if item_type == 'risk':
+                risks.append(item)
+            elif item_type == 'file':
+                files.append(item)
+            else:
+                assets.append(item)
+
+        click.echo(f"Parsed {len(items)} items: {len(assets)} assets, {len(risks)} risks, {len(files)} files")
+
+        if dry_run:
+            click.echo("Dry run — no data sent")
+            return
+
+        errors = []
+
+        # Phase 1: Assets
+        click.echo(f"\nIngesting {len(assets)} assets...")
+        for i, item in enumerate(assets, 1):
+            try:
+                body = self._transform_asset(item)
+                self.api.upsert('asset', body)
+            except Exception as e:
+                errors.append(f"Asset {item.get('key', '?')}: {e}")
+            if i % 100 == 0:
+                click.echo(f"  {i}/{len(assets)} assets processed")
+        click.echo(f"  {len(assets)}/{len(assets)} assets done")
+
+        # Phase 2: Risks
+        click.echo(f"\nIngesting {len(risks)} risks...")
+        for i, item in enumerate(risks, 1):
+            try:
+                target = item.get('_target', {})
+                target_key = target.get('key', '')
+                if not target_key:
+                    errors.append(f"Risk {item.get('name', '?')}: missing _target.key")
+                    continue
+                name = item.get('name', '')
+                status = item.get('status', '')
+                source = item.get('source', '')
+                self.api.risks.add(target_key, name, status, capability=source)
+            except Exception as e:
+                errors.append(f"Risk {item.get('name', '?')}: {e}")
+            if i % 100 == 0:
+                click.echo(f"  {i}/{len(risks)} risks processed")
+        click.echo(f"  {len(risks)}/{len(risks)} risks done")
+
+        # Phase 3: Files
+        if not skip_files and files:
+            click.echo(f"\nUploading {len(files)} files...")
+            for i, item in enumerate(files, 1):
+                try:
+                    name = item.get('name', '')
+                    content = item.get('bytes', '')
+                    if not name:
+                        errors.append("File item missing 'name'")
+                        continue
+                    self.api._upload(name, content.encode('utf-8'))
+                except Exception as e:
+                    errors.append(f"File {item.get('name', '?')}: {e}")
+                if i % 100 == 0:
+                    click.echo(f"  {i}/{len(files)} files processed")
+            click.echo(f"  {len(files)}/{len(files)} files done")
+        elif skip_files and files:
+            click.echo(f"\nSkipped {len(files)} files (--skip-files)")
+
+        # Summary
+        total = len(assets) + len(risks) + (len(files) if not skip_files else 0)
+        success = total - len(errors)
+        click.echo(f"\nComplete: {success}/{total} items ingested")
+        if errors:
+            click.echo(f"\n{len(errors)} errors:")
+            for err in errors:
+                click.echo(f"  - {err}")
+            raise SystemExit(1)
+
+    @staticmethod
+    def _transform_asset(item):
+        """Transform a result item into an asset upsert body.
+
+        Copies the dict, renames _type to type, and drops all _-prefixed keys.
+        """
+        body = {}
+        for k, v in item.items():
+            if k == '_type':
+                body['type'] = v
+            elif not k.startswith('_'):
+                body[k] = v
+        return body
+
+    def credential_auth(self, client_id: str, credential_id: str) -> dict:
+        """Run credential authentication on an Aegis agent.
+
+        Invokes the linux-ad-umber-auth management capability to authenticate
+        AD credentials against a domain controller via the specified agent.
+
+        :param client_id: The Aegis agent client ID to run auth from
+        :type client_id: str
+        :param credential_id: UUID of the credential to authenticate
+        :type credential_id: str
+        :return: Task status dict with taskId, status, and message
+        :rtype: dict
+
+        **Example Usage:**
+            >>> result = sdk.aegis.credential_auth("C.abc123", "550e8400-e29b-41d4-a716-446655440000")
+            >>> print(result['status'])
+        """
+        task_request = {
+            "aegisManagementCapability": "linux-ad-umber-auth",
+            "aegisClientId": client_id,
+            "parameters": {
+                "credential_id": credential_id,
+            },
+        }
+        return self.api.post('aegis/management/tasks', task_request)
+
+    def get_management_task(self, task_key: str) -> dict:
+        """Get the status of an Aegis management task.
+
+        :param task_key: The task key returned from credential_auth or other management operations
+        :type task_key: str
+        :return: Task details including status, result, and error information
+        :rtype: dict
+
+        Note: Uses the list endpoint and filters client-side because the
+        single-task endpoint has a known issue where the DynamoDB partition
+        key overwrites the task username field, causing access-denied errors
+        under account assumption.
+        """
+        tasks = self.api.get('aegis/management/tasks', params={})
+        if isinstance(tasks, list):
+            for task in tasks:
+                if isinstance(task, dict) and task.get('key') == task_key:
+                    return task
+        raise Exception(f'Task not found: {task_key}')
+
     def format_agents_list(self, details: bool = False, filter_text: str = None):
         """
         Format agents list for display with optional filtering and details.
