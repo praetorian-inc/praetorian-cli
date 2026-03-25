@@ -96,54 +96,9 @@ guard run installed            # check what's installed
 
 Binaries are downloaded from `praetorian-inc` GitHub releases to `~/.praetorian/bin/`.
 
-## Signing up
-
-Register for an account for [Guard](https://guard.praetorian.com) using the instructions
-in [our documentation](https://docs.praetorian.com/hc/en-us/articles/38048335323547-Account-Creation-and-Attack-Surface-Setup).
-
 ## Authentication
 
-Once you can properly access Guard through the UI, you can obtain API credentials by clicking the 
-Praetorian icon in the top right corner -> User Profile -> API Keys. Be sure to carefully copy the 
-API credentials you created as you will need to provide them to the CLI for interacting with Guard. 
-
-**Note**: SSO Organizations should provision access through API Keys as well.
-
-### Using API Keys 
-
-This is the authentication method for CLI. You can authenticate using either a keychain file or environment variables.
-
-#### Using the keychain file
-
-This method stores your API key in a keychain file.
-
-1. Run `guard configure` and follow the prompts to set up authentication. 
-Use the default values for `profile name`, `URL of backend API`, and `client ID`.
-2. It creates `~/.praetorian/keychain.ini`, which should read like this:
-
-```
-[United States]
-name = guard
-client_id = 795dnnr45so7m17cppta0b295o
-api = https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot
-api_key_id = your-api-key-id-here
-api_key_secret = your-api-key-here
-```
-
-#### Using environment variables
-
-This method uses in-memory environment variables to pass your API key to
-the CLI. There is no need for a keychain file on disk. This enables you to choose
-a credential storage method suitable for your use cases. To use this method, set the
-following environment variables:
-
-```zsh
-export PRAETORIAN_CLI_API_KEY_ID=your-api-key-id-here
-export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-here
-```
-
-For more advanced configuration options or managing access in SSO organizations see
-[the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
+Use your Guard API keys. Obtain them from the Guard UI: Praetorian icon → User Profile → API Keys.
 
 # Interactive Console
 
