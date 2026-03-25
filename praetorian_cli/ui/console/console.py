@@ -99,12 +99,47 @@ class GuardConsole:
         return HTML(f'<style fg="{PRIMARY_RED}" bg="">guard &gt;</style> ')
 
     def _show_banner(self):
-        banner = Text()
-        banner.append('Guard Console', style=f'bold {self.colors["primary"]}')
-        banner.append(' — interactive operator interface\n', style=self.colors['dim'])
-        banner.append(f'Context: {self.context.summary()}', style=self.colors['dim'])
-        self.console.print(Panel(banner, border_style=self.colors['primary']))
-        self.console.print(f'[dim]Type "help" for commands.[/dim]\n')
+        ascii_art = (
+            "                                    ██ ████                     ████ ██\n"
+            "                                 ██ ███                             ███ ██\n"
+            "                                 ███                                   ███\n"
+            "                              █  █████                               █████  █\n"
+            "                             ████                                         ████\n"
+            "                              █████                                     █████\n"
+            "                           █████                                           █████\n"
+            "                           ████████                                     ████████\n"
+            "                             ███                                           ███\n"
+            "                         ███ █  ███                                     ████ █ ███\n"
+            "                          ████████                                       ████████\n"
+            "                           █████   █                                    █  █████\n"
+            "                              █ ███                                     ███ █\n"
+            "                          █████████                                     █████████\n"
+            "                           ███████  ██                               ██  ███████\n"
+            "                                ██ ███  ██                        █  ███ ██\n"
+            "                                 █████ ███  ██               ██  ███ █████\n"
+            "                            █████████  ████████             ████ ████ █████████\n"
+            "                               ████  ███████████           █████ ██████ ████\n"
+            "                                   ████████ ████           ████ ████████\n"
+            "                                █████████  █████           ██████ █████████\n"
+            "                                        ████████████   ████████████\n"
+            "                                      ████████     █████     ████████\n"
+            "                                        ██        ███ ████       ██\n"
+            "                                                ██       ██"
+        )
+        self.console.print(f'[{PRIMARY_RED}]{ascii_art}[/{PRIMARY_RED}]')
+        self.console.print()
+
+        title = Text()
+        title.append('Guard Console', style=f'bold {PRIMARY_RED}')
+        title.append(' — ', style=self.colors['dim'])
+        title.append('Praetorian Offensive Security Platform', style=f'{COMPLEMENTARY_GOLD}')
+        self.console.print(title, justify='center')
+        self.console.print()
+
+        ctx_line = Text()
+        ctx_line.append(f'Context: {self.context.summary()}', style=self.colors['dim'])
+        self.console.print(ctx_line, justify='center')
+        self.console.print(f'[dim]Type "help" for commands.[/dim]\n', justify='center')
 
     def _dispatch(self, user_input: str):
         """Route user input to the appropriate command handler."""
@@ -1845,7 +1880,7 @@ class GuardConsole:
         help_table.add_column('Command', style=f'bold {self.colors["primary"]}', min_width=25)
         help_table.add_column('Description')
 
-        help_table.add_row('[heading]Context[/heading]', '')
+        help_table.add_row('[section]Context[/section]', '')
         help_table.add_row('set account <email>', 'Set engagement account')
         help_table.add_row('set scope <pattern>', 'Filter to domain/asset group')
         help_table.add_row('set mode <query|agent>', 'Set Marcus conversation mode')
@@ -1860,7 +1895,7 @@ class GuardConsole:
         help_table.add_row('engagements onboard email=... name=... seed=...', 'Full onboarding')
 
         help_table.add_row('', '')
-        help_table.add_row('[heading]Search & Recon[/heading]', '')
+        help_table.add_row('[section]Search & Recon[/section]', '')
         help_table.add_row('search <term>', 'Fast prefix search (DynamoDB)')
         help_table.add_row('find <term> [--type X]', 'Fulltext search (Neo4j)')
         help_table.add_row('assets', 'List assets (respects scope)')
@@ -1873,12 +1908,12 @@ class GuardConsole:
         help_table.add_row('info <key>', 'Get entity details')
 
         help_table.add_row('', '')
-        help_table.add_row('[heading]Operations[/heading]', '')
+        help_table.add_row('[section]Operations[/section]', '')
         help_table.add_row('scan <asset> [cap]', 'Schedule a scan job')
         help_table.add_row('tag <risk> <tag...>', 'Tag a risk')
 
         help_table.add_row('', '')
-        help_table.add_row('[heading]Security Tools (Metasploit-style)[/heading]', '')
+        help_table.add_row('[section]Security Tools (Metasploit-style)[/section]', '')
         help_table.add_row('use <tool>', 'Select a tool (brutus, nuclei, julius, etc.)')
         help_table.add_row('show targets', 'Show valid targets for active tool')
         help_table.add_row('set target <key|#>', 'Set target (key or number from list)')
@@ -1886,14 +1921,13 @@ class GuardConsole:
         help_table.add_row('execute / exploit', 'Run the active tool against the target')
         help_table.add_row('back', 'Deselect current tool')
         help_table.add_row('', '')
-        help_table.add_row('[heading]Agents & Capabilities[/heading]', '')
+        help_table.add_row('[section]Agents & Capabilities[/section]', '')
         help_table.add_row('asset-analyzer <key>', 'Deep-dive recon & risk mapping')
         help_table.add_row('brutus <port_key>', 'Credential attacks (SSH, RDP, FTP, SMB)')
         help_table.add_row('julius <port_key>', 'LLM/AI service fingerprinting')
         help_table.add_row('augustus <webpage_key>', 'LLM jailbreak & injection attacks')
         help_table.add_row('aurelius <asset_key>', 'Cloud infrastructure discovery')
         help_table.add_row('trajan <asset_key>', 'CI/CD pipeline security scanning')
-        help_table.add_row('cato <risk_key>', 'Finding validation & triage')
         help_table.add_row('priscus <risk_key>', 'Remediation retesting')
         help_table.add_row('seneca <risk_key>', 'CVE research & exploit intelligence')
         help_table.add_row('titus <repo_key>', 'Secret scanning & credential leak detection')
@@ -1904,13 +1938,13 @@ class GuardConsole:
         help_table.add_row('installed', 'List locally installed binaries')
 
         help_table.add_row('', '')
-        help_table.add_row('[heading]Evidence & Reports[/heading]', '')
+        help_table.add_row('[section]Evidence & Reports[/section]', '')
         help_table.add_row('evidence <risk_key>', 'Hydrated evidence for a risk')
         help_table.add_row('report generate [opts]', 'Generate engagement report')
         help_table.add_row('report validate [opts]', 'Validate report requirements')
 
         help_table.add_row('', '')
-        help_table.add_row('[heading]Marcus Aurelius[/heading]', '')
+        help_table.add_row('[section]Marcus Aurelius[/section]', '')
         help_table.add_row('ask "<question>"', 'One-shot query to Marcus')
         help_table.add_row('marcus', 'Enter multi-turn conversation')
         help_table.add_row('marcus read <path>', 'Read & analyze a file (vault, proofs, etc.)')
@@ -1918,7 +1952,7 @@ class GuardConsole:
         help_table.add_row('marcus do "<instruction>"', 'Direct instruction (full agent access)')
 
         help_table.add_row('', '')
-        help_table.add_row('[heading]Other[/heading]', '')
+        help_table.add_row('[section]Other[/section]', '')
         help_table.add_row('aegis', 'Open Aegis agent manager')
         help_table.add_row('clear', 'Clear screen')
         help_table.add_row('help', 'Show this help')
@@ -2016,18 +2050,18 @@ class GuardConsole:
         # Definition sections
         if definition:
             if definition.get('description'):
-                self.console.print(f'\n[heading]DESCRIPTION[/heading]')
+                self.console.print(f'\n[section]DESCRIPTION[/section]')
                 self.console.print(Markdown(definition['description']))
             if definition.get('impact'):
-                self.console.print(f'\n[heading]IMPACT[/heading]')
+                self.console.print(f'\n[section]IMPACT[/section]')
                 self.console.print(Markdown(definition['impact']))
             if definition.get('recommendation'):
-                self.console.print(f'\n[heading]RECOMMENDATION[/heading]')
+                self.console.print(f'\n[section]RECOMMENDATION[/section]')
                 self.console.print(Markdown(definition['recommendation']))
 
         # Evidence
         if evidence:
-            self.console.print(f'\n[heading]EVIDENCE ({len(evidence)} sources)[/heading]')
+            self.console.print(f'\n[section]EVIDENCE ({len(evidence)} sources)[/section]')
             for ev in evidence:
                 src = ev.get('source', '?')
                 if src == 'attribute':
@@ -2039,13 +2073,13 @@ class GuardConsole:
 
         # References
         if definition and definition.get('references'):
-            self.console.print(f'\n[heading]REFERENCES[/heading]')
+            self.console.print(f'\n[section]REFERENCES[/section]')
             for ref in definition['references']:
                 self.console.print(f'  - {ref}')
 
         # Affected assets
         if affected:
-            self.console.print(f'\n[heading]AFFECTED ASSETS ({len(affected)})[/heading]')
+            self.console.print(f'\n[section]AFFECTED ASSETS ({len(affected)})[/section]')
             for asset in affected[:10]:
                 self.console.print(f"  {asset.get('key', '?')}")
             if len(affected) > 10:

@@ -39,8 +39,6 @@ TOOL_ALIASES = {
                  'description': 'Cloud infrastructure discovery (AWS/Azure/GCP)'},
     'trajan':   {'capability': 'Trajan',         'agent': 'trajan-agent',   'target_type': 'repository',
                  'description': 'CI/CD pipeline security scanning'},
-    'cato':     {'capability': 'cato-agent',     'agent': None,             'target_type': 'risk',
-                 'description': 'Finding validation & triage'},
     'priscus':  {'capability': 'priscus-agent',  'agent': None,             'target_type': 'risk',
                  'description': 'Remediation retesting'},
     'seneca':   {'capability': 'seneca-agent',   'agent': None,             'target_type': 'risk',
