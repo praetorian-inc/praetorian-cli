@@ -422,6 +422,47 @@ class Search:
         return flatten_results(results), offset
 
 
+    def fulltext(self, term, kind=None, limit=100) -> tuple:
+        """
+        Fulltext search across Guard entities using Neo4j graph queries.
+
+        Unlike by_term which uses DynamoDB prefix matching, fulltext uses
+        Neo4j's search index for contains/substring matching across entity types.
+
+        :param term: Search term (substring match)
+        :type term: str
+        :param kind: Optional entity kind to restrict search (e.g., 'asset', 'risk')
+        :type kind: str or None
+        :param limit: Maximum results per entity type query
+        :type limit: int
+        :return: A tuple containing (list of matching entities, None)
+        :rtype: tuple
+        """
+        from praetorian_cli.sdk.model.query import Query, Node, KIND_TO_LABEL
+
+        DEFAULT_LABELS = [Node.Label.ASSET, Node.Label.RISK, Node.Label.ATTRIBUTE, Node.Label.WEBPAGE]
+
+        if kind:
+            label = KIND_TO_LABEL.get(kind)
+            if not label:
+                raise ValueError(f'Unsupported type for fulltext search: {kind}')
+            labels_to_search = [[label]]
+        else:
+            labels_to_search = [[l] for l in DEFAULT_LABELS]
+
+        all_results = []
+        for labels in labels_to_search:
+            try:
+                node = Node(labels=labels, search=term)
+                query = Query(node=node, limit=limit)
+                results, _ = self.by_query(query)
+                all_results.extend(results)
+            except Exception:
+                pass
+
+        return all_results, None
+
+
 def flatten_results(results):
     if isinstance(results, list):
         return results

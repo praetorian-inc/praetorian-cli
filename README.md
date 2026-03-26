@@ -18,7 +18,10 @@
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
     - [Signing up](#signing-up-and-configuration)
+- [Interactive Console](#interactive-console)
 - [Using the CLI](#using-the-cli)
+- [Marcus Aurelius AI](#marcus-aurelius-ai)
+- [Security Tools](#security-tools)
 - [Using scripts](#using-scripts)
 - [Developers](#developers)
 - [Contributing](#contributing)
@@ -43,11 +46,55 @@ offensive security platform.
 
 ## Installation
 
-Install the Python package using this command:
+Install the Python package:
 
 ```zsh
 pip install praetorian-cli
 ```
+
+### Install from source (for console branch features)
+
+```zsh
+git clone https://github.com/praetorian-inc/praetorian-cli.git
+cd praetorian-cli
+git checkout console
+pip install -e .
+```
+
+### Dependencies
+
+The console requires `rich` and `prompt_toolkit`, which are installed automatically:
+
+```
+click >= 8.1.7
+rich >= 13.0.0
+prompt_toolkit >= 3.0.0
+textual >= 0.47.0
+```
+
+### Configure authentication
+
+```zsh
+guard configure
+```
+
+Or set environment variables:
+```zsh
+export PRAETORIAN_CLI_API_KEY_ID=your-api-key-id
+export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-secret
+```
+
+### Install local security tools (optional)
+
+Requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated:
+
+```zsh
+guard run install brutus       # install a specific tool
+guard run install all          # install all Praetorian tools
+guard run installed            # check what's installed
+```
+
+Binaries are downloaded from `praetorian-inc` GitHub releases to `~/.praetorian/bin/`.
 
 ## Signing up
 
@@ -56,13 +103,13 @@ in [our documentation](https://docs.praetorian.com/hc/en-us/articles/38048335323
 
 ## Authentication
 
-Once you can properly access Guard through the UI, you can obtain API credentials by clicking the 
-Praetorian icon in the top right corner -> User Profile -> API Keys. Be sure to carefully copy the 
-API credentials you created as you will need to provide them to the CLI for interacting with Guard. 
+Once you can properly access Guard through the UI, you can obtain API credentials by clicking the
+Praetorian icon in the top right corner -> User Profile -> API Keys. Be sure to carefully copy the
+API credentials you created as you will need to provide them to the CLI for interacting with Guard.
 
 **Note**: SSO Organizations should provision access through API Keys as well.
 
-### Using API Keys 
+### Using API Keys
 
 This is the authentication method for CLI. You can authenticate using either a keychain file or environment variables.
 
@@ -70,11 +117,11 @@ This is the authentication method for CLI. You can authenticate using either a k
 
 This method stores your API key in a keychain file.
 
-1. Run `guard configure` and follow the prompts to set up authentication. 
+1. Run `guard configure` and follow the prompts to set up authentication.
 Use the default values for `profile name`, `URL of backend API`, and `client ID`.
 2. It creates `~/.praetorian/keychain.ini`, which should read like this:
 
-```
+```text
 [United States]
 name = guard
 client_id = 795dnnr45so7m17cppta0b295o
@@ -98,6 +145,54 @@ export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-here
 For more advanced configuration options or managing access in SSO organizations see
 [the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
+# Interactive Console
+
+The Guard CLI includes a Metasploit-style interactive console for operator-focused engagement workflows.
+
+```zsh
+guard console
+guard console --account client@example.com
+```
+
+The console provides:
+
+- **Engagement management** — switch between accounts, view stats (seeds/assets/risks), create customers, manage vaults
+- **Metasploit-style tool selection** — `use <tool>`, `show targets`, `set target`, `execute`
+- **All 141 backend capabilities** — any capability can be selected via `use <name>` or `use <#>`
+- **Marcus Aurelius AI** — inline queries (`ask`) and multi-turn conversation (`marcus`)
+- **Fulltext search** — `find` for Neo4j graph search across all entity types
+- **Evidence hydration** — `evidence <risk>` fetches all scattered evidence in one view
+- **Report generation** — `report generate` / `report validate`
+- **Local tool execution** — run installed Praetorian binaries locally, upload results to Guard
+- **Live job tracking** — `status`, `jobs`, real-time tool output from Marcus
+
+### Example session
+
+```
+guard > accounts                           # list engagements
+guard > use 5                              # switch to engagement #5
+guard > assets                             # list assets (scoped to engagement)
+guard > risks                              # list risks
+guard > show 1                             # drill into risk #1
+
+guard > use brutus                         # select credential tester
+guard (brutus) > show targets              # show valid port targets
+guard (brutus) > set target 3              # pick target #3
+guard (brutus) > run                       # execute (local if installed, remote otherwise)
+guard (brutus) > status                    # check job results
+guard (brutus) > exit                      # back to main prompt
+
+guard > ask "summarize critical risks"     # one-shot Marcus query
+guard > marcus                             # enter multi-turn conversation
+marcus > @aurelius scan cloud infra        # delegate to specialist agent
+marcus > back
+
+guard > marcus read "vault/sow.pdf"        # have Marcus analyze a file
+guard > marcus do "add example.com as seed" # direct instruction
+guard > download proofs                     # download all proof files locally
+guard > home                                # return to your own account
+```
+
 # Using the CLI
 
 The CLI is a command and option utility for accessing the full suite of Guard's API. You can see the documentation for commands
@@ -116,6 +211,94 @@ guard --account guard+example@praetorian.com list assets
 You can obtain the `account` argument by viewing the email of the first user on the Users page in your Guard account, as shown below:
 
 <img width="482" alt="image" src="https://github.com/user-attachments/assets/7c1024c9-7b74-46b1-87c5-af44671b1ec8" />
+
+### Additional CLI Commands
+
+Beyond the standard CRUD commands, the CLI includes:
+
+```zsh
+# Fulltext search (Neo4j graph queries)
+guard find "example.com"
+guard find "CVE-2024" --type risk
+
+# Evidence hydration
+guard get risk "#risk#example.com#CVE-2024-1234" --evidence
+
+# Reports
+guard report generate --title "Q1 Pentest" --client "Acme Corp" --risks "status:OH"
+guard report validate --risks "status:OH"
+
+# One-shot Marcus AI query
+guard ask "what assets have port 22 open?"
+
+# Marcus subcommands
+guard marcus read "vault/sow.pdf"
+guard marcus ingest "vault/scope.md" --scope --findings
+guard marcus do "add example.com as a seed and start discovery"
+
+# Security tools (local or remote)
+guard run tool brutus 10.0.1.5
+guard run tool nuclei example.com --remote
+guard run install brutus
+guard run installed
+
+# Engagement management
+guard engagement list
+guard engagement create-customer --email ops@acme.com --name "ACME Corp"
+guard engagement create-vault --client acme --sow SOW-1234 --sku WAPT --github-user jdoe
+```
+
+# Marcus Aurelius AI
+
+Marcus is Guard's AI operator, accessible from both the CLI and the interactive console.
+
+```zsh
+# One-shot queries
+guard ask "how many critical risks are there?"
+guard ask "show me all assets with port 22 open" --mode query
+
+# File analysis and ingestion
+guard marcus read "vault/engagement/sow.pdf"
+guard marcus ingest "vault/nessus-export.csv" --findings
+guard marcus do "generate an executive summary"
+```
+
+In the console, Marcus shows live tool execution:
+```
+guard > ask "analyze the top risks"
+Thinking...
+  → query — 14 risks done
+  → query — 5 assets done
+Found 14 risks across 5 assets...
+```
+
+# Security Tools
+
+All 141 Guard capabilities are available through the CLI. Named tools include:
+
+| Agent | Description |
+|-------|-------------|
+| `asset-analyzer` | Deep-dive reconnaissance & risk mapping |
+| `brutus` | Credential attacks (SSH, RDP, FTP, SMB) |
+| `julius` | LLM/AI service fingerprinting |
+| `augustus` | LLM jailbreak & prompt injection attacks |
+| `aurelius` | Cloud infrastructure discovery (AWS/Azure/GCP) |
+| `trajan` | CI/CD pipeline security scanning |
+| `priscus` | Remediation retesting |
+| `seneca` | CVE research & exploit intelligence |
+| `titus` | Secret scanning & credential leak detection |
+
+### Local execution
+
+Tools can run locally if the binary is installed, with results uploaded to Guard:
+
+```zsh
+guard run install brutus           # download from praetorian-inc GitHub
+guard run install all              # install everything
+guard run tool brutus 10.0.1.5     # runs locally (default if installed)
+guard run tool brutus 10.0.1.5 --remote  # force remote execution
+guard run installed                # show what's installed locally
+```
 
 To get detailed information about a specific asset, run:
 
