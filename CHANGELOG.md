@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.3.5
+- [New Feature] Added the export report command
+
 # 2.3.4
 - [New Feature] Added `--tag`/`-g` flag to `add risk` and `update risk` CLI commands for tagging risks
 - [New Feature] Added required `--role`/`-r` option (`admin`, `analyst`, `readonly`) to the `link account` CLI command for RBAC-aware collaborator account creation
