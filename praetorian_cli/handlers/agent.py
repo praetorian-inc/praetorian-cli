@@ -1,4 +1,5 @@
 import os
+import json
 
 import click
 
@@ -77,24 +78,24 @@ def tools(sdk, allowed):
 @cli_handler
 def conversation(sdk):
     """ Interactive conversation with Guard AI assistant
-    
+
     Start an interactive chat session with the Guard AI assistant.
     The AI can help you query security data, understand findings,
     and provide insights about your attack surface.
-    
+
     \b
     Commands within conversation:
         - help    Show available commands and query examples
-        - clear   Clear the screen  
+        - clear   Clear the screen
         - new     Start a new conversation
         - quit    Exit the conversation
-    
+
     \b
     Example queries:
         - "Find all active assets"
         - "Show me critical risks"
         - "What assets do we have for example.com?"
-        
+
     \b
     Usage:
         guard agent conversation
@@ -108,8 +109,8 @@ def marcus():
     """ Marcus Aurelius — Guard's AI operator
 
     \b
-    Invoke Marcus to read files, ingest engagement data, create findings,
-    add seeds, run tools, and analyze your attack surface.
+    Invoke Marcus to analyze data, create findings,
+    add seeds, run tools, and manage your attack surface.
     """
     pass
 
@@ -122,22 +123,17 @@ def marcus():
 def marcus_read(sdk, path, local, instructions):
     """ Have Marcus read and analyze a file
 
-    Read a file from Guard storage (or upload a local file) and have Marcus
-    analyze it. Marcus can extract findings, identify assets, suggest seeds,
-    and create risks based on what it reads.
+    Reads a file from Guard storage (or uploads a local file) and asks Marcus
+    to analyze it. Note: requires file_read tool on the agent — currently
+    available on engagement-coordinator and aurelius agents only.
 
     \b
     Example usages:
         guard marcus read "vault/engagement/sow.pdf"
-        guard marcus read "proofs/example.com/screenshot.png"
         guard marcus read ./local-report.md --local
         guard marcus read "vault/nessus-export.csv" -i "create risks for critical findings"
     """
-    import json, time
-
-    # If local file, upload to Guard first
     if local:
-        import os
         if not os.path.exists(path):
             error(f'Local file not found: {path}')
         filename = os.path.basename(path)
@@ -157,7 +153,8 @@ def marcus_read(sdk, path, local, instructions):
             f'If it contains credentials or secrets, flag them.'
         )
 
-    _send_and_poll(sdk, message, timeout=180)
+    result = sdk.agents.ask(message, mode='agent', new=True)
+    click.echo(result['response'])
 
 
 @marcus.command('ingest')
@@ -168,8 +165,8 @@ def marcus_read(sdk, path, local, instructions):
 def marcus_ingest(sdk, path, scope, findings):
     """ Have Marcus read a file and automatically ingest data into Guard
 
-    Like 'marcus read' but with automatic action — Marcus will create seeds,
-    risks, and assets without asking for confirmation.
+    Like 'marcus read' but with automatic action. Note: requires file_read
+    tool on the agent.
 
     \b
     Example usages:
@@ -185,15 +182,15 @@ def marcus_ingest(sdk, path, scope, findings):
     if not actions:
         actions.append('Add scope items as seeds and create risks for any findings.')
 
-    action_text = ' '.join(actions)
     message = (
         f'Read the file at "{path}" using the file_read tool. '
-        f'Analyze its contents thoroughly. {action_text} '
+        f'Analyze its contents thoroughly. {" ".join(actions)} '
         f'Take action automatically — do not ask for confirmation. '
         f'Report what you created when done.'
     )
 
-    _send_and_poll(sdk, message, timeout=300)
+    result = sdk.agents.ask(message, mode='agent', new=True, timeout=300)
+    click.echo(result['response'])
 
 
 @marcus.command('do')
@@ -203,7 +200,7 @@ def marcus_do(sdk, instruction):
     """ Give Marcus a direct instruction to execute
 
     Marcus operates in agent mode with full access to tools: seed_add, job
-    (run scans), file_read, spawn_agent (brutus, julius, etc.), and more.
+    (run scans), spawn_agent (brutus, julius, etc.), and more.
 
     \b
     Example usages:
@@ -211,58 +208,9 @@ def marcus_do(sdk, instruction):
         guard marcus do "run nuclei on all assets with port 443"
         guard marcus do "create a risk for CVE-2024-1234 on asset api.example.com"
         guard marcus do "generate an executive summary"
-        guard marcus do "onboard new engagement from vault/sow.pdf"
     """
-    _send_and_poll(sdk, instruction, timeout=300)
-
-
-def _send_and_poll(sdk, message, timeout=180):
-    """Send a message to Marcus in agent mode and poll for the response."""
-    import json, time
-
-    url = sdk.url('/planner')
-    payload = {'message': message, 'mode': 'agent'}
-
-    response = sdk.chariot_request('POST', url, json=payload)
-    if not response.ok:
-        error(f'API error: {response.status_code} - {response.text}')
-        return
-
-    result = response.json()
-    conversation_id = result.get('conversation', {}).get('uuid')
-
-    # Save conversation state for follow-up with `guard ask`
-    state_file = os.path.join(os.path.expanduser('~'), '.praetorian', 'conversation_state.json')
-    os.makedirs(os.path.dirname(state_file), exist_ok=True)
-    with open(state_file, 'w') as f:
-        json.dump({'conversation_id': conversation_id}, f)
-
-    last_key = ''
-    start_time = time.time()
-
-    while time.time() - start_time < timeout:
-        messages, _ = sdk.search.by_key_prefix(f'#message#{conversation_id}#', user=True)
-        new_msgs = sorted(
-            [m for m in messages if m.get('key', '') > last_key],
-            key=lambda x: x.get('key', '')
-        )
-
-        for msg in new_msgs:
-            role = msg.get('role', '')
-            content = msg.get('content', '')
-            last_key = msg.get('key', '')
-
-            if role == 'chariot':
-                click.echo(content)
-                return
-            elif role == 'tool call':
-                click.echo('Executing...', err=True, nl=False)
-            elif role == 'tool response':
-                click.echo(' done.', err=True)
-
-        time.sleep(1)
-
-    error(f'Timed out waiting for response ({timeout}s)')
+    result = sdk.agents.ask(instruction, mode='agent', timeout=300)
+    click.echo(result['response'])
 
 
 @chariot.command()
@@ -284,9 +232,7 @@ def ask(sdk, message, mode, new_conversation, output_format):
         - guard ask --new "unrelated question"
         - guard ask "summarize findings" --format json
     """
-    import json, time, sys
-
-    # Load/save conversation state
+    # Load conversation state for persistence across CLI invocations
     state_file = os.path.join(os.path.expanduser('~'), '.praetorian', 'conversation_state.json')
     conversation_id = None
     if not new_conversation:
@@ -297,57 +243,34 @@ def ask(sdk, message, mode, new_conversation, output_format):
         except (FileNotFoundError, json.JSONDecodeError):
             pass
 
-    # Send message
-    url = sdk.url('/planner')
-    payload = {'message': message, 'mode': mode}
-    if conversation_id:
-        payload['conversationId'] = conversation_id
-
-    response = sdk.chariot_request('POST', url, json=payload)
-    if not response.ok:
-        error(f'API error: {response.status_code} - {response.text}')
-        return
-
-    result = response.json()
-    if not conversation_id and 'conversation' in result:
-        conversation_id = result['conversation'].get('uuid')
+    try:
+        result = sdk.agents.ask(
+            message, mode=mode,
+            conversation_id=conversation_id,
+            new=new_conversation,
+        )
+    except Exception as e:
+        error(str(e))
 
     # Save conversation state
     os.makedirs(os.path.dirname(state_file), exist_ok=True)
     with open(state_file, 'w') as f:
-        json.dump({'conversation_id': conversation_id}, f)
+        json.dump({'conversation_id': result['conversation_id']}, f)
 
-    # Poll for AI response
-    max_wait = 120  # 2 minutes
-    start_time = time.time()
-    last_key = ''
+    # Show tool call progress
+    for tc in result.get('tool_calls', []):
+        if tc['role'] == 'tool call':
+            click.echo('Executing...', err=True, nl=False)
+        elif tc['role'] == 'tool response':
+            click.echo(' done.', err=True)
 
-    while time.time() - start_time < max_wait:
-        messages, _ = sdk.search.by_key_prefix(f'#message#{conversation_id}#', user=True)
-        new_messages = [m for m in messages if m.get('key', '') > last_key]
-        new_messages = sorted(new_messages, key=lambda x: x.get('key', ''))
-
-        for msg in new_messages:
-            role = msg.get('role', '')
-            content = msg.get('content', '')
-            last_key = msg.get('key', '')
-
-            if role == 'chariot':
-                if output_format == 'json':
-                    click.echo(json.dumps({'response': content, 'conversation_id': conversation_id}, indent=2))
-                else:
-                    click.echo(content)
-                return
-            elif role == 'tool call':
-                if output_format == 'text':
-                    click.echo('Executing...', err=True, nl=False)
-            elif role == 'tool response':
-                if output_format == 'text':
-                    click.echo(' done.', err=True)
-
-        time.sleep(1)
-
-    error('Timed out waiting for response')
+    if output_format == 'json':
+        click.echo(json.dumps({
+            'response': result['response'],
+            'conversation_id': result['conversation_id'],
+        }, indent=2))
+    else:
+        click.echo(result['response'])
 
 
 @chariot.command()

@@ -39,17 +39,17 @@ class Risks:
             body['tags'] = list(tags)
         return self.api.upsert('risk', body)['risks'][0]
 
-    def get(self, key, details=False):
+    def get(self, key, details=False, evidence=False):
         """
         Get details of a risk by its exact key.
 
         :param key: The exact key of a risk (format: #risk#{asset_dns}#{risk_name})
-        :type key: str
-        :param details: Whether to also retrieve more details about this risk. This will make additional API calls to get the risk attributes and affected assets
-        :type details: bool
-        :return: The matching risk object or None if not found
-        :rtype: dict or None
+        :param details: Whether to also retrieve attributes and affected assets
+        :param evidence: Whether to retrieve all evidence from all sources (attributes, webpages, files, definitions)
+        :return: The matching risk object, or hydrated dict if evidence=True
         """
+        if evidence:
+            return self._hydrate_evidence(key)
         risk = self.api.search.by_exact_key(key, details)
         if risk and details:
             risk['affected_assets'] = self.affected_assets(key)
@@ -203,7 +203,7 @@ class Risks:
 
         return note_indices[note_index]
 
-    def hydrate_evidence(self, key):
+    def _hydrate_evidence(self, key):
         """
         Fetch all evidence associated with a risk from all sources: attributes, webpages,
         files, and definitions. Returns a normalized dict with the risk record, parsed

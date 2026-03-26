@@ -4,15 +4,6 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, error
 from praetorian_cli.sdk.model.globals import Kind
-from praetorian_cli.sdk.model.query import Query, Node, KIND_TO_LABEL
-
-# Default types to search when no --type is specified
-DEFAULT_SEARCH_LABELS = [
-    Node.Label.ASSET,
-    Node.Label.RISK,
-    Node.Label.ATTRIBUTE,
-    Node.Label.WEBPAGE,
-]
 
 
 @chariot.command()
@@ -44,18 +35,7 @@ def find(chariot, term, kind, limit, details, fmt):
     if not term:
         error('Search term cannot be empty.')
 
-    all_results = []
-
-    if kind:
-        label = KIND_TO_LABEL.get(kind)
-        if not label:
-            error(f'Unsupported type for graph search: {kind}')
-        results = _search_label(chariot, [label], term, limit)
-        all_results.extend(results)
-    else:
-        for label in DEFAULT_SEARCH_LABELS:
-            results = _search_label(chariot, [label], term, limit)
-            all_results.extend(results)
+    all_results, _ = chariot.search.fulltext(term, kind=kind, limit=limit)
 
     if details or fmt == 'json':
         print_json(dict(data=all_results, count=len(all_results)))
@@ -69,14 +49,3 @@ def find(chariot, term, kind, limit, details, fmt):
             f'There may be more matches. Use --limit to increase or --type to narrow the search.',
             err=True
         )
-    elif not kind:
-        # When searching across multiple types, warn if any single type hit the limit
-        pass
-
-
-def _search_label(chariot, labels, term, limit):
-    """ Execute a fulltext graph query for a single node label. """
-    node = Node(labels=labels, search=term)
-    query = Query(node=node, limit=limit)
-    results, _ = chariot.search.by_query(query)
-    return results

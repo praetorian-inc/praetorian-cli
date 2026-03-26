@@ -434,6 +434,13 @@ class TestZCli:
         self.verify('run tool --help', ignore_stdout=True)
         self.verify('run list', ignore_stdout=True)
         self.verify('run capabilities --help', ignore_stdout=True)
+        self.verify('run install --help', ignore_stdout=True)
+        self.verify('run installed', ignore_stdout=True)
+        self.verify('marcus --help', ignore_stdout=True)
+        self.verify('marcus read --help', ignore_stdout=True)
+        self.verify('marcus ingest --help', ignore_stdout=True)
+        self.verify('marcus do --help', ignore_stdout=True)
+        self.verify('add customer --help', ignore_stdout=True)
 
     def test_guard_cli(self):
         """Test the 'guard' entry point works correctly."""

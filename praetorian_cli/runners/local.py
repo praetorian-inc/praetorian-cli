@@ -181,3 +181,116 @@ class LocalRunner:
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         return proc
+
+
+# ── Tool Plugin Registry ─────────────────────────────────────────────────────
+
+class ToolPlugin:
+    """Base class for local tool argument builders."""
+
+    def build_args(self, target, extra_config=''):
+        config = {}
+        if extra_config:
+            try:
+                config = json.loads(extra_config) if isinstance(extra_config, str) else extra_config
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return self._build(target, config)
+
+    def _build(self, target, config):
+        return [target]
+
+
+class BrutusPlugin(ToolPlugin):
+    def _build(self, target, config):
+        args = ['-t', target]
+        if config.get('usernames'):
+            args.extend(['-u', config['usernames']])
+        if config.get('passwords'):
+            args.extend(['-p', config['passwords']])
+        return args
+
+
+class NucleiPlugin(ToolPlugin):
+    def _build(self, target, config):
+        args = ['-u', target, '-jsonl']
+        if config.get('templates'):
+            args.extend(['-t', config['templates']])
+        return args
+
+
+class TitusPlugin(ToolPlugin):
+    def _build(self, target, config):
+        args = ['scan', target]
+        if config.get('validation') == 'true':
+            args.append('--validate')
+        return args
+
+
+class TrajanPlugin(ToolPlugin):
+    def _build(self, target, config):
+        args = ['scan', target]
+        if config.get('token'):
+            args.extend(['--token', config['token']])
+        return args
+
+
+class JuliusPlugin(ToolPlugin):
+    def _build(self, target, config):
+        return ['-t', target]
+
+
+class AugustusPlugin(ToolPlugin):
+    def _build(self, target, config):
+        return ['scan', '-t', target]
+
+
+class NervaPlugin(ToolPlugin):
+    def _build(self, target, config):
+        return ['-t', target]
+
+
+class GatoPlugin(ToolPlugin):
+    def _build(self, target, config):
+        args = ['enumerate', '-t', target]
+        if config.get('token'):
+            args.extend(['--token', config['token']])
+        return args
+
+
+class UrlTargetPlugin(ToolPlugin):
+    """For tools that take scan -u <target>."""
+    def _build(self, target, config):
+        return ['scan', '-u', target]
+
+
+class ScanTargetPlugin(ToolPlugin):
+    """For tools that take scan <target>."""
+    def _build(self, target, config):
+        return ['scan', target]
+
+
+TOOL_PLUGINS = {
+    'brutus':      BrutusPlugin(),
+    'nuclei':      NucleiPlugin(),
+    'titus':       TitusPlugin(),
+    'trajan':      TrajanPlugin(),
+    'julius':      JuliusPlugin(),
+    'augustus':     AugustusPlugin(),
+    'nerva':       NervaPlugin(),
+    'gato':        GatoPlugin(),
+    'cato':        UrlTargetPlugin(),
+    'vespasian':   ScanTargetPlugin(),
+    'constantine': ScanTargetPlugin(),
+    'florian':     UrlTargetPlugin(),
+    'caligula':    ScanTargetPlugin(),
+    'hadrian':     UrlTargetPlugin(),
+    'nero':        NervaPlugin(),  # uses -t like nerva
+}
+
+_default_plugin = ToolPlugin()
+
+
+def get_tool_plugin(tool_name):
+    """Get the argument-builder plugin for a tool, or the default passthrough."""
+    return TOOL_PLUGINS.get(tool_name, _default_plugin)
