@@ -43,7 +43,10 @@ class CapabilityCompleter(Completer):
         for cap in self.capabilities:
             name = cap.get('name', '')
             name_lower = name.lower()
-            target = cap.get('target', 'asset').lower()
+            target = cap.get('target', 'asset')
+            if isinstance(target, list):
+                target = target[0] if target else 'asset'
+            target = str(target).lower()
             description = cap.get('description', '') or ''
             parsed = _parse_capability_name(name)
             category = parsed.get('category', '')
