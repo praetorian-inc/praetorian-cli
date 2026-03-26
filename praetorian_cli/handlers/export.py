@@ -1,12 +1,9 @@
 import os
-from datetime import date
-from time import sleep, time
 
 import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import error
 
 
 @chariot.group()
@@ -70,79 +67,36 @@ def report(chariot, title, client_name, status_filter, risk_keys,
             --format zip --draft \\
             --status-filter O --status-filter T --status-filter R
     """
-    customer_email = chariot.keychain.account or chariot.keychain.username()
-    if not customer_email:
-        error('Could not determine customer email. Use --account or configure a username.')
+    customer_email = chariot.reports.customer_email()
 
-    if not report_date:
-        report_date = date.today().isoformat()
-
-    body = {
-        'status_filter': list(status_filter),
-        'config': {
-            'title': title,
-            'client_name': client_name,
-            'report_date': report_date,
-            'draft': draft,
-            'version': report_version,
-        },
-        'shared_output': shared,
-        'customer_email': customer_email,
-        'export_format': export_format,
-        'group_by': group_by,
-    }
-
-    if risk_keys:
-        body['risk_keys'] = list(risk_keys)
-    if target:
-        body['config']['target'] = target
-    if start_date:
-        body['config']['start_date'] = start_date
-    if end_date:
-        body['config']['end_date'] = end_date
-    if executive_summary:
-        body['executive_summary_path'] = executive_summary
-    if narratives:
-        body['narratives_path'] = narratives
-    if appendix:
-        body['appendix_path'] = appendix
+    body = chariot.reports.build_export_body(
+        title=title,
+        client_name=client_name,
+        customer_email=customer_email,
+        status_filter=status_filter,
+        risk_keys=risk_keys,
+        target=target,
+        start_date=start_date,
+        end_date=end_date,
+        report_date=report_date,
+        draft=draft,
+        version=report_version,
+        export_format=export_format,
+        group_by=group_by,
+        shared_output=shared,
+        executive_summary_path=executive_summary,
+        narratives_path=narratives,
+        appendix_path=appendix,
+    )
 
     click.echo(f'Starting {export_format.upper()} report generation for {customer_email}...')
-    resp = chariot.post('export/report', body)
-
-    job_key = resp.get('key')
-    if not job_key:
-        error('No job key returned from export/report endpoint.')
-
-    click.echo(f'Job queued: {job_key}')
-    click.echo(f'Polling for completion (timeout: {timeout}s)...')
-
-    start_time = time()
-    job = None
-    while time() - start_time < timeout:
-        job = chariot.jobs.get(job_key)
-        if chariot.jobs.is_failed(job):
-            message = job.get('message', 'unknown error')
-            error(f'Report generation failed: {message}')
-        if chariot.jobs.is_passed(job):
-            break
-        sleep(5)
-
-    if not job or not chariot.jobs.is_passed(job):
-        error(f'Report generation timed out after {timeout} seconds.')
-
+    job = chariot.reports.export(body, timeout=timeout)
     click.echo('Report generation complete.')
 
-    config = job.get('config', {})
-    output_path = config.get('output') or job.get('dns', '')
-
-    if not output_path:
-        error('Could not determine output file path from job.')
-
     if no_download:
-        click.echo(f'Output path: {output_path}')
+        click.echo(f'Output path: {chariot.reports.output_path(job)}')
         return
 
-    click.echo(f'Downloading {output_path}...')
-    local_path = chariot.files.save(output_path, output)
+    click.echo(f'Downloading {chariot.reports.output_path(job)}...')
+    local_path = chariot.reports.download(job, output)
     click.echo(f'Saved to {local_path}')
