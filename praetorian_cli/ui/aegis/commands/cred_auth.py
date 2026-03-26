@@ -1,13 +1,13 @@
 """Aegis credential authentication command for TUI menu."""
 
 import re
-import time
 
 from rich.live import Live
 from rich.prompt import Prompt
 from rich.spinner import Spinner
 from rich.text import Text
 
+from praetorian_cli.sdk.entities.aegis import parse_task_result
 from ..constants import DEFAULT_COLORS
 from .job_helpers import select_credentials
 
@@ -104,89 +104,57 @@ def handle_cred_auth(menu, args):
 
 
 def _print_task_result(menu, task, colors):
-    """Print the full result of a completed/failed management task."""
-    import json
-
-    status = task.get('status', '')
-    is_success = status == 'AMT_COMPLETED'
-    color = colors['success'] if is_success else colors['error']
-    label = 'Completed' if is_success else 'Failed'
+    """Display a completed management task result in the TUI."""
+    r = parse_task_result(task)
+    color = colors['success'] if r['is_success'] else colors['error']
+    label = 'Completed' if r['is_success'] else 'Failed'
 
     menu.console.print(f"\n  [{color}]{label}[/{color}]")
 
-    if task.get('errorMessage'):
-        menu.console.print(f"  [{colors['error']}]Error: {task['errorMessage']}[/{colors['error']}]")
+    if r['error_message']:
+        menu.console.print(f"  [{colors['error']}]Error: {r['error_message']}[/{colors['error']}]")
 
-    cmd = task.get('commandResult') or {}
-    output_str = cmd.get('output', '')
-
-    # Try to parse output as JSON for structured display
-    output_data = None
-    if output_str:
-        try:
-            output_data = json.loads(output_str)
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    if output_data and isinstance(output_data, dict):
-        # Structured output — display as key/value pairs
-        max_key = max((len(str(k)) for k in output_data), default=0)
-        for k, v in output_data.items():
+    if r['output_data']:
+        max_key = max((len(str(k)) for k in r['output_data']), default=0)
+        for k, v in r['output_data'].items():
             menu.console.print(f"  {str(k):<{max_key}}  {v}")
     else:
-        # Fall back to summary fields
-        if task.get('result'):
-            menu.console.print(f"  Result: {task['result']}")
-
-        if cmd:
-            menu.console.print(f"  Success:   {cmd.get('success', 'N/A')}")
-            menu.console.print(f"  Exit code: {cmd.get('exit_code', 'N/A')}")
-
-        if output_str:
+        if r['result']:
+            menu.console.print(f"  Result: {r['result']}")
+        if r['success'] is not None or r['exit_code'] is not None:
+            menu.console.print(f"  Success:   {r['success'] or 'N/A'}")
+            menu.console.print(f"  Exit code: {r['exit_code'] or 'N/A'}")
+        if r['output_raw']:
             menu.console.print(f"\n  [{colors['dim']}]--- Output ---[/{colors['dim']}]")
-            for line in output_str.splitlines():
+            for line in r['output_raw'].splitlines():
                 menu.console.print(f"  {line}")
 
-    if cmd.get('error_output'):
+    if r['error_output']:
         menu.console.print(f"\n  [{colors['error']}]--- Error Output ---[/{colors['error']}]")
-        for line in cmd['error_output'].splitlines():
+        for line in r['error_output'].splitlines():
             menu.console.print(f"  {line}")
-    if cmd.get('error_message'):
-        menu.console.print(f"  [{colors['error']}]Error: {cmd['error_message']}[/{colors['error']}]")
+    if r['command_error']:
+        menu.console.print(f"  [{colors['error']}]Error: {r['command_error']}[/{colors['error']}]")
 
 
 def _poll_task(menu, task_id, colors, timeout=120):
     """Poll a management task until it completes or times out."""
-    start = time.monotonic()
-    deadline = start + timeout
-    poll_count = 0
-
     spinner = Spinner("dots", text=Text("  Waiting for agent to execute task...", style=colors['dim']))
+
+    def _on_status(elapsed, message, retrying):
+        suffix = f" ({elapsed}s, retrying)" if retrying else f" ({elapsed}s)"
+        spinner.update(text=Text(f"  {message}{suffix}", style=colors['dim']))
 
     try:
         with Live(spinner, console=menu.console, refresh_per_second=10, transient=True):
-            while time.monotonic() < deadline:
-                time.sleep(5)
-                poll_count += 1
-                elapsed = int(time.monotonic() - start)
-
-                try:
-                    task = menu.sdk.aegis.get_management_task(task_id)
-                except Exception:
-                    spinner.update(text=Text(f"  Waiting for agent... ({elapsed}s, retrying)", style=colors['dim']))
-                    continue
-
-                current_status = task.get('status', '')
-
-                if current_status in ('AMT_COMPLETED', 'AMT_FAILED'):
-                    break
-
-                spinner.update(text=Text(f"  Running on agent... ({elapsed}s)", style=colors['dim']))
-            else:
-                menu.console.print(f"  [{colors['warning']}]Timed out after {timeout}s — task may still be running[/{colors['warning']}]")
-                return
+            task = menu.sdk.aegis.poll_management_task(
+                task_id, timeout=timeout, on_status=_on_status,
+            )
     except KeyboardInterrupt:
         menu.console.print(f"\n  [{colors['dim']}]Interrupted — task may still be running in background[/{colors['dim']}]")
         return
 
-    _print_task_result(menu, task, colors)
+    if task:
+        _print_task_result(menu, task, colors)
+    else:
+        menu.console.print(f"  [{colors['warning']}]Timed out after {timeout}s — task may still be running[/{colors['warning']}]")

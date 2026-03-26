@@ -9,6 +9,42 @@ from praetorian_cli.sdk.model.aegis import Agent
 from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
 
 
+TASK_TERMINAL_STATUSES = ('AMT_COMPLETED', 'AMT_FAILED')
+
+
+def parse_task_result(task: dict) -> dict:
+    """Parse a management task response into a display-friendly structure.
+
+    Returns a dict with:
+        status, is_success, error_message, result,
+        output_data (parsed JSON dict or None), output_raw,
+        success, exit_code, error_output, command_error
+    """
+    status = task.get('status', '')
+    cmd = task.get('commandResult') or {}
+    output_str = cmd.get('output', '')
+
+    output_data = None
+    if output_str:
+        try:
+            output_data = json.loads(output_str)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return {
+        'status': status,
+        'is_success': status == 'AMT_COMPLETED',
+        'error_message': task.get('errorMessage'),
+        'result': task.get('result'),
+        'output_data': output_data if isinstance(output_data, dict) else None,
+        'output_raw': output_str,
+        'success': cmd.get('success'),
+        'exit_code': cmd.get('exit_code'),
+        'error_output': cmd.get('error_output'),
+        'command_error': cmd.get('error_message'),
+    }
+
+
 def normalize_to_list(value, item_keys: List[str] = None) -> List:
     keys = item_keys or ["items", "data", "capabilities", "assets"]
     if value is None:
@@ -703,6 +739,44 @@ class Aegis:
                 if isinstance(task, dict) and task.get('key') == task_key:
                     return task
         raise Exception(f'Task not found: {task_key}')
+
+    def poll_management_task(
+        self,
+        task_key: str,
+        timeout: int = 120,
+        interval: int = 5,
+        on_status: Optional[Callable[[int, str, bool], None]] = None,
+    ) -> Optional[dict]:
+        """Poll a management task until it reaches a terminal status.
+
+        :param task_key: The task key to poll
+        :param timeout: Max seconds to wait
+        :param interval: Seconds between polls
+        :param on_status: Optional callback(elapsed, message, retrying) called each iteration
+        :return: The completed/failed task dict, or None on timeout
+        """
+        start = time.monotonic()
+        deadline = start + timeout
+
+        while time.monotonic() < deadline:
+            time.sleep(interval)
+            elapsed = int(time.monotonic() - start)
+
+            try:
+                task = self.get_management_task(task_key)
+            except Exception:
+                if on_status:
+                    on_status(elapsed, 'Waiting for agent...', True)
+                continue
+
+            status = task.get('status', '')
+            if status in TASK_TERMINAL_STATUSES:
+                return task
+
+            if on_status:
+                on_status(elapsed, 'Running on agent...', False)
+
+        return None
 
     def format_agents_list(self, details: bool = False, filter_text: str = None):
         """

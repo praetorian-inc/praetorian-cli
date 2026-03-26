@@ -1,11 +1,10 @@
-import json
 import re
 import sys
-import time
 
 import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.sdk.entities.aegis import parse_task_result
 
 
 _UUID_RE = re.compile(
@@ -209,91 +208,63 @@ def cred_auth(ctx, sdk, client_id, credential_id, no_wait, timeout):
         if no_wait or not task_id:
             return
 
-        start = time.monotonic()
-        deadline = start + timeout
         _FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
         frame_idx = 0
 
+        def _on_status(elapsed, message, retrying):
+            nonlocal frame_idx
+            frame_idx = (frame_idx + 1) % len(_FRAMES)
+            suffix = f" ({elapsed}s, retrying)" if retrying else f" ({elapsed}s)"
+            sys.stderr.write(f"\r\033[K  {_FRAMES[frame_idx]} {message}{suffix}")
+            sys.stderr.flush()
+
         try:
-            while time.monotonic() < deadline:
-                time.sleep(5)
-                elapsed = int(time.monotonic() - start)
-                frame_idx = (frame_idx + 1) % len(_FRAMES)
+            task = sdk.aegis.poll_management_task(
+                task_id, timeout=timeout, on_status=_on_status,
+            )
+            sys.stderr.write("\r\033[K")
+            sys.stderr.flush()
 
-                try:
-                    task = sdk.aegis.get_management_task(task_id)
-                except Exception:
-                    _write_status(f"{_FRAMES[frame_idx]} Waiting for agent... ({elapsed}s, retrying)")
-                    continue
-
-                current_status = task.get('status', '')
-                if current_status in ('AMT_COMPLETED', 'AMT_FAILED'):
-                    _clear_status()
-                    _print_task_result_cli(task)
-                    return
-
-                _write_status(f"{_FRAMES[frame_idx]} Running on agent... ({elapsed}s)")
-
-            _clear_status()
-            click.echo(f"Timed out after {timeout}s. Task may still be running.", err=True)
+            if task:
+                _print_task_result_cli(task)
+            else:
+                click.echo(f"Timed out after {timeout}s. Task may still be running.", err=True)
         except KeyboardInterrupt:
-            _clear_status()
+            sys.stderr.write("\r\033[K")
+            sys.stderr.flush()
             click.echo("\nInterrupted — task may still be running in background.")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
 
 
-def _write_status(msg):
-    """Overwrite the current line with a status message."""
-    sys.stderr.write(f"\r\033[K  {msg}")
-    sys.stderr.flush()
-
-
-def _clear_status():
-    """Clear the status line."""
-    sys.stderr.write("\r\033[K")
-    sys.stderr.flush()
-
-
 def _print_task_result_cli(task):
-    """Print the full result of a completed/failed management task."""
-    status = task.get('status', '')
-    is_success = status == 'AMT_COMPLETED'
-    label = '✓' if is_success else '✗'
-    click.echo(f"{label} {status}")
+    """Display a completed management task result on the CLI."""
+    r = parse_task_result(task)
+    label = '✓' if r['is_success'] else '✗'
+    click.echo(f"{label} {r['status']}")
 
-    if task.get('errorMessage'):
-        click.echo(f"Error: {task['errorMessage']}")
+    if r['error_message']:
+        click.echo(f"Error: {r['error_message']}")
 
-    cmd = task.get('commandResult') or {}
-    output_str = cmd.get('output', '')
-
-    output_data = None
-    if output_str:
-        try:
-            output_data = json.loads(output_str)
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    if output_data and isinstance(output_data, dict):
-        max_key = max((len(str(k)) for k in output_data), default=0)
-        for k, v in output_data.items():
+    if r['output_data']:
+        max_key = max((len(str(k)) for k in r['output_data']), default=0)
+        for k, v in r['output_data'].items():
             click.echo(f"  {str(k):<{max_key}}  {v}")
     else:
-        if task.get('result'):
-            click.echo(f"Result: {task['result']}")
-        if cmd:
-            click.echo(f"Success:   {cmd.get('success', 'N/A')}")
-            click.echo(f"Exit code: {cmd.get('exit_code', 'N/A')}")
-        if output_str:
+        if r['result']:
+            click.echo(f"Result: {r['result']}")
+        if r['success'] is not None or r['exit_code'] is not None:
+            click.echo(f"Success:   {r['success'] or 'N/A'}")
+            click.echo(f"Exit code: {r['exit_code'] or 'N/A'}")
+        if r['output_raw']:
             click.echo("--- Output ---")
-            click.echo(output_str)
+            click.echo(r['output_raw'])
 
-    if cmd.get('error_output'):
+    if r['error_output']:
         click.echo("--- Error Output ---", err=True)
-        click.echo(cmd['error_output'], err=True)
-    if cmd.get('error_message'):
-        click.echo(f"Error: {cmd['error_message']}", err=True)
+        click.echo(r['error_output'], err=True)
+    if r['command_error']:
+        click.echo(f"Error: {r['command_error']}", err=True)
 
 
 @aegis.command('ingest')
