@@ -8,7 +8,9 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, error
 
 
-# Friendly names for well-known agents — descriptions for the CLI help
+# Friendly names for well-known agents — descriptions for the CLI help.
+# Also exported as TOOL_ALIASES for console compatibility. The console
+# dynamically adds capabilities resolved from the API at runtime.
 FRIENDLY_NAMES = {
     'asset-analyzer': 'Deep-dive reconnaissance & risk mapping',
     'brutus':         'Credential attacks (SSH, RDP, FTP, SMB)',
@@ -19,6 +21,13 @@ FRIENDLY_NAMES = {
     'priscus':        'Remediation retesting',
     'seneca':         'CVE research & exploit intelligence',
     'titus':          'Secret scanning & credential leak detection',
+}
+
+# TOOL_ALIASES: mutable dict used by the console. Seeded from FRIENDLY_NAMES,
+# dynamically extended when the console resolves capabilities from the API.
+TOOL_ALIASES = {
+    name: {'capability': name, 'agent': name, 'target_type': 'asset', 'description': desc}
+    for name, desc in FRIENDLY_NAMES.items()
 }
 
 
