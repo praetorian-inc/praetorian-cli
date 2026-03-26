@@ -1,11 +1,9 @@
-from typing import List, Optional
+from typing import Callable, List, Optional
 import json
 import shlex
 import shutil
 import subprocess
 import time
-
-import click
 
 from praetorian_cli.sdk.model.aegis import Agent
 from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
@@ -543,7 +541,8 @@ class Aegis:
             'status': status,
         }
     
-    def ingest_result(self, filepath, dry_run=False, skip_files=False):
+    def ingest_result(self, filepath, dry_run=False, skip_files=False,
+                      on_progress: Optional[Callable[[str], None]] = None):
         """Ingest a chariot_result.json file into Guard.
 
         Parses assets, risks, and proof files from the result file and
@@ -553,7 +552,10 @@ class Aegis:
         :param filepath: Path to the chariot_result.json file
         :param dry_run: If True, parse and show summary without sending data
         :param skip_files: If True, skip uploading proof file items
+        :param on_progress: Optional callback for progress messages
         """
+        log = on_progress or (lambda msg: None)
+
         with open(filepath) as f:
             data = json.load(f)
 
@@ -561,7 +563,6 @@ class Aegis:
         if items is None:
             raise Exception(f"No 'items' key found in {filepath}")
 
-        # Classify items: anything not risk/file is treated as an asset
         assets = []
         risks = []
         files = []
@@ -575,16 +576,16 @@ class Aegis:
             else:
                 assets.append(item)
 
-        click.echo(f"Parsed {len(items)} items: {len(assets)} assets, {len(risks)} risks, {len(files)} files")
+        log(f"Parsed {len(items)} items: {len(assets)} assets, {len(risks)} risks, {len(files)} files")
 
         if dry_run:
-            click.echo("Dry run — no data sent")
+            log("Dry run — no data sent")
             return
 
         errors = []
 
         # Phase 1: Assets
-        click.echo(f"\nIngesting {len(assets)} assets...")
+        log(f"\nIngesting {len(assets)} assets...")
         for i, item in enumerate(assets, 1):
             try:
                 body = self._transform_asset(item)
@@ -592,11 +593,11 @@ class Aegis:
             except Exception as e:
                 errors.append(f"Asset {item.get('key', '?')}: {e}")
             if i % 100 == 0:
-                click.echo(f"  {i}/{len(assets)} assets processed")
-        click.echo(f"  {len(assets)}/{len(assets)} assets done")
+                log(f"  {i}/{len(assets)} assets processed")
+        log(f"  {len(assets)}/{len(assets)} assets done")
 
         # Phase 2: Risks
-        click.echo(f"\nIngesting {len(risks)} risks...")
+        log(f"\nIngesting {len(risks)} risks...")
         for i, item in enumerate(risks, 1):
             try:
                 target = item.get('_target', {})
@@ -611,12 +612,12 @@ class Aegis:
             except Exception as e:
                 errors.append(f"Risk {item.get('name', '?')}: {e}")
             if i % 100 == 0:
-                click.echo(f"  {i}/{len(risks)} risks processed")
-        click.echo(f"  {len(risks)}/{len(risks)} risks done")
+                log(f"  {i}/{len(risks)} risks processed")
+        log(f"  {len(risks)}/{len(risks)} risks done")
 
         # Phase 3: Files
         if not skip_files and files:
-            click.echo(f"\nUploading {len(files)} files...")
+            log(f"\nUploading {len(files)} files...")
             for i, item in enumerate(files, 1):
                 try:
                     name = item.get('name', '')
@@ -628,19 +629,19 @@ class Aegis:
                 except Exception as e:
                     errors.append(f"File {item.get('name', '?')}: {e}")
                 if i % 100 == 0:
-                    click.echo(f"  {i}/{len(files)} files processed")
-            click.echo(f"  {len(files)}/{len(files)} files done")
+                    log(f"  {i}/{len(files)} files processed")
+            log(f"  {len(files)}/{len(files)} files done")
         elif skip_files and files:
-            click.echo(f"\nSkipped {len(files)} files (--skip-files)")
+            log(f"\nSkipped {len(files)} files (--skip-files)")
 
         # Summary
         total = len(assets) + len(risks) + (len(files) if not skip_files else 0)
         success = total - len(errors)
-        click.echo(f"\nComplete: {success}/{total} items ingested")
+        log(f"\nComplete: {success}/{total} items ingested")
         if errors:
-            click.echo(f"\n{len(errors)} errors:")
+            log(f"\n{len(errors)} errors:")
             for err in errors:
-                click.echo(f"  - {err}")
+                log(f"  - {err}")
             raise SystemExit(1)
 
     @staticmethod

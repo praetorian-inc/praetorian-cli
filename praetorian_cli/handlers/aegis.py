@@ -1,6 +1,16 @@
+import json
+import re
+import sys
+import time
+
 import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+
+
+_UUID_RE = re.compile(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+)
 
 
 @chariot.group(invoke_without_command=True)
@@ -187,13 +197,7 @@ def cred_auth(ctx, sdk, client_id, credential_id, no_wait, timeout):
 
     CREDENTIAL_ID is the UUID of the credential stored in Guard.
     """
-    import time as _time
-    import re
-    import sys
-
-    # Validate credential_id is a UUID
-    uuid_re = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
-    if not uuid_re.match(credential_id):
+    if not _UUID_RE.match(credential_id):
         click.echo("Error: credential_id must be a valid UUID", err=True)
         return
 
@@ -205,15 +209,15 @@ def cred_auth(ctx, sdk, client_id, credential_id, no_wait, timeout):
         if no_wait or not task_id:
             return
 
-        start = _time.monotonic()
+        start = time.monotonic()
         deadline = start + timeout
         _FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
         frame_idx = 0
 
         try:
-            while _time.monotonic() < deadline:
-                _time.sleep(5)
-                elapsed = int(_time.monotonic() - start)
+            while time.monotonic() < deadline:
+                time.sleep(5)
+                elapsed = int(time.monotonic() - start)
                 frame_idx = (frame_idx + 1) % len(_FRAMES)
 
                 try:
@@ -241,22 +245,18 @@ def cred_auth(ctx, sdk, client_id, credential_id, no_wait, timeout):
 
 def _write_status(msg):
     """Overwrite the current line with a status message."""
-    import sys
     sys.stderr.write(f"\r\033[K  {msg}")
     sys.stderr.flush()
 
 
 def _clear_status():
     """Clear the status line."""
-    import sys
     sys.stderr.write("\r\033[K")
     sys.stderr.flush()
 
 
 def _print_task_result_cli(task):
     """Print the full result of a completed/failed management task."""
-    import json as _json
-
     status = task.get('status', '')
     is_success = status == 'AMT_COMPLETED'
     label = '✓' if is_success else '✗'
@@ -268,12 +268,11 @@ def _print_task_result_cli(task):
     cmd = task.get('commandResult') or {}
     output_str = cmd.get('output', '')
 
-    # Try to parse output as JSON for structured display
     output_data = None
     if output_str:
         try:
-            output_data = _json.loads(output_str)
-        except (_json.JSONDecodeError, TypeError):
+            output_data = json.loads(output_str)
+        except (json.JSONDecodeError, TypeError):
             pass
 
     if output_data and isinstance(output_data, dict):
@@ -310,4 +309,4 @@ def ingest(ctx, sdk, file, dry_run, skip_files):
     and pushes them to Guard. Assets are created first, then risks
     (linked to those assets), then proof files.
     """
-    sdk.aegis.ingest_result(file, dry_run=dry_run, skip_files=skip_files)
+    sdk.aegis.ingest_result(file, dry_run=dry_run, skip_files=skip_files, on_progress=click.echo)
