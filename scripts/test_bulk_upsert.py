@@ -1,12 +1,4 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "praetorian-cli",
-# ]
-# [tool.uv]
-# find-links = [".."]
-# ///
+#!/usr/bin/env python3
 
 """
 End-to-end test script for bulk upsert SDK methods.
