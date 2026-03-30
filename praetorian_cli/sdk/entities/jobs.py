@@ -350,7 +350,13 @@ class Jobs:
         """
         start = time.time()
         while time.time() - start < timeout:
-            job = self.api.search.by_exact_key(job_key)
+            try:
+                job = self.api.search.by_exact_key(job_key)
+            except Exception:
+                # Transient errors (504, 503, etc.) during polling are expected
+                # when the backend is under load. Retry on next poll cycle.
+                time.sleep(poll_interval)
+                continue
             if job:
                 if self.is_passed(job) or self.is_failed(job):
                     return job
