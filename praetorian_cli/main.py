@@ -7,6 +7,7 @@ import praetorian_cli.handlers.delete
 import praetorian_cli.handlers.enrich
 import praetorian_cli.handlers.engagement
 import praetorian_cli.handlers.find
+import praetorian_cli.handlers.export
 import praetorian_cli.handlers.get
 import praetorian_cli.handlers.run
 import praetorian_cli.handlers.imports
