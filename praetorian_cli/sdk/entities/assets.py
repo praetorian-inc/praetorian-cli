@@ -133,6 +133,31 @@ class Assets:
         attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
         return attributes
 
+    def bulk_add(self, items):
+        """Add multiple assets in a single bulk operation (async).
+
+        Args:
+            items: List of dicts with keys: group, identifier,
+                   and optionally: type, status, surface, resource_type
+
+        Returns:
+            Job dict for tracking progress. Use sdk.jobs.bulk_results(job)
+            to get per-item results after completion.
+        """
+        payload_items = []
+        for item in items:
+            p = dict(
+                group=item['group'],
+                identifier=item['identifier'],
+                status=item.get('status', Asset.ACTIVE.value),
+                attackSurface=[item.get('surface', '')],
+                type=item.get('type', Kind.ASSET.value),
+            )
+            if item.get('resource_type'):
+                p['resourceType'] = item['resource_type']
+            payload_items.append(p)
+        return self.api.post('bulk/asset', dict(action='upsert', items=payload_items))
+
     def associated_risks(self, key):
         """
         Get risks associated with an asset.
