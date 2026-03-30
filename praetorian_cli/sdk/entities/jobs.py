@@ -1,4 +1,5 @@
 import json
+import time
 
 
 class Jobs:
@@ -191,6 +192,46 @@ class Jobs:
             - Other statuses (JQ, JR, JF) will return False
         """
         return job and job['status'] and job['status'].startswith('JP')
+
+    def bulk_results(self, job):
+        """Download and parse per-item results for a completed bulk upsert job.
+
+        Args:
+            job: Job dict (must have 'config' with 'results_s3_key')
+
+        Returns:
+            Dict with 'summary' and 'results' keys, or None if job not complete.
+        """
+        if not self.is_passed(job) and not self.is_failed(job):
+            return None
+        results_key = job.get('config', {}).get('results_s3_key')
+        if not results_key:
+            return None
+        content = self.api.files.get_utf8(results_key)
+        return json.loads(content)
+
+    def wait(self, job_key, poll_interval=5, timeout=3600):
+        """Poll until a job completes or times out.
+
+        Args:
+            job_key: The job key to poll
+            poll_interval: Seconds between polls (default 5)
+            timeout: Max seconds to wait (default 3600)
+
+        Returns:
+            Final job dict
+
+        Raises:
+            TimeoutError: If job doesn't complete within timeout
+        """
+        start = time.time()
+        while time.time() - start < timeout:
+            job = self.api.search.by_exact_key(job_key)
+            if job:
+                if self.is_passed(job) or self.is_failed(job):
+                    return job
+            time.sleep(poll_interval)
+        raise TimeoutError(f"Job {job_key} did not complete within {timeout}s")
 
     def system_job_key(self, source, id):
         """

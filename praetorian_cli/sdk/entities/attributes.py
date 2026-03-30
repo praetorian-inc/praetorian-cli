@@ -58,6 +58,21 @@ class Attributes:
         """
         return self.api.delete_by_key('attribute', key)
 
+    def bulk_add(self, items):
+        """Add multiple attributes in a single bulk operation (async).
+
+        Args:
+            items: List of dicts with keys: source_key, name, value
+
+        Returns:
+            Job dict for tracking progress.
+        """
+        payload_items = [
+            dict(key=i['source_key'], name=i['name'], value=i['value'])
+            for i in items
+        ]
+        return self.api.post('bulk/attribute', dict(action='upsert', items=payload_items))
+
     def list(self, prefix_filter='', source_key=None, offset=None, pages=100000) -> tuple:
         """
         List attributes with optional filtering.

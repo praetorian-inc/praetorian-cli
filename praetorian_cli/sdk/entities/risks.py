@@ -144,6 +144,30 @@ class Risks:
         attributes, _ = self.api.search.by_source(key, Kind.ATTRIBUTE.value)
         return attributes
 
+    def bulk_add(self, items):
+        """Add multiple risks in a single bulk operation (async).
+
+        Args:
+            items: List of dicts with keys: asset_key, name, status,
+                   and optionally: comment, capability, title, tags
+
+        Returns:
+            Job dict for tracking progress.
+        """
+        payload_items = []
+        for item in items:
+            p = dict(key=item['asset_key'], name=item['name'], status=item['status'])
+            if item.get('comment'):
+                p['comment'] = item['comment']
+            if item.get('capability'):
+                p['source'] = item['capability']
+            if item.get('title'):
+                p['title'] = item['title']
+            if item.get('tags'):
+                p['tags'] = list(item['tags'])
+            payload_items.append(p)
+        return self.api.post('bulk/risk', dict(action='upsert', items=payload_items))
+
     def affected_assets(self, key):
         """
         Get all assets affected by a risk.
