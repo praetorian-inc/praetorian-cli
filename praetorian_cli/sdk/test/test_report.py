@@ -52,6 +52,7 @@ class TestBuildExportBody:
         assert body['group_by'] == 'attack_surface'
         assert body['shared_output'] is False
         assert body['config']['draft'] is False
+        assert body['config']['retest'] is False
         assert body['config']['version'] == '1.0'
         assert 'risk_keys' not in body
         assert 'target' not in body['config']
@@ -85,6 +86,7 @@ class TestBuildExportBody:
             end_date='2026-03-01',
             report_date='2026-03-15',
             draft=True,
+            retest=True,
             version='2.0',
             export_format='zip',
             group_by='tag',
@@ -99,6 +101,7 @@ class TestBuildExportBody:
         assert body['config']['start_date'] == '2026-01-01'
         assert body['config']['end_date'] == '2026-03-01'
         assert body['config']['draft'] is True
+        assert body['config']['retest'] is True
         assert body['config']['version'] == '2.0'
         assert body['export_format'] == 'zip'
         assert body['group_by'] == 'tag'

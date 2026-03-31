@@ -25,6 +25,8 @@ def export():
 @click.option('--end-date', default='', help='Engagement end date (ISO format)')
 @click.option('--report-date', default='', help='Report date (ISO format). Default: today')
 @click.option('--draft/--no-draft', default=False, help='Add DRAFT watermark')
+@click.option('--retest/--no-retest', default=False,
+              help='Include retest status badges and sections')
 @click.option('--version', 'report_version', default='1.0', help='Report version string')
 @click.option('--format', 'export_format', type=click.Choice(['pdf', 'zip']),
               default='pdf', help='Export format')
@@ -45,7 +47,7 @@ def export():
 @click.option('--no-download', is_flag=True, default=False,
               help='Skip downloading the file; just print the job result')
 def report(chariot, title, client_name, status_filter, risk_keys,
-           target, start_date, end_date, report_date, draft,
+           target, start_date, end_date, report_date, draft, retest,
            report_version, export_format, group_by, shared,
            executive_summary, narratives, appendix, output,
            timeout, no_download):
@@ -80,6 +82,7 @@ def report(chariot, title, client_name, status_filter, risk_keys,
         end_date=end_date,
         report_date=report_date,
         draft=draft,
+        retest=retest,
         version=report_version,
         export_format=export_format,
         group_by=group_by,
