@@ -273,6 +273,34 @@ def ask(sdk, message, mode, new_conversation, output_format):
         click.echo(result['response'])
 
 
+@marcus.command('research')
+@cli_handler
+@click.argument('target', required=False, default=None)
+@click.option('--depth', default=1, type=int, help='Pipeline cycles (1=single pass, 2-3=iterative)')
+@click.option('--novel', is_flag=True, default=False, help='Hunt for 0days and new variants')
+@click.option('--mode', 'research_mode', type=click.Choice(['offensive', 'knowledge']), default='offensive', help='Research mode')
+def research(sdk, target, depth, novel, research_mode):
+    """Run CritFinder vulnerability research pipeline.
+
+    Alias for 'guard critfinder'. See 'guard critfinder --help' for details.
+
+    \b
+    Examples:
+        guard marcus research                     # full engagement scan
+        guard marcus research k8s.client.com      # scoped to target
+        guard marcus research --novel             # 0day hunting mode
+    """
+    from praetorian_cli.handlers.critfinder import _build_research_message, _stream_research
+
+    message = _build_research_message(target, depth, novel, research_mode)
+
+    click.echo(click.style('CritFinder', bold=True) + ' — via Marcus')
+    click.echo(click.style('─' * 60, dim=True))
+    click.echo()
+
+    _stream_research(sdk, message)
+
+
 @chariot.command()
 @cli_handler
 @click.option('--account', 'console_account', default=None, help='Pre-set engagement account')

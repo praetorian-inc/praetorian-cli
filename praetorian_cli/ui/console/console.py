@@ -43,6 +43,7 @@ CONSOLE_COMMANDS = [
     'nuclei', 'portscan', 'subdomain', 'crawler', 'capabilities',
     'evidence', 'report',
     'ask', 'marcus',
+    'critfinder', 'research', 'hunt',
     'aegis',
     'configure', 'login',
     'help', 'history', 'clear', 'quit', 'exit',
@@ -201,6 +202,9 @@ class GuardConsole(
             'report': self._cmd_report,
             'ask': self._cmd_ask,
             'marcus': self._cmd_marcus,
+            'critfinder': self._cmd_critfinder,
+            'research': self._cmd_research,
+            'hunt': self._cmd_hunt,
             'aegis': self._cmd_aegis,
             'configure': self._cmd_configure,
             'login': self._cmd_configure,
@@ -333,12 +337,21 @@ class GuardConsole(
         help_table.add_row('report validate [opts]', 'Validate report requirements')
 
         help_table.add_row('', '')
+        help_table.add_row('[section]CritFinder Research[/section]', '')
+        help_table.add_row('critfinder [target]', 'Run adversarial vuln research pipeline')
+        help_table.add_row('critfinder --depth 3', 'Iterative deep hunt (multiple cycles)')
+        help_table.add_row('critfinder --novel', '0day hunting mode')
+        help_table.add_row('critfinder --mode knowledge <topic>', 'Knowledge research mode')
+        help_table.add_row('research / hunt', 'Aliases for critfinder')
+
+        help_table.add_row('', '')
         help_table.add_row('[section]Marcus Aurelius[/section]', '')
         help_table.add_row('ask "<question>"', 'One-shot query to Marcus')
         help_table.add_row('marcus', 'Enter multi-turn conversation')
         help_table.add_row('marcus read <path>', 'Read & analyze a file (vault, proofs, etc.)')
         help_table.add_row('marcus ingest <path>', 'Read file & auto-create seeds/risks')
         help_table.add_row('marcus do "<instruction>"', 'Direct instruction (full agent access)')
+        help_table.add_row('marcus research [target]', 'Run CritFinder via Marcus')
 
         help_table.add_row('', '')
         help_table.add_row('[section]Other[/section]', '')

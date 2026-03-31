@@ -440,6 +440,8 @@ class TestZCli:
         self.verify('marcus read --help', ignore_stdout=True)
         self.verify('marcus ingest --help', ignore_stdout=True)
         self.verify('marcus do --help', ignore_stdout=True)
+        self.verify('marcus research --help', ignore_stdout=True)
+        self.verify('critfinder --help', ignore_stdout=True)
         self.verify('add customer --help', ignore_stdout=True)
 
     def test_guard_cli(self):

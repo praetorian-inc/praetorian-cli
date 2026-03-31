@@ -47,6 +47,9 @@ class MarcusCommands:
         if args and args[0].lower() == 'do':
             self._marcus_do(args[1:])
             return
+        if args and args[0].lower() == 'research':
+            self._cmd_critfinder(args[1:])
+            return
 
         if args and args[0] == '--new':
             self.context.clear_conversation()
@@ -328,3 +331,78 @@ class MarcusCommands:
         response = self._send_to_marcus(message)
         if response:
             self.console.print(Panel(Markdown(response), title='Marcus', border_style=self.colors['primary']))
+
+    def _cmd_critfinder(self, args):
+        """Run CritFinder adversarial vulnerability research pipeline."""
+        from praetorian_cli.handlers.critfinder import _build_research_message, _stream_research, _colorize_progress
+        import shlex
+
+        # Parse args
+        tokens = shlex.split(' '.join(args)) if args else []
+        target = None
+        depth = 1
+        novel = False
+        research_mode = 'offensive'
+
+        i = 0
+        while i < len(tokens):
+            if tokens[i] == '--depth' and i + 1 < len(tokens):
+                try:
+                    depth = int(tokens[i + 1])
+                except ValueError:
+                    self.console.print('[error]--depth must be an integer[/error]')
+                    return
+                i += 2
+            elif tokens[i] == '--novel':
+                novel = True
+                i += 1
+            elif tokens[i] == '--mode' and i + 1 < len(tokens):
+                research_mode = tokens[i + 1]
+                if research_mode not in ('offensive', 'knowledge'):
+                    self.console.print('[error]--mode must be "offensive" or "knowledge"[/error]')
+                    return
+                i += 2
+            elif tokens[i] == '--help':
+                self.console.print('[dim]Usage: critfinder [target] [--depth N] [--novel] [--mode offensive|knowledge][/dim]')
+                self.console.print('[dim]  Run CritFinder adversarial vulnerability research pipeline.[/dim]')
+                self.console.print('[dim]  Aliases: critfinder, research, hunt[/dim]')
+                self.console.print()
+                self.console.print('[dim]  Examples:[/dim]')
+                self.console.print('[dim]    critfinder                          # full engagement scan[/dim]')
+                self.console.print('[dim]    critfinder k8s.client.com           # scoped to target[/dim]')
+                self.console.print('[dim]    critfinder --depth 3                # iterative deep hunt[/dim]')
+                self.console.print('[dim]    critfinder --novel                  # 0day hunting mode[/dim]')
+                self.console.print('[dim]    critfinder --mode knowledge CVE-2024-1234[/dim]')
+                return
+            elif not tokens[i].startswith('-'):
+                target = tokens[i]
+                i += 1
+            else:
+                self.console.print(f'[error]Unknown option: {tokens[i]}[/error]')
+                return
+
+        message = _build_research_message(target, depth, novel, research_mode)
+
+        # Apply engagement scope context
+        message = self.context.apply_scope_to_message(message)
+
+        self.console.print('[bold]CritFinder[/bold] — Adversarial Vulnerability Research Pipeline')
+        self.console.print('─' * 60)
+        if target:
+            self.console.print(f'Target: {target}')
+        else:
+            self.console.print('Target: full engagement (auto-select)')
+        self.console.print(f'Mode: {"novel" if novel else research_mode}')
+        self.console.print(f'Depth: {depth} cycle{"s" if depth > 1 else ""}')
+        self.console.print('─' * 60)
+        self.console.print()
+
+        _stream_research(self.sdk, message)
+
+    def _cmd_research(self, args):
+        """Alias for critfinder."""
+        self._cmd_critfinder(args)
+
+    def _cmd_hunt(self, args):
+        """Alias for critfinder."""
+        self._cmd_critfinder(args)
