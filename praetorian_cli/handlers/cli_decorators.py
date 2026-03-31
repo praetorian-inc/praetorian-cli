@@ -29,7 +29,7 @@ def upgrade_check(func):
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
         try:
-            response = requests.get('https://pypi.org/pypi/praetorian-cli/json')
+            response = requests.get('https://pypi.org/pypi/praetorian-cli/json', timeout=3)
             pypi = sorted([Version(v) for v in list(response.json()['releases'].keys())])[-1]
             local = Version(version('praetorian-cli'))
             if pypi > local:
