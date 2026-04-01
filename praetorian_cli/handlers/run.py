@@ -175,26 +175,109 @@ def tool(sdk, tool_name, target, extra_config, credential, wait, use_agent, loca
 
 @run.command('list')
 @cli_handler
-def list_tools(sdk):
-    """ List named agents and their descriptions
+@click.option('-s', '--surface', default='', help='Filter by surface (external, internal, cloud, repository, application)')
+@click.option('-e', '--executor', default='', help='Filter by executor (chariot, janus, aegis, aurelian, agent)')
+@click.option('--json', 'as_json', is_flag=True, default=False, help='Output as JSON')
+def list_tools(sdk, surface, executor, as_json):
+    """ List all available tools and capabilities
 
     \b
-    Example usage:
+    Shows all Guard capabilities with descriptions, indicating which can
+    be installed locally. Use --surface or --executor to filter.
+
+    \b
+    Example usages:
         guard run list
+        guard run list --surface external
+        guard run list --executor agent
+        guard run list --json
     """
-    click.echo(f'\n{"Agent":<16} {"Description"}')
-    click.echo(f'{"─"*16} {"─"*50}')
-    for name, desc in sorted(FRIENDLY_NAMES.items()):
-        click.echo(f'{name:<16} {desc}')
-    click.echo(f'\nUse "guard run capabilities" for the full list of backend capabilities.')
+    from praetorian_cli.runners.local import INSTALLABLE_TOOLS, list_installed
+
+    try:
+        result = sdk.capabilities.list()
+        caps = result[0] if isinstance(result, tuple) else result
+        if not isinstance(caps, list):
+            caps = []
+    except Exception:
+        caps = []
+
+    if not caps:
+        click.echo('Could not fetch capabilities from backend.', err=True)
+        click.echo(f'\nLocally installable tools:')
+        for name, info in sorted(INSTALLABLE_TOOLS.items()):
+            click.echo(f'  {name:<18} {info["description"]}')
+        return
+
+    if as_json:
+        print_json(caps)
+        return
+
+    installed = list_installed()
+
+    # Apply filters
+    if surface:
+        caps = [c for c in caps if c.get('surface', '') == surface]
+    if executor:
+        caps = [c for c in caps if c.get('executor', '') == executor]
+
+    if not caps:
+        click.echo('No capabilities match the filters.')
+        return
+
+    # Sort: installable first, then by name
+    def sort_key(c):
+        name = c.get('name', '')
+        is_installable = name in INSTALLABLE_TOOLS
+        return (not is_installable, name)
+
+    caps.sort(key=sort_key)
+
+    # Render table
+    click.echo(f'\n{"Name":<22} {"Type":<10} {"Surface":<12} {"Description"}')
+    click.echo(f'{"─"*22} {"─"*10} {"─"*12} {"─"*48}')
+
+    for c in caps:
+        name = c.get('name', '')
+        desc = c.get('description', '') or c.get('title', '')
+        cap_surface = c.get('surface', '')
+        cap_executor = c.get('executor', '')
+
+        # Determine type label
+        if name in INSTALLABLE_TOOLS:
+            if name in installed:
+                type_label = 'local ✓'
+            else:
+                type_label = 'local'
+        elif cap_executor == 'agent':
+            type_label = 'agent'
+        else:
+            type_label = 'remote'
+
+        # Truncate description
+        max_desc = 55
+        if len(desc) > max_desc:
+            desc = desc[:max_desc - 1] + '…'
+
+        click.echo(f'{name:<22} {type_label:<10} {cap_surface:<12} {desc}')
+
+    click.echo(f'\n{len(caps)} capabilities')
+    installable_count = sum(1 for c in caps if c.get('name', '') in INSTALLABLE_TOOLS)
+    installed_count = sum(1 for c in caps if c.get('name', '') in installed)
+    if installable_count:
+        click.echo(f'{installable_count} installable locally ({installed_count} installed) — use "guard run install <name>"')
 
 
 @run.command('capabilities')
 @cli_handler
 @click.option('-n', '--name', default='', help='Filter by capability name')
 @click.option('-t', '--target', default='', help='Filter by target type')
-def capabilities(sdk, name, target):
-    """ List all available capabilities from the backend
+@click.option('-e', '--executor', default='', help='Filter by executor')
+def capabilities(sdk, name, target, executor):
+    """ List all capabilities as JSON (for scripting)
+
+    \b
+    Full machine-readable output. For a human-readable view, use "guard run list".
 
     \b
     Example usages:
@@ -202,8 +285,9 @@ def capabilities(sdk, name, target):
         guard run capabilities --name nuclei
         guard run capabilities --target asset
     """
-    result = sdk.capabilities.list(name=name, target=target)
-    print_json(result)
+    result = sdk.capabilities.list(name=name, target=target, executor=executor)
+    caps = result[0] if isinstance(result, tuple) else result
+    print_json(caps)
 
 
 @run.command('install')
