@@ -63,4 +63,5 @@ AEGIS_RICH_THEME = Theme({
     "accent": f"{COMPLEMENTARY_GOLD}",
     "primary": f"{SECONDARY_BLUE}",
     "heading": f"bold {SECONDARY_BLUE}",
+    "section": f"bold white",
 })

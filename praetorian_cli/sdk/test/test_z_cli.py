@@ -422,7 +422,28 @@ class TestZCli:
 
         self.verify('agent --help', ignore_stdout=True)
         self.verify('agent affiliation --help', ignore_stdout=True)
-        
+
+        # New commands
+        self.verify('find --help', ignore_stdout=True)
+        self.verify('ask --help', ignore_stdout=True)
+        self.verify('console --help', ignore_stdout=True)
+        self.verify('report --help', ignore_stdout=True)
+        self.verify('report generate --help', ignore_stdout=True)
+        self.verify('report validate --help', ignore_stdout=True)
+        self.verify('run --help', ignore_stdout=True)
+        self.verify('run tool --help', ignore_stdout=True)
+        self.verify('run list', ignore_stdout=True)
+        self.verify('run capabilities --help', ignore_stdout=True)
+        self.verify('run install --help', ignore_stdout=True)
+        self.verify('run installed', ignore_stdout=True)
+        self.verify('marcus --help', ignore_stdout=True)
+        self.verify('marcus read --help', ignore_stdout=True)
+        self.verify('marcus ingest --help', ignore_stdout=True)
+        self.verify('marcus do --help', ignore_stdout=True)
+        self.verify('marcus research --help', ignore_stdout=True)
+        self.verify('critfinder --help', ignore_stdout=True)
+        self.verify('add customer --help', ignore_stdout=True)
+
     def test_guard_cli(self):
         """Test the 'guard' entry point works correctly."""
         self.verify('configure --help', expected_stdout=['Configure the CLI'])
