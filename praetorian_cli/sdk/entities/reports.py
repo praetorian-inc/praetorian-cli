@@ -35,7 +35,8 @@ class Reports:
     def build_export_body(self, title, client_name, customer_email,
                           status_filter=('O', 'T'), risk_keys=(),
                           target='', start_date='', end_date='',
-                          report_date='', draft=False, version='1.0',
+                          report_date='', draft=False, retest=False,
+                          version='1.0',
                           export_format='pdf', group_by='attack_surface',
                           shared_output=False, executive_summary_path='',
                           narratives_path='', appendix_path=''):
@@ -62,6 +63,8 @@ class Reports:
         :type report_date: str
         :param draft: Whether to add DRAFT watermark
         :type draft: bool
+        :param retest: Whether to include retest status badges and sections
+        :type retest: bool
         :param version: Report version string
         :type version: str
         :param export_format: Output format ('pdf' or 'zip')
@@ -89,6 +92,7 @@ class Reports:
                 'client_name': client_name,
                 'report_date': report_date,
                 'draft': draft,
+                'retest': retest,
                 'version': version,
             },
             'shared_output': shared_output,
