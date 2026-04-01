@@ -1,5 +1,12 @@
 # Changelog
 
+# 2.4.0
+- [New Feature] Interactive operator console (`guard console`) with Metasploit-style workflow — `use <tool>`, `show targets`, `set target`, `run`
+- [New Feature] Marcus Aurelius AI integration — inline queries (`guard ask`), multi-turn conversation (`guard marcus`), file analysis and ingestion
+- [New Feature] Local security tool execution — install Praetorian binaries (`guard run install brutus`), run locally with auto-upload to Guard
+- [New Feature] All 141 backend capabilities accessible via `use <name>` or `use <#>` in console
+- [New Feature] Engagement management, fulltext search (`find`), evidence hydration, live job tracking, and report generation
+
 # 2.3.5
 - [New Feature] Added the export report command
 
