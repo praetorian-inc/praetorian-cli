@@ -14,19 +14,23 @@
 # Table of Contents
 
 - [Description](#description)
-- [Getting started](#getting-started)
+- [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
-    - [Signing up](#signing-up-and-configuration)
-- [Interactive Console](#interactive-console)
+    - [Signing up](#signing-up)
+    - [Authentication](#authentication)
 - [Using the CLI](#using-the-cli)
-- [Marcus Aurelius AI](#marcus-aurelius-ai)
-- [Security Tools](#security-tools)
-- [Using scripts](#using-scripts)
+- [Operators](#operators)
+    - [Interactive Console](#interactive-console)
+    - [Install local security tools (optional)](#install-local-security-tools-optional)
+    - [Marcus Aurelius AI](#marcus-aurelius-ai)
+    - [Security Tools](#security-tools)
 - [Developers](#developers)
-- [Contributing](#contributing)
-- [Support](#support)
-- [License](#license)
+    - [SDK](#sdk)
+    - [Developing external scripts](#developing-external-scripts)
+    - [Contributing](#contributing)
+    - [Support](#support)
+    - [License](#license)
 - [Backwards Compatibility](#backwards-compatibility)
 
 # Description
@@ -57,19 +61,7 @@ pip install praetorian-cli
 ```zsh
 git clone https://github.com/praetorian-inc/praetorian-cli.git
 cd praetorian-cli
-git checkout console
 pip install -e .
-```
-
-### Dependencies
-
-The console requires `rich` and `prompt_toolkit`, which are installed automatically:
-
-```
-click >= 8.1.7
-rich >= 13.0.0
-prompt_toolkit >= 3.0.0
-textual >= 0.47.0
 ```
 
 ### Configure authentication
@@ -83,18 +75,6 @@ Or set environment variables:
 export PRAETORIAN_CLI_API_KEY_ID=your-api-key-id
 export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-secret
 ```
-
-### Install local security tools (optional)
-
-Requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated:
-
-```zsh
-guard run install brutus       # install a specific tool
-guard run install all          # install all Praetorian tools
-guard run installed            # check what's installed
-```
-
-Binaries are downloaded from `praetorian-inc` GitHub releases to `~/.praetorian/bin/`.
 
 ## Signing up
 
@@ -145,7 +125,34 @@ export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-here
 For more advanced configuration options or managing access in SSO organizations see
 [the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
-# Interactive Console
+# Using the CLI
+
+The CLI is a command and option utility for accessing the full suite of Guard's API. You can see the documentation for commands
+using the `help` option:
+
+```zsh
+guard --help
+```
+
+As an example, run the following command to retrieve the list of all assets in your account:
+
+```zsh
+guard --account guard+example@praetorian.com list assets
+```
+
+You can obtain the `account` argument by viewing the email of the first user on the Users page in your Guard account, as shown below:
+
+<img width="482" alt="image" src="https://github.com/user-attachments/assets/7c1024c9-7b74-46b1-87c5-af44671b1ec8" />
+
+To get detailed information about a specific asset, run:
+
+```zsh
+guard --account guard+example@praetorian.com get asset <ASSET_KEY>
+```
+
+# Operators
+
+## Interactive Console
 
 The Guard CLI includes a Metasploit-style interactive console for operator-focused engagement workflows.
 
@@ -193,24 +200,69 @@ guard > download proofs                     # download all proof files locally
 guard > home                                # return to your own account
 ```
 
-# Using the CLI
+## Install local security tools (optional)
 
-The CLI is a command and option utility for accessing the full suite of Guard's API. You can see the documentation for commands
-using the `help` option:
-
-```zsh
-guard --help
-```
-
-As an example, run the following command to retrieve the list of all assets in your account:
+Requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated:
 
 ```zsh
-guard --account guard+example@praetorian.com list assets
+guard run install brutus       # install a specific tool
+guard run install all          # install all Praetorian tools
+guard run installed            # check what's installed
 ```
 
-You can obtain the `account` argument by viewing the email of the first user on the Users page in your Guard account, as shown below:
+Binaries are downloaded from `praetorian-inc` GitHub releases to `~/.praetorian/bin/`.
 
-<img width="482" alt="image" src="https://github.com/user-attachments/assets/7c1024c9-7b74-46b1-87c5-af44671b1ec8" />
+## Marcus Aurelius AI
+
+Marcus is Guard's AI operator, accessible from both the CLI and the interactive console.
+
+```zsh
+# One-shot queries
+guard ask "how many critical risks are there?"
+guard ask "show me all assets with port 22 open" --mode query
+
+# File analysis and ingestion
+guard marcus read "vault/engagement/sow.pdf"
+guard marcus ingest "vault/nessus-export.csv" --findings
+guard marcus do "generate an executive summary"
+```
+
+In the console, Marcus shows live tool execution:
+```
+guard > ask "analyze the top risks"
+Thinking...
+  → query — 14 risks done
+  → query — 5 assets done
+Found 14 risks across 5 assets...
+```
+
+## Security Tools
+
+All 141 Guard capabilities are available through the CLI. Named tools include:
+
+| Agent | Description |
+|-------|-------------|
+| `asset-analyzer` | Deep-dive reconnaissance & risk mapping |
+| `brutus` | Credential attacks (SSH, RDP, FTP, SMB) |
+| `julius` | LLM/AI service fingerprinting |
+| `augustus` | LLM jailbreak & prompt injection attacks |
+| `aurelius` | Cloud infrastructure discovery (AWS/Azure/GCP) |
+| `trajan` | CI/CD pipeline security scanning |
+| `priscus` | Remediation retesting |
+| `seneca` | CVE research & exploit intelligence |
+| `titus` | Secret scanning & credential leak detection |
+
+### Local execution
+
+Tools can run locally if the binary is installed, with results uploaded to Guard:
+
+```zsh
+guard run install brutus           # download from praetorian-inc GitHub
+guard run install all              # install everything
+guard run tool brutus 10.0.1.5     # runs locally (default if installed)
+guard run tool brutus 10.0.1.5 --remote  # force remote execution
+guard run installed                # show what's installed locally
+```
 
 ### Additional CLI Commands
 
@@ -246,64 +298,6 @@ guard run installed
 guard engagement list
 guard engagement create-customer --email ops@acme.com --name "ACME Corp"
 guard engagement create-vault --client acme --sow SOW-1234 --sku WAPT --github-user jdoe
-```
-
-# Marcus Aurelius AI
-
-Marcus is Guard's AI operator, accessible from both the CLI and the interactive console.
-
-```zsh
-# One-shot queries
-guard ask "how many critical risks are there?"
-guard ask "show me all assets with port 22 open" --mode query
-
-# File analysis and ingestion
-guard marcus read "vault/engagement/sow.pdf"
-guard marcus ingest "vault/nessus-export.csv" --findings
-guard marcus do "generate an executive summary"
-```
-
-In the console, Marcus shows live tool execution:
-```
-guard > ask "analyze the top risks"
-Thinking...
-  → query — 14 risks done
-  → query — 5 assets done
-Found 14 risks across 5 assets...
-```
-
-# Security Tools
-
-All 141 Guard capabilities are available through the CLI. Named tools include:
-
-| Agent | Description |
-|-------|-------------|
-| `asset-analyzer` | Deep-dive reconnaissance & risk mapping |
-| `brutus` | Credential attacks (SSH, RDP, FTP, SMB) |
-| `julius` | LLM/AI service fingerprinting |
-| `augustus` | LLM jailbreak & prompt injection attacks |
-| `aurelius` | Cloud infrastructure discovery (AWS/Azure/GCP) |
-| `trajan` | CI/CD pipeline security scanning |
-| `priscus` | Remediation retesting |
-| `seneca` | CVE research & exploit intelligence |
-| `titus` | Secret scanning & credential leak detection |
-
-### Local execution
-
-Tools can run locally if the binary is installed, with results uploaded to Guard:
-
-```zsh
-guard run install brutus           # download from praetorian-inc GitHub
-guard run install all              # install everything
-guard run tool brutus 10.0.1.5     # runs locally (default if installed)
-guard run tool brutus 10.0.1.5 --remote  # force remote execution
-guard run installed                # show what's installed locally
-```
-
-To get detailed information about a specific asset, run:
-
-```zsh
-guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
 
 # Developers
