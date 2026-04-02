@@ -71,7 +71,10 @@ def is_installed(tool_name: str) -> bool:
 def install_tool(tool_name: str, force=False) -> str:
     """Download and install a tool from GitHub releases. Returns binary path."""
     if tool_name not in INSTALLABLE_TOOLS:
-        raise ValueError(f'Unknown tool: {tool_name}. Available: {", ".join(sorted(INSTALLABLE_TOOLS))}')
+        lines = [f'Unknown tool: {tool_name}. Installable tools:']
+        for name in sorted(INSTALLABLE_TOOLS):
+            lines.append(f'  {name:<18} {INSTALLABLE_TOOLS[name]["description"]}')
+        raise ValueError('\n'.join(lines))
 
     if not force and is_installed(tool_name):
         return get_binary_path(tool_name)
