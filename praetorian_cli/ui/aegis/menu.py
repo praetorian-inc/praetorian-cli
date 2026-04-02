@@ -45,6 +45,7 @@ from .commands.info import handle_info as cmd_handle_info
 from .commands.job import handle_job as cmd_handle_job
 from .commands.schedule import handle_schedule as cmd_handle_schedule
 from .commands.proxy import handle_proxy as cmd_handle_proxy, stop_all_proxies
+from .commands.cred_auth import handle_cred_auth as cmd_handle_cred_auth
 
 from .commands.schedule_helpers import get_cached_schedules
 from .constants import DEFAULT_COLORS
@@ -142,8 +143,16 @@ class MenuCompleter(Completer):
                     if opt.startswith(current_word):
                         yield Completion(opt, start_position=-len(current_word))
 
+        elif cmd == 'cred-auth':
+            options = ['--no-wait']
+            if not words or (len(words) == 1 and not after_cmd.endswith(' ')):
+                prefix = words[0] if words else ''
+                for opt in options:
+                    if opt.startswith(prefix):
+                        yield Completion(opt, start_position=-len(prefix))
+
         elif cmd == 'job':
-            subcommands = ['list', 'run', 'capabilities', 'caps']
+            subcommands = ['list', 'run', 'status', 'artifacts', 'capabilities', 'caps']
             if not words or (len(words) == 1 and not after_cmd.endswith(' ')):
                 prefix = words[0].lower() if words else ''
                 for sub in subcommands:
@@ -375,7 +384,7 @@ class AegisMenu:
         self._active_proxies: dict = {}
 
         self.commands = [
-            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
+            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'schedule', 'cred-auth', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
 
     def prefetch_agent_home(self, agent=None):
@@ -477,6 +486,9 @@ class AegisMenu:
 
         elif command == 'proxy':
             cmd_handle_proxy(self, cmd_args)
+
+        elif command == 'cred-auth':
+            cmd_handle_cred_auth(self, cmd_args)
 
         else:
             self.console.print(f"\n  Unknown command: {command}")

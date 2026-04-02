@@ -325,6 +325,33 @@ def configure_parameters(menu, capability_info, has_credential=False):
     return configured
 
 
+def select_target(menu):
+    """Interactive target selection for asset-type capabilities.
+
+    Prompts the user to enter a target hostname/IP or choose the agent itself.
+    Returns (target_key, target_display) or (None, None) if cancelled.
+    """
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
+    hostname = menu.selected_agent.hostname or 'Unknown'
+
+    menu.console.print(f"\n  [{colors['dim']}]Enter target to scan (hostname, IP, or CIDR)[/{colors['dim']}]")
+    menu.console.print(f"  [{colors['dim']}]Press Enter to use the agent itself ({hostname})[/{colors['dim']}]")
+
+    try:
+        target = Prompt.ask("  Target", default=hostname)
+    except KeyboardInterrupt:
+        menu.console.print("\n  Cancelled")
+        return None, None
+
+    target = target.strip()
+    if not target:
+        target = hostname
+
+    target_key = f"#asset#{target}#{target}"
+    target_display = f"asset {target}"
+    return target_key, target_display
+
+
 def resolve_addomain_target_key(menu, domain):
     """Query the assets API to resolve an AD domain to its actual asset key (with SID).
 
