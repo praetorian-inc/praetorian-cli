@@ -12,15 +12,29 @@ class SearchCommands:
         if not args:
             self.console.print('[dim]Usage: search <term> [--kind <type>][/dim]')
             return
-        term = ' '.join(args)
-        try:
-            kind = None
-            if '--kind' in args:
-                idx = args.index('--kind')
-                if idx + 1 < len(args):
-                    kind = args[idx + 1]
-                    term = ' '.join(args[:idx])
 
+        # Parse args
+        raw_args = list(args)
+        kind = None
+        if '--kind' in raw_args:
+            idx = raw_args.index('--kind')
+            if idx + 1 < len(raw_args):
+                kind = raw_args[idx + 1]
+                raw_args = raw_args[:idx] + raw_args[idx + 2:]
+        term = ' '.join(raw_args)
+
+        # Context-smart: if we have paged results, filter them locally first
+        if self._paged_results and not kind:
+            filtered = [
+                r for r in self._paged_results
+                if term.lower() in (r.get('key', '') + ' ' + r.get('name', '') + ' ' + r.get('dns', '') + ' ' + r.get('title', '')).lower()
+            ]
+            if filtered:
+                self._render_results(filtered, f'Search: "{term}" in {self._paged_title}')
+                return
+
+        # Fall through to API search
+        try:
             results, offset = self.sdk.search.by_term(term, kind)
             self._render_results(results, f'Search: {term}')
         except Exception as e:
@@ -34,7 +48,7 @@ class SearchCommands:
         # Parse args
         term = []
         kind = None
-        limit = 100
+        limit = 200
         i = 0
         while i < len(args):
             if args[i] == '--type' and i + 1 < len(args):
@@ -54,23 +68,30 @@ class SearchCommands:
             self.console.print(f'[error]{e}[/error]')
             return
 
-        self._render_results(all_results, f'Find: {term}')
+        if not kind and all_results:
+            # Cross-type display: group by entity type and show type labels
+            self._render_typed_results(all_results, f'Find: {term}')
+        else:
+            self._render_results(all_results, f'Find: {term}')
+
         if len(all_results) >= limit:
-            self.console.print(f'[warning]Showing {limit} results. Use --limit to increase.[/warning]')
+            self.console.print(f'[dim]Showing {limit} results. Use --limit to increase.[/dim]')
 
     def _cmd_assets(self, args):
         try:
-            filter_text = self.context.scope or ''
+            filter_text = ' '.join(args) if args else (self.context.scope or '')
             results, _ = self.sdk.assets.list(filter_text, pages=1)
-            self._render_results(results, 'Assets')
+            title = f'Assets: {filter_text}' if filter_text else 'Assets'
+            self._render_results(results, title)
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
 
     def _cmd_risks(self, args):
         try:
-            filter_text = self.context.scope or ''
+            filter_text = ' '.join(args) if args else (self.context.scope or '')
             results, _ = self.sdk.risks.list(filter_text, pages=1)
-            self._render_results(results, 'Risks')
+            title = f'Risks: {filter_text}' if filter_text else 'Risks'
+            self._render_results(results, title)
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
 

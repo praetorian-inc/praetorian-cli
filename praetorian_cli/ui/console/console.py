@@ -36,6 +36,7 @@ CONSOLE_COMMANDS = [
     'use', 'options', 'execute', 'exploit', 'back',
     'accounts', 'engagements', 'home', 'su',
     'search', 'find', 'assets', 'risks', 'jobs', 'info',
+    'next', 'n', 'prev', 'p', 'page',
     'scan', 'tag',
     'run', 'status', 'download', 'install', 'installed',
     'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
@@ -190,6 +191,11 @@ class GuardConsole(
             'risks': self._cmd_risks,
             'jobs': self._cmd_jobs,
             'info': self._cmd_info,
+            'next': self._cmd_next,
+            'n': self._cmd_next,
+            'prev': self._cmd_prev,
+            'p': self._cmd_prev,
+            'page': self._cmd_page,
             'scan': self._cmd_scan,
             'tag': self._cmd_tag,
             'run': self._cmd_run,
@@ -289,11 +295,14 @@ class GuardConsole(
 
         help_table.add_row('', '')
         help_table.add_row('[section]Search & Recon[/section]', '')
-        help_table.add_row('search <term>', 'Fast prefix search (DynamoDB)')
-        help_table.add_row('find <term> [--type X]', 'Fulltext search (Neo4j)')
-        help_table.add_row('assets', 'List assets (respects scope)')
-        help_table.add_row('risks', 'List risks (respects scope)')
+        help_table.add_row('search <term>', 'Smart search (filters current results, or API search)')
+        help_table.add_row('find <term> [--type X]', 'Fulltext search across all entity types (Neo4j)')
+        help_table.add_row('assets [filter]', 'List assets (prefix filter or scope)')
+        help_table.add_row('risks [filter]', 'List risks (prefix filter or scope)')
         help_table.add_row('jobs [filter]', 'List jobs (filter by target/capability)')
+        help_table.add_row('next / n', 'Next page of results')
+        help_table.add_row('prev / p', 'Previous page of results')
+        help_table.add_row('page <#>', 'Jump to page number')
         help_table.add_row('status', 'Check status of last job')
         help_table.add_row('status <job_key>', 'Check status of specific job')
         help_table.add_row('download [proofs|agents|all]', 'Download job outputs to local dir')

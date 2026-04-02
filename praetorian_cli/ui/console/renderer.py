@@ -9,22 +9,42 @@ from rich.text import Text
 class RendererMixin:
     """Rendering helpers for console output. Mixed into GuardConsole."""
 
-    def _render_results(self, results: list, title: str):
+    # Pagination state
+    _paged_results = None   # full result list
+    _paged_title = ''       # title for the listing
+    _paged_page = 0         # current page (0-indexed)
+    _page_size = 50         # items per page
+
+    def _render_results(self, results: list, title: str, page: int = 0):
         if not results:
             self.console.print(f'[dim]No results for: {title}[/dim]')
             if self.context.scope:
                 self.console.print(f'[dim]Current scope: {self.context.scope} -- use "unset scope" to broaden[/dim]')
             return
 
-        table = Table(title=f'{title} ({len(results)} results)', border_style=self.colors['primary'])
-        table.add_column('#', style=self.colors['dim'], width=4)
+        # Store for pagination
+        self._paged_results = results
+        self._paged_title = title
+        self._paged_page = page
+
+        total = len(results)
+        start = page * self._page_size
+        end = min(start + self._page_size, total)
+        page_items = results[start:end]
+        total_pages = (total + self._page_size - 1) // self._page_size
+
+        table = Table(
+            title=f'{title} ({total} results) — page {page + 1}/{total_pages}',
+            border_style=self.colors['primary'],
+        )
+        table.add_column('#', style=self.colors['dim'], width=6)
         table.add_column('Key', style=self.colors['primary'])
         table.add_column('Name', style='white')
         table.add_column('Status', style=self.colors['accent'])
 
         # Update _target_list so "set target <#>" works from any listing
         self._target_list = []
-        for i, item in enumerate(results[:100], 1):
+        for i, item in enumerate(page_items, start + 1):
             key = item.get('key', '')
             name = item.get('name', item.get('dns', item.get('title', '')))
             status = item.get('status', '')
@@ -32,8 +52,133 @@ class RendererMixin:
             self._target_list.append(key)
 
         self.console.print(table)
-        if len(results) > 100:
-            self.console.print(f'[dim]Showing first 100 of {len(results)} results[/dim]')
+
+        # Pagination hint
+        hints = []
+        if page > 0:
+            hints.append('"prev" or "p"')
+        if end < total:
+            hints.append('"next" or "n"')
+        if total_pages > 2:
+            hints.append(f'"page <1-{total_pages}>"')
+        if hints:
+            self.console.print(f'[dim]{" | ".join(hints)}[/dim]')
+
+    def _cmd_next(self, args):
+        """Show next page of results."""
+        if not self._paged_results:
+            self.console.print('[dim]No results to page through.[/dim]')
+            return
+        total_pages = (len(self._paged_results) + self._page_size - 1) // self._page_size
+        if self._paged_page + 1 >= total_pages:
+            self.console.print('[dim]Already on the last page.[/dim]')
+            return
+        self._render_results(self._paged_results, self._paged_title, self._paged_page + 1)
+
+    def _cmd_prev(self, args):
+        """Show previous page of results."""
+        if not self._paged_results:
+            self.console.print('[dim]No results to page through.[/dim]')
+            return
+        if self._paged_page <= 0:
+            self.console.print('[dim]Already on the first page.[/dim]')
+            return
+        self._render_results(self._paged_results, self._paged_title, self._paged_page - 1)
+
+    def _cmd_page(self, args):
+        """Jump to a specific page: page <number>"""
+        if not self._paged_results:
+            self.console.print('[dim]No results to page through.[/dim]')
+            return
+        if not args:
+            self.console.print('[dim]Usage: page <number>[/dim]')
+            return
+        try:
+            page_num = int(args[0]) - 1  # 1-indexed input
+        except ValueError:
+            self.console.print('[dim]Usage: page <number>[/dim]')
+            return
+        total_pages = (len(self._paged_results) + self._page_size - 1) // self._page_size
+        if page_num < 0 or page_num >= total_pages:
+            self.console.print(f'[dim]Page must be between 1 and {total_pages}.[/dim]')
+            return
+        self._render_results(self._paged_results, self._paged_title, page_num)
+
+    def _render_typed_results(self, results: list, title: str):
+        """Render results with entity type labels — used for cross-type searches."""
+        if not results:
+            self.console.print(f'[dim]No results for: {title}[/dim]')
+            return
+
+        # Store for pagination
+        self._paged_results = results
+        self._paged_title = title
+        self._paged_page = 0
+
+        total = len(results)
+        page_items = results[:self._page_size]
+        total_pages = (total + self._page_size - 1) // self._page_size
+
+        table = Table(
+            title=f'{title} ({total} results) — page 1/{total_pages}',
+            border_style=self.colors['primary'],
+        )
+        table.add_column('#', style=self.colors['dim'], width=6)
+        table.add_column('Type', style=self.colors['accent'], width=10)
+        table.add_column('Key', style=self.colors['primary'])
+        table.add_column('Name', style='white')
+        table.add_column('Status', style=self.colors['accent'])
+
+        self._target_list = []
+        for i, item in enumerate(page_items, 1):
+            key = item.get('key', '')
+            name = item.get('name', item.get('dns', item.get('title', '')))
+            status = item.get('status', '')
+
+            # Infer type from key
+            entity_type = '?'
+            if key.startswith('#risk#'):
+                entity_type = 'risk'
+            elif key.startswith('#asset#'):
+                entity_type = 'asset'
+            elif key.startswith('#ad'):
+                # AD subtypes: aduser, adgroup, adcomputer, addomain, adenterpriseca, etc.
+                parts = key.split('#')
+                entity_type = parts[1] if len(parts) > 1 else 'ad'
+            elif key.startswith('#seed#'):
+                entity_type = 'seed'
+            elif key.startswith('#job#'):
+                entity_type = 'job'
+            elif key.startswith('#port#') or key.startswith('#attribute#'):
+                parts = key.split('#')
+                entity_type = parts[1] if len(parts) > 1 else 'other'
+            else:
+                parts = key.split('#')
+                entity_type = parts[1] if len(parts) > 2 else 'other'
+
+            table.add_row(str(i), entity_type, key, str(name), status)
+            self._target_list.append(key)
+
+        self.console.print(table)
+
+        # Type summary
+        from collections import Counter
+        type_counts = Counter()
+        for item in results:
+            key = item.get('key', '')
+            parts = key.split('#')
+            t = parts[1] if len(parts) > 2 else 'other'
+            type_counts[t] += 1
+        summary = ', '.join(f'{count} {t}' for t, count in type_counts.most_common())
+        self.console.print(f'[dim]{summary}[/dim]')
+
+        hints = []
+        if total_pages > 1:
+            hints.append('"next" or "n"')
+        if total_pages > 2:
+            hints.append(f'"page <1-{total_pages}>"')
+        if hints:
+            self.console.print(f'[dim]{" | ".join(hints)}[/dim]')
 
     def _render_evidence(self, hydrated: dict):
         risk = hydrated.get('risk', {})
