@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.4.1
+- [Bug fix] Improve the intutiveness of the `guard run list` command
+
 # 2.4.0
 - [New Feature] Interactive operator console (`guard console`) with Metasploit-style workflow — `use <tool>`, `show targets`, `set target`, `run`
 - [New Feature] Marcus Aurelius AI integration — inline queries (`guard ask`), multi-turn conversation (`guard marcus`), file analysis and ingestion
