@@ -194,3 +194,19 @@ def webpage(chariot, key):
         - KEY: the key of an existing webpage
     """
     chariot.webpage.delete(key)
+
+@delete.command()
+@cli_handler
+@click.argument('key', required=True)
+def integration(chariot, key):
+    """ Delete an integration
+
+    \b
+    Arguments:
+        - KEY: the key of an existing integration
+
+    \b
+    Example usage:
+        - praetorian chariot delete integration "#account#john@praetorian.com#azure#556bee78-30d0-4a4c-8e4f-8ac2e19ce3d5"
+    """
+    chariot.integrations.delete(key)
