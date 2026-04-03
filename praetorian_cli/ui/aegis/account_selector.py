@@ -45,7 +45,8 @@ class AccountSelector:
         table.add_column("ADDRESS", min_width=20, no_wrap=True)
         table.add_column("STATUS", width=10, no_wrap=True)
         table.add_column("TYPE", width=10, no_wrap=True)
-        table.add_column("AGENTS", width=6, justify="right", no_wrap=True)
+        table.add_column("ONLINE", width=6, justify="right", no_wrap=True)
+        table.add_column("ALL", width=6, justify="right", no_wrap=True)
 
         empty = Text("", style=self.colors['dim'])
 
@@ -55,7 +56,7 @@ class AccountSelector:
         table.add_row(
             Text(check_all, style=f"bold {self.colors['accent']}"),
             Text("Select all", style="bold white" if is_cursor_all else f"bold {self.colors['primary']}"),
-            empty, empty, empty, empty,
+            empty, empty, empty, empty, empty,
         )
 
         # Special row 2: Select all active
@@ -64,7 +65,7 @@ class AccountSelector:
         table.add_row(
             Text(check_all_active, style=f"bold {self.colors['accent']}"),
             Text("Select all active", style="bold white" if is_cursor_active else f"bold {self.colors['primary']}"),
-            empty, empty, empty, empty,
+            empty, empty, empty, empty, empty,
         )
 
         # Account rows
@@ -73,6 +74,8 @@ class AccountSelector:
             checkbox = self._checkbox_char(checked)
             is_cursor = (self.cursor == SPECIAL_ROW_COUNT + i)
             agent_count = str(acct.get('agent_count', 0))
+            online_count = acct.get('online_count', 0)
+            online_str = str(online_count)
             status = acct.get('status', 'UNKNOWN')
             acct_type = acct.get('account_type', 'UNKNOWN')
 
@@ -82,7 +85,8 @@ class AccountSelector:
                 Text(truncate_email(acct.get('account_email', ''), 19), style=self.colors['dim']),
                 Text(status, style=self._status_style(status)),
                 Text(acct_type, style=self.colors['dim']),
-                Text(agent_count, style=self.colors['success']),
+                Text(online_str, style=self.colors['success'] if online_count > 0 else self.colors['dim']),
+                Text(agent_count, style=self.colors['dim']),
             )
 
         return table

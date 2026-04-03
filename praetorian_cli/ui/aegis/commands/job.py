@@ -134,7 +134,8 @@ def run_job(menu, args):
         menu.pause()
         return
 
-    target_type = capability_info.get('target', 'asset').lower()
+    target_raw = capability_info.get('target', 'asset')
+    target_type = (target_raw[0] if isinstance(target_raw, list) and target_raw else str(target_raw)).lower()
 
     # Create appropriate target key
     if target_type == 'addomain':

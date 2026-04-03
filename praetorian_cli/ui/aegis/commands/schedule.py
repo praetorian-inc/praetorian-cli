@@ -118,6 +118,11 @@ def list_schedules(menu):
 
         # Use cached agent lookup from menu (built when agents were loaded)
         agent_lookup = getattr(menu, 'agent_lookup', {})
+        # Build OS lookup from loaded agents
+        agent_os_lookup = {}
+        for agent in getattr(menu, 'agents', []):
+            if agent.client_id:
+                agent_os_lookup[agent.client_id] = agent.os
         table = Table(
             show_header=True,
             header_style=f"bold {colors['primary']}",
@@ -135,6 +140,7 @@ def list_schedules(menu):
         table.add_column("ID", style=f"bold {colors['accent']}", width=10, no_wrap=True)
         table.add_column("CAPABILITY", style="white", min_width=20, no_wrap=True)
         table.add_column("AGENT", style=f"{colors['success']}", min_width=15, no_wrap=True)
+        table.add_column("OS", style=f"{colors['dim']}", width=3, no_wrap=True)
         table.add_column("TARGET", style=f"{colors['dim']}", min_width=15, no_wrap=True)
         table.add_column("DAYS", style="white", width=21, no_wrap=True)
         table.add_column("STATUS", width=8, justify="center", no_wrap=True)
@@ -169,6 +175,11 @@ def list_schedules(menu):
                 else:
                     agent_display = '—'
 
+            # Resolve OS from agent
+            resolved_client_id = client_id or schedule.get('config', {}).get('client_id', '')
+            agent_os = agent_os_lookup.get(resolved_client_id, '').lower()
+            os_display = 'WIN' if 'windows' in agent_os else 'NIX' if agent_os else '—'
+
             # Format target display
             target_display = format_target(target_key)
 
@@ -190,7 +201,7 @@ def list_schedules(menu):
                 row_cells.append(Text(acct_name, style=colors['dim']))
                 row_cells.append(Text(acct_status, style=acct_status_style))
 
-            row_cells.extend([schedule_id, capability, agent_display, target_display, days_display, status_display, next_display])
+            row_cells.extend([schedule_id, capability, agent_display, os_display, target_display, days_display, status_display, next_display])
             table.add_row(*row_cells)
 
         menu.console.print(table)
@@ -309,7 +320,8 @@ def add_schedule(menu):
         menu.pause()
         return
 
-    target_type = capability_info.get('target', 'asset').lower()
+    target_raw = capability_info.get('target', 'asset')
+    target_type = (target_raw[0] if isinstance(target_raw, list) and target_raw else str(target_raw)).lower()
     hostname = menu.selected_agent.hostname or 'Unknown'
 
     # Create target key

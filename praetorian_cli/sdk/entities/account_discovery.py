@@ -6,6 +6,7 @@ checks each account for aegis agents to build enriched account info.
 
 import logging
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -72,9 +73,11 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
             if not agents_data:
                 return None
 
+            online_count = _count_online_agents(agents_data)
             return _build_account_info(
                 account_email,
                 len(agents_data),
+                online_count,
                 metadata,
             )
         except Exception as e:
@@ -220,7 +223,23 @@ def _calculate_status(email: str, metadata: dict) -> str:
     return date_status
 
 
-def _build_account_info(email: str, agent_count: int, metadata: dict) -> dict:
+def _count_online_agents(agents_data: list) -> int:
+    """Count agents that are online (last_seen_at within 60 seconds)."""
+    now = time.time()
+    count = 0
+    for agent in agents_data:
+        last_seen = agent.get('last_seen_at')
+        if not last_seen:
+            continue
+        # Normalize microsecond timestamps to seconds
+        if last_seen > 1000000000000:
+            last_seen = last_seen / 1000000
+        if (now - last_seen) < 60:
+            count += 1
+    return count
+
+
+def _build_account_info(email: str, agent_count: int, online_count: int, metadata: dict) -> dict:
     """Build enriched account info from email and bulk metadata."""
     display_name = metadata['display_names'].get(email, '')
     if not display_name:
@@ -235,6 +254,7 @@ def _build_account_info(email: str, agent_count: int, metadata: dict) -> dict:
         'status': status,
         'account_type': account_type,
         'agent_count': agent_count,
+        'online_count': online_count,
     }
 
 
@@ -349,7 +369,7 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
 
 
 def load_schedules_for_accounts(sdk, selected_accounts: List[dict]) -> List[tuple]:
-    """Load schedules from multiple accounts concurrently.
+    """Load schedules from multiple accounts concurrently with retry.
 
     Args:
         sdk: Chariot SDK instance
@@ -361,7 +381,7 @@ def load_schedules_for_accounts(sdk, selected_accounts: List[dict]) -> List[tupl
     base_url = sdk.keychain.base_url()
     auth_headers = dict(sdk.keychain.headers())
 
-    def _load_one(acct):
+    def _load_one(acct, attempt=1):
         email = acct['account_email']
         try:
             headers = dict(auth_headers)
@@ -373,20 +393,38 @@ def load_schedules_for_accounts(sdk, selected_accounts: List[dict]) -> List[tupl
                 timeout=30,
             )
             if resp.status_code != 200:
-                logger.debug('Schedule load for %s returned status %d', email, resp.status_code)
-                return []
+                logger.debug('Schedule load for %s returned status %d (attempt %d)', email, resp.status_code, attempt)
+                return None  # Signal failure for retry
             data = resp.json()
             schedules = data.get('capabilityschedules', [])
             return [(sched, acct) for sched in schedules]
         except Exception as e:
-            logger.debug('Schedule load failed for %s: %s', email, e)
-            return []
+            logger.debug('Schedule load failed for %s: %s (attempt %d)', email, e, attempt)
+            return None
 
     results = []
+    retry_accounts = []
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(_load_one, acct): acct for acct in selected_accounts}
         for future in as_completed(futures):
-            results.extend(future.result())
+            result = future.result()
+            if result is None:
+                retry_accounts.append(futures[future])
+            else:
+                results.extend(result)
+
+    # Retry failed accounts once
+    if retry_accounts:
+        logger.debug('Retrying schedule load for %d failed account(s)', len(retry_accounts))
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(_load_one, acct, 2): acct for acct in retry_accounts}
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    results.extend(result)
+                else:
+                    acct = futures[future]
+                    logger.warning('Schedule load failed after retry for %s', acct['account_email'])
 
     return results
 
