@@ -1,6 +1,7 @@
 """Schedule command handlers for Aegis TUI."""
 
 import logging
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -28,25 +29,46 @@ from .job_helpers import (
 )
 
 
-def _assume_schedule_account(menu, schedule_id):
-    """In multi-account mode, assume into the account owning this schedule.
+@contextmanager
+def _schedule_account_context(menu, schedule_id):
+    """Context manager: assume into a schedule's account, restore on exit.
 
-    Returns True if the tenant switch succeeded (or not in multi-account mode).
-    Returns False if the account could not be resolved or assumption failed.
+    Yields True if the tenant switch succeeded (or not in multi-account mode).
+    Yields False if the account could not be resolved or assumption failed.
+    Always restores the prior account context in the finally block.
     """
     if not menu.multi_account_mode:
-        return True
+        yield True
+        return
+
+    previous_account = menu.sdk.keychain.account
     acct_info = getattr(menu, 'schedule_account_map', {}).get(schedule_id, {})
     acct_email = acct_info.get('account_email')
     if not acct_email:
         logger.warning('No account email found for schedule %s', schedule_id[:10])
-        return False
+        yield False
+        return
+
     try:
         menu.sdk.accounts.assume_role(acct_email)
-        return True
     except Exception as e:
         logger.error('Failed to assume role for %s: %s', acct_email, e)
-        return False
+        yield False
+        return
+
+    try:
+        yield True
+    finally:
+        if previous_account:
+            try:
+                menu.sdk.accounts.assume_role(previous_account)
+            except Exception as e:
+                logger.error('Failed to restore account %s: %s', previous_account, e)
+        else:
+            try:
+                menu.sdk.accounts.unassume_role()
+            except Exception as e:
+                logger.error('Failed to unassume role: %s', e)
 
 
 def handle_schedule(menu, args):
@@ -240,78 +262,79 @@ def view_schedule(menu, args):
         menu.pause()
         return
 
-    if not _assume_schedule_account(menu, schedule_id):
-        menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
-        menu.pause()
-        return
+    with _schedule_account_context(menu, schedule_id) as switched:
+        if not switched:
+            menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+            menu.pause()
+            return
 
-    try:
-        # Use cached agent lookup from menu
-        agent_lookup = getattr(menu, 'agent_lookup', {})
+        try:
+            # Use cached agent lookup from menu
+            agent_lookup = getattr(menu, 'agent_lookup', {})
 
-        menu.console.print()
-        menu.console.print(f"  [bold {colors['primary']}]Schedule Details[/]")
-        menu.console.print()
-        menu.console.print(f"  ID:            {schedule.get('scheduleId', 'N/A')}")
-        menu.console.print(f"  Capability:    {schedule.get('capabilityName', 'N/A')}")
-        menu.console.print(f"  Target:        {schedule.get('targetKey', 'N/A')}")
-        menu.console.print(f"  Status:        {format_status(schedule.get('status', 'unknown'), colors)}")
-
-        # Show agent information
-        client_id = schedule.get('clientId', '')
-        if not client_id:
-            config = schedule.get('config', {})
-            client_id = config.get('client_id', '')
-
-        if client_id:
-            agent_hostname = agent_lookup.get(client_id, '')
-            if agent_hostname:
-                menu.console.print(f"  Agent:         [{colors['success']}]{agent_hostname}[/{colors['success']}]")
-                menu.console.print(f"  Client ID:     [{colors['dim']}]{client_id}[/{colors['dim']}]")
-            else:
-                menu.console.print(f"  Client ID:     {client_id}")
-
-        menu.console.print()
-        menu.console.print(f"  [bold {colors['primary']}]Schedule[/]")
-        weekly = schedule.get('weeklySchedule', {})
-        for day, abbrev in zip(DAYS, DAY_ABBREVS):
-            day_sched = weekly.get(day, {})
-            if day_sched.get('enabled'):
-                time_str = day_sched.get('time', 'N/A')
-                menu.console.print(f"    {abbrev}: [{colors['success']}]✓ {time_str} UTC[/{colors['success']}]")
-            else:
-                menu.console.print(f"    {abbrev}: [{colors['dim']}]—[/{colors['dim']}]")
-
-        menu.console.print()
-        menu.console.print(f"  [bold {colors['primary']}]Dates[/]")
-        menu.console.print(f"  Start:         {format_date(schedule.get('startDate', ''))}")
-        end_date = schedule.get('endDate', '')
-        menu.console.print(f"  End:           {format_date(end_date) if end_date else 'No end date'}")
-
-        menu.console.print()
-        menu.console.print(f"  [bold {colors['primary']}]Execution[/]")
-        next_exec = schedule.get('nextExecution', '')
-        last_exec = schedule.get('lastExecution', '')
-        menu.console.print(f"  Next:          {format_datetime(next_exec) if next_exec else 'Not scheduled'}")
-        menu.console.print(f"  Last:          {format_datetime(last_exec) if last_exec else 'Never'}")
-
-        # Show config if present
-        config = schedule.get('config', {})
-        if config:
             menu.console.print()
-            menu.console.print(f"  [bold {colors['primary']}]Configuration[/]")
-            for key, value in config.items():
-                # Hide sensitive values
-                if 'password' in key.lower() or 'secret' in key.lower():
-                    value = '********'
-                menu.console.print(f"    {key}: {value}")
+            menu.console.print(f"  [bold {colors['primary']}]Schedule Details[/]")
+            menu.console.print()
+            menu.console.print(f"  ID:            {schedule.get('scheduleId', 'N/A')}")
+            menu.console.print(f"  Capability:    {schedule.get('capabilityName', 'N/A')}")
+            menu.console.print(f"  Target:        {schedule.get('targetKey', 'N/A')}")
+            menu.console.print(f"  Status:        {format_status(schedule.get('status', 'unknown'), colors)}")
 
-        menu.console.print()
-        menu.pause()
+            # Show agent information
+            client_id = schedule.get('clientId', '')
+            if not client_id:
+                config = schedule.get('config', {})
+                client_id = config.get('client_id', '')
 
-    except Exception as e:
-        menu.console.print(f"[{colors['error']}]Error viewing schedule: {e}[/{colors['error']}]")
-        menu.pause()
+            if client_id:
+                agent_hostname = agent_lookup.get(client_id, '')
+                if agent_hostname:
+                    menu.console.print(f"  Agent:         [{colors['success']}]{agent_hostname}[/{colors['success']}]")
+                    menu.console.print(f"  Client ID:     [{colors['dim']}]{client_id}[/{colors['dim']}]")
+                else:
+                    menu.console.print(f"  Client ID:     {client_id}")
+
+            menu.console.print()
+            menu.console.print(f"  [bold {colors['primary']}]Schedule[/]")
+            weekly = schedule.get('weeklySchedule', {})
+            for day, abbrev in zip(DAYS, DAY_ABBREVS):
+                day_sched = weekly.get(day, {})
+                if day_sched.get('enabled'):
+                    time_str = day_sched.get('time', 'N/A')
+                    menu.console.print(f"    {abbrev}: [{colors['success']}]✓ {time_str} UTC[/{colors['success']}]")
+                else:
+                    menu.console.print(f"    {abbrev}: [{colors['dim']}]—[/{colors['dim']}]")
+
+            menu.console.print()
+            menu.console.print(f"  [bold {colors['primary']}]Dates[/]")
+            menu.console.print(f"  Start:         {format_date(schedule.get('startDate', ''))}")
+            end_date = schedule.get('endDate', '')
+            menu.console.print(f"  End:           {format_date(end_date) if end_date else 'No end date'}")
+
+            menu.console.print()
+            menu.console.print(f"  [bold {colors['primary']}]Execution[/]")
+            next_exec = schedule.get('nextExecution', '')
+            last_exec = schedule.get('lastExecution', '')
+            menu.console.print(f"  Next:          {format_datetime(next_exec) if next_exec else 'Not scheduled'}")
+            menu.console.print(f"  Last:          {format_datetime(last_exec) if last_exec else 'Never'}")
+
+            # Show config if present
+            config = schedule.get('config', {})
+            if config:
+                menu.console.print()
+                menu.console.print(f"  [bold {colors['primary']}]Configuration[/]")
+                for key, value in config.items():
+                    # Hide sensitive values
+                    if 'password' in key.lower() or 'secret' in key.lower():
+                        value = '********'
+                    menu.console.print(f"    {key}: {value}")
+
+            menu.console.print()
+            menu.pause()
+
+        except Exception as e:
+            menu.console.print(f"[{colors['error']}]Error viewing schedule: {e}[/{colors['error']}]")
+            menu.pause()
 
 
 def add_schedule(menu):
@@ -456,67 +479,68 @@ def edit_schedule(menu, args):
         menu.pause()
         return
 
-    if not _assume_schedule_account(menu, schedule_id):
-        menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
-        menu.pause()
-        return
+    with _schedule_account_context(menu, schedule_id) as switched:
+        if not switched:
+            menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+            menu.pause()
+            return
 
-    try:
-        menu.console.print(f"\n  [bold {colors['primary']}]Edit Schedule: {schedule_id[:10]}[/]")
-        menu.console.print(f"  Capability: {schedule.get('capabilityName', 'N/A')}")
-        menu.console.print()
+        try:
+            menu.console.print(f"\n  [bold {colors['primary']}]Edit Schedule: {schedule_id[:10]}[/]")
+            menu.console.print(f"  Capability: {schedule.get('capabilityName', 'N/A')}")
+            menu.console.print()
 
-        # Edit weekly schedule
-        if Confirm.ask("  Edit weekly schedule?"):
-            weekly_schedule = configure_weekly_schedule(menu)
-            if not weekly_schedule:
-                menu.console.print("  Schedule edit cancelled\n")
+            # Edit weekly schedule
+            if Confirm.ask("  Edit weekly schedule?"):
+                weekly_schedule = configure_weekly_schedule(menu)
+                if not weekly_schedule:
+                    menu.console.print("  Schedule edit cancelled\n")
+                    menu.pause()
+                    return
+            else:
+                weekly_schedule = None
+
+            # Edit start date
+            current_start = schedule.get('startDate', '')
+            if Confirm.ask("  Edit start date?"):
+                start_date = Prompt.ask("  Start date (RFC3339)", default=current_start)
+            else:
+                start_date = None
+
+            # Edit end date
+            current_end = schedule.get('endDate', '')
+            if Confirm.ask("  Edit end date?"):
+                end_date = Prompt.ask("  End date (RFC3339, empty to remove)", default=current_end)
+            else:
+                end_date = None
+
+            # Confirm changes
+            if weekly_schedule is None and start_date is None and end_date is None:
+                menu.console.print("  No changes made.\n")
                 menu.pause()
                 return
-        else:
-            weekly_schedule = None
 
-        # Edit start date
-        current_start = schedule.get('startDate', '')
-        if Confirm.ask("  Edit start date?"):
-            start_date = Prompt.ask("  Start date (RFC3339)", default=current_start)
-        else:
-            start_date = None
+            if not Confirm.ask("\n  Save changes?"):
+                menu.console.print("  Cancelled\n")
+                menu.pause()
+                return
 
-        # Edit end date
-        current_end = schedule.get('endDate', '')
-        if Confirm.ask("  Edit end date?"):
-            end_date = Prompt.ask("  End date (RFC3339, empty to remove)", default=current_end)
-        else:
-            end_date = None
+            result = menu.sdk.schedules.update(
+                schedule_id=schedule_id,
+                weekly_schedule=weekly_schedule,
+                start_date=start_date,
+                end_date=end_date
+            )
 
-        # Confirm changes
-        if weekly_schedule is None and start_date is None and end_date is None:
-            menu.console.print("  No changes made.\n")
-            menu.pause()
-            return
+            invalidate_schedule_cache(menu)
+            menu.console.print(f"\n[{colors['success']}]✓ Schedule updated successfully[/{colors['success']}]")
+            menu.console.print(f"  Next execution: {format_datetime(result.get('nextExecution', ''))}")
 
-        if not Confirm.ask("\n  Save changes?"):
-            menu.console.print("  Cancelled\n")
-            menu.pause()
-            return
+        except Exception as e:
+            menu.console.print(f"\n[{colors['error']}]Error updating schedule: {e}[/{colors['error']}]")
 
-        result = menu.sdk.schedules.update(
-            schedule_id=schedule_id,
-            weekly_schedule=weekly_schedule,
-            start_date=start_date,
-            end_date=end_date
-        )
-
-        invalidate_schedule_cache(menu)
-        menu.console.print(f"\n[{colors['success']}]✓ Schedule updated successfully[/{colors['success']}]")
-        menu.console.print(f"  Next execution: {format_datetime(result.get('nextExecution', ''))}")
-
-    except Exception as e:
-        menu.console.print(f"\n[{colors['error']}]Error updating schedule: {e}[/{colors['error']}]")
-
-    menu.console.print()
-    menu.pause()
+        menu.console.print()
+        menu.pause()
 
 
 def delete_schedule(menu, args):
@@ -533,30 +557,31 @@ def delete_schedule(menu, args):
         menu.pause()
         return
 
-    if not _assume_schedule_account(menu, schedule_id):
-        menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
-        menu.pause()
-        return
-
-    try:
-        menu.console.print(f"\n  Schedule: {schedule_id[:10]}")
-        menu.console.print(f"  Capability: {schedule.get('capabilityName', 'N/A')}")
-        menu.console.print(f"  Target: {format_target(schedule.get('targetKey', ''))}")
-
-        if not Confirm.ask(f"\n  [{colors['error']}]Delete this schedule?[/{colors['error']}]"):
-            menu.console.print("  Cancelled\n")
+    with _schedule_account_context(menu, schedule_id) as switched:
+        if not switched:
+            menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
             menu.pause()
             return
 
-        menu.sdk.schedules.delete(schedule_id)
-        invalidate_schedule_cache(menu)
-        menu.console.print(f"\n[{colors['success']}]✓ Schedule deleted successfully[/{colors['success']}]")
+        try:
+            menu.console.print(f"\n  Schedule: {schedule_id[:10]}")
+            menu.console.print(f"  Capability: {schedule.get('capabilityName', 'N/A')}")
+            menu.console.print(f"  Target: {format_target(schedule.get('targetKey', ''))}")
 
-    except Exception as e:
-        menu.console.print(f"\n[{colors['error']}]Error deleting schedule: {e}[/{colors['error']}]")
+            if not Confirm.ask(f"\n  [{colors['error']}]Delete this schedule?[/{colors['error']}]"):
+                menu.console.print("  Cancelled\n")
+                menu.pause()
+                return
 
-    menu.console.print()
-    menu.pause()
+            menu.sdk.schedules.delete(schedule_id)
+            invalidate_schedule_cache(menu)
+            menu.console.print(f"\n[{colors['success']}]✓ Schedule deleted successfully[/{colors['success']}]")
+
+        except Exception as e:
+            menu.console.print(f"\n[{colors['error']}]Error deleting schedule: {e}[/{colors['error']}]")
+
+        menu.console.print()
+        menu.pause()
 
 
 def pause_schedule(menu, args):
@@ -573,22 +598,23 @@ def pause_schedule(menu, args):
         menu.pause()
         return
 
-    if not _assume_schedule_account(menu, full_id):
-        menu.console.print(f"\n[{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+    with _schedule_account_context(menu, full_id) as switched:
+        if not switched:
+            menu.console.print(f"\n[{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+            menu.pause()
+            return
+
+        try:
+            result = menu.sdk.schedules.pause(full_id)
+            invalidate_schedule_cache(menu)
+            menu.console.print(f"\n[{colors['success']}]✓ Schedule paused[/{colors['success']}]")
+            menu.console.print(f"  Status: {result.get('status', 'paused')}")
+
+        except Exception as e:
+            menu.console.print(f"\n[{colors['error']}]Error pausing schedule: {e}[/{colors['error']}]")
+
+        menu.console.print()
         menu.pause()
-        return
-
-    try:
-        result = menu.sdk.schedules.pause(full_id)
-        invalidate_schedule_cache(menu)
-        menu.console.print(f"\n[{colors['success']}]✓ Schedule paused[/{colors['success']}]")
-        menu.console.print(f"  Status: {result.get('status', 'paused')}")
-
-    except Exception as e:
-        menu.console.print(f"\n[{colors['error']}]Error pausing schedule: {e}[/{colors['error']}]")
-
-    menu.console.print()
-    menu.pause()
 
 
 def resume_schedule(menu, args):
@@ -605,23 +631,24 @@ def resume_schedule(menu, args):
         menu.pause()
         return
 
-    if not _assume_schedule_account(menu, full_id):
-        menu.console.print(f"\n[{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+    with _schedule_account_context(menu, full_id) as switched:
+        if not switched:
+            menu.console.print(f"\n[{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+            menu.pause()
+            return
+
+        try:
+            result = menu.sdk.schedules.resume(full_id)
+            invalidate_schedule_cache(menu)
+            menu.console.print(f"\n[{colors['success']}]✓ Schedule resumed[/{colors['success']}]")
+            menu.console.print(f"  Status: {result.get('status', 'active')}")
+            menu.console.print(f"  Next execution: {format_datetime(result.get('nextExecution', ''))}")
+
+        except Exception as e:
+            menu.console.print(f"\n[{colors['error']}]Error resuming schedule: {e}[/{colors['error']}]")
+
+        menu.console.print()
         menu.pause()
-        return
-
-    try:
-        result = menu.sdk.schedules.resume(full_id)
-        invalidate_schedule_cache(menu)
-        menu.console.print(f"\n[{colors['success']}]✓ Schedule resumed[/{colors['success']}]")
-        menu.console.print(f"  Status: {result.get('status', 'active')}")
-        menu.console.print(f"  Next execution: {format_datetime(result.get('nextExecution', ''))}")
-
-    except Exception as e:
-        menu.console.print(f"\n[{colors['error']}]Error resuming schedule: {e}[/{colors['error']}]")
-
-    menu.console.print()
-    menu.pause()
 
 
 def complete(menu, text, tokens):
