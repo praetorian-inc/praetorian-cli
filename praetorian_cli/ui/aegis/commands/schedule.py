@@ -4,7 +4,6 @@ import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-logger = logging.getLogger(__name__)
 from rich.table import Table
 from rich.text import Text
 from rich.box import MINIMAL
@@ -27,6 +26,8 @@ from .job_helpers import (
     resolve_addomain_target_key,
     extract_target_type,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -148,16 +149,10 @@ def list_schedules(menu):
             menu.pause()
             return
 
-        # Sort by next execution time
         schedules.sort(key=lambda s: s.get('nextExecution', '') or 'zzz')
 
-        # Use cached agent lookup from menu (built when agents were loaded)
         agent_lookup = getattr(menu, 'agent_lookup', {})
-        # Build OS lookup from loaded agents
-        agent_os_lookup = {}
-        for agent in getattr(menu, 'agents', []):
-            if agent.client_id:
-                agent_os_lookup[agent.client_id] = agent.os
+        agent_os_lookup = getattr(menu, 'agent_os_lookup', {})
         table = Table(
             show_header=True,
             header_style=f"bold {colors['primary']}",
@@ -193,14 +188,11 @@ def list_schedules(menu):
             next_exec = schedule.get('nextExecution', '')
             client_id = schedule.get('clientId', '')
 
-            # Get agent hostname from lookup, fall back to client_id or config
             if client_id and client_id in agent_lookup:
                 agent_display = agent_lookup[client_id]
             elif client_id:
-                # Show shortened client_id if no hostname found
                 agent_display = truncate_email(client_id, 15)
             else:
-                # Try to get from config
                 config = schedule.get('config', {})
                 client_id_from_config = config.get('client_id', '')
                 if client_id_from_config and client_id_from_config in agent_lookup:
@@ -210,21 +202,13 @@ def list_schedules(menu):
                 else:
                     agent_display = '—'
 
-            # Resolve OS from agent
             resolved_client_id = client_id or schedule.get('config', {}).get('client_id', '')
             agent_os = agent_os_lookup.get(resolved_client_id, '').lower()
             os_display = 'WIN' if 'windows' in agent_os else 'NIX' if agent_os else '—'
 
-            # Format target display
             target_display = format_target(target_key)
-
-            # Format days display
             days_display = format_days(schedule.get('weeklySchedule', {}))
-
-            # Format status with color
             status_display = format_status(status, colors)
-
-            # Format next execution
             next_display = format_next_execution(next_exec)
 
             row_cells = []
@@ -252,13 +236,12 @@ def view_schedule(menu, args):
     """View detailed information about a schedule."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
-    # Use interactive picker if no ID provided, otherwise validate the provided one
     suggested_id = args[0] if args else None
     schedule, schedule_id = interactive_schedule_picker(menu, suggested_id, prompt_prefix="schedule view")
 
     if not schedule:
         if suggested_id:
-            menu.console.print(f"\n  Schedule not found: {suggested_id}")
+            menu.console.print(f"\n  [{colors['error']}]Schedule not found: {suggested_id}[/{colors['error']}]")
         menu.pause()
         return
 
@@ -469,13 +452,12 @@ def edit_schedule(menu, args):
     """Edit an existing schedule."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
-    # Use interactive picker if no ID provided, otherwise validate the provided one
     suggested_id = args[0] if args else None
     schedule, schedule_id = interactive_schedule_picker(menu, suggested_id, prompt_prefix="schedule edit")
 
     if not schedule:
         if suggested_id:
-            menu.console.print(f"\n  Schedule not found: {suggested_id}")
+            menu.console.print(f"\n  [{colors['error']}]Schedule not found: {suggested_id}[/{colors['error']}]")
         menu.pause()
         return
 
@@ -547,13 +529,12 @@ def delete_schedule(menu, args):
     """Delete a schedule."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
-    # Use interactive picker if no ID provided, otherwise validate the provided one
     suggested_id = args[0] if args else None
     schedule, schedule_id = interactive_schedule_picker(menu, suggested_id, prompt_prefix="schedule delete")
 
     if not schedule:
         if suggested_id:
-            menu.console.print(f"\n  Schedule not found: {suggested_id}")
+            menu.console.print(f"\n  [{colors['error']}]Schedule not found: {suggested_id}[/{colors['error']}]")
         menu.pause()
         return
 
@@ -588,7 +569,6 @@ def pause_schedule(menu, args):
     """Pause a schedule."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
-    # Use interactive picker if no ID provided, otherwise validate the provided one
     suggested_id = args[0] if args else None
     schedule, full_id = interactive_schedule_picker(menu, suggested_id, prompt_prefix="schedule pause")
 
@@ -621,7 +601,6 @@ def resume_schedule(menu, args):
     """Resume a paused schedule."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
-    # Use interactive picker if no ID provided, otherwise validate the provided one
     suggested_id = args[0] if args else None
     schedule, full_id = interactive_schedule_picker(menu, suggested_id, prompt_prefix="schedule resume")
 

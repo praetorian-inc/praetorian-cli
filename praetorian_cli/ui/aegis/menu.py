@@ -701,13 +701,16 @@ class AegisMenu:
                     self.agents = []
                     self.agent_account_map = {}
                     self.agent_lookup = {}
+                    self.agent_os_lookup = {}
                     for agent, acct_info in agent_tuples:
                         self.agents.append(agent)
                         agent._account_info = acct_info
                         if agent.client_id and agent.client_id != 'N/A':
                             self.agent_account_map[agent.client_id] = acct_info
-                        if agent.client_id and agent.hostname:
-                            self.agent_lookup[agent.client_id] = agent.hostname
+                        if agent.client_id:
+                            self.agent_os_lookup[agent.client_id] = agent.os
+                            if agent.hostname:
+                                self.agent_lookup[agent.client_id] = agent.hostname
                 finally:
                     status.stop()
 
@@ -724,9 +727,12 @@ class AegisMenu:
                     self.agent_account_map = {}
 
                 self.agent_lookup = {}
+                self.agent_os_lookup = {}
                 for agent in self.agents:
-                    if agent.client_id and agent.hostname:
-                        self.agent_lookup[agent.client_id] = agent.hostname
+                    if agent.client_id:
+                        self.agent_os_lookup[agent.client_id] = agent.os
+                        if agent.hostname:
+                            self.agent_lookup[agent.client_id] = agent.hostname
 
             if self.verbose or not self.agents:
                 agent_count = len(self.agents)
@@ -739,6 +745,7 @@ class AegisMenu:
             self.console.print(f"[{self.colors['error']}]✗ Error loading agents: {e}[/{self.colors['error']}]")
             self.agents = []
             self.agent_lookup = {}
+            self.agent_os_lookup = {}
             self.agent_account_map = {}
     
     def pause(self):
