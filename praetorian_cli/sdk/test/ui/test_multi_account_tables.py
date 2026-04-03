@@ -117,7 +117,7 @@ class TestMultiAccountScheduleTable:
         menu.console = Console(file=output, force_terminal=True, width=200, theme=AEGIS_RICH_THEME)
 
         with patch('praetorian_cli.ui.aegis.commands.schedule.load_schedules_for_accounts') as mock_load:
-            mock_load.return_value = [
+            mock_load.return_value = ([
                 ({
                     'scheduleId': 's1',
                     'capabilityName': 'windows-smb-snaffler',
@@ -127,7 +127,7 @@ class TestMultiAccountScheduleTable:
                     'nextExecution': '',
                     'clientId': 'C.srv1',
                 }, menu.selected_accounts[0]),
-            ]
+            ], [])
             list_schedules(menu)
 
         text = output.getvalue()

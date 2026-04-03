@@ -25,17 +25,22 @@ from .job_helpers import (
 
 
 def _assume_schedule_account(menu, schedule_id):
-    """In multi-account mode, assume into the account owning this schedule."""
+    """In multi-account mode, assume into the account owning this schedule.
+
+    Returns True if the tenant switch succeeded (or not in multi-account mode).
+    Returns False if the account could not be resolved or assumption failed.
+    """
     if not getattr(menu, 'multi_account_mode', False):
         return True
     acct_info = getattr(menu, 'schedule_account_map', {}).get(schedule_id, {})
     acct_email = acct_info.get('account_email')
-    if acct_email:
-        try:
-            menu.sdk.accounts.assume_role(acct_email)
-        except Exception:
-            return False
-    return True
+    if not acct_email:
+        return False
+    try:
+        menu.sdk.accounts.assume_role(acct_email)
+        return True
+    except Exception:
+        return False
 
 
 def handle_schedule(menu, args):
@@ -98,11 +103,13 @@ def list_schedules(menu):
 
     try:
         if multi_account and getattr(menu, 'selected_accounts', None):
-            schedule_tuples = load_schedules_for_accounts(menu.sdk, menu.selected_accounts)
+            schedule_tuples, failed = load_schedules_for_accounts(menu.sdk, menu.selected_accounts)
             schedules = [s for s, _ in schedule_tuples]
             menu.schedule_account_map = {}
             for sched, acct_info in schedule_tuples:
                 menu.schedule_account_map[sched.get('scheduleId', '')] = acct_info
+            if failed:
+                menu.console.print(f"[{colors['warning']}]Failed to load schedules for: {', '.join(failed)}[/{colors['warning']}]")
         else:
             schedules, _ = menu.sdk.schedules.list()
             menu.schedule_account_map = {}
@@ -227,7 +234,10 @@ def view_schedule(menu, args):
         menu.pause()
         return
 
-    _assume_schedule_account(menu, schedule_id)
+    if not _assume_schedule_account(menu, schedule_id):
+        menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+        menu.pause()
+        return
 
     try:
         # Use cached agent lookup from menu
@@ -441,7 +451,10 @@ def edit_schedule(menu, args):
         menu.pause()
         return
 
-    _assume_schedule_account(menu, schedule_id)
+    if not _assume_schedule_account(menu, schedule_id):
+        menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+        menu.pause()
+        return
 
     try:
         menu.console.print(f"\n  [bold {colors['primary']}]Edit Schedule: {schedule_id[:10]}[/]")
@@ -515,7 +528,10 @@ def delete_schedule(menu, args):
         menu.pause()
         return
 
-    _assume_schedule_account(menu, schedule_id)
+    if not _assume_schedule_account(menu, schedule_id):
+        menu.console.print(f"\n  [{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+        menu.pause()
+        return
 
     try:
         menu.console.print(f"\n  Schedule: {schedule_id[:10]}")
@@ -552,7 +568,10 @@ def pause_schedule(menu, args):
         menu.pause()
         return
 
-    _assume_schedule_account(menu, full_id)
+    if not _assume_schedule_account(menu, full_id):
+        menu.console.print(f"\n[{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+        menu.pause()
+        return
 
     try:
         result = menu.sdk.schedules.pause(full_id)
@@ -581,7 +600,10 @@ def resume_schedule(menu, args):
         menu.pause()
         return
 
-    _assume_schedule_account(menu, full_id)
+    if not _assume_schedule_account(menu, full_id):
+        menu.console.print(f"\n[{colors['error']}]Could not switch to schedule's account.[/{colors['error']}]")
+        menu.pause()
+        return
 
     try:
         result = menu.sdk.schedules.resume(full_id)

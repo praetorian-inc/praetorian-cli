@@ -35,7 +35,8 @@ class TestAccountSelector:
         assert 'ADDRESS' in text
         assert 'STATUS' in text
         assert 'TYPE' in text
-        assert 'AGENTS' in text
+        assert 'ONLINE' in text
+        assert 'ALL' in text
 
     def test_special_rows_present(self):
         from praetorian_cli.ui.aegis.account_selector import AccountSelector

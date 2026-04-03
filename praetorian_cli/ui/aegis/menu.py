@@ -702,7 +702,10 @@ class AegisMenu:
                     self.agent_account_map = {}
                     for agent, acct_info in agent_tuples:
                         self.agents.append(agent)
-                        self.agent_account_map[agent.client_id] = acct_info
+                        # Attach account info directly to agent to avoid client_id collisions
+                        agent._account_info = acct_info
+                        if agent.client_id and agent.client_id != 'N/A':
+                            self.agent_account_map[agent.client_id] = acct_info
                 finally:
                     status.stop()
 

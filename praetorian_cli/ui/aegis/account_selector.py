@@ -217,6 +217,9 @@ def run_account_selector(accounts: List[dict], colors: dict, console) -> List[di
         result_holder.clear()
         event.app.exit()
 
+    # Header lines before table rows (blank line + title + instructions + blank)
+    _HEADER_LINES = 4
+
     def _get_display_text():
         """Render the selector as ANSI text for prompt_toolkit."""
         output = StringIO()
@@ -233,10 +236,19 @@ def run_account_selector(accounts: List[dict], colors: dict, console) -> List[di
         render_console.print(table)
         render_console.print()
         selected_count = len(selector.selected_indices)
-        render_console.print(f"  [{colors['dim']}]{selected_count} account(s) selected — press ENTER to continue[/{colors['dim']}]")
+        if selected_count > 0:
+            render_console.print(f"  [{colors['dim']}]{selected_count} account(s) selected — press ENTER to continue[/{colors['dim']}]")
+        else:
+            render_console.print(f"  [{colors['dim']}]Select at least one account to continue[/{colors['dim']}]")
         return ANSI(output.getvalue())
 
-    layout = Layout(Window(content=FormattedTextControl(_get_display_text)))
+    def _get_cursor_position():
+        """Return cursor position so prompt_toolkit scrolls to the active row."""
+        from prompt_toolkit.data_structures import Point
+        # header lines + table header row + cursor row
+        return Point(x=0, y=_HEADER_LINES + 1 + selector.cursor)
+
+    layout = Layout(Window(content=FormattedTextControl(_get_display_text, get_cursor_position=_get_cursor_position)))
     app = Application(layout=layout, key_bindings=kb, full_screen=True)
     app.run()
 

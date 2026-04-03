@@ -54,6 +54,9 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
     checked = [0]
     lock = threading.Lock()
 
+    # Sentinel to distinguish "no agents" from "probe failed"
+    _PROBE_FAILED = object()
+
     def _check_account(account_email):
         """Check a single account for agents. Thread-safe."""
         try:
@@ -67,11 +70,11 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
             )
             if resp.status_code != 200:
                 logger.debug('Agent check for %s returned status %d', account_email, resp.status_code)
-                return None
+                return _PROBE_FAILED
 
             agents_data = resp.json()
             if not agents_data:
-                return None
+                return None  # Genuinely empty — no agents
 
             online_count = _count_online_agents(agents_data)
             return _build_account_info(
@@ -82,7 +85,7 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
             )
         except Exception as e:
             logger.debug('Agent check failed for %s: %s', account_email, e)
-            return None
+            return _PROBE_FAILED
         finally:
             with lock:
                 checked[0] += 1
@@ -94,8 +97,9 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
         futures = {executor.submit(_check_account, email): email for email in sorted_accounts}
         for future in as_completed(futures):
             result = future.result()
-            if result:
-                results.append(result)
+            if result is _PROBE_FAILED or result is None:
+                continue  # Failed probe or genuinely empty
+            results.append(result)
 
     results.sort(key=lambda r: r['account_email'])
     return results
@@ -307,7 +311,7 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
     failed_accounts = []
     lock = threading.Lock()
 
-    def _load_one(acct, attempt=1):
+    def _load_one(acct, attempt=1, track_progress=True):
         email = acct['account_email']
         try:
             headers = dict(auth_headers)
@@ -325,10 +329,11 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
             logger.debug('Agent load failed for %s: %s (attempt %d)', email, e, attempt)
             return None
         finally:
-            with lock:
-                checked[0] += 1
-                if on_progress:
-                    on_progress(checked[0], total, acct.get('display_name', email))
+            if track_progress:
+                with lock:
+                    checked[0] += 1
+                    if on_progress:
+                        on_progress(checked[0], total, acct.get('display_name', email))
 
     results = []
     retry_accounts = []
@@ -341,11 +346,11 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
             else:
                 results.extend(result)
 
-    # Retry failed accounts once
+    # Retry failed accounts once (don't double-count progress)
     if retry_accounts:
         logger.debug('Retrying %d failed account(s)', len(retry_accounts))
         with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(_load_one, acct, 2): acct for acct in retry_accounts}
+            futures = {executor.submit(_load_one, acct, 2, False): acct for acct in retry_accounts}
             for future in as_completed(futures):
                 result = future.result()
                 if result is None:
@@ -368,7 +373,7 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
     return results, failed_accounts
 
 
-def load_schedules_for_accounts(sdk, selected_accounts: List[dict]) -> List[tuple]:
+def load_schedules_for_accounts(sdk, selected_accounts: List[dict]) -> tuple:
     """Load schedules from multiple accounts concurrently with retry.
 
     Args:
@@ -376,10 +381,14 @@ def load_schedules_for_accounts(sdk, selected_accounts: List[dict]) -> List[tupl
         selected_accounts: List of account info dicts from discover_aegis_accounts
 
     Returns:
-        List of (schedule_dict, account_info) tuples.
+        Tuple of (schedule_tuples, failed_account_names) where schedule_tuples
+        is a list of (schedule_dict, account_info) tuples and failed_account_names
+        is a list of display names for accounts that failed after retry.
     """
     base_url = sdk.keychain.base_url()
     auth_headers = dict(sdk.keychain.headers())
+    failed_accounts = []
+    lock = threading.Lock()
 
     def _load_one(acct, attempt=1):
         email = acct['account_email']
@@ -424,9 +433,13 @@ def load_schedules_for_accounts(sdk, selected_accounts: List[dict]) -> List[tupl
                     results.extend(result)
                 else:
                     acct = futures[future]
-                    logger.warning('Schedule load failed after retry for %s', acct['account_email'])
+                    with lock:
+                        failed_accounts.append(acct.get('display_name', acct['account_email']))
 
-    return results
+    if failed_accounts:
+        logger.warning('Failed to load schedules for: %s', ', '.join(failed_accounts))
+
+    return results, failed_accounts
 
 
 def truncate_email(email: str, max_len: int = 16) -> str:

@@ -1,6 +1,25 @@
 """Tests for account discovery with aegis agent filtering."""
 import pytest
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
+
+
+def _active_subscription():
+    """Build a subscription window that is always active relative to now."""
+    today = datetime.now().date()
+    return {
+        'startDate': (today - timedelta(days=30)).isoformat(),
+        'endDate': (today + timedelta(days=365)).isoformat(),
+    }
+
+
+def _expired_subscription():
+    """Build a subscription window that is always expired relative to now."""
+    today = datetime.now().date()
+    return {
+        'startDate': (today - timedelta(days=365)).isoformat(),
+        'endDate': (today - timedelta(days=30)).isoformat(),
+    }
 
 
 def _make_sdk(accounts, agents_by_account=None):
@@ -137,7 +156,7 @@ class TestDiscoverAegisAccounts:
         metadata = {
             'types': {'client@praetorian.com': 'MANAGED'},
             'display_names': {'client@praetorian.com': 'Cushman & Wakefield'},
-            'subscriptions': {'client@praetorian.com': {'startDate': '2024-01-01', 'endDate': '2027-12-31'}},
+            'subscriptions': {'client@praetorian.com': _active_subscription()},
         }
         sdk = _make_sdk(accounts, agents_map)
         mock_requests.get.side_effect = _mock_requests_get(agents_map, metadata)
@@ -189,7 +208,7 @@ class TestDiscoverAegisAccounts:
         agents_map = {'frozen@praetorian.com': [_make_agent()]}
         metadata = {
             'types': {'frozen@praetorian.com': 'MANAGED'},
-            'subscriptions': {'frozen@praetorian.com': {'startDate': '2024-01-01', 'endDate': '2027-12-31'}},
+            'subscriptions': {'frozen@praetorian.com': _active_subscription()},
             'frozen': {'frozen@praetorian.com': True},
         }
         sdk = _make_sdk(accounts, agents_map)
@@ -206,7 +225,7 @@ class TestDiscoverAegisAccounts:
         agents_map = {'pilot@praetorian.com': [_make_agent()]}
         metadata = {
             'types': {'pilot@praetorian.com': 'PILOT'},
-            'subscriptions': {'pilot@praetorian.com': {'startDate': '2023-01-01', 'endDate': '2023-06-30'}},
+            'subscriptions': {'pilot@praetorian.com': _expired_subscription()},
         }
         sdk = _make_sdk(accounts, agents_map)
         mock_requests.get.side_effect = _mock_requests_get(agents_map, metadata)
@@ -220,7 +239,7 @@ class TestCalculateStatus:
         from praetorian_cli.sdk.entities.account_discovery import _calculate_status
         metadata = {
             'types': {'a@b.com': 'MANAGED'},
-            'subscriptions': {'a@b.com': {'startDate': '2024-01-01', 'endDate': '2027-12-31'}},
+            'subscriptions': {'a@b.com': _active_subscription()},
             'frozen': {},
         }
         assert _calculate_status('a@b.com', metadata) == 'Active'
@@ -234,7 +253,7 @@ class TestCalculateStatus:
         from praetorian_cli.sdk.entities.account_discovery import _calculate_status
         metadata = {
             'types': {'a@b.com': 'MANAGED'},
-            'subscriptions': {'a@b.com': {'startDate': '2024-01-01', 'endDate': '2027-12-31'}},
+            'subscriptions': {'a@b.com': _active_subscription()},
             'frozen': {'a@b.com': True},
         }
         assert _calculate_status('a@b.com', metadata) == 'Paused'
@@ -243,7 +262,7 @@ class TestCalculateStatus:
         from praetorian_cli.sdk.entities.account_discovery import _calculate_status
         metadata = {
             'types': {'a@b.com': 'PILOT'},
-            'subscriptions': {'a@b.com': {'startDate': '2023-01-01', 'endDate': '2023-06-30'}},
+            'subscriptions': {'a@b.com': _expired_subscription()},
             'frozen': {'a@b.com': True},
         }
         assert _calculate_status('a@b.com', metadata) == 'Completed'
@@ -301,9 +320,10 @@ class TestLoadAgentsForAccounts:
             {'account_email': 'acme@praetorian.com', 'display_name': 'Acme', 'status': 'Active'},
             {'account_email': 'beta@praetorian.com', 'display_name': 'Beta', 'status': 'Completed'},
         ]
-        result = load_schedules_for_accounts(sdk, selected)
+        result, failed = load_schedules_for_accounts(sdk, selected)
 
         assert len(result) == 2
+        assert failed == []
         sched_ids = {r[0]['scheduleId'] for r in result}
         assert sched_ids == {'s1', 's2'}
 

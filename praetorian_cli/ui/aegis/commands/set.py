@@ -21,8 +21,9 @@ def handle_set(menu, args):
         # calls (asset search, domain lookup, etc.) target the right tenant.
         # Must succeed before we commit to the selection.
         if getattr(menu, 'multi_account_mode', False):
-            acct_info = menu.agent_account_map.get(selected_agent.client_id, {})
-            acct_email = acct_info.get('account_email')
+            # Prefer account info attached directly to agent (avoids client_id collisions)
+            acct_info = getattr(selected_agent, '_account_info', None) or menu.agent_account_map.get(selected_agent.client_id, {})
+            acct_email = acct_info.get('account_email') if acct_info else None
             if not acct_email:
                 menu.console.print(f"[{colors['error']}]  Could not resolve an account for {hostname}.[/{colors['error']}]")
                 menu.pause()
