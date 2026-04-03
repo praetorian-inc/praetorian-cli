@@ -12,7 +12,7 @@ from .job_helpers import (
     configure_parameters as _configure_parameters,
     capability_needs_credentials as _capability_needs_credentials,
     resolve_addomain_target_key,
-    normalize_target as _normalize_target,
+    extract_target_type,
 )
 
 
@@ -136,7 +136,7 @@ def run_job(menu, args):
         menu.pause()
         return
 
-    target_type = _normalize_target(capability_info.get('target', 'asset'))
+    target_type = extract_target_type(capability_info)
 
     # Create appropriate target key
     if target_type == 'addomain':

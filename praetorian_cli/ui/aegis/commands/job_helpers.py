@@ -9,6 +9,16 @@ from ..constants import DEFAULT_COLORS
 
 
 # ---------------------------------------------------------------------------
+# Target type helpers
+# ---------------------------------------------------------------------------
+
+def extract_target_type(capability_info: dict) -> str:
+    """Extract the target type from capability info, handling list or string values."""
+    target_raw = capability_info.get('target', 'asset')
+    return (target_raw[0] if isinstance(target_raw, list) and target_raw else str(target_raw)).lower()
+
+
+# ---------------------------------------------------------------------------
 # Capability helpers
 # ---------------------------------------------------------------------------
 
@@ -30,12 +40,6 @@ def _parse_capability_name(name):
         return {'os': '', 'category': '', 'tool': name}
 
 
-def normalize_target(value):
-    """Normalize target field which may be a string or list (since ENG-1908)."""
-    if isinstance(value, list):
-        return value[0].lower() if value else 'asset'
-    return str(value).lower()
-
 
 class CapabilityCompleter(Completer):
     """Custom completer for capabilities with metadata display."""
@@ -50,7 +54,7 @@ class CapabilityCompleter(Completer):
         for cap in self.capabilities:
             name = cap.get('name', '')
             name_lower = name.lower()
-            target = normalize_target(cap.get('target', 'asset'))
+            target = extract_target_type(cap)
             description = cap.get('description', '') or ''
             parsed = _parse_capability_name(name)
             category = parsed.get('category', '')
@@ -99,7 +103,7 @@ def interactive_capability_picker(menu, suggested=None):
         if capability_info:
             # Show the suggested capability and ask for confirmation
             desc = (capability_info.get('description', '') or '')[:60]
-            target = normalize_target(capability_info.get('target', 'asset'))
+            target = extract_target_type(capability_info)
             menu.console.print(f"\n  Suggested capability:")
             menu.console.print(f"    {suggested} [{target}]")
             menu.console.print(f"    [{colors['dim']}]{desc}[/{colors['dim']}]")

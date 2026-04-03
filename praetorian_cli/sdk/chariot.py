@@ -15,6 +15,7 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.preseeds import Preseeds
+from praetorian_cli.sdk.entities.reports import Reports
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
 from praetorian_cli.sdk.entities.schedules import Schedules
@@ -37,6 +38,7 @@ class Chariot:
         self.assets = Assets(self)
         self.seeds = Seeds(self)
         self.preseeds = Preseeds(self)
+        self.reports = Reports(self)
         self.risks = Risks(self)
         self.accounts = Accounts(self)
         self.integrations = Integrations(self)
