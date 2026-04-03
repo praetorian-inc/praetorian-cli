@@ -7,10 +7,12 @@ from ..constants import DEFAULT_COLORS
 from .job_helpers import (
     interactive_capability_picker as _interactive_capability_picker,
     select_domain as _select_domain,
+    select_asset as _select_asset,
     select_credentials as _select_credentials,
     configure_parameters as _configure_parameters,
     capability_needs_credentials as _capability_needs_credentials,
     resolve_addomain_target_key,
+    normalize_target as _normalize_target,
 )
 
 
@@ -134,7 +136,7 @@ def run_job(menu, args):
         menu.pause()
         return
 
-    target_type = capability_info.get('target', 'asset').lower()
+    target_type = _normalize_target(capability_info.get('target', 'asset'))
 
     # Create appropriate target key
     if target_type == 'addomain':
@@ -154,8 +156,10 @@ def run_job(menu, args):
 
         target_display = f"domain {domain}"
     else:
-        target_key = f"#asset#{hostname}#{hostname}"
-        target_display = f"asset {hostname}"
+        # Interactive asset selection - pick existing or enter new target
+        target_key, target_display = _select_asset(menu, hostname)
+        if not target_key:
+            return  # User cancelled
     
     # Handle credentials for capabilities that need them
     credentials = []

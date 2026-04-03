@@ -47,6 +47,8 @@ def test_job_run_success(monkeypatch):
 
     # Auto-confirm prompts encountered in the interactive flow
     monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job.Confirm.ask', lambda *a, **k: True)
+    monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job._select_asset',
+                        lambda m, h: ('#asset#agent01#agent01', 'asset agent01'))
 
     handle_job(menu, ['run', 'windows-smb'])
 
@@ -203,6 +205,8 @@ def test_job_run_with_parameter_configuration(monkeypatch):
     # Auto-confirm prompts
     monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job.Confirm.ask', lambda *a, **k: True)
     monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job.Prompt.ask', mock_prompt_ask)
+    monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job._select_asset',
+                        lambda m, h: ('#asset#agent01#agent01', 'asset agent01'))
 
     handle_job(menu, ['run', 'linux-scan'])
 
@@ -263,6 +267,8 @@ def test_job_run_with_list_based_parameters(monkeypatch):
     # Auto-confirm prompts
     monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job.Confirm.ask', lambda *a, **k: True)
     monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job.Prompt.ask', mock_prompt_ask)
+    monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job._select_asset',
+                        lambda m, h: ('#asset#agent01#agent01', 'asset agent01'))
 
     handle_job(menu, ['run', 'network-scan'])
 
@@ -314,6 +320,8 @@ def test_job_run_with_large_artifact(monkeypatch):
         return result
 
     monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job.Confirm.ask', mock_confirm_ask)
+    monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job._select_asset',
+                        lambda m, h: ('#asset#agent01#agent01', 'asset agent01'))
 
     handle_job(menu, ['run', 'windows-network-nmap'])
 
@@ -366,6 +374,8 @@ def test_job_run_without_large_artifact_default_false(monkeypatch):
         return result
 
     monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job.Confirm.ask', mock_confirm_ask)
+    monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job._select_asset',
+                        lambda m, h: ('#asset#agent01#agent01', 'asset agent01'))
 
     handle_job(menu, ['run', 'linux-enum'])
 

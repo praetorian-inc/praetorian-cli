@@ -30,6 +30,13 @@ def _parse_capability_name(name):
         return {'os': '', 'category': '', 'tool': name}
 
 
+def normalize_target(value):
+    """Normalize target field which may be a string or list (since ENG-1908)."""
+    if isinstance(value, list):
+        return value[0].lower() if value else 'asset'
+    return str(value).lower()
+
+
 class CapabilityCompleter(Completer):
     """Custom completer for capabilities with metadata display."""
 
@@ -43,7 +50,7 @@ class CapabilityCompleter(Completer):
         for cap in self.capabilities:
             name = cap.get('name', '')
             name_lower = name.lower()
-            target = cap.get('target', 'asset').lower()
+            target = normalize_target(cap.get('target', 'asset'))
             description = cap.get('description', '') or ''
             parsed = _parse_capability_name(name)
             category = parsed.get('category', '')
@@ -92,7 +99,7 @@ def interactive_capability_picker(menu, suggested=None):
         if capability_info:
             # Show the suggested capability and ask for confirmation
             desc = (capability_info.get('description', '') or '')[:60]
-            target = capability_info.get('target', 'asset')
+            target = normalize_target(capability_info.get('target', 'asset'))
             menu.console.print(f"\n  Suggested capability:")
             menu.console.print(f"    {suggested} [{target}]")
             menu.console.print(f"    [{colors['dim']}]{desc}[/{colors['dim']}]")
@@ -320,6 +327,106 @@ def configure_parameters(menu, capability_info, has_credential=False):
                 configured[param_name] = value
 
     return configured
+
+
+def _create_asset_target(menu, hostname, target_input, colors):
+    """Create an asset for the given target and return (target_key, target_display).
+
+    Ensures the asset exists in the API before returning so that job execution
+    can find a matching target.
+    """
+    target_key = f"#asset#{hostname}#{target_input}"
+    target_display = f"asset {target_input}"
+
+    try:
+        menu.console.print(f"  [{colors['dim']}]Creating asset {target_input}...[/{colors['dim']}]")
+        menu.sdk.assets.add(group=hostname, identifier=target_input)
+    except Exception as e:
+        # Asset may already exist — 409 conflict is fine
+        if '409' not in str(e):
+            menu.console.print(f"  [{colors['dim']}]Note: could not create asset: {e}[/{colors['dim']}]")
+
+    return target_key, target_display
+
+
+def select_asset(menu, hostname):
+    """Interactive asset selection for job targeting.
+
+    Lets the user pick an existing asset or enter a new network target (IP/CIDR).
+
+    Args:
+        menu: Menu instance with console and SDK access
+        hostname: The selected agent's hostname (used as default)
+
+    Returns:
+        tuple: (target_key, target_display) or (None, None) if cancelled
+    """
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
+
+    try:
+        menu.console.print(f"  [{colors['dim']}]Fetching assets for {hostname}...[/{colors['dim']}]")
+
+        # Fetch assets associated with this agent's hostname
+        assets, _ = menu.sdk.assets.list(key_prefix=f"#asset#{hostname}", pages=1)
+
+        # Build choice list
+        choices = []
+        if assets:
+            for asset in assets[:15]:
+                key = asset.get('key', '')
+                name = asset.get('name', '') or key.split('#')[-1]
+                dns = asset.get('dns', '') or (key.split('#')[2] if len(key.split('#')) > 2 else '')
+                choices.append({'key': key, 'name': name, 'dns': dns})
+
+        menu.console.print(f"\n  Select target asset:")
+
+        for i, c in enumerate(choices, 1):
+            display = c['name']
+            if c['dns'] and c['dns'] != c['name']:
+                display = f"{c['dns']} / {c['name']}"
+            menu.console.print(f"    {i:2d}. {display}")
+
+        # Option to enter manually
+        menu.console.print(f"     0. Enter target manually (IP, CIDR, or hostname)")
+
+        while True:
+            try:
+                default = "1" if choices else "0"
+                choice = Prompt.ask("  Choose target", default=default).strip()
+
+                # Allow direct target input (IP, CIDR, hostname) instead of a number
+                try:
+                    choice_num = int(choice)
+                except ValueError:
+                    # Treat non-numeric input as a direct target
+                    return _create_asset_target(menu, hostname, choice, colors)
+
+                if choice_num == 0:
+                    target_input = Prompt.ask("  Enter target (IP, CIDR, or hostname)")
+                    if not target_input or not target_input.strip():
+                        menu.console.print("  No target provided.")
+                        return None, None
+                    return _create_asset_target(menu, hostname, target_input.strip(), colors)
+                elif 1 <= choice_num <= len(choices):
+                    selected = choices[choice_num - 1]
+                    target_display = f"asset {selected['name']}"
+                    if selected['dns'] and selected['dns'] != selected['name']:
+                        target_display = f"asset {selected['dns']}/{selected['name']}"
+                    return selected['key'], target_display
+                else:
+                    menu.console.print(f"  Please enter a number between 0 and {len(choices)}")
+
+            except KeyboardInterrupt:
+                menu.console.print("\n  Cancelled")
+                return None, None
+
+    except Exception as e:
+        menu.console.print(f"  [{colors['dim']}]Error fetching assets: {e}[/{colors['dim']}]")
+        # Fallback to manual entry
+        target_input = Prompt.ask("  Enter target (IP, CIDR, or hostname)")
+        if not target_input or not target_input.strip():
+            return None, None
+        return _create_asset_target(menu, hostname, target_input.strip(), colors)
 
 
 def resolve_addomain_target_key(menu, domain):

@@ -15,10 +15,12 @@ from .schedule_helpers import (
 from .job_helpers import (
     interactive_capability_picker,
     select_domain,
+    select_asset,
     select_credentials,
     configure_parameters,
     capability_needs_credentials,
     resolve_addomain_target_key,
+    normalize_target,
 )
 
 
@@ -267,7 +269,7 @@ def add_schedule(menu):
         menu.pause()
         return
 
-    target_type = capability_info.get('target', 'asset').lower()
+    target_type = normalize_target(capability_info.get('target', 'asset'))
     hostname = menu.selected_agent.hostname or 'Unknown'
 
     # Create target key
@@ -286,8 +288,10 @@ def add_schedule(menu):
 
         target_display = f"domain {domain}"
     else:
-        target_key = f"#asset#{hostname}#{hostname}"
-        target_display = f"asset {hostname}"
+        # Interactive asset selection - pick existing or enter new target
+        target_key, target_display = select_asset(menu, hostname)
+        if not target_key:
+            return  # User cancelled
 
     menu.console.print(f"  Target: {target_display}")
 
