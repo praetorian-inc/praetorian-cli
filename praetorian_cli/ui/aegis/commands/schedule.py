@@ -1,6 +1,9 @@
 """Schedule command handlers for Aegis TUI."""
 
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from rich.table import Table
 from rich.text import Text
 from rich.box import MINIMAL
@@ -36,11 +39,13 @@ def _assume_schedule_account(menu, schedule_id):
     acct_info = getattr(menu, 'schedule_account_map', {}).get(schedule_id, {})
     acct_email = acct_info.get('account_email')
     if not acct_email:
+        logger.warning('No account email found for schedule %s', schedule_id[:10])
         return False
     try:
         menu.sdk.accounts.assume_role(acct_email)
         return True
-    except Exception:
+    except Exception as e:
+        logger.error('Failed to assume role for %s: %s', acct_email, e)
         return False
 
 

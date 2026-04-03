@@ -13,6 +13,8 @@ from typing import Dict, List, Optional
 
 import requests
 
+from praetorian_cli.sdk.model.aegis import Agent
+
 logger = logging.getLogger(__name__)
 
 
@@ -121,18 +123,21 @@ def _fetch_all_metadata(base_url: str, auth_headers: dict) -> dict:
     }
 
     def _get(params):
-        try:
-            resp = requests.get(
-                f'{base_url}/my',
-                headers=auth_headers,
-                params=params,
-                timeout=30,
-            )
-            if resp.status_code == 200:
-                return _flatten_response(resp.json())
-            logger.debug('Metadata fetch for %s returned status %d', params.get('key'), resp.status_code)
-        except Exception as e:
-            logger.debug('Metadata fetch failed for %s: %s', params.get('key'), e)
+        for attempt in range(2):
+            try:
+                resp = requests.get(
+                    f'{base_url}/my',
+                    headers=auth_headers,
+                    params=params,
+                    timeout=30,
+                )
+                if resp.status_code == 200:
+                    return _flatten_response(resp.json())
+                logger.debug('Metadata fetch for %s returned status %d (attempt %d)', params.get('key'), resp.status_code, attempt + 1)
+            except Exception as e:
+                logger.debug('Metadata fetch failed for %s: %s (attempt %d)', params.get('key'), e, attempt + 1)
+            if attempt == 0:
+                time.sleep(1)
         return []
 
     # Fetch all configurations: customer_type + subscription
@@ -279,17 +284,6 @@ def _friendly_name_from_email(email: str) -> str:
     return name.title() if name else email
 
 
-def _expand_status_code(code: str) -> str:
-    """Expand single-letter status codes to full names."""
-    mapping = {
-        'A': 'ACTIVE',
-        'C': 'COMPLETED',
-        'P': 'PAUSED',
-        'F': 'FROZEN',
-    }
-    return mapping.get(code, code.upper() if code else 'UNKNOWN')
-
-
 def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=None) -> List[tuple]:
     """Load agents from multiple accounts concurrently with retry.
 
@@ -303,8 +297,6 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
         a list of (Agent, account_info) tuples and failed_account_names is
         a list of display names for accounts that failed after retry.
     """
-    from praetorian_cli.sdk.entities.aegis import Agent
-
     base_url = sdk.keychain.base_url()
     auth_headers = dict(sdk.keychain.headers())
     total = len(selected_accounts)

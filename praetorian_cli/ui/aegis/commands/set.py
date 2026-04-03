@@ -1,5 +1,8 @@
+import logging
 from ..utils import parse_agent_identifier
 from ..constants import DEFAULT_COLORS
+
+logger = logging.getLogger(__name__)
 
 
 def handle_set(menu, args):
@@ -25,12 +28,14 @@ def handle_set(menu, args):
             acct_info = getattr(selected_agent, '_account_info', None) or menu.agent_account_map.get(selected_agent.client_id, {})
             acct_email = acct_info.get('account_email') if acct_info else None
             if not acct_email:
+                logger.warning('No account email resolved for agent %s (client_id=%s)', hostname, selected_agent.client_id)
                 menu.console.print(f"[{colors['error']}]  Could not resolve an account for {hostname}.[/{colors['error']}]")
                 menu.pause()
                 return
             try:
                 menu.sdk.accounts.assume_role(acct_email)
             except Exception as e:
+                logger.error('Failed to assume role for %s: %s', acct_email, e)
                 menu.console.print(f"[{colors['error']}]  Failed to assume account {acct_email}: {e}[/{colors['error']}]")
                 menu.pause()
                 return

@@ -4,7 +4,6 @@ Renders a Rich table with checkbox column, account status, name, address, and ty
 First two rows are special: "Select all active" and "Select all regardless of status".
 """
 
-import os
 from typing import List, Set
 from rich.table import Table
 from rich.text import Text
