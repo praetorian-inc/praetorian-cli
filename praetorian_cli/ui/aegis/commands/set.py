@@ -20,7 +20,7 @@ def handle_set(menu, args):
         # In multi-account mode, assume into the agent's account so SDK
         # calls (asset search, domain lookup, etc.) target the right tenant.
         # Must succeed before we commit to the selection.
-        if getattr(menu, 'multi_account_mode', False):
+        if menu.multi_account_mode:
             # Prefer account info attached directly to agent (avoids client_id collisions)
             acct_info = getattr(selected_agent, '_account_info', None) or menu.agent_account_map.get(selected_agent.client_id, {})
             acct_email = acct_info.get('account_email') if acct_info else None

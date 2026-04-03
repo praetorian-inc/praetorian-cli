@@ -21,6 +21,7 @@ from .job_helpers import (
     configure_parameters,
     capability_needs_credentials,
     resolve_addomain_target_key,
+    extract_target_type,
 )
 
 
@@ -30,7 +31,7 @@ def _assume_schedule_account(menu, schedule_id):
     Returns True if the tenant switch succeeded (or not in multi-account mode).
     Returns False if the account could not be resolved or assumption failed.
     """
-    if not getattr(menu, 'multi_account_mode', False):
+    if not menu.multi_account_mode:
         return True
     acct_info = getattr(menu, 'schedule_account_map', {}).get(schedule_id, {})
     acct_email = acct_info.get('account_email')
@@ -98,11 +99,11 @@ def show_schedule_help(menu):
 
 def list_schedules(menu):
     """List all schedules for the current user (or all selected accounts in multi-account mode)."""
-    colors = getattr(menu, 'colors', DEFAULT_COLORS)
-    multi_account = getattr(menu, 'multi_account_mode', False)
+    colors = menu.colors
+    multi_account = menu.multi_account_mode
 
     try:
-        if multi_account and getattr(menu, 'selected_accounts', None):
+        if multi_account and menu.selected_accounts:
             schedule_tuples, failed = load_schedules_for_accounts(menu.sdk, menu.selected_accounts)
             schedules = [s for s, _ in schedule_tuples]
             menu.schedule_account_map = {}
@@ -170,7 +171,7 @@ def list_schedules(menu):
                 agent_display = agent_lookup[client_id]
             elif client_id:
                 # Show shortened client_id if no hostname found
-                agent_display = client_id[:15] + '...' if len(client_id) > 15 else client_id
+                agent_display = truncate_email(client_id, 15)
             else:
                 # Try to get from config
                 config = schedule.get('config', {})
@@ -178,7 +179,7 @@ def list_schedules(menu):
                 if client_id_from_config and client_id_from_config in agent_lookup:
                     agent_display = agent_lookup[client_id_from_config]
                 elif client_id_from_config:
-                    agent_display = client_id_from_config[:15] + '...' if len(client_id_from_config) > 15 else client_id_from_config
+                    agent_display = truncate_email(client_id_from_config, 15)
                 else:
                     agent_display = '—'
 
@@ -330,8 +331,7 @@ def add_schedule(menu):
         menu.pause()
         return
 
-    target_raw = capability_info.get('target', 'asset')
-    target_type = (target_raw[0] if isinstance(target_raw, list) and target_raw else str(target_raw)).lower()
+    target_type = extract_target_type(capability_info)
     hostname = menu.selected_agent.hostname or 'Unknown'
 
     # Create target key

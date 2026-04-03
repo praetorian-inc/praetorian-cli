@@ -51,7 +51,7 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
     metadata = _fetch_all_metadata(base_url, auth_headers)
 
     results = []
-    checked = [0]
+    checked = 0
     lock = threading.Lock()
 
     # Sentinel to distinguish "no agents" from "probe failed"
@@ -59,6 +59,7 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
 
     def _check_account(account_email):
         """Check a single account for agents. Thread-safe."""
+        nonlocal checked
         try:
             headers = dict(auth_headers)
             headers['account'] = account_email
@@ -88,9 +89,9 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
             return _PROBE_FAILED
         finally:
             with lock:
-                checked[0] += 1
+                checked += 1
                 if on_progress:
-                    on_progress(checked[0], total, account_email)
+                    on_progress(checked, total, account_email)
 
     # Run agent checks concurrently (4 threads)
     with ThreadPoolExecutor(max_workers=4) as executor:
@@ -307,11 +308,12 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
     base_url = sdk.keychain.base_url()
     auth_headers = dict(sdk.keychain.headers())
     total = len(selected_accounts)
-    checked = [0]
+    checked = 0
     failed_accounts = []
     lock = threading.Lock()
 
     def _load_one(acct, attempt=1, track_progress=True):
+        nonlocal checked
         email = acct['account_email']
         try:
             headers = dict(auth_headers)
@@ -331,9 +333,9 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
         finally:
             if track_progress:
                 with lock:
-                    checked[0] += 1
+                    checked += 1
                     if on_progress:
-                        on_progress(checked[0], total, acct.get('display_name', email))
+                        on_progress(checked, total, acct.get('display_name', email))
 
     results = []
     retry_accounts = []

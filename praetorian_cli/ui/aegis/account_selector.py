@@ -27,6 +27,7 @@ class AccountSelector:
         self.colors = colors
         self.selected_indices: Set[int] = set()  # indices into self.accounts
         self.cursor = 0  # current row in display (0-based, includes special rows)
+        self._active_indices: Set[int] = {i for i, a in enumerate(accounts) if a.get('status', '').upper() == 'ACTIVE'}
 
     def build_table(self) -> Table:
         """Build the Rich table for display."""
@@ -95,9 +96,7 @@ class AccountSelector:
         """Toggle selection for a display row. Handles special rows."""
         if display_row == ROW_SELECT_ALL_ACTIVE:
             if self._all_active_selected():
-                for i, acct in enumerate(self.accounts):
-                    if acct.get('status', '').upper() == 'ACTIVE':
-                        self.selected_indices.discard(i)
+                self.selected_indices -= self._active_indices
             else:
                 self.select_all_active()
         elif display_row == ROW_SELECT_ALL:
@@ -115,9 +114,7 @@ class AccountSelector:
 
     def select_all_active(self) -> None:
         """Select all accounts with ACTIVE status."""
-        for i, acct in enumerate(self.accounts):
-            if acct.get('status', '').upper() == 'ACTIVE':
-                self.selected_indices.add(i)
+        self.selected_indices.update(self._active_indices)
 
     def select_all(self) -> None:
         """Select all accounts regardless of status."""
@@ -132,8 +129,7 @@ class AccountSelector:
         return SPECIAL_ROW_COUNT + len(self.accounts)
 
     def _all_active_selected(self) -> bool:
-        active_indices = {i for i, a in enumerate(self.accounts) if a.get('status', '').upper() == 'ACTIVE'}
-        return bool(active_indices) and active_indices.issubset(self.selected_indices)
+        return bool(self._active_indices) and self._active_indices.issubset(self.selected_indices)
 
     def _all_selected(self) -> bool:
         return len(self.selected_indices) == len(self.accounts) and len(self.accounts) > 0

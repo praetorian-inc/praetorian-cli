@@ -700,12 +700,14 @@ class AegisMenu:
                     agent_tuples, failed = load_agents_for_accounts(self.sdk, self.selected_accounts, on_progress=_on_progress)
                     self.agents = []
                     self.agent_account_map = {}
+                    self.agent_lookup = {}
                     for agent, acct_info in agent_tuples:
                         self.agents.append(agent)
-                        # Attach account info directly to agent to avoid client_id collisions
                         agent._account_info = acct_info
                         if agent.client_id and agent.client_id != 'N/A':
                             self.agent_account_map[agent.client_id] = acct_info
+                        if agent.client_id and agent.hostname:
+                            self.agent_lookup[agent.client_id] = agent.hostname
                 finally:
                     status.stop()
 
@@ -721,11 +723,10 @@ class AegisMenu:
                     self.agents = agents or []
                     self.agent_account_map = {}
 
-            # Build agent_lookup for fast client_id -> hostname mapping
-            self.agent_lookup = {}
-            for agent in self.agents:
-                if agent.client_id and agent.hostname:
-                    self.agent_lookup[agent.client_id] = agent.hostname
+                self.agent_lookup = {}
+                for agent in self.agents:
+                    if agent.client_id and agent.hostname:
+                        self.agent_lookup[agent.client_id] = agent.hostname
 
             if self.verbose or not self.agents:
                 agent_count = len(self.agents)
