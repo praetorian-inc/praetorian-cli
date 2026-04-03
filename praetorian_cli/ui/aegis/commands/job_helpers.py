@@ -9,6 +9,16 @@ from ..constants import DEFAULT_COLORS
 
 
 # ---------------------------------------------------------------------------
+# Target type helpers
+# ---------------------------------------------------------------------------
+
+def extract_target_type(capability_info: dict) -> str:
+    """Extract the target type from capability info, handling list or string values."""
+    target_raw = capability_info.get('target', 'asset')
+    return (target_raw[0] if isinstance(target_raw, list) and target_raw else str(target_raw)).lower()
+
+
+# ---------------------------------------------------------------------------
 # Capability helpers
 # ---------------------------------------------------------------------------
 
