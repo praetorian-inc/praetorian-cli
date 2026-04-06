@@ -52,6 +52,50 @@ class TestJob:
             self.sdk.jobs.add(result['key'], [], invalid_json)
         assert "Invalid JSON in configuration string" in str(e.value)
 
+    def test_list_by_status(self):
+        result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
+        self.sdk.jobs.add(result['key'])
+
+        jobs, _ = self.sdk.jobs.list_by_status('JQ')
+        assert isinstance(jobs, list)
+        assert len(jobs) > 0
+        for job in jobs:
+            assert job['status'].startswith('JQ')
+
+    def test_list_by_capability(self):
+        result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
+        self.sdk.jobs.add(result['key'], ['nuclei'])
+
+        jobs, _ = self.sdk.jobs.list_by_capability('nuclei')
+        assert isinstance(jobs, list)
+        assert len(jobs) > 0
+        for job in jobs:
+            assert job.get('source', '').startswith('nuclei')
+
+    def test_list_by_target(self):
+        result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
+        self.sdk.jobs.add(result['key'])
+
+        jobs, _ = self.sdk.jobs.list_by_target(self.asset_dns)
+        assert isinstance(jobs, list)
+        assert len(jobs) > 0
+        for job in jobs:
+            assert self.asset_dns in job.get('dns', '') or self.asset_dns in job.get('key', '')
+
+    def test_summary(self):
+        result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
+        self.sdk.jobs.add(result['key'])
+
+        summary = self.sdk.jobs.summary()
+        assert isinstance(summary, dict)
+        assert 'total' in summary
+        assert 'by_status' in summary
+        assert 'by_capability' in summary
+        assert summary['total'] > 0
+        assert isinstance(summary['by_status'], dict)
+        assert isinstance(summary['by_capability'], dict)
+        assert len(summary['by_status']) > 0
+
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
         if self.was_frozen:

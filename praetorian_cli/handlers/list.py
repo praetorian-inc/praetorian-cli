@@ -99,7 +99,12 @@ def integrations(chariot, filter, details, offset, page):
 
 @list.command()
 @list_params('group of the job asset')
-def jobs(chariot, filter, details, offset, page):
+@click.option('-c', '--capability', default=None, help='Filter by capability name (e.g., nuclei, portscan, diana-agent)')
+@click.option('-s', '--status', type=click.Choice(['JQ', 'JR', 'JP', 'JF']),
+              default=None, help='Filter by job status (JQ=queued, JR=running, JP=passed, JF=failed)')
+@click.option('-t', '--target', default=None, help='Filter by target DNS or hostname')
+@click.option('--summary', is_flag=True, default=False, help='Show job count summary by capability and status')
+def jobs(chariot, capability, status, target, summary, filter, details, offset, page):
     """
     List jobs
 
@@ -110,10 +115,24 @@ def jobs(chariot, filter, details, offset, page):
     Example usages:
         - guard list jobs
         - guard list jobs --filter www.example.com
+        - guard list jobs --capability nuclei
+        - guard list jobs --capability diana-agent --details
+        - guard list jobs --status JR
+        - guard list jobs --target api.example.com
+        - guard list jobs --summary
         - guard list jobs --details
         - guard list jobs --page all
     """
-    render_list_results(chariot.jobs.list(filter, offset, pagination_size(page)), details)
+    if summary:
+        print_json(chariot.jobs.summary(pagination_size(page)))
+    elif capability:
+        render_list_results(chariot.jobs.list_by_capability(capability, offset, pagination_size(page)), details)
+    elif status:
+        render_list_results(chariot.jobs.list_by_status(status, offset, pagination_size(page)), details)
+    elif target:
+        render_list_results(chariot.jobs.list_by_target(target, offset, pagination_size(page)), details)
+    else:
+        render_list_results(chariot.jobs.list(filter, offset, pagination_size(page)), details)
 
 
 @list.command()
