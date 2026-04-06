@@ -148,6 +148,130 @@ class Jobs:
         return self.api.search.by_key_prefix(f'#job#{prefix_filter}',
                                              offset, pages)
 
+    def list_by_status(self, status, offset=None, pages=100000) -> tuple:
+        """
+        List jobs filtered by status code.
+
+        Uses server-side filtering via DynamoDB Status GSI for efficient
+        queries without fetching all jobs.
+
+        :param status: Job status prefix to filter by
+        :type status: str
+        :param offset: The offset for pagination
+        :type offset: str or None
+        :param pages: Maximum number of pages to retrieve
+        :type pages: int
+        :return: A tuple containing (list of matching jobs, next page offset)
+        :rtype: tuple
+
+        **Status Codes:**
+            - JQ: Job is queued for execution
+            - JR: Job is currently running
+            - JP: Job completed successfully
+            - JF: Job failed during execution
+
+        **Example Usage:**
+            >>> # Find all running jobs
+            >>> running, offset = sdk.jobs.list_by_status('JR')
+
+            >>> # Find all failed jobs
+            >>> failed, offset = sdk.jobs.list_by_status('JF')
+        """
+        return self.api.search.by_term(f'status:{status}', kind='job',
+                                       offset=offset, pages=pages)
+
+    def list_by_capability(self, capability, offset=None, pages=100000) -> tuple:
+        """
+        List jobs filtered by capability/scan type.
+
+        Uses server-side filtering via DynamoDB Source GSI. The source
+        field on jobs contains 'capability_name#timestamp', so begins_with
+        matching on the capability name works correctly.
+
+        :param capability: Capability name to filter by (e.g., 'nuclei',
+            'portscan', 'diana-agent', 'julius')
+        :type capability: str
+        :param offset: The offset for pagination
+        :type offset: str or None
+        :param pages: Maximum number of pages to retrieve
+        :type pages: int
+        :return: A tuple containing (list of matching jobs, next page offset)
+        :rtype: tuple
+
+        **Example Usage:**
+            >>> # Find all nuclei scan jobs
+            >>> nuclei_jobs, offset = sdk.jobs.list_by_capability('nuclei')
+
+            >>> # Find all diana-agent jobs
+            >>> diana_jobs, offset = sdk.jobs.list_by_capability('diana-agent')
+        """
+        return self.api.search.by_term(f'source:{capability}', kind='job',
+                                       offset=offset, pages=pages)
+
+    def list_by_target(self, target, offset=None, pages=100000) -> tuple:
+        """
+        List jobs filtered by target DNS or hostname.
+
+        Uses server-side filtering via DynamoDB DNS GSI. This is a more
+        explicit alternative to list(prefix_filter=target) for finding
+        what jobs ran against a specific asset.
+
+        :param target: Target DNS name or hostname to filter by
+        :type target: str
+        :param offset: The offset for pagination
+        :type offset: str or None
+        :param pages: Maximum number of pages to retrieve
+        :type pages: int
+        :return: A tuple containing (list of matching jobs, next page offset)
+        :rtype: tuple
+
+        **Example Usage:**
+            >>> # Find all jobs that targeted a specific domain
+            >>> jobs, offset = sdk.jobs.list_by_target('api.example.com')
+        """
+        return self.list(prefix_filter=target, offset=offset, pages=pages)
+
+    def summary(self, pages=100000) -> dict:
+        """
+        Return job counts grouped by capability and status.
+
+        Fetches all jobs and aggregates counts client-side. This may be
+        slow for accounts with many jobs (e.g., 90k+).
+
+        :param pages: Maximum number of pages to retrieve
+        :type pages: int
+        :return: Dictionary with total count, counts by status, and counts
+            by capability
+        :rtype: dict
+
+        **Example Usage:**
+            >>> summary = sdk.jobs.summary()
+            >>> print(summary['total'])
+            91185
+            >>> print(summary['by_capability'])
+            {'nuclei': 4032, 'portscan': 1424, 'diana-agent': 5, ...}
+            >>> print(summary['by_status'])
+            {'JQ': 50000, 'JP': 30000, 'JR': 6, 'JF': 1000}
+        """
+        jobs, _ = self.list(pages=pages)
+        summary = {
+            'total': len(jobs),
+            'by_status': {},
+            'by_capability': {},
+        }
+        for job in jobs:
+            status = job.get('status', 'unknown')
+            status_code = status[:2] if len(status) >= 2 else status
+            summary['by_status'][status_code] = summary['by_status'].get(status_code, 0) + 1
+
+            source = job.get('source', 'unknown')
+            capability = source.split('#')[0] if '#' in source else source
+            if not capability:
+                capability = 'unknown'
+            summary['by_capability'][capability] = summary['by_capability'].get(capability, 0) + 1
+
+        return summary
+
     def is_failed(self, job):
         """
         Check if a job has failed during execution.

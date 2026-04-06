@@ -14,11 +14,28 @@ class ContextCommands:
         if len(args) < 2:
             self.console.print('[dim]Usage: set <account|scope|mode|target> <value>[/dim]')
             return
-        key, value = args[0].lower(), ' '.join(args[1:])
+        key, value = args[0].lower(), ' '.join(args[1:]).strip().rstrip('.')
         if key == 'account':
+            # Always validate against the real account list
+            if not (hasattr(self, '_account_list') and self._account_list):
+                try:
+                    accounts_list, _ = self.sdk.accounts.list()
+                    self._account_list = [a.get('name', '') for a in (accounts_list or [])]
+                except Exception:
+                    self._account_list = []
+            if self._account_list and value not in self._account_list:
+                self.console.print(f'[error]Unknown account: {value}[/error]')
+                self.console.print(f'[dim]Run "accounts" to see the list, or "switch <#>" to select by number.[/dim]')
+                return
             self.context.account = value
             self.context.clear_conversation()
+            self.context.clear_tool()
+            # Update SDK impersonation so all API calls use this account
+            self.sdk.keychain.account = value
+            # Clear stale target lists from previous engagement
+            self._target_list = []
             self.console.print(f'[success]Account set to {value}[/success]')
+            self._show_engagement_status()
         elif key == 'scope':
             self.context.scope = value
             self.console.print(f'[success]Scope set to {value}[/success]')
@@ -55,8 +72,17 @@ class ContextCommands:
                     return
             self.context.target = value
             self.console.print(f'[success]TARGET => {value}[/success]')
+        elif key == 'verbose':
+            if value.lower() in ('on', 'true', '1', 'yes'):
+                self.context.verbose = True
+                self.console.print('[success]Verbose mode ON -- tool calls will show full details[/success]')
+            elif value.lower() in ('off', 'false', '0', 'no'):
+                self.context.verbose = False
+                self.console.print('[success]Verbose mode OFF[/success]')
+            else:
+                self.console.print('[error]Usage: set verbose on|off[/error]')
         else:
-            self.console.print(f'[dim]Unknown setting: {key}. Use: account, scope, mode, target[/dim]')
+            self.console.print(f'[dim]Unknown setting: {key}. Use: account, scope, mode, target, verbose[/dim]')
 
     def _cmd_unset(self, args):
         if not args:
@@ -81,6 +107,7 @@ class ContextCommands:
             table.add_row('Mode', self.context.mode)
             table.add_row('Tool', self.context.active_tool or '[dim]none[/dim]')
             table.add_row('Target', self.context.target or '[dim]not set[/dim]')
+            table.add_row('Verbose', 'on' if self.context.verbose else '[dim]off[/dim]')
             table.add_row('Agent', self.context.active_agent or '[dim]default[/dim]')
             table.add_row('Conversation', self.context.conversation_id[:8] + '...' if self.context.conversation_id else '[dim]none[/dim]')
             self.console.print(table)
@@ -90,6 +117,8 @@ class ContextCommands:
             self._cmd_options(args[1:])
         elif target == 'tools':
             self._cmd_run([])
+        elif target in ('calls', 'toolcalls'):
+            self._show_tool_calls()
         elif target == 'assets':
             self._cmd_assets(args[1:])
         elif target == 'risks':
@@ -196,6 +225,45 @@ class ContextCommands:
                     self.console.print(f'[dim]Not found: {key}[/dim]')
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
+
+    def _show_tool_calls(self):
+        """Show tool calls from the last Marcus interaction."""
+        tool_log = getattr(self, '_last_tool_log', None)
+        if not tool_log:
+            self.console.print('[dim]No tool calls recorded. Run "ask" or "marcus" first.[/dim]')
+            return
+
+        table = Table(title='Last Marcus Tool Calls', border_style=self.colors['primary'])
+        table.add_column('#', style=self.colors['dim'], width=3)
+        table.add_column('Type', style=self.colors['accent'], width=10)
+        table.add_column('Name', style=f'bold {self.colors["primary"]}')
+        table.add_column('Details')
+
+        for i, entry in enumerate(tool_log, 1):
+            if entry['role'] == 'tool call':
+                name = entry.get('name', 'tool')
+                # Try to show input summary
+                detail = ''
+                try:
+                    data = json.loads(entry['content']) if isinstance(entry['content'], str) else entry['content']
+                    if isinstance(data, dict):
+                        inp = data.get('input', data.get('arguments', data))
+                        detail = json.dumps(inp, default=str)
+                        if len(detail) > 120:
+                            detail = detail[:120] + '...'
+                except Exception:
+                    detail = entry['content'][:120] if entry['content'] else ''
+                table.add_row(str(i), 'call', name, detail)
+            elif entry['role'] == 'tool response':
+                name = entry.get('name', '')
+                summary = entry.get('summary', '')
+                detail = summary if summary else ''
+                if not detail:
+                    detail = entry['content'][:120] + '...' if len(entry['content']) > 120 else entry['content']
+                table.add_row(str(i), 'response', name, detail)
+
+        self.console.print(table)
+        self.console.print(f'[dim]Use "set verbose on" to see full details inline during Marcus queries.[/dim]')
 
     def _cmd_use(self, args):
         """Select a tool/capability or switch engagement -- context-aware."""

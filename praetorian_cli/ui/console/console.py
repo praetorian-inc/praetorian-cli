@@ -111,6 +111,19 @@ class GuardConsole(
                 f' <style fg="{COMPLEMENTARY_GOLD}" bg="">({tool})</style>'
                 f' <style fg="{PRIMARY_RED}" bg="">&gt;</style> '
             )
+        if self.context.account:
+            # Show short account label (strip chariot+/guard+ prefix and @praetorian.com suffix)
+            acct = self.context.account
+            for prefix in ('chariot+', 'guard+'):
+                if acct.startswith(prefix):
+                    acct = acct[len(prefix):]
+                    break
+            acct = acct.replace('@praetorian.com', '')
+            return HTML(
+                f'<style fg="{PRIMARY_RED}" bg="">guard</style>'
+                f' <style fg="{COMPLEMENTARY_GOLD}" bg="">[{acct}]</style>'
+                f' <style fg="{PRIMARY_RED}" bg="">&gt;</style> '
+            )
         return HTML(f'<style fg="{PRIMARY_RED}" bg="">guard &gt;</style> ')
 
     def _show_banner(self):

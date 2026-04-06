@@ -29,9 +29,10 @@ class MarcusCommands:
         response_text = self._send_to_marcus(message)
 
         if response_text:
+            panel_title = f'Marcus @ {self.context.account}' if self.context.account else 'Marcus'
             self.console.print(Panel(
                 Markdown(response_text),
-                title='Marcus',
+                title=panel_title,
                 border_style=self.colors['primary'],
             ))
 
@@ -58,7 +59,10 @@ class MarcusCommands:
 
         self.console.print(f'[primary]Entering conversation mode[/primary] [dim](type "/back" to return)[/dim]')
         self.console.print(f'[dim]Commands: /back, /new, /query, /agent, or just chat[/dim]')
-        self.console.print(f'[dim]Context: {self.context.summary()}[/dim]\n')
+        self.console.print(f'[dim]Context: {self.context.summary()}[/dim]')
+        if not self.context.account:
+            self.console.print(f'[warning]No account set -- Marcus will query your personal account. Use "set account <email>" first.[/warning]')
+        self.console.print()
 
         while True:
             try:
@@ -151,8 +155,11 @@ class MarcusCommands:
         max_wait = 180
         start_time = time.time()
         pending_tool = None
+        tool_log = []  # Store all tool calls/responses for this interaction
+        seen_tool_keys = set()  # Track which tool messages we displayed live
 
-        self.console.print(f'[dim]Thinking...[/dim]', end='')
+        acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
+        self.console.print(f'[dim]Thinking...[/dim]{acct_label}', end='')
 
         while time.time() - start_time < max_wait:
             try:
@@ -172,38 +179,68 @@ class MarcusCommands:
                     if role == 'chariot':
                         if pending_tool:
                             self.console.print()  # newline after tool output
+                        # Retroactively show any tool calls we missed during polling
+                        missed = [t for t in tool_log if t['key'] not in seen_tool_keys]
+                        if missed:
+                            self.console.print()
+                            for entry in missed:
+                                if entry['role'] == 'tool call':
+                                    self.console.print(f'  [dim]->[/dim] [accent]{entry["name"]}[/accent]', end='')
+                                elif entry['role'] == 'tool response':
+                                    summary = entry.get('summary', '')
+                                    if summary:
+                                        self.console.print(f' [dim]-- {summary}[/dim]', end='')
+                                    self.console.print(f' [success]done[/success]')
+                        # Save tool log for "show tools" command
+                        self._last_tool_log = tool_log
                         return content
                     elif role == 'tool call':
-                        # Parse tool call content for display
                         tool_name = self._parse_tool_name(content, msg)
+                        tool_log.append({'role': role, 'name': tool_name, 'content': content, 'msg': msg, 'key': msg.get('key', '')})
                         if pending_tool:
                             self.console.print(f' [success]done[/success]')
                         self.console.print(f'  [dim]->[/dim] [accent]{tool_name}[/accent]', end='')
+                        seen_tool_keys.add(msg.get('key', ''))
+                        if self.context.verbose:
+                            self.console.print()
+                            self._print_verbose_tool_call(content, msg)
                         pending_tool = tool_name
                     elif role == 'tool response':
-                        # Show result summary
                         result_summary = self._parse_tool_result(content)
+                        inferred = self._infer_tool_from_response(content)
+                        tool_log.append({'role': role, 'name': inferred, 'content': content, 'summary': result_summary, 'key': msg.get('key', '')})
+                        # Retroactively fix the pending tool name if we inferred one
+                        if inferred and pending_tool == 'tool':
+                            # Rewrite the line: clear current and reprint with inferred name
+                            self.console.print(f'\r  [dim]->[/dim] [accent]{inferred}[/accent]', end='')
                         if result_summary:
                             self.console.print(f' [dim]-- {result_summary}[/dim]', end='')
                         self.console.print(f' [success]done[/success]')
+                        seen_tool_keys.add(msg.get('key', ''))
+                        if self.context.verbose:
+                            self._print_verbose_tool_response(content)
                         pending_tool = None
             except Exception:
                 pass
 
             time.sleep(1)
 
+        self._last_tool_log = tool_log
         self.console.print('\n[warning]Timed out waiting for response[/warning]')
         return None
 
     def _parse_tool_name(self, content: str, msg: dict = None) -> str:
         """Extract a human-readable tool name from a tool call message."""
-        # Try toolUseContent field first (structured tool input)
-        tool_content = msg.get('toolUseContent', '') if msg else ''
-        # Try the message name field (some backends store tool name there)
-        msg_name = msg.get('name', '') if msg else ''
-        if msg_name and msg_name not in ('user', 'chariot', 'tool call', 'tool response'):
-            return msg_name
+        # Try explicit name fields first
+        if msg:
+            msg_name = msg.get('name', '')
+            if msg_name and msg_name not in ('user', 'chariot', 'tool call', 'tool response'):
+                return msg_name
+            tool_content = msg.get('toolUseContent', '')
+        else:
+            tool_content = ''
 
+        # Try parsing JSON content for structured tool calls
         for raw in (tool_content, content):
             if not raw:
                 continue
@@ -223,6 +260,29 @@ class MarcusCommands:
                 continue
         return 'tool'
 
+    def _infer_tool_from_response(self, content: str) -> str:
+        """Infer what tool was called based on the response content."""
+        try:
+            data = json.loads(content) if isinstance(content, str) else content
+            if isinstance(data, dict):
+                if 'instructions' in data:
+                    return 'schema_lookup'
+                for key in ('assets', 'risks', 'seeds', 'jobs', 'preseeds'):
+                    if key in data:
+                        return f'search_{key}'
+                if 'status' in data:
+                    return 'status_check'
+            elif isinstance(data, list) and data:
+                first = data[0]
+                if isinstance(first, dict):
+                    if 'dns' in first or 'source' in first:
+                        return 'search_assets'
+                    if 'status' in first and 'finding' in str(first):
+                        return 'search_risks'
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+        return ''
+
     def _parse_tool_result(self, content: str) -> str:
         """Extract a brief summary from a tool response message."""
         try:
@@ -241,6 +301,38 @@ class MarcusCommands:
         except (json.JSONDecodeError, TypeError, AttributeError):
             pass
         return ''
+
+    def _print_verbose_tool_call(self, content: str, msg: dict):
+        """Print expanded tool call details in verbose mode."""
+        # Show all message fields except common ones
+        extra_keys = {k: v for k, v in msg.items() if k not in ('key', 'role', 'content', 'source') and v}
+        if extra_keys:
+            self.console.print(f'    [dim]msg fields: {json.dumps(extra_keys, default=str)[:200]}[/dim]')
+        # Show the tool call content (input/arguments)
+        try:
+            data = json.loads(content) if isinstance(content, str) else content
+            formatted = json.dumps(data, indent=2, default=str)
+            # Truncate to avoid flooding the terminal
+            if len(formatted) > 500:
+                formatted = formatted[:500] + '\n    ...'
+            for line in formatted.split('\n'):
+                self.console.print(f'    [dim]{line}[/dim]')
+        except (json.JSONDecodeError, TypeError):
+            if content:
+                self.console.print(f'    [dim]{content[:300]}[/dim]')
+
+    def _print_verbose_tool_response(self, content: str):
+        """Print expanded tool response details in verbose mode."""
+        try:
+            data = json.loads(content) if isinstance(content, str) else content
+            formatted = json.dumps(data, indent=2, default=str)
+            if len(formatted) > 800:
+                formatted = formatted[:800] + '\n    ...'
+            for line in formatted.split('\n'):
+                self.console.print(f'    [dim]{line}[/dim]')
+        except (json.JSONDecodeError, TypeError):
+            if content:
+                self.console.print(f'    [dim]{content[:400]}[/dim]')
 
     def _marcus_read(self, args):
         """Have Marcus read and analyze a file."""
@@ -283,7 +375,8 @@ class MarcusCommands:
         message = self.context.apply_scope_to_message(message)
         response = self._send_to_marcus(message)
         if response:
-            self.console.print(Panel(Markdown(response), title='Marcus', border_style=self.colors['primary']))
+            panel_title = f'Marcus @ {self.context.account}' if self.context.account else 'Marcus'
+            self.console.print(Panel(Markdown(response), title=panel_title, border_style=self.colors['primary']))
 
     def _marcus_ingest(self, args):
         """Have Marcus read a file and automatically ingest data into Guard."""
@@ -314,7 +407,8 @@ class MarcusCommands:
         self.console.print(f'[info]Marcus is reading and ingesting {path}...[/info]')
         response = self._send_to_marcus(message)
         if response:
-            self.console.print(Panel(Markdown(response), title='Marcus -- Ingestion Complete', border_style=self.colors['primary']))
+            panel_title = f'Marcus @ {self.context.account} -- Ingestion Complete' if self.context.account else 'Marcus -- Ingestion Complete'
+            self.console.print(Panel(Markdown(response), title=panel_title, border_style=self.colors['primary']))
 
     def _marcus_do(self, args):
         """Give Marcus a direct instruction to execute."""
@@ -330,7 +424,8 @@ class MarcusCommands:
         message = self.context.apply_scope_to_message(instruction)
         response = self._send_to_marcus(message)
         if response:
-            self.console.print(Panel(Markdown(response), title='Marcus', border_style=self.colors['primary']))
+            panel_title = f'Marcus @ {self.context.account}' if self.context.account else 'Marcus'
+            self.console.print(Panel(Markdown(response), title=panel_title, border_style=self.colors['primary']))
 
     def _cmd_critfinder(self, args):
         """Run CritFinder adversarial vulnerability research pipeline."""
