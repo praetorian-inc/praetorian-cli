@@ -14,6 +14,7 @@ class EngagementContext:
     active_tool: Optional[str] = None
     active_tool_config: Optional[Dict[str, Any]] = None
     target: Optional[str] = None
+    verbose: bool = False
 
     def clear_conversation(self):
         self.conversation_id = None
