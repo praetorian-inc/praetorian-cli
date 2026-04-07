@@ -484,6 +484,12 @@ class TestAddSchedule:
             lambda m: new_weekly
         )
 
+        # Mock asset selection for non-AD capabilities
+        monkeypatch.setattr(
+            'praetorian_cli.ui.aegis.commands.schedule.select_asset',
+            lambda m, h: ('#asset#agent01#agent01', 'asset agent01')
+        )
+
         # Prompt.ask for start_date and end_date
         prompt_answers = iter(['2024-06-01T00:00:00Z', ''])
         monkeypatch.setattr(
