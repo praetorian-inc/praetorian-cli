@@ -4,3 +4,4 @@ from praetorian_cli.ui.console.commands.search import SearchCommands
 from praetorian_cli.ui.console.commands.tools import ToolCommands
 from praetorian_cli.ui.console.commands.marcus import MarcusCommands
 from praetorian_cli.ui.console.commands.reporting import ReportingCommands
+from praetorian_cli.ui.console.commands.data import DataCommands
