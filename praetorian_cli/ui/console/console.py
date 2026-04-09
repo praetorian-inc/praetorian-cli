@@ -28,6 +28,7 @@ from praetorian_cli.ui.console.commands import (
     ToolCommands,
     MarcusCommands,
     ReportingCommands,
+    DataCommands,
 )
 
 
@@ -45,6 +46,7 @@ CONSOLE_COMMANDS = [
     'evidence', 'report',
     'ask', 'marcus',
     'critfinder', 'research', 'hunt',
+    'upload', 'import',
     'aegis',
     'configure', 'login',
     'help', 'history', 'clear', 'quit', 'exit',
@@ -58,6 +60,7 @@ class GuardConsole(
     ToolCommands,
     MarcusCommands,
     ReportingCommands,
+    DataCommands,
     RendererMixin,
 ):
     """Interactive operator console for Guard engagements."""
@@ -224,6 +227,8 @@ class GuardConsole(
             'critfinder': self._cmd_critfinder,
             'research': self._cmd_research,
             'hunt': self._cmd_hunt,
+            'upload': self._cmd_upload,
+            'import': self._cmd_import,
             'aegis': self._cmd_aegis,
             'configure': self._cmd_configure,
             'login': self._cmd_configure,
@@ -374,6 +379,16 @@ class GuardConsole(
         help_table.add_row('marcus ingest <path>', 'Read file & auto-create seeds/risks')
         help_table.add_row('marcus do "<instruction>"', 'Direct instruction (full agent access)')
         help_table.add_row('marcus research [target]', 'Run CritFinder via Marcus')
+
+        help_table.add_row('', '')
+        help_table.add_row('[section]Upload & Import[/section]', '')
+        help_table.add_row('upload <path> [--name <name>]', 'Upload a file to Guard storage')
+        help_table.add_row('import insightvm <file>', 'Import Rapid7 InsightVM XML data')
+        help_table.add_row('import qualys <file>', 'Import Qualys VMDR CSV data')
+        help_table.add_row('import nessus <file>', 'Import Tenable Nessus data')
+        help_table.add_row('import seeds <csv|json>', 'Bulk-add seeds from file')
+        help_table.add_row('import assets <csv|json>', 'Bulk-add assets from file')
+        help_table.add_row('import risks <csv|json>', 'Bulk-add risks from file')
 
         help_table.add_row('', '')
         help_table.add_row('[section]Other[/section]', '')
