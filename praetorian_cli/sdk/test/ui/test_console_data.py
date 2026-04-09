@@ -117,3 +117,58 @@ class TestUploadCommand:
             assert cmd.sdk.files.calls[0]['name'] == 'home/custom.txt'
         finally:
             os.unlink(tmp_path)
+
+
+class TestImportScannerCommand:
+
+    def test_import_no_args_shows_usage(self):
+        cmd = make_data_commands()
+        cmd._cmd_import([])
+        assert any('Usage' in line for line in cmd.console.lines)
+
+    def test_import_scanner_missing_file_shows_error(self):
+        cmd = make_data_commands()
+        cmd._cmd_import(['nessus', '/nonexistent/file.nessus'])
+        assert any('not found' in line.lower() or 'does not exist' in line.lower() for line in cmd.console.lines)
+
+    def test_import_insightvm(self):
+        cmd = make_data_commands()
+        with tempfile.NamedTemporaryFile(suffix='.xml', delete=False) as f:
+            f.write(b'<xml/>')
+            tmp_path = f.name
+        try:
+            cmd._cmd_import(['insightvm', tmp_path])
+            assert len(cmd.sdk.integrations.calls) == 1
+            call = cmd.sdk.integrations.calls[0]
+            assert call['name'] == 'insightvm-import'
+            assert call['local_filepath'] == tmp_path
+            assert any('import' in line.lower() for line in cmd.console.lines)
+        finally:
+            os.unlink(tmp_path)
+
+    def test_import_qualys(self):
+        cmd = make_data_commands()
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as f:
+            f.write(b'data')
+            tmp_path = f.name
+        try:
+            cmd._cmd_import(['qualys', tmp_path])
+            assert cmd.sdk.integrations.calls[0]['name'] == 'qualys-import'
+        finally:
+            os.unlink(tmp_path)
+
+    def test_import_nessus(self):
+        cmd = make_data_commands()
+        with tempfile.NamedTemporaryFile(suffix='.nessus', delete=False) as f:
+            f.write(b'data')
+            tmp_path = f.name
+        try:
+            cmd._cmd_import(['nessus', tmp_path])
+            assert cmd.sdk.integrations.calls[0]['name'] == 'nessus-import'
+        finally:
+            os.unlink(tmp_path)
+
+    def test_import_unknown_type_shows_error(self):
+        cmd = make_data_commands()
+        cmd._cmd_import(['bogus', '/tmp/file.csv'])
+        assert any('unknown' in line.lower() or 'valid' in line.lower() for line in cmd.console.lines)
