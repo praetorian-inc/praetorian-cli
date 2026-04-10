@@ -123,7 +123,7 @@ def write_aws_config(profiles, config_path=None):
 
 
 @configure.command()
-@click.option('--account', required=True, help='Guard account email to discover AWS credentials for')
+@click.option('--account', default=None, help='Guard account email to discover AWS credentials for (also inherited from guard --account)')
 @click.option('--prefix', default=None, help='Override the profile name prefix (default: derived from email)')
 @click.pass_context
 def credential(click_context, account, prefix):
@@ -133,8 +133,11 @@ def credential(click_context, account, prefix):
     via Organizations (if applicable), and writes ~/.aws/config profiles that
     use guard as the credential_process.
 
+    The --account can be provided here or as the top-level guard --account flag.
+
     \b
     Example usages:
+        - guard --account chariot+client@praetorian.com configure credential
         - guard configure credential --account chariot+client@praetorian.com
         - guard configure credential --account chariot+client@praetorian.com --prefix myclient
     """
@@ -160,7 +163,12 @@ def credential(click_context, account, prefix):
             else:
                 raise click.ClickException('Could not resolve SDK context. Ensure you are running under guard or praetorian chariot.')
 
-    # Assume role into the target account
+    # Resolve account: explicit --account on this command, or inherited from guard --account
+    if account is None:
+        account = sdk.keychain.account
+    if account is None:
+        raise click.ClickException('--account is required. Provide it here or as guard --account.')
+
     sdk.keychain.assume_role(account)
 
     if prefix is None:

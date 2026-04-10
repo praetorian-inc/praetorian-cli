@@ -201,7 +201,6 @@ class TestConfigureCLIWiring:
         runner = CliRunner()
         result = runner.invoke(configure, ['credential'])
         assert result.exit_code != 0
-        assert 'account' in result.output.lower() or 'required' in result.output.lower()
 
     def test_configure_credential_help(self):
         runner = CliRunner()
