@@ -81,7 +81,7 @@ def build_aws_config_profiles(account_email, prefix, credential_id, root_account
         profile_name = f'{prefix}-{account_id}'
         credential_process = (
             f'guard --account {account_email} get credential {credential_id} '
-            f'--type aws --format credential-process '
+            f'--category cloud --type aws --format credential-process '
             f'--parameters accountId {account_id}'
         )
         profiles.append((profile_name, {
