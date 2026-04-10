@@ -195,7 +195,7 @@ def credential(click_context, account, prefix):
 
         # Fetch the root credential to get temp AWS creds
         try:
-            result = sdk.credentials.get(credential_id, category, 'aws', 'token')
+            result = sdk.credentials.get(credential_id, category, 'aws', ['token'])
         except Exception as e:
             click.echo(f'Warning: failed to get credential {credential_id}: {e}')
             continue
