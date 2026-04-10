@@ -52,7 +52,7 @@ guard configure credential --account chariot+client@praetorian.com
    a. Fetch temp creds via `get credential`
    b. Create a boto3 Organizations client with those creds
    c. Call `list_accounts()` to discover sub-accounts
-   d. Call STS `get_caller_identity()` to get the root account ID
+   d. The root account ID is extracted from the credential key (e.g., `#account#...#amazon#325281727610` -> `325281727610`)
    e. If Organizations call succeeds: generate profiles for the root account + each sub-account
    f. If Organizations call fails (not an org): generate a single profile for the root account
    g. All profiles use the same `{prefix}-{account_id}` format with `--parameters accountId <id>`
@@ -81,7 +81,7 @@ region = us-east-1
 output = json
 ```
 
-All profiles use the same format, including the root account. The root account's own account ID is discovered via STS `get_caller_identity()` and treated identically to any sub-account.
+All profiles use the same format, including the root account. The root account ID is parsed from the credential key returned by `list credentials` (e.g., `#account#...#amazon#325281727610` -> `325281727610`).
 
 #### AWS Config File Handling
 
