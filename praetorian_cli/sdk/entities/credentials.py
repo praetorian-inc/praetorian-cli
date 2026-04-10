@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -131,6 +132,16 @@ class Credentials:
 
             return '\n'.join(env_vars)
 
+        if primary_format == 'credential-process':
+            cred = response['credentialValue']
+            return json.dumps({
+                'Version': 1,
+                'AccessKeyId': cred['accessKeyId'],
+                'SecretAccessKey': cred['secretAccessKey'],
+                'SessionToken': cred['sessionToken'],
+                'Expiration': cred['expiration']
+            }, separators=(',', ':'))
+
         return response
 
     def format_output(self, result):
@@ -145,8 +156,6 @@ class Credentials:
         :return: Formatted string ready for display to the user
         :rtype: str
         """
-        import json
-
         if isinstance(result, dict) and 'files' in result:
             output_lines = [result['message']]
             for file_path in result['files']:
