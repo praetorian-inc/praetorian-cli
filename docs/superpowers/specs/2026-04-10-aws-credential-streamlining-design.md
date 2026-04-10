@@ -52,8 +52,10 @@ guard configure credential --account chariot+client@praetorian.com
    a. Fetch temp creds via `get credential`
    b. Create a boto3 Organizations client with those creds
    c. Call `list_accounts()` to discover sub-accounts
-   d. If Organizations call succeeds: generate profiles for the root account + each sub-account
-   e. If Organizations call fails (not an org): generate a single profile for the root account
+   d. Call STS `get_caller_identity()` to get the root account ID
+   e. If Organizations call succeeds: generate profiles for the root account + each sub-account
+   f. If Organizations call fails (not an org): generate a single profile for the root account
+   g. All profiles use the same `{prefix}-{account_id}` format with `--parameters accountId <id>`
 4. Append/update profiles in `~/.aws/config`, preserving existing unrelated profiles
 
 #### Profile Naming
@@ -79,16 +81,7 @@ region = us-east-1
 output = json
 ```
 
-For the root account (no sub-account context needed):
-
-```ini
-[profile proceptbiorobotics-ROOT_ACCOUNT_ID]
-credential_process = guard --account chariot+proceptbiorobotics@praetorian.com get credential <uuid> --type aws --format credential-process
-region = us-east-1
-output = json
-```
-
-Note: The root profile omits the `accountId` parameter since credentials are for the root directly. Sub-account profiles include `--parameters accountId <id>` to request credentials scoped to that account.
+All profiles use the same format, including the root account. The root account's own account ID is discovered via STS `get_caller_identity()` and treated identically to any sub-account.
 
 #### AWS Config File Handling
 
