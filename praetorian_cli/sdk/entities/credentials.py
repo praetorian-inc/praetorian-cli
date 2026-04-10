@@ -70,7 +70,7 @@ class Credentials:
         broker_format = format
         primary = format[0] if isinstance(format, list) else format
         if primary == 'credential-process':
-            broker_format = 'token'
+            broker_format = ['token'] if isinstance(format, list) else 'token'
 
         request = {
             'Operation': 'get',
