@@ -56,7 +56,7 @@ def extract_account_id(credential_key):
     return credential_key.rstrip('#').split('#')[-1]
 
 
-def build_aws_config_profiles(account_email, prefix, credential_id, root_account_id, sub_accounts):
+def build_aws_config_profiles(account_email, prefix, credential_id, root_account_id, sub_accounts, category='env-integration'):
     """Build a list of (profile_name, profile_dict) tuples for AWS config.
 
     Args:
@@ -66,6 +66,7 @@ def build_aws_config_profiles(account_email, prefix, credential_id, root_account
         root_account_id: The root AWS account ID
         sub_accounts: List of dicts with 'Id' key from Organizations list_accounts,
                       or empty list if not an org.
+        category: The credential category (e.g., 'env-integration', 'cloud')
     Returns:
         List of (profile_name, dict) where dict has credential_process, region, output keys.
     """
@@ -81,7 +82,7 @@ def build_aws_config_profiles(account_email, prefix, credential_id, root_account
         profile_name = f'{prefix}-{account_id}'
         credential_process = (
             f'guard --account {account_email} get credential {credential_id} '
-            f'--category cloud --type aws --format credential-process '
+            f'--category {category} --type aws --format credential-process '
             f'--parameters accountId {account_id}'
         )
         profiles.append((profile_name, {
@@ -176,9 +177,9 @@ def credential(click_context, account, prefix):
 
     # List credentials and filter to AWS type
     creds_response = sdk.credentials.list()
-    credentials_list = creds_response[0] if isinstance(creds_response, tuple) else creds_response.get('credentials', [])
+    credentials_list = creds_response[0] if isinstance(creds_response, tuple) else []
 
-    aws_credentials = [c for c in credentials_list if c.get('name', '') == 'amazon' or '#amazon#' in c.get('key', '')]
+    aws_credentials = [c for c in credentials_list if c.get('type', '') == 'aws']
 
     if not aws_credentials:
         click.echo(f'No AWS credentials found for account {account}')
@@ -187,13 +188,14 @@ def credential(click_context, account, prefix):
     all_profiles = []
 
     for cred in aws_credentials:
-        credential_id = cred.get('member', cred.get('key', '').split('#')[-1])
-        credential_key = cred.get('key', '')
-        root_account_id = extract_account_id(credential_key)
+        credential_id = cred.get('credentialId', '')
+        account_key = cred.get('accountKey', '')
+        category = cred.get('category', 'env-integration')
+        root_account_id = extract_account_id(account_key)
 
         # Fetch the root credential to get temp AWS creds
         try:
-            result = sdk.credentials.get(credential_id, 'cloud', 'aws', 'token')
+            result = sdk.credentials.get(credential_id, category, 'aws', 'token')
         except Exception as e:
             click.echo(f'Warning: failed to get credential {credential_id}: {e}')
             continue
@@ -229,6 +231,7 @@ def credential(click_context, account, prefix):
             credential_id=credential_id,
             root_account_id=root_account_id,
             sub_accounts=sub_accounts,
+            category=category,
         )
         all_profiles.extend(profiles)
 

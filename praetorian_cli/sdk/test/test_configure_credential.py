@@ -64,7 +64,7 @@ class TestBuildAwsConfigProfiles:
         name, data = profiles[0]
         assert name == 'acme-111111111111'
         assert 'guard --account chariot+acme@praetorian.com get credential abc-123' in data['credential_process']
-        assert '--category cloud' in data['credential_process']
+        assert '--category env-integration' in data['credential_process']
         assert '--parameters accountId 111111111111' in data['credential_process']
         assert data['region'] == 'us-east-1'
         assert data['output'] == 'json'
