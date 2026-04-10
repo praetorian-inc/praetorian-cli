@@ -66,12 +66,18 @@ class Credentials:
         :return: The processed credential response based on the requested format
         :rtype: dict or str
         """
+        # credential-process is a client-side format; the broker receives 'token'
+        broker_format = format
+        primary = format[0] if isinstance(format, list) else format
+        if primary == 'credential-process':
+            broker_format = 'token'
+
         request = {
             'Operation': 'get',
             'CredentialID': credential_id,
             'Category': category,
             'Type': type,
-            'Format': format,
+            'Format': broker_format,
             'Parameters': parameters
         }
         response = self.api.post('broker', request)
