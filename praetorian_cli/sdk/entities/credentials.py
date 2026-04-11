@@ -139,7 +139,9 @@ class Credentials:
             return '\n'.join(env_vars)
 
         if primary_format == 'credential-process':
-            cred = response['credentialValue']
+            cred = response.get('credentialValue')
+            if not cred:
+                raise ValueError('Broker response missing credentialValue for credential-process format')
             return json.dumps({
                 'Version': 1,
                 'AccessKeyId': cred['accessKeyId'],

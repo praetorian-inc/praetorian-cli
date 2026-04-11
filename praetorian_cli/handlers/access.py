@@ -94,7 +94,9 @@ def write_aws_config(profiles, config_path=None):
         for key, value in profile_data.items():
             config.set(section, key, value)
 
-    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    parent_dir = os.path.dirname(config_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
     with open(config_path, 'w') as f:
         config.write(f)
 
