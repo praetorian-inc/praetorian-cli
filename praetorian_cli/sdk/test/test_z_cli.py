@@ -446,8 +446,9 @@ class TestZCli:
 
     def test_guard_cli(self):
         """Test the 'guard' entry point works correctly."""
-        self.verify('configure --help', expected_stdout=['Configure the CLI', 'credential'])
-        self.verify('--help', expected_stdout=['configure', 'list', 'add', 'delete', 'update'])
+        self.verify('configure --help', expected_stdout=['Configure the CLI'])
+        self.verify('--help', expected_stdout=['configure', 'list', 'add', 'delete', 'update', 'access'])
+        self.verify('access --help', expected_stdout=['aws'])
         self.verify('list --help', expected_stdout=['assets', 'risks', 'accounts'])
 
     def run_json(self, command):

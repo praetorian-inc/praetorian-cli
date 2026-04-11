@@ -5,8 +5,8 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from praetorian_cli.handlers.configure import (
-    configure,
+from praetorian_cli.handlers.access import (
+    access,
     extract_prefix,
     extract_account_id,
     build_aws_config_profiles,
@@ -14,14 +14,14 @@ from praetorian_cli.handlers.configure import (
 )
 
 
-class TestConfigureGroup:
+class TestAccessGroup:
 
-    def test_configure_is_a_group(self):
-        """configure must be a Click group so subcommands can be added."""
-        assert isinstance(configure, click.Group)
+    def test_access_is_a_group(self):
+        """access must be a Click group so subcommands can be added."""
+        assert isinstance(access, click.Group)
 
-    def test_configure_has_credential_subcommand(self):
-        assert 'credential' in configure.commands
+    def test_access_has_aws_subcommand(self):
+        assert 'aws' in access.commands
 
 
 class TestExtractPrefix:
@@ -188,23 +188,11 @@ class TestWriteAwsConfig:
             assert os.path.exists(config_path)
 
 
-class TestConfigureCLIWiring:
+class TestAccessCLIWiring:
 
-    def test_configure_without_subcommand_prompts_for_keychain(self):
-        """Running 'guard configure' with no subcommand should prompt for API key (backwards compat)."""
+    def test_access_aws_help(self):
         runner = CliRunner()
-        result = runner.invoke(configure, input='test-id\ntest-secret\n\n\n\n\n')
-        assert 'API Key ID' in result.output
-
-    def test_configure_credential_requires_account(self):
-        """Running 'guard configure credential' without --account should fail."""
-        runner = CliRunner()
-        result = runner.invoke(configure, ['credential'])
-        assert result.exit_code != 0
-
-    def test_configure_credential_help(self):
-        runner = CliRunner()
-        result = runner.invoke(configure, ['credential', '--help'])
+        result = runner.invoke(access, ['aws', '--help'])
         assert result.exit_code == 0
         assert '--account' in result.output
         assert '--prefix' in result.output
