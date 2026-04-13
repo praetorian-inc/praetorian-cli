@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 def handle_set(menu, args):
     """Select an agent by index, client_id, or hostname."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
+    multi_account_mode = getattr(menu, 'multi_account_mode', False)
+    agent_account_map = getattr(menu, 'agent_account_map', {})
 
     if not args:
         menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
@@ -23,9 +25,9 @@ def handle_set(menu, args):
         # In multi-account mode, assume into the agent's account so SDK
         # calls (asset search, domain lookup, etc.) target the right tenant.
         # Must succeed before we commit to the selection.
-        if menu.multi_account_mode:
+        if multi_account_mode:
             # Prefer account info attached directly to agent (avoids client_id collisions)
-            acct_info = getattr(selected_agent, '_account_info', None) or menu.agent_account_map.get(selected_agent.client_id, {})
+            acct_info = getattr(selected_agent, '_account_info', None) or agent_account_map.get(selected_agent.client_id, {})
             acct_email = acct_info.get('account_email') if acct_info else None
             if not acct_email:
                 logger.warning('No account email resolved for agent %s (client_id=%s)', hostname, selected_agent.client_id)

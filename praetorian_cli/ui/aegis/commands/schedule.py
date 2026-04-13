@@ -38,11 +38,11 @@ def _schedule_account_context(menu, schedule_id):
     Yields False if the account could not be resolved or assumption failed.
     Always restores the prior account context in the finally block.
     """
-    if not menu.multi_account_mode:
+    if not getattr(menu, 'multi_account_mode', False):
         yield True
         return
 
-    previous_account = menu.sdk.keychain.account
+    previous_account = getattr(getattr(menu.sdk, 'keychain', None), 'account', None)
     acct_info = getattr(menu, 'schedule_account_map', {}).get(schedule_id, {})
     acct_email = acct_info.get('account_email')
     if not acct_email:
@@ -128,11 +128,12 @@ def show_schedule_help(menu):
 def list_schedules(menu):
     """List all schedules for the current user (or all selected accounts in multi-account mode)."""
     colors = menu.colors
-    multi_account = menu.multi_account_mode
+    multi_account = getattr(menu, 'multi_account_mode', False)
+    selected_accounts = getattr(menu, 'selected_accounts', [])
 
     try:
-        if multi_account and menu.selected_accounts:
-            schedule_tuples, failed = load_schedules_for_accounts(menu.sdk, menu.selected_accounts)
+        if multi_account and selected_accounts:
+            schedule_tuples, failed = load_schedules_for_accounts(menu.sdk, selected_accounts)
             schedules = [s for s, _ in schedule_tuples]
             menu.schedule_account_map = {}
             for sched, acct_info in schedule_tuples:
@@ -213,7 +214,7 @@ def list_schedules(menu):
 
             row_cells = []
             if multi_account:
-                acct_info = menu.schedule_account_map.get(schedule.get('scheduleId', ''), {})
+                acct_info = getattr(menu, 'schedule_account_map', {}).get(schedule.get('scheduleId', ''), {})
                 acct_name = truncate_email(acct_info.get('display_name', ''), 19)
                 acct_status = acct_info.get('status', '')
                 acct_status_style = colors['success'] if acct_status.upper() == 'ACTIVE' else colors['dim']
