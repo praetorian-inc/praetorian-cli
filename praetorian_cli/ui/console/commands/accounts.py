@@ -176,8 +176,8 @@ class AccountCommands:
         name = params.get('name', '')
 
         if not email or not name:
-            self.console.print('[dim]Usage: engagements create email=ops@acme.com name="ACME Corp"[/dim]')
-            self.console.print('[dim]Optional: type=ENGAGEMENT scan-level=A[/dim]')
+            self.console.print('[dim]Usage: engagements create email=ops@acme.com name="ACME Corp" allowed-domain=acme.com[/dim]')
+            self.console.print('[dim]Optional: type=ENGAGEMENT scan-level=A allowed-domain=acme.com[/dim]')
             return
 
         from praetorian_cli.handlers.engagement import _generate_password
@@ -188,6 +188,10 @@ class AccountCommands:
             'scan_level': params.get('scan-level', 'A'),
             'customer_type': params.get('type', 'ENGAGEMENT'),
         }
+
+        allowed_domain = params.get('allowed-domain', '')
+        if allowed_domain:
+            body['allowed_domains'] = [d.lower().strip() for d in allowed_domain.split(',')]
 
         try:
             with self.console.status('Creating customer...', spinner='dots', spinner_style=self.colors['primary']):

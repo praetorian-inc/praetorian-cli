@@ -18,16 +18,17 @@ from praetorian_cli.handlers.add import add
 @click.option('--type', 'customer_type', type=click.Choice(['ENGAGEMENT', 'MANAGED', 'SAAS', 'PILOT', 'FREEMIUM']),
               default='ENGAGEMENT', show_default=True, help='Customer type')
 @click.option('--collaborator', multiple=True, help='Additional collaborator emails (format: email:role)')
-def create_customer(sdk, email, display_name, scan_level, customer_type, collaborator):
+@click.option('--allowed-domain', multiple=True, help='Allowed email domains for collaborators (e.g., acme.com)')
+def create_customer(sdk, email, display_name, scan_level, customer_type, collaborator, allowed_domain):
     """ Create a new customer account on the Guard platform
 
     Creates a Cognito user, Guard account, and adds default collaborators.
 
     \b
     Example usages:
-        - guard add customer --email ops@acme.com --name "ACME Corp"
-        - guard add customer --email ops@acme.com --name "ACME Corp" --type MANAGED
-        - guard add customer --email ops@acme.com --name "ACME Corp" --collaborator "analyst@praetorian.com:admin"
+        - guard add customer --email ops@acme.com --name "ACME Corp" --allowed-domain acme.com
+        - guard add customer --email ops@acme.com --name "ACME Corp" --type MANAGED --allowed-domain acme.com
+        - guard add customer --email ops@acme.com --name "ACME Corp" --allowed-domain acme.com --collaborator "analyst@praetorian.com:admin"
     """
     body = {
         'username': email,
@@ -46,6 +47,8 @@ def create_customer(sdk, email, display_name, scan_level, customer_type, collabo
             else:
                 collabs.append({'email': c, 'role': 'admin'})
         body['collaborators'] = collabs
+
+    body['allowed_domains'] = [d.lower().strip() for d in allowed_domain]
 
     result = sdk.post('customer/onboard', body)
     click.echo(f'Customer created: {email} ({display_name})')
