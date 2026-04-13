@@ -48,8 +48,7 @@ def create_customer(sdk, email, display_name, scan_level, customer_type, collabo
                 collabs.append({'email': c, 'role': 'admin'})
         body['collaborators'] = collabs
 
-    if allowed_domain:
-        body['allowed_domains'] = [d.lower().strip() for d in allowed_domain]
+    body['allowed_domains'] = [d.lower().strip() for d in allowed_domain]
 
     result = sdk.post('customer/onboard', body)
     click.echo(f'Customer created: {email} ({display_name})')
