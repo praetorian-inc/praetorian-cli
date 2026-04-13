@@ -64,13 +64,13 @@ class TestJob:
 
     def test_list_by_capability(self):
         result = self.sdk.assets.add(self.asset_dns, self.asset_dns)
-        self.sdk.jobs.add(result['key'], ['nuclei'])
+        self.sdk.jobs.add(result['key'], ['whois'])
 
-        jobs, _ = self.sdk.jobs.list_by_capability('nuclei')
+        jobs, _ = self.sdk.jobs.list_by_capability('whois')
         assert isinstance(jobs, list)
         assert len(jobs) > 0
         for job in jobs:
-            assert job.get('source', '').startswith('nuclei')
+            assert job.get('source', '').startswith('whois')
 
     def test_list_by_target(self):
         result = self.sdk.assets.add(self.asset_dns, self.asset_dns)

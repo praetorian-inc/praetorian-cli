@@ -191,6 +191,11 @@ class MockMenuBase:
     def __init__(self):
         self.console = MockConsole()
         self.paused = False
+        # Defaults used by newer TUI commands.
+        self.multi_account_mode = False
+        self.selected_accounts = []
+        self.agent_account_map = {}
+        self.schedule_account_map = {}
         # Minimal color map used by the UI (optional)
         self.colors = {
             'primary': 'cyan',
