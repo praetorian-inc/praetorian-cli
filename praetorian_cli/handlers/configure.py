@@ -6,7 +6,7 @@ from praetorian_cli.sdk.keychain import Keychain, DEFAULT_API, DEFAULT_CLIENT_ID
 @click.pass_context
 def configure(click_context):
     """Configure the CLI with API key authentication."""
-    
+
     api_key_id = click.prompt("Enter your API Key ID")
     api_key_secret = click.prompt("Enter your API Key secret", hide_input=True)
 
