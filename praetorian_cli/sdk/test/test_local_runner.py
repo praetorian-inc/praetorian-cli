@@ -195,3 +195,36 @@ class TestBrutusPlugin:
         )
         assert args.count('--protocol') == 1
         assert args[args.index('--protocol') + 1] == 'rdp'
+
+
+from praetorian_cli.runners.local import (
+    NucleiPlugin, TitusPlugin, TrajanPlugin, JuliusPlugin, AugustusPlugin,
+    NervaPlugin, GatoPlugin, UrlTargetPlugin, ScanTargetPlugin,
+)
+
+
+class TestPluginsForwardPassthrough:
+    """Every plugin must append pass_through args last."""
+
+    @pytest.mark.parametrize('plugin_cls,expected_prefix', [
+        (NucleiPlugin, ['-u', 'example.com', '-jsonl']),
+        (TitusPlugin, ['scan', 'example.com']),
+        (TrajanPlugin, ['scan', 'example.com']),
+        (JuliusPlugin, ['-t', 'example.com']),
+        (AugustusPlugin, ['scan', '-t', 'example.com']),
+        (NervaPlugin, ['-t', 'example.com']),
+        (GatoPlugin, ['enumerate', '-t', 'example.com']),
+        (UrlTargetPlugin, ['scan', '-u', 'example.com']),
+        (ScanTargetPlugin, ['scan', 'example.com']),
+    ])
+    def test_plugin_appends_passthrough(self, plugin_cls, expected_prefix):
+        plugin = plugin_cls()
+        args = plugin.build_args('example.com', pass_through=['--debug', '-v'])
+        assert args[:len(expected_prefix)] == expected_prefix
+        assert args[-2:] == ['--debug', '-v']
+
+    def test_plugin_no_passthrough_unchanged(self):
+        # Regression guard for the default (no passthrough) path.
+        assert NucleiPlugin().build_args('example.com') == ['-u', 'example.com', '-jsonl']
+        assert TitusPlugin().build_args('x') == ['scan', 'x']
+        assert JuliusPlugin().build_args('x') == ['-t', 'x']

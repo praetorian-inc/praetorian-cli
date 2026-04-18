@@ -273,6 +273,8 @@ class NucleiPlugin(ToolPlugin):
         args = ['-u', target, '-jsonl']
         if config.get('templates'):
             args.extend(['-t', config['templates']])
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
@@ -281,6 +283,8 @@ class TitusPlugin(ToolPlugin):
         args = ['scan', target]
         if config.get('validation') == 'true':
             args.append('--validate')
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
@@ -289,22 +293,33 @@ class TrajanPlugin(ToolPlugin):
         args = ['scan', target]
         if config.get('token'):
             args.extend(['--token', config['token']])
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
 class JuliusPlugin(ToolPlugin):
     def _build(self, target, config, pass_through=None):
-        return ['-t', target]
+        args = ['-t', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class AugustusPlugin(ToolPlugin):
     def _build(self, target, config, pass_through=None):
-        return ['scan', '-t', target]
+        args = ['scan', '-t', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class NervaPlugin(ToolPlugin):
     def _build(self, target, config, pass_through=None):
-        return ['-t', target]
+        args = ['-t', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class GatoPlugin(ToolPlugin):
@@ -312,19 +327,27 @@ class GatoPlugin(ToolPlugin):
         args = ['enumerate', '-t', target]
         if config.get('token'):
             args.extend(['--token', config['token']])
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
 class UrlTargetPlugin(ToolPlugin):
     """For tools that take scan -u <target>."""
     def _build(self, target, config, pass_through=None):
-        return ['scan', '-u', target]
+        args = ['scan', '-u', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class ScanTargetPlugin(ToolPlugin):
     """For tools that take scan <target>."""
     def _build(self, target, config, pass_through=None):
-        return ['scan', target]
+        args = ['scan', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 TOOL_PLUGINS = {
