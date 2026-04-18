@@ -350,6 +350,14 @@ class ScanTargetPlugin(ToolPlugin):
         return args
 
 
+# Plugin verification status:
+# - brutus:      verified against brutus --help (ENG-3042)
+# - nuclei:      -u is the documented URL flag — OK
+# - julius/nerva/nero: use -t <target>; unverified against each binary's --help
+# - titus/trajan/vespasian/constantine/caligula: `scan <target>` — unverified
+# - augustus/gato: `scan -t <target>` / `enumerate -t <target>` — unverified
+# - cato/florian/hadrian: `scan -u <target>` — unverified
+# Users can always override via `guard run tool <tool> <target> -- <raw args>`.
 TOOL_PLUGINS = {
     'brutus':      BrutusPlugin(),
     'nuclei':      NucleiPlugin(),
