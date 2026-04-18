@@ -4,9 +4,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from praetorian_cli.ui.console.commands.tools import ToolCommands
-from praetorian_cli.sdk.test.ui_mocks import MockConsole
+from praetorian_cli.sdk.test.ui_mocks import MockConsole as _BaseMockConsole
 
 pytestmark = pytest.mark.tui
+
+
+class MockConsole(_BaseMockConsole):
+    """Console mock that tolerates Rich kwargs like markup=/highlight=."""
+
+    def print(self, msg="", **kwargs):
+        self.lines.append(str(msg))
 
 
 class _FakeContext:
@@ -115,3 +122,76 @@ def test_no_passthrough_uses_remote_path():
          patch.object(_Harness, '_try_queue_job', return_value=[{'key': '#job#x'}]) as mock_queue:
         h._cmd_run(['brutus', '#asset#10.0.1.5'])
     assert mock_queue.called
+
+
+def test_run_tool_locally_streams_and_uploads(tmp_path, monkeypatch):
+    """Direct exercise of _run_tool_locally body: streaming + Guard upload."""
+    h = _Harness()
+
+    fake_proc = MagicMock()
+    fake_proc.stdout.__iter__.return_value = iter([
+        'scan start\n', '[+] success\n', 'scan done\n',
+    ])
+    fake_proc.stderr.read.return_value = ''
+    fake_proc.returncode = 0
+
+    fake_runner = MagicMock()
+    fake_runner.run_streaming.return_value = fake_proc
+
+    fake_plugin = MagicMock()
+    fake_plugin.build_args.return_value = ['--target', 'example.com', '--protocol', 'ssh']
+
+    with patch('praetorian_cli.runners.local.LocalRunner', return_value=fake_runner), \
+         patch('praetorian_cli.runners.local.get_tool_plugin', return_value=fake_plugin):
+        h._run_tool_locally('brutus', '#asset#example.com', ['--protocol', 'ssh'])
+
+    # Plugin was consulted with the stripped target + pass_through.
+    fake_plugin.build_args.assert_called_once()
+    call_kwargs = fake_plugin.build_args.call_args.kwargs
+    assert call_kwargs.get('pass_through') == ['--protocol', 'ssh']
+
+    # LocalRunner was invoked with the plugin's argv.
+    fake_runner.run_streaming.assert_called_once_with(
+        ['--target', 'example.com', '--protocol', 'ssh'],
+    )
+
+    # Subprocess stdout made it to the console (markup-escaped so [+] doesn't crash Rich).
+    output = '\n'.join(h.console.lines)
+    assert 'scan start' in output
+    assert '[+] success' in output
+    assert 'scan done' in output
+
+    # Guard upload was attempted.
+    assert h.sdk.files.add.called
+    guard_path_arg = h.sdk.files.add.call_args.args[1]
+    assert guard_path_arg.startswith('proofs/local/brutus/')
+
+
+def test_run_tool_locally_timeout_sets_exit_code(monkeypatch):
+    """When the subprocess times out, the post-kill wait sets a real returncode."""
+    import subprocess
+    h = _Harness()
+
+    fake_proc = MagicMock()
+    fake_proc.stdout.__iter__.return_value = iter(['partial\n'])
+    # First .wait raises TimeoutExpired; the second (after kill) succeeds.
+    fake_proc.wait.side_effect = [subprocess.TimeoutExpired(cmd='brutus', timeout=600), None]
+    fake_proc.stderr.read.return_value = ''
+    fake_proc.returncode = -9
+
+    fake_runner = MagicMock()
+    fake_runner.run_streaming.return_value = fake_proc
+
+    fake_plugin = MagicMock()
+    fake_plugin.build_args.return_value = ['--target', 'x']
+
+    with patch('praetorian_cli.runners.local.LocalRunner', return_value=fake_runner), \
+         patch('praetorian_cli.runners.local.get_tool_plugin', return_value=fake_plugin):
+        h._run_tool_locally('brutus', 'x', [])
+
+    fake_proc.kill.assert_called_once()
+    # The post-kill wait must have been called to reap the process.
+    assert fake_proc.wait.call_count >= 2
+    output = '\n'.join(h.console.lines)
+    assert 'Timed out' in output
+    assert 'Exit code: -9' in output  # NOT 'Exit code: None'

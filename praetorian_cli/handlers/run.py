@@ -430,6 +430,10 @@ def _run_local(sdk, tool_name, target, extra_config, tool_args=None):
         proc.wait(timeout=600)
     except subprocess.TimeoutExpired:
         proc.kill()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            pass
         click.echo('\nTimed out (10 min).', err=True)
 
     stderr = proc.stderr.read() if proc.stderr else ''

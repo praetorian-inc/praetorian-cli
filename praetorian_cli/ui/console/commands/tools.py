@@ -5,6 +5,7 @@ import os
 import time
 
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -173,10 +174,10 @@ class ToolCommands:
             runner = LocalRunner(tool_name)
             proc = runner.run_streaming(['--help'])
             for line in proc.stdout:
-                self.console.print(line.rstrip('\n'))
+                self.console.print(line.rstrip('\n'), markup=False, highlight=False)
             stderr = proc.stderr.read() if proc.stderr else ''
             if stderr:
-                self.console.print(f'[dim]{stderr}[/dim]')
+                self.console.print(f'[dim]{escape(stderr)}[/dim]')
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
 
@@ -208,16 +209,20 @@ class ToolCommands:
         output_lines = []
         try:
             for line in proc.stdout:
-                self.console.print(line.rstrip('\n'))
+                self.console.print(line.rstrip('\n'), markup=False, highlight=False)
                 output_lines.append(line)
             proc.wait(timeout=600)
         except subprocess.TimeoutExpired:
             proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                pass
             self.console.print('[error]Timed out (10 min).[/error]')
 
         stderr = proc.stderr.read() if proc.stderr else ''
         if stderr:
-            self.console.print(f'[dim]{stderr}[/dim]')
+            self.console.print(f'[dim]{escape(stderr)}[/dim]')
 
         self.console.print('[dim]' + '─' * 60 + '[/dim]')
         self.console.print(f'[dim]Exit code: {proc.returncode}[/dim]')
