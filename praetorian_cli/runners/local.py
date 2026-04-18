@@ -248,7 +248,7 @@ class ToolPlugin:
 
 
 class BrutusPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['-t', target]
         if config.get('usernames'):
             args.extend(['-u', config['usernames']])
@@ -258,7 +258,7 @@ class BrutusPlugin(ToolPlugin):
 
 
 class NucleiPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['-u', target, '-jsonl']
         if config.get('templates'):
             args.extend(['-t', config['templates']])
@@ -266,7 +266,7 @@ class NucleiPlugin(ToolPlugin):
 
 
 class TitusPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['scan', target]
         if config.get('validation') == 'true':
             args.append('--validate')
@@ -274,7 +274,7 @@ class TitusPlugin(ToolPlugin):
 
 
 class TrajanPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['scan', target]
         if config.get('token'):
             args.extend(['--token', config['token']])
@@ -282,22 +282,22 @@ class TrajanPlugin(ToolPlugin):
 
 
 class JuliusPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         return ['-t', target]
 
 
 class AugustusPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         return ['scan', '-t', target]
 
 
 class NervaPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         return ['-t', target]
 
 
 class GatoPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['enumerate', '-t', target]
         if config.get('token'):
             args.extend(['--token', config['token']])
@@ -306,13 +306,13 @@ class GatoPlugin(ToolPlugin):
 
 class UrlTargetPlugin(ToolPlugin):
     """For tools that take scan -u <target>."""
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         return ['scan', '-u', target]
 
 
 class ScanTargetPlugin(ToolPlugin):
     """For tools that take scan <target>."""
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         return ['scan', target]
 
 

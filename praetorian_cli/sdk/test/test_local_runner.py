@@ -80,3 +80,35 @@ class TestToolPluginBase:
         args = plugin.build_args('t', extra_config='{"k":"v"}', pass_through=['--x'])
         # Default plugin ignores config but appends pass_through.
         assert args == ['t', '--x']
+
+
+from praetorian_cli.runners.local import (
+    BrutusPlugin, NucleiPlugin, TitusPlugin, TrajanPlugin, JuliusPlugin,
+    AugustusPlugin, NervaPlugin, GatoPlugin, UrlTargetPlugin, ScanTargetPlugin,
+)
+
+
+class TestSubclassesAcceptPassThroughKwarg:
+    """Every concrete plugin must accept pass_through so the base class can forward it.
+
+    Body-level use of pass_through is added in Tasks 3 and 4; this test only guards
+    the signature so mid-sequence HEADs remain runnable.
+    """
+
+    @pytest.mark.parametrize('plugin_cls', [
+        BrutusPlugin, NucleiPlugin, TitusPlugin, TrajanPlugin, JuliusPlugin,
+        AugustusPlugin, NervaPlugin, GatoPlugin, UrlTargetPlugin, ScanTargetPlugin,
+    ])
+    def test_build_args_does_not_raise_with_passthrough(self, plugin_cls):
+        plugin = plugin_cls()
+        # Just prove it doesn't TypeError. We don't assert on pass_through being
+        # appended — Tasks 3 and 4 add that behavior per-plugin.
+        plugin.build_args('example.com', pass_through=['--noop'])
+
+    @pytest.mark.parametrize('plugin_cls', [
+        BrutusPlugin, NucleiPlugin, TitusPlugin, TrajanPlugin, JuliusPlugin,
+        AugustusPlugin, NervaPlugin, GatoPlugin, UrlTargetPlugin, ScanTargetPlugin,
+    ])
+    def test_build_args_without_passthrough_still_works(self, plugin_cls):
+        plugin = plugin_cls()
+        plugin.build_args('example.com')
