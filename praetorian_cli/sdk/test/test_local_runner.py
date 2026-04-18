@@ -186,3 +186,12 @@ class TestBrutusPlugin:
         )
         assert '-p' not in args
         assert '-P' in args
+
+    def test_passthrough_protocol_beats_config_protocol(self):
+        args = self.plugin.build_args(
+            'host:22',
+            extra_config='{"protocol":"smb"}',
+            pass_through=['--protocol', 'rdp'],
+        )
+        assert args.count('--protocol') == 1
+        assert args[args.index('--protocol') + 1] == 'rdp'

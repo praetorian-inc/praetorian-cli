@@ -251,7 +251,7 @@ class BrutusPlugin(ToolPlugin):
     def _build(self, target, config, pass_through=None):
         args = ['--target', target]
 
-        # Protocol: explicit config > caller passthrough wins silently > inferred
+        # Protocol precedence: caller passthrough (silent) > config['protocol'] > inferred from port
         caller_has_protocol = _has_flag(pass_through, '--protocol')
         if not caller_has_protocol:
             proto = config.get('protocol') or _infer_protocol(target)
