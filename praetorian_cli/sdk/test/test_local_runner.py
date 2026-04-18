@@ -60,3 +60,23 @@ class TestHasFlag:
         # Simpler: we match anywhere in the list. This keeps the helper small.
         # If a user's file path happens to be '-u', that's their problem.
         assert _has_flag(['--config', '-u'], '-u') is True
+
+
+from praetorian_cli.runners.local import ToolPlugin
+
+
+class TestToolPluginBase:
+    def test_default_plugin_passes_through(self):
+        plugin = ToolPlugin()
+        args = plugin.build_args('example.com', pass_through=['--flag', 'val'])
+        assert args == ['example.com', '--flag', 'val']
+
+    def test_default_plugin_without_passthrough(self):
+        plugin = ToolPlugin()
+        assert plugin.build_args('example.com') == ['example.com']
+
+    def test_default_plugin_with_json_config_and_passthrough(self):
+        plugin = ToolPlugin()
+        args = plugin.build_args('t', extra_config='{"k":"v"}', pass_through=['--x'])
+        # Default plugin ignores config but appends pass_through.
+        assert args == ['t', '--x']

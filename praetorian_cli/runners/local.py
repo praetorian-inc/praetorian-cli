@@ -230,17 +230,21 @@ class LocalRunner:
 class ToolPlugin:
     """Base class for local tool argument builders."""
 
-    def build_args(self, target, extra_config=''):
+    def build_args(self, target, extra_config='', pass_through=None):
         config = {}
         if extra_config:
             try:
                 config = json.loads(extra_config) if isinstance(extra_config, str) else extra_config
             except (json.JSONDecodeError, TypeError):
                 pass
-        return self._build(target, config)
+        args = self._build(target, config, pass_through=pass_through)
+        return args
 
-    def _build(self, target, config):
-        return [target]
+    def _build(self, target, config, pass_through=None):
+        args = [target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class BrutusPlugin(ToolPlugin):
