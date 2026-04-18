@@ -41,32 +41,13 @@ class ToolCommands:
     def _cmd_run(self, args):
         """Run a named security tool against a target, or execute active tool."""
         from praetorian_cli.handlers.run import TOOL_ALIASES
+        from praetorian_cli.runners.local import is_installed as _is_installed
+
         if not args and self.context.active_tool:
-            # "run" with no args while tool is selected = execute
             self._cmd_execute([])
             return
         if not args:
-            # Show agents
-            agents = {k: v for k, v in TOOL_ALIASES.items() if v.get('agent') and k != 'secrets'}
-            table = Table(title='Agents', border_style=self.colors['primary'])
-            table.add_column('Agent', style=f'bold {self.colors["primary"]}', min_width=16)
-            table.add_column('Description')
-            for name, info in sorted(agents.items()):
-                table.add_row(name, info['description'])
-            self.console.print(table)
-
-            # Show direct capabilities
-            caps = {k: v for k, v in TOOL_ALIASES.items() if not v.get('agent') and k != 'secrets'}
-            if caps:
-                table2 = Table(title='Capabilities', border_style=self.colors['dim'])
-                table2.add_column('Capability', style=f'bold {self.colors["primary"]}', min_width=16)
-                table2.add_column('Target', style=self.colors['accent'])
-                table2.add_column('Description')
-                for name, info in sorted(caps.items()):
-                    table2.add_row(name, info['target_type'], info['description'])
-                self.console.print(table2)
-
-            self.console.print(f'\n[dim]Usage: use <name> or <name> <target_key>[/dim]')
+            self._print_tool_catalog(TOOL_ALIASES)
             return
 
         tool_name = args[0].lower()
@@ -76,17 +57,59 @@ class ToolCommands:
             self.console.print(f'[error]Unknown tool: {tool_name}. Available: {available}[/error]')
             return
 
-        if len(args) < 2:
-            self.console.print(f'[dim]Usage: {tool_name} <target_key> [--ask] [--wait][/dim]')
+        rest = args[1:]
+
+        # `run <tool> --help` — forward to local binary if installed.
+        if rest and rest[0] == '--help':
+            self._print_tool_help(tool_name)
+            return
+
+        if not rest:
+            self.console.print(f'[dim]Usage: {tool_name} <target_key> [--ask] [--wait] [-- <tool-args>...][/dim]')
             self.console.print(f'[dim]  Target type: {alias["target_type"]}[/dim]')
             self.console.print(f'[dim]  {alias["description"]}[/dim]')
             return
 
-        raw_target = args[1]
-        use_agent = '--ask' in args
-        wait = '--wait' in args
+        raw_target = rest[0]
+        remaining = rest[1:]
 
-        # Resolve friendly target names to Guard keys
+        # Split own flags from passthrough. Honor `--` as an explicit boundary:
+        # everything after `--` is passthrough, even if it collides with `--wait`/`--ask`.
+        OWN_FLAGS = {'--ask', '--wait'}
+        pass_through = []
+        own = []
+        if '--' in remaining:
+            idx = remaining.index('--')
+            own = remaining[:idx]
+            pass_through = remaining[idx + 1:]
+        else:
+            for a in remaining:
+                if a in OWN_FLAGS:
+                    own.append(a)
+                else:
+                    pass_through.append(a)
+
+        use_agent = '--ask' in own
+        wait = '--wait' in own
+
+        if pass_through and use_agent:
+            self.console.print(
+                '[error]Extra arguments are not supported with --ask (agent path). '
+                'Drop --ask or use structured config.[/error]'
+            )
+            return
+
+        if pass_through:
+            if not _is_installed(tool_name):
+                self.console.print(
+                    f'[error]Extra arguments require the {tool_name} binary to be installed locally. '
+                    f'Run "install {tool_name}" first.[/error]'
+                )
+                return
+            self._run_tool_locally(tool_name, raw_target, pass_through)
+            return
+
+        # No passthrough — existing remote/agent flow.
         from praetorian_cli.handlers.run import resolve_target
         target_key, warning = resolve_target(self.sdk, raw_target, alias['target_type'])
         if not target_key:
@@ -99,23 +122,120 @@ class ToolCommands:
         config = dict(alias.get('default_config', {}))
 
         if alias.get('agent') and (use_agent or not capability):
-            # Route through Marcus (forced for agent-only tools, optional for others)
             agent_name = alias['agent']
             task_desc = f'Run {capability} against {target_key} and analyze the results.' if capability else f'Analyze {target_key} thoroughly.'
             message = self.context.apply_scope_to_message(task_desc)
             self.console.print(f'[info]Delegating to {agent_name} via Marcus...[/info]')
             response_text = self._send_to_marcus(message)
             if response_text:
+                from rich.markdown import Markdown
                 self.console.print(Markdown(response_text))
         else:
-            # Direct job execution -- with fallback to own account if frozen/blocked
+            import json
             config_str = json.dumps(config) if config else None
             result = self._try_queue_job(target_key, capability, config_str)
             if result is None:
                 return
-
             if wait:
                 self._wait_for_job(target_key, capability)
+
+    def _print_tool_catalog(self, TOOL_ALIASES):
+        """Render the agents/capabilities catalog shown when `run` is called bare."""
+        agents = {k: v for k, v in TOOL_ALIASES.items() if v.get('agent') and k != 'secrets'}
+        table = Table(title='Agents', border_style=self.colors['primary'])
+        table.add_column('Agent', style=f'bold {self.colors["primary"]}', min_width=16)
+        table.add_column('Description')
+        for name, info in sorted(agents.items()):
+            table.add_row(name, info['description'])
+        self.console.print(table)
+
+        caps = {k: v for k, v in TOOL_ALIASES.items() if not v.get('agent') and k != 'secrets'}
+        if caps:
+            table2 = Table(title='Capabilities', border_style=self.colors['dim'])
+            table2.add_column('Capability', style=f'bold {self.colors["primary"]}', min_width=16)
+            table2.add_column('Target', style=self.colors['accent'])
+            table2.add_column('Description')
+            for name, info in sorted(caps.items()):
+                table2.add_row(name, info['target_type'], info['description'])
+            self.console.print(table2)
+
+        self.console.print(f'\n[dim]Usage: use <name> or <name> <target_key>[/dim]')
+
+    def _print_tool_help(self, tool_name):
+        """Run `<tool> --help` locally and stream its output to the console."""
+        from praetorian_cli.runners.local import is_installed as _is_installed, LocalRunner
+        if not _is_installed(tool_name):
+            self.console.print(
+                f'[warning]{tool_name} is not installed locally. Run "install {tool_name}" first.[/warning]'
+            )
+            return
+        try:
+            runner = LocalRunner(tool_name)
+            proc = runner.run_streaming(['--help'])
+            for line in proc.stdout:
+                self.console.print(line.rstrip('\n'))
+            stderr = proc.stderr.read() if proc.stderr else ''
+            if stderr:
+                self.console.print(f'[dim]{stderr}[/dim]')
+        except Exception as e:
+            self.console.print(f'[error]{e}[/error]')
+
+    def _run_tool_locally(self, tool_name, raw_target, pass_through):
+        """Run an installed tool binary locally from the console."""
+        from praetorian_cli.runners.local import LocalRunner, get_tool_plugin
+
+        # Strip Guard key prefix for the raw target (same logic as CLI _run_local).
+        target = raw_target
+        if raw_target.startswith('#'):
+            parts = raw_target.split('#')
+            target = parts[-1] if len(parts) > 3 else parts[2] if len(parts) > 2 else raw_target
+
+        plugin = get_tool_plugin(tool_name)
+        tool_argv = plugin.build_args(target, pass_through=list(pass_through or []))
+
+        try:
+            runner = LocalRunner(tool_name)
+        except FileNotFoundError as e:
+            self.console.print(f'[error]{e}[/error]')
+            return
+
+        self.console.print(f'[info]Running {tool_name} locally against {target}...[/info]')
+        self.console.print(f'[dim]Command: {tool_name} {" ".join(tool_argv)}[/dim]')
+        self.console.print('[dim]' + '─' * 60 + '[/dim]')
+
+        import subprocess
+        proc = runner.run_streaming(tool_argv)
+        output_lines = []
+        try:
+            for line in proc.stdout:
+                self.console.print(line.rstrip('\n'))
+                output_lines.append(line)
+            proc.wait(timeout=600)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            self.console.print('[error]Timed out (10 min).[/error]')
+
+        stderr = proc.stderr.read() if proc.stderr else ''
+        if stderr:
+            self.console.print(f'[dim]{stderr}[/dim]')
+
+        self.console.print('[dim]' + '─' * 60 + '[/dim]')
+        self.console.print(f'[dim]Exit code: {proc.returncode}[/dim]')
+
+        # Best-effort upload to Guard (mirrors CLI behavior).
+        output_text = ''.join(output_lines)
+        if output_text.strip():
+            try:
+                import tempfile, os
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, prefix=f'{tool_name}-') as f:
+                    f.write(output_text)
+                    tmp_path = f.name
+                guard_path = f'proofs/local/{tool_name}/{target.replace("/", "_")}'
+                self.sdk.files.add(tmp_path, guard_path)
+                os.unlink(tmp_path)
+                self.console.print(f'[success]Output uploaded to Guard: {guard_path}[/success]')
+            except Exception as e:
+                self.console.print(f'[warning]Failed to upload output: {e}[/warning]')
 
     def _try_queue_job(self, target_key, capability, config_str):
         """Try to queue a job. If frozen/blocked, fallback to the login user's own account."""
