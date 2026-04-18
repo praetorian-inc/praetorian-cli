@@ -124,27 +124,34 @@ def run():
     pass
 
 
-@run.command('tool')
+@run.command(
+    'tool',
+    context_settings={'ignore_unknown_options': True, 'allow_extra_args': True},
+)
 @cli_handler
 @click.argument('tool_name')
 @click.argument('target')
+@click.argument('tool_args', nargs=-1, type=click.UNPROCESSED)
 @click.option('-c', '--config', 'extra_config', default='', help='Extra JSON config to merge')
 @click.option('--credential', multiple=True, help='Credential ID(s) to use')
 @click.option('--wait', is_flag=True, default=False, help='Wait for job completion and show results')
 @click.option('--ask', 'use_agent', is_flag=True, default=False, help='Run via Marcus AI agent instead of direct job')
 @click.option('--local', is_flag=True, default=False, help='Run locally using installed binary')
 @click.option('--remote', is_flag=True, default=False, help='Force remote job execution on Guard backend')
-def tool(sdk, tool_name, target, extra_config, credential, wait, use_agent, local, remote):
+def tool(sdk, tool_name, target, tool_args, extra_config, credential, wait, use_agent, local, remote):
     """ Execute a named security tool against a target
 
     By default, runs LOCALLY if the binary is installed, otherwise schedules
-    a remote job. Use --local or --remote to force.
+    a remote job. Use --local or --remote to force. Any additional arguments
+    after the target are forwarded to the local binary. Use `--` to pass
+    flags that collide with our own options.
 
     \b
     Example usages:
-        guard run tool brutus 10.0.1.5
-        guard run tool nuclei example.com --remote
-        guard run tool titus github.com/org/repo
+        guard run tool brutus 10.0.1.5:22
+        guard run tool brutus 10.0.1.5:22 --protocol ssh -U users.txt
+        guard run tool brutus 10.0.1.5:22 -- --wait
+        guard run tool nuclei example.com --remote -c '{"templates":"cves/"}'
     """
     from praetorian_cli.runners.local import is_installed as _is_installed
 
@@ -152,11 +159,26 @@ def tool(sdk, tool_name, target, extra_config, credential, wait, use_agent, loca
     if not cap:
         error(f'Unknown capability: {tool_name}. Use "guard run capabilities" to see available capabilities.')
 
-    # Decide local vs remote
+    # --local / --remote / --ask are mutually exclusive routing flags.
+    mode_flags = [('--local', local), ('--remote', remote), ('--ask', use_agent)]
+    set_flags = [name for name, v in mode_flags if v]
+    if len(set_flags) > 1:
+        error(f'Mutually exclusive flags: {", ".join(set_flags)}. Choose one.')
+
+    tool_args = list(tool_args or [])
+
+    # Decide local vs remote first so we can validate tool_args against the resolved path.
     run_local = local or (not remote and not use_agent and _is_installed(tool_name.lower()))
 
+    if tool_args and (remote or use_agent or not run_local):
+        error(
+            'Extra arguments after the target are only supported when running locally. '
+            'Install the tool locally ("guard run install %s") or encode settings as JSON '
+            'via -c \'{"key":"value"}\'.' % tool_name.lower()
+        )
+
     if run_local:
-        _run_local(sdk, tool_name.lower(), target, extra_config)
+        _run_local(sdk, tool_name.lower(), target, extra_config, tool_args)
     elif use_agent:
         target_key, warning = resolve_target(sdk, target, cap['target_type'])
         if not target_key:
@@ -376,7 +398,7 @@ def _run_via_agent(sdk, cap, target_key):
         error(str(e))
 
 
-def _run_local(sdk, tool_name, target, extra_config):
+def _run_local(sdk, tool_name, target, extra_config, tool_args=None):
     """Run a tool locally using the installed binary."""
     from praetorian_cli.runners.local import LocalRunner, get_tool_plugin
 
@@ -392,7 +414,7 @@ def _run_local(sdk, tool_name, target, extra_config):
         raw_target = parts[-1] if len(parts) > 3 else parts[2] if len(parts) > 2 else target
 
     plugin = get_tool_plugin(tool_name)
-    args = plugin.build_args(raw_target, extra_config)
+    args = plugin.build_args(raw_target, extra_config, pass_through=list(tool_args or []))
 
     click.echo(f'Running {tool_name} locally against {raw_target}...')
     click.echo(f'Command: {tool_name} {" ".join(args)}')
@@ -408,6 +430,10 @@ def _run_local(sdk, tool_name, target, extra_config):
         proc.wait(timeout=600)
     except subprocess.TimeoutExpired:
         proc.kill()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            pass
         click.echo('\nTimed out (10 min).', err=True)
 
     stderr = proc.stderr.read() if proc.stderr else ''

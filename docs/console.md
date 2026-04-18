@@ -114,6 +114,19 @@ guard (brutus) > 10.0.1.5      # runs locally, uploads results to Guard
 
 Use `--remote` to force backend execution, `--local` to force local.
 
+### Passing tool-specific flags
+
+Any arguments after `<target>` that the console doesn't recognise are forwarded
+verbatim to the local tool binary. Use `--` as an explicit separator if a flag
+collides with a console-owned option (`--ask`, `--wait`).
+
+    run brutus 10.0.1.5:22 --protocol ssh -U users.txt
+    run brutus 10.0.1.5:22 -- --wait --spray       # forwards --wait to brutus
+
+`run <tool> --help` runs the local binary's `--help` and streams the output
+into the console. Extra arguments require the binary to be installed
+(`install <tool>`) and are rejected for the Marcus agent path (`--ask`).
+
 ## Target Resolution
 
 Targets can be specified as:
