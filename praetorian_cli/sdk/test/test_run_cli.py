@@ -96,3 +96,33 @@ def test_no_passthrough_preserves_remote_path(runner, fake_sdk):
         ])
     assert result.exit_code == 0
     assert mock_direct.called
+
+
+def test_local_and_remote_conflict(runner, fake_sdk):
+    """--local + --remote is always a user error."""
+    result = _invoke(runner, fake_sdk, [
+        'run', 'tool', 'brutus', '10.0.1.5', '--local', '--remote',
+    ])
+    assert result.exit_code != 0
+    assert '--local' in result.output
+    assert '--remote' in result.output
+
+
+def test_local_and_ask_conflict(runner, fake_sdk):
+    """--local + --ask is always a user error."""
+    result = _invoke(runner, fake_sdk, [
+        'run', 'tool', 'brutus', '10.0.1.5', '--local', '--ask',
+    ])
+    assert result.exit_code != 0
+    assert '--local' in result.output
+    assert '--ask' in result.output
+
+
+def test_remote_and_ask_conflict(runner, fake_sdk):
+    """--remote + --ask is always a user error."""
+    result = _invoke(runner, fake_sdk, [
+        'run', 'tool', 'brutus', '10.0.1.5', '--remote', '--ask',
+    ])
+    assert result.exit_code != 0
+    assert '--remote' in result.output
+    assert '--ask' in result.output

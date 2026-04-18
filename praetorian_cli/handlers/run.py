@@ -159,6 +159,12 @@ def tool(sdk, tool_name, target, tool_args, extra_config, credential, wait, use_
     if not cap:
         error(f'Unknown capability: {tool_name}. Use "guard run capabilities" to see available capabilities.')
 
+    # --local / --remote / --ask are mutually exclusive routing flags.
+    mode_flags = [('--local', local), ('--remote', remote), ('--ask', use_agent)]
+    set_flags = [name for name, v in mode_flags if v]
+    if len(set_flags) > 1:
+        error(f'Mutually exclusive flags: {", ".join(set_flags)}. Choose one.')
+
     tool_args = list(tool_args or [])
 
     # Decide local vs remote first so we can validate tool_args against the resolved path.
