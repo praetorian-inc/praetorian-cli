@@ -249,11 +249,22 @@ class ToolPlugin:
 
 class BrutusPlugin(ToolPlugin):
     def _build(self, target, config, pass_through=None):
-        args = ['-t', target]
-        if config.get('usernames'):
+        args = ['--target', target]
+
+        # Protocol: explicit config > caller passthrough wins silently > inferred
+        caller_has_protocol = _has_flag(pass_through, '--protocol')
+        if not caller_has_protocol:
+            proto = config.get('protocol') or _infer_protocol(target)
+            if proto:
+                args.extend(['--protocol', proto])
+
+        if config.get('usernames') and not _has_flag(pass_through, '-u', '-U'):
             args.extend(['-u', config['usernames']])
-        if config.get('passwords'):
+        if config.get('passwords') and not _has_flag(pass_through, '-p', '-P'):
             args.extend(['-p', config['passwords']])
+
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 

@@ -112,3 +112,77 @@ class TestSubclassesAcceptPassThroughKwarg:
     def test_build_args_without_passthrough_still_works(self, plugin_cls):
         plugin = plugin_cls()
         plugin.build_args('example.com')
+
+
+from praetorian_cli.runners.local import BrutusPlugin
+
+
+class TestBrutusPlugin:
+    def setup_method(self):
+        self.plugin = BrutusPlugin()
+
+    def test_bare_target_emits_target_flag(self):
+        args = self.plugin.build_args('example.com')
+        assert args == ['--target', 'example.com']
+
+    def test_target_with_ssh_port_infers_protocol(self):
+        args = self.plugin.build_args('10.0.1.5:22')
+        assert args == ['--target', '10.0.1.5:22', '--protocol', 'ssh']
+
+    def test_target_with_rdp_port_infers_protocol(self):
+        args = self.plugin.build_args('host.example.com:3389')
+        assert args == ['--target', 'host.example.com:3389', '--protocol', 'rdp']
+
+    def test_unknown_port_does_not_infer_protocol(self):
+        args = self.plugin.build_args('host:9999')
+        assert args == ['--target', 'host:9999']
+
+    def test_config_protocol_overrides_inference(self):
+        args = self.plugin.build_args('10.0.1.5:22', extra_config='{"protocol":"smb"}')
+        assert '--protocol' in args
+        idx = args.index('--protocol')
+        assert args[idx + 1] == 'smb'
+
+    def test_config_usernames_and_passwords(self):
+        args = self.plugin.build_args(
+            'host:22',
+            extra_config='{"usernames":"root,admin","passwords":"pw1,pw2"}',
+        )
+        assert args == [
+            '--target', 'host:22', '--protocol', 'ssh',
+            '-u', 'root,admin', '-p', 'pw1,pw2',
+        ]
+
+    def test_passthrough_appended(self):
+        args = self.plugin.build_args('host:22', pass_through=['--spray', '-v'])
+        assert args == ['--target', 'host:22', '--protocol', 'ssh', '--spray', '-v']
+
+    def test_passthrough_username_file_suppresses_structured_u(self):
+        # Caller-supplied -U wins — we should not also emit structured -u.
+        args = self.plugin.build_args(
+            'host:22',
+            extra_config='{"usernames":"root,admin"}',
+            pass_through=['-U', 'users.txt'],
+        )
+        # '-u' (structured) must NOT be present; '-U' must be.
+        assert '-u' not in args
+        assert '-U' in args
+        assert args[args.index('-U') + 1] == 'users.txt'
+
+    def test_passthrough_protocol_suppresses_inference(self):
+        args = self.plugin.build_args(
+            'host:22',
+            pass_through=['--protocol', 'rdp'],
+        )
+        # Only one --protocol, and it's the passthrough value.
+        assert args.count('--protocol') == 1
+        assert args[args.index('--protocol') + 1] == 'rdp'
+
+    def test_passthrough_password_file_suppresses_structured_p(self):
+        args = self.plugin.build_args(
+            'host:22',
+            extra_config='{"passwords":"pw"}',
+            pass_through=['-P', 'passes.txt'],
+        )
+        assert '-p' not in args
+        assert '-P' in args
