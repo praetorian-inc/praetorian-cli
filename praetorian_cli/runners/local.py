@@ -34,6 +34,45 @@ INSTALLABLE_TOOLS = {
 }
 
 
+# Well-known service ports for Brutus protocol auto-detection.
+# Keep this minimal: only protocols Brutus natively supports.
+_WELL_KNOWN_PORTS = {
+    22: 'ssh',
+    3389: 'rdp',
+    21: 'ftp',
+    445: 'smb',
+    23: 'telnet',
+    3306: 'mysql',
+    5432: 'postgres',
+}
+
+
+def _infer_protocol(target: str):
+    """Infer protocol from a 'host:port' target using well-known ports.
+
+    Returns the protocol name or None if no inference is possible.
+    """
+    if not target or ':' not in target:
+        return None
+    # rsplit so 'host:port' works even if host contains ':'
+    _, sep, port_str = target.rpartition(':')
+    if not sep:
+        return None
+    try:
+        port = int(port_str)
+    except ValueError:
+        return None
+    return _WELL_KNOWN_PORTS.get(port)
+
+
+def _has_flag(pass_through, *flags):
+    """Return True if any of the given flag names appears in pass_through."""
+    if not pass_through:
+        return False
+    flag_set = set(flags)
+    return any(arg in flag_set for arg in pass_through)
+
+
 def _detect_platform():
     """Detect OS and architecture for binary download."""
     system = platform.system().lower()
