@@ -28,6 +28,8 @@ def export():
 @click.option('--retest/--no-retest', default=False,
               help='Include retest status badges and sections')
 @click.option('--version', 'report_version', default='1.0', help='Report version string')
+@click.option('--sow', default='', help='Statement of Work identifier (expands %%SOW%% shortcode).')
+@click.option('--footer', default='', help='Custom page-footer text (overrides the report title when set).')
 @click.option('--format', 'export_format', type=click.Choice(['pdf', 'zip']),
               default='pdf', help='Export format')
 @click.option('--group-by', type=click.Choice(['attack_surface', 'tag']),
@@ -48,7 +50,7 @@ def export():
               help='Skip downloading the file; just print the job result')
 def report(chariot, title, client_name, status_filter, risk_keys,
            target, start_date, end_date, report_date, draft, retest,
-           report_version, export_format, group_by, shared,
+           report_version, sow, footer, export_format, group_by, shared,
            executive_summary, narratives, appendix, output,
            timeout, no_download):
     """ Generate and download a PDF or ZIP report.
@@ -84,6 +86,8 @@ def report(chariot, title, client_name, status_filter, risk_keys,
         draft=draft,
         retest=retest,
         version=report_version,
+        sow=sow,
+        footer=footer,
         export_format=export_format,
         group_by=group_by,
         shared_output=shared,

@@ -36,7 +36,7 @@ class Reports:
                           status_filter=('O', 'T'), risk_keys=(),
                           target='', start_date='', end_date='',
                           report_date='', draft=False, retest=False,
-                          version='1.0',
+                          version='1.0', sow='', footer='',
                           export_format='pdf', group_by='attack_surface',
                           shared_output=False, executive_summary_path='',
                           narratives_path='', appendix_path=''):
@@ -67,6 +67,10 @@ class Reports:
         :type retest: bool
         :param version: Report version string
         :type version: str
+        :param sow: Statement of Work identifier (expands %SOW% shortcode)
+        :type sow: str
+        :param footer: Custom page-footer text (overrides the report title when set)
+        :type footer: str
         :param export_format: Output format ('pdf' or 'zip')
         :type export_format: str
         :param group_by: Finding grouping strategy ('attack_surface' or 'tag')
@@ -109,6 +113,10 @@ class Reports:
             body['config']['start_date'] = start_date
         if end_date:
             body['config']['end_date'] = end_date
+        if sow:
+            body['config']['sow'] = sow
+        if footer:
+            body['config']['footer'] = footer
         if executive_summary_path:
             body['executive_summary_path'] = executive_summary_path
         if narratives_path:
