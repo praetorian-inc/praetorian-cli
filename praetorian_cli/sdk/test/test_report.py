@@ -88,6 +88,9 @@ class TestBuildExportBody:
             draft=True,
             retest=True,
             version='2.0',
+            sow='SOW-2026-TEST',
+            footer='Q2 External Assessment',
+            confidential_label='Privileged & Confidential',
             export_format='zip',
             group_by='tag',
             shared_output=True,
@@ -103,6 +106,9 @@ class TestBuildExportBody:
         assert body['config']['draft'] is True
         assert body['config']['retest'] is True
         assert body['config']['version'] == '2.0'
+        assert body['config']['sow'] == 'SOW-2026-TEST'
+        assert body['config']['footer'] == 'Q2 External Assessment'
+        assert body['config']['confidential_label'] == 'Privileged & Confidential'
         assert body['export_format'] == 'zip'
         assert body['group_by'] == 'tag'
         assert body['shared_output'] is True
@@ -123,9 +129,13 @@ class TestBuildExportBody:
         reports, _ = make_reports()
         body = reports.build_export_body(
             title='Test', client_name='Test', customer_email='test@test.com',
-            target='', executive_summary_path='', narratives_path='', appendix_path='',
+            target='', sow='', footer='', confidential_label='',
+            executive_summary_path='', narratives_path='', appendix_path='',
         )
         assert 'target' not in body['config']
+        assert 'sow' not in body['config']
+        assert 'footer' not in body['config']
+        assert 'confidential_label' not in body['config']
         assert 'executive_summary_path' not in body
         assert 'narratives_path' not in body
         assert 'appendix_path' not in body
