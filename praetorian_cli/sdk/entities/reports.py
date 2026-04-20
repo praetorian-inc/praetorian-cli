@@ -36,7 +36,7 @@ class Reports:
                           status_filter=('O', 'T'), risk_keys=(),
                           target='', start_date='', end_date='',
                           report_date='', draft=False, retest=False,
-                          version='1.0', sow='', footer='',
+                          version='1.0', sow='', footer='', confidential_label='',
                           export_format='pdf', group_by='attack_surface',
                           shared_output=False, executive_summary_path='',
                           narratives_path='', appendix_path=''):
@@ -71,6 +71,8 @@ class Reports:
         :type sow: str
         :param footer: Custom page-footer text (overrides the report title when set)
         :type footer: str
+        :param confidential_label: Confidentiality label shown on cover, page header, and footer (defaults to "Confidential" when empty)
+        :type confidential_label: str
         :param export_format: Output format ('pdf' or 'zip')
         :type export_format: str
         :param group_by: Finding grouping strategy ('attack_surface' or 'tag')
@@ -117,6 +119,8 @@ class Reports:
             body['config']['sow'] = sow
         if footer:
             body['config']['footer'] = footer
+        if confidential_label:
+            body['config']['confidential_label'] = confidential_label
         if executive_summary_path:
             body['executive_summary_path'] = executive_summary_path
         if narratives_path:
