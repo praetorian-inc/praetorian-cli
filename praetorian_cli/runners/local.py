@@ -34,6 +34,45 @@ INSTALLABLE_TOOLS = {
 }
 
 
+# Well-known service ports for Brutus protocol auto-detection.
+# Keep this minimal: only protocols Brutus natively supports.
+_WELL_KNOWN_PORTS = {
+    22: 'ssh',
+    3389: 'rdp',
+    21: 'ftp',
+    445: 'smb',
+    23: 'telnet',
+    3306: 'mysql',
+    5432: 'postgres',
+}
+
+
+def _infer_protocol(target: str):
+    """Infer protocol from a 'host:port' target using well-known ports.
+
+    Returns the protocol name or None if no inference is possible.
+    """
+    if not target or ':' not in target:
+        return None
+    # rsplit so 'host:port' works even if host contains ':'
+    _, sep, port_str = target.rpartition(':')
+    if not sep:
+        return None
+    try:
+        port = int(port_str)
+    except ValueError:
+        return None
+    return _WELL_KNOWN_PORTS.get(port)
+
+
+def _has_flag(pass_through, *flags):
+    """Return True if any of the given flag names appears in pass_through."""
+    if not pass_through:
+        return False
+    flag_set = set(flags)
+    return any(arg in flag_set for arg in pass_through)
+
+
 def _detect_platform():
     """Detect OS and architecture for binary download."""
     system = platform.system().lower()
@@ -191,88 +230,134 @@ class LocalRunner:
 class ToolPlugin:
     """Base class for local tool argument builders."""
 
-    def build_args(self, target, extra_config=''):
+    def build_args(self, target, extra_config='', pass_through=None):
         config = {}
         if extra_config:
             try:
                 config = json.loads(extra_config) if isinstance(extra_config, str) else extra_config
             except (json.JSONDecodeError, TypeError):
                 pass
-        return self._build(target, config)
+        args = self._build(target, config, pass_through=pass_through)
+        return args
 
-    def _build(self, target, config):
-        return [target]
+    def _build(self, target, config, pass_through=None):
+        args = [target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class BrutusPlugin(ToolPlugin):
-    def _build(self, target, config):
-        args = ['-t', target]
-        if config.get('usernames'):
+    def _build(self, target, config, pass_through=None):
+        args = ['--target', target]
+
+        # Protocol precedence: caller passthrough (silent) > config['protocol'] > inferred from port
+        caller_has_protocol = _has_flag(pass_through, '--protocol')
+        if not caller_has_protocol:
+            proto = config.get('protocol') or _infer_protocol(target)
+            if proto:
+                args.extend(['--protocol', proto])
+
+        if config.get('usernames') and not _has_flag(pass_through, '-u', '-U'):
             args.extend(['-u', config['usernames']])
-        if config.get('passwords'):
+        if config.get('passwords') and not _has_flag(pass_through, '-p', '-P'):
             args.extend(['-p', config['passwords']])
+
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
 class NucleiPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['-u', target, '-jsonl']
         if config.get('templates'):
             args.extend(['-t', config['templates']])
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
 class TitusPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['scan', target]
         if config.get('validation') == 'true':
             args.append('--validate')
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
 class TrajanPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['scan', target]
         if config.get('token'):
             args.extend(['--token', config['token']])
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
 class JuliusPlugin(ToolPlugin):
-    def _build(self, target, config):
-        return ['-t', target]
+    def _build(self, target, config, pass_through=None):
+        args = ['-t', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class AugustusPlugin(ToolPlugin):
-    def _build(self, target, config):
-        return ['scan', '-t', target]
+    def _build(self, target, config, pass_through=None):
+        args = ['scan', '-t', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class NervaPlugin(ToolPlugin):
-    def _build(self, target, config):
-        return ['-t', target]
+    def _build(self, target, config, pass_through=None):
+        args = ['-t', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class GatoPlugin(ToolPlugin):
-    def _build(self, target, config):
+    def _build(self, target, config, pass_through=None):
         args = ['enumerate', '-t', target]
         if config.get('token'):
             args.extend(['--token', config['token']])
+        if pass_through:
+            args.extend(pass_through)
         return args
 
 
 class UrlTargetPlugin(ToolPlugin):
     """For tools that take scan -u <target>."""
-    def _build(self, target, config):
-        return ['scan', '-u', target]
+    def _build(self, target, config, pass_through=None):
+        args = ['scan', '-u', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
 class ScanTargetPlugin(ToolPlugin):
     """For tools that take scan <target>."""
-    def _build(self, target, config):
-        return ['scan', target]
+    def _build(self, target, config, pass_through=None):
+        args = ['scan', target]
+        if pass_through:
+            args.extend(pass_through)
+        return args
 
 
+# Plugin verification status:
+# - brutus:      verified against brutus --help (ENG-3042)
+# - nuclei:      -u is the documented URL flag — OK
+# - julius/nerva/nero: use -t <target>; unverified against each binary's --help
+# - titus/trajan/vespasian/constantine/caligula: `scan <target>` — unverified
+# - augustus/gato: `scan -t <target>` / `enumerate -t <target>` — unverified
+# - cato/florian/hadrian: `scan -u <target>` — unverified
+# Users can always override via `guard run tool <tool> <target> -- <raw args>`.
 TOOL_PLUGINS = {
     'brutus':      BrutusPlugin(),
     'nuclei':      NucleiPlugin(),
