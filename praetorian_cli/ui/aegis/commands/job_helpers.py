@@ -351,3 +351,125 @@ def resolve_addomain_target_key(menu, domain):
         menu.console.print(f"  [{colors['error']}]Error querying domain asset: {e}[/{colors['error']}]")
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Seed/asset target picker
+# ---------------------------------------------------------------------------
+
+class SeedTargetCompleter(Completer):
+    """Fuzzy completer for seed/asset target selection."""
+
+    def __init__(self, seeds, agent_hostname=None):
+        self.candidates = []
+        if agent_hostname:
+            self.candidates.append({
+                'label': agent_hostname,
+                'target_key': f'#asset#{agent_hostname}#{agent_hostname}',
+                'type': 'agent',
+                'status': 'A',
+            })
+        for seed in seeds:
+            key = seed.get('key', '')
+            parts = key.split('#')
+            seed_type = parts[2] if len(parts) >= 3 else '?'
+            identifier = seed.get('dns') or seed.get('name') or (parts[3] if len(parts) >= 4 else key)
+            status = seed.get('status', '?')
+            self.candidates.append({
+                'label': identifier,
+                'target_key': key,
+                'type': seed_type,
+                'status': status,
+            })
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor.lower()
+        for cand in self.candidates:
+            searchable = f"{cand['label']} {cand['type']} {cand['target_key']}".lower()
+            if not text or text in searchable:
+                display_meta = f"[{cand['type']}] {cand['status']}"
+                yield Completion(
+                    cand['label'],
+                    start_position=-len(document.text_before_cursor),
+                    display=cand['label'],
+                    display_meta=display_meta,
+                )
+
+
+def select_asset_target(menu, default_hostname=None):
+    """Interactive asset/seed target picker with fuzzy search.
+
+    Returns:
+        tuple: (target_key, target_display) or (None, None) if cancelled.
+    """
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
+
+    try:
+        menu.console.print(f"  [{colors['dim']}]Loading seeds...[/{colors['dim']}]")
+        seeds, _ = menu.sdk.seeds.list()
+    except Exception as e:
+        menu.console.print(f"  [{colors['dim']}]Could not load seeds: {e}[/{colors['dim']}]")
+        seeds = []
+
+    active = [s for s in (seeds or []) if str(s.get('status', 'A')).startswith('A')]
+
+    completer = SeedTargetCompleter(active, agent_hostname=default_hostname)
+    if not completer.candidates:
+        menu.console.print(f"  [{colors['warning']}]No seeds or agent hostname available.[/{colors['warning']}]")
+        return None, None
+
+    menu.console.print(
+        f"  [{colors['dim']}]{len(completer.candidates)} target(s) available. "
+        f"Type to filter, Tab to complete, Enter to accept, Ctrl+C to cancel[/{colors['dim']}]"
+    )
+
+    try:
+        result = pt_prompt(
+            "  Select target: ",
+            completer=FuzzyCompleter(completer),
+            complete_while_typing=True,
+        )
+    except (KeyboardInterrupt, EOFError):
+        menu.console.print("\n  Cancelled")
+        return None, None
+
+    if not result or not result.strip():
+        return None, None
+
+    result = result.strip()
+
+    for cand in completer.candidates:
+        if cand['label'] == result:
+            return cand['target_key'], cand['label']
+
+    if result.startswith('#'):
+        return result, result
+
+    for cand in completer.candidates:
+        if cand['target_key'].endswith(f'#{result}'):
+            return cand['target_key'], cand['label']
+
+    # Unknown target — offer to create as a new seed
+    if not Confirm.ask(f"  '{result}' is not a known seed/asset. Create seed and run?", default=False):
+        return None, None
+
+    try:
+        created = menu.sdk.seeds.add(status='A', seed_type='asset', dns=result)
+    except Exception as e:
+        menu.console.print(f"  [{colors['error']}]Failed to create seed: {e}[/{colors['error']}]")
+        return None, None
+
+    new_key = None
+    if isinstance(created, dict):
+        new_key = created.get('key')
+    elif isinstance(created, list) and created and isinstance(created[0], dict):
+        new_key = created[0].get('key')
+
+    if not new_key:
+        menu.console.print(
+            f"  [{colors['warning']}]Seed created but key not returned; cannot target.[/{colors['warning']}]"
+        )
+        return None, None
+
+    menu.console.print(f"  [{colors['success']}]Created seed {new_key}[/{colors['success']}]")
+    return new_key, result
