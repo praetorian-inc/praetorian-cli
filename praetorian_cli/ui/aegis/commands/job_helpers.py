@@ -15,7 +15,15 @@ from ..constants import DEFAULT_COLORS
 def extract_target_type(capability_info: dict) -> str:
     """Extract the target type from capability info, handling list or string values."""
     target_raw = capability_info.get('target', 'asset')
-    return (target_raw[0] if isinstance(target_raw, list) and target_raw else str(target_raw)).lower()
+
+    if isinstance(target_raw, str):
+        return target_raw.lower()
+
+    if isinstance(target_raw, list):
+        normalized = [str(item).lower() for item in target_raw]
+        return normalized[0] if normalized else 'asset'
+
+    return str(target_raw).lower()
 
 
 # ---------------------------------------------------------------------------
@@ -53,10 +61,7 @@ class CapabilityCompleter(Completer):
         for cap in self.capabilities:
             name = cap.get('name', '')
             name_lower = name.lower()
-            target = cap.get('target', 'asset')
-            if isinstance(target, list):
-                target = target[0] if target else 'asset'
-            target = str(target).lower()
+            target = extract_target_type(cap)
             description = cap.get('description', '') or ''
             parsed = _parse_capability_name(name)
             category = parsed.get('category', '')
