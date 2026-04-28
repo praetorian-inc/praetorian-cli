@@ -4,7 +4,7 @@ import pytest
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 from praetorian_cli.ui.aegis.commands.job import handle_job
-from praetorian_cli.ui.aegis.commands.job_helpers import CapabilityCompleter
+from praetorian_cli.ui.aegis.commands.job_helpers import CapabilityCompleter, extract_target_type
 from rich.prompt import Confirm
 from praetorian_cli.sdk.test.ui_mocks import MockMenuBase, MockSDK, MockAgent
 
@@ -49,6 +49,11 @@ def test_capability_completer_accepts_list_target():
     assert len(completions) == 1
     assert completions[0].text == 'linux-enum-linpeas'
     assert '[asset]' in str(completions[0].display_meta)
+
+
+def test_extract_target_type_normalizes_empty_and_non_string_lists():
+    assert extract_target_type({'target': []}) == 'asset'
+    assert extract_target_type({'target': [123]}) == '123'
 
 
 def test_job_run_success(monkeypatch):
