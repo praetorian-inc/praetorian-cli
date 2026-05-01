@@ -50,7 +50,7 @@ class Assets:
             asset['associated_risks'] = self.associated_risks(key)
         return asset
 
-    def update(self, key, status=None, surface=None):
+    def update(self, key, status=None, surface=None, secret=None):
         """
         Update an asset.
 
@@ -60,6 +60,9 @@ class Assets:
         :type status: str or None
         :param surface: Attack surface classification (e.g., 'internal', 'external'), if None surface is not updated
         :type surface: str or None
+        :param secret: For WebApplication assets, the credential ID to set as the default credential.
+            If None, the secret is not updated.
+        :type secret: str or None
         :return: None
         :rtype: None
         """
@@ -68,7 +71,9 @@ class Assets:
             params = params | dict(status=status)
         if surface:
             params = params | dict(attackSurface=[surface])
-            
+        if secret is not None:
+            params = params | dict(secret=secret)
+
         return self.api.upsert('asset', params)
 
     def delete(self, key):

@@ -14,15 +14,17 @@ class Credentials:
         """
         Add a new credential to the credential broker.
 
-        :param resource_key: The resource key for the credential (e.g., account key)
+        :param resource_key: The resource key for the credential (e.g., account key, web-application key)
         :type resource_key: str
         :param category: The category of the credential ('integration', 'cloud', 'env-integration')
         :type category: str
-        :param type: The type of credential ('aws', 'gcp', 'azure', 'static', 'ssh_key', 'json', 'active-directory', 'default')
+        :param type: The type of credential ('aws', 'gcp', 'azure', 'static-token', 'ssh-key',
+            'json-credential', 'active-directory', 'burp-authentication', 'web-auth', etc.)
         :type type: str
         :param label: A human-readable label for the credential
         :type label: str
-        :param parameters: Additional parameters for the credential (e.g., username, password, domain)
+        :param parameters: Additional parameters for the credential (e.g., username, password, domain,
+            or for web-auth: method + headers dict)
         :type parameters: dict
         :return: The response from the broker API
         :rtype: dict
@@ -35,6 +37,27 @@ class Credentials:
             'Parameters': parameters | {'label': label}
         }
         return self.api.post('broker', request)
+
+    def delete(self, credential_id, resource_key, type):
+        """
+        Delete a credential via the credential broker.
+
+        :param credential_id: The ID of the credential to delete
+        :type credential_id: str
+        :param resource_key: The resource key the credential is attached to
+            (e.g., account key, web-application key)
+        :type resource_key: str
+        :param type: The credential type (e.g., 'web-auth', 'active-directory', 'burp-authentication')
+        :type type: str
+        :return: The response from the broker API
+        :rtype: dict
+        """
+        request = {
+            'CredentialID': credential_id,
+            'ResourceKey': resource_key,
+            'Type': type,
+        }
+        return self.api.delete('broker', request, params={})
 
     def list(self, offset=None, pages=100000):
         """

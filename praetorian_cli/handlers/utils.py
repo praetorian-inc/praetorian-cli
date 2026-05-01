@@ -17,7 +17,7 @@ def parse_configuration_value(
         error('--entry cannot be combined with --string, --integer, or --float')
 
     if has_entries:
-        return _parse_entry_dict(entries)
+        return parse_kv_entries(entries)
 
     provided = [(name, value) for name, value in typed_values.items() if value is not None]
 
@@ -30,25 +30,27 @@ def parse_configuration_value(
     return _cast_typed_value(value_type, raw_value)
 
 
-def _parse_entry_dict(entries):
-    parsed = {}
+def parse_kv_entries(entries, label='Entry'):
+    """Parse an iterable of 'key=value' strings into a dict.
 
+    Splits on the first '=' so values may themselves contain '=' (e.g.
+    base64-padded tokens, cookies). Calls error() (exits) on bad input.
+
+    :param entries: iterable of 'key=value' strings
+    :param label: human-readable label for the entry kind (used in error messages,
+        e.g. 'Header', '--param')
+    """
+    parsed = {}
     for item in entries:
-        key, value = _split_entry(item)
+        if '=' not in item:
+            error(f"{label} '{item}' is not in the format key=value")
+        key, value = item.split('=', 1)
         if not key:
-            error(f'Key cannot be empty: {item}')
+            error(f'{label} key cannot be empty: {item}')
         if not value:
-            error(f'Value cannot be empty: {item}')
+            error(f'{label} value cannot be empty: {item}')
         parsed[key] = value
     return parsed
-
-
-def _split_entry(item):
-    if '=' not in item:
-        error(f"Entry '{item}' is not in the format key=value")
-    if item.count('=') > 1:
-        error(f"Entry '{item}' contains multiple '=' characters. Format should be key=value")
-    return item.split('=', 1)
 
 
 def _cast_typed_value(value_type, raw_value):

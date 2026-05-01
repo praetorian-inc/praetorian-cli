@@ -16,8 +16,10 @@ def update():
 @click.argument('key', required=True)
 @click.option('-s', '--status', type=click.Choice([s.value for s in Asset]), help='The status of the asset')
 @click.option('-f', '--surface', required=False, default='', help=f'Attack surface of the asset', show_default=False)
-def asset(chariot, key, status, surface):
-    """ Update the status or surface of an asset
+@click.option('--secret', default=None,
+              help='For WebApplication assets, the credential ID to set as the default credential')
+def asset(chariot, key, status, surface, secret):
+    """ Update the status, surface, or default credential of an asset
 
     \b
     Argument:
@@ -27,8 +29,9 @@ def asset(chariot, key, status, surface):
     Example usages:
         - guard update asset "#asset#www.example.com#1.2.3.4" -s F
         - guard update asset "#asset#www.example.com#1.2.3.4" -f internal
+        - guard update asset "#webapplication#https://app.example.com" --secret abc-123
     """
-    chariot.assets.update(key, status, surface)
+    chariot.assets.update(key, status, surface, secret=secret)
 
 
 @update.command()
