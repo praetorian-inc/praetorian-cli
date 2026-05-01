@@ -194,3 +194,60 @@ def webpage(chariot, key):
         - KEY: the key of an existing webpage
     """
     chariot.webpage.delete(key)
+
+
+@delete.group()
+def credential():
+    """ Delete a credential via the broker
+
+    For web-auth credentials shared across multiple WebApplications, this only
+    detaches the credential from the given resource_key — the underlying
+    credential is fully removed once it has no remaining attachments.
+
+    Use the typed subcommands (e.g. `webauth`) for friendlier UX, or `generic`
+    when deleting a credential type that doesn't have a typed subcommand yet.
+    """
+    pass
+
+
+@credential.command('generic')
+@cli_handler
+@click.argument('credential_id', required=True)
+@click.option('-r', '--resource-key', required=True,
+              help='The resource key the credential is attached to (e.g., web-application key, account key)')
+@click.option('-t', '--type', 'cred_type', required=True,
+              help='The credential type (e.g., active-directory, burp-authentication)')
+def credential_generic(chariot, credential_id, resource_key, cred_type):
+    """ Delete a credential of any type (escape hatch).
+
+    \b
+    Arguments:
+        - CREDENTIAL_ID: the ID of the credential to delete
+
+    \b
+    Example usage:
+        - guard delete credential generic def-456 -r "#asset#example.com#1.2.3.4" -t active-directory
+    """
+    chariot.credentials.delete(credential_id, resource_key, cred_type)
+
+
+@credential.command('webauth')
+@cli_handler
+@click.argument('credential_id', required=True)
+@click.option('-k', '--resource-key', required=True,
+              help='Web-application key (e.g., #webapplication#https://app.example.com)')
+def credential_webauth(chariot, credential_id, resource_key):
+    """ Delete a web-auth credential from a WebApplication.
+
+    Detaches the credential from this WebApplication; the underlying credential
+    is fully removed once it has no remaining attachments.
+
+    \b
+    Arguments:
+        - CREDENTIAL_ID: the ID of the web-auth credential to delete
+
+    \b
+    Example usage:
+        - guard delete credential webauth abc-123 -k "#webapplication#https://app.example.com"
+    """
+    chariot.credentials.delete(credential_id, resource_key, 'web-auth')

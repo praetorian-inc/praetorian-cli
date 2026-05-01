@@ -6,7 +6,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import error, parse_configuration_value
+from praetorian_cli.handlers.utils import error, parse_configuration_value, parse_kv_entries
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
 
 
@@ -357,40 +357,71 @@ def webpage(sdk, url, parent):
     sdk.webpage.add(url, parent)
 
 
-@add.command()
+@add.group(invoke_without_command=True)
 @cli_handler
-@click.option('-r', '--resource-key', required=True, help='The resource key for the credential (e.g., account key)')
-@click.option('-c', '--category', required=True,
+@click.option('-r', '--resource-key', help='The resource key for the credential (e.g., account key)')
+@click.option('-c', '--category',
               type=click.Choice(['integration', 'cloud', 'env-integration']),
               help='The category of the credential')
-@click.option('-t', '--type', 'cred_type', required=True,
-              help='The type of credential (aws, gcp, azure, static, ssh_key, json, active-directory, default)')
-@click.option('-l', '--label', required=True, help='A human-readable label for the credential')
+@click.option('-t', '--type', 'cred_type',
+              help='The type of credential (aws, gcp, azure, static-token, ssh-key, '
+                   'json-credential, active-directory, burp-authentication, web-auth, etc.)')
+@click.option('-l', '--label', help='A human-readable label for the credential')
 @click.option('-p', '--param', 'parameters', multiple=True,
               help='Parameter in format key=value (can be specified multiple times)')
-def credential(sdk, resource_key, category, cred_type, label, parameters):
+@click.pass_context
+def credential(ctx, sdk, resource_key, category, cred_type, label, parameters):
     """ Add a credential
 
-    This command adds a credential to the credential broker. Credentials can be used
-    for authentication with various cloud providers, integrations, and environment services.
+    Without a subcommand, adds a credential generically — you provide all of category,
+    type, label, and params. Use the typed subcommands (e.g. `webauth`) for friendlier
+    UX when adding a known credential type.
 
     \b
     Example usages:
         - guard add credential --resource-key "C.0c6cf7104f516b08-OGMPG" --category env-integration --type active-directory --label "Robb Stark" --param username=robb.stark --param password=sexywolfy --param domain=north.sevenkingdoms.local
         - guard add credential -r "C.example-key" -c cloud -t aws --label "AWS Production" -p region=us-east-1 -p role_arn=arn:aws:iam::123456789012:role/MyRole
-        - guard add credential -r "C.example-key" -c integration -t static --label "API Token" -p token=abc123xyz
+        - guard add credential -r "C.example-key" -c integration -t static-token --label "API Token" -p token=abc123xyz
     """
-    # Parse parameters from key=value format
-    params = {}
-    for param in parameters:
-        if '=' not in param:
-            error(f"Parameter '{param}' is not in the format key=value")
-            return
-        key, value = param.split('=', 1)
-        params[key] = value
+    if ctx.invoked_subcommand is not None:
+        return
+
+    missing = [name for name, val in
+               [('--resource-key', resource_key), ('--category', category),
+                ('--type', cred_type), ('--label', label)] if not val]
+    if missing:
+        error(f"Missing required option(s): {', '.join(missing)}")
+
+    params = parse_kv_entries(parameters, label='Param')
 
     try:
         result = sdk.credentials.add(resource_key, category, cred_type, label, params)
         click.echo(json.dumps(result, indent=2))
     except Exception as e:
         error(f'Unable to add credential. Error: {e}')
+
+
+@credential.command('webauth')
+@cli_handler
+@click.option('-k', '--resource-key', required=True,
+              help='Web-application key (e.g., #webapplication#https://app.example.com)')
+@click.option('-l', '--label', required=True, help='A human-readable label for the credential')
+@click.option('-H', '--header', 'headers', multiple=True, required=True,
+              help='Header in format Name=Value (can be specified multiple times)')
+def credential_webauth(sdk, resource_key, label, headers):
+    """ Add a static-token web-auth credential to a WebApplication.
+
+    Persists a header bag (e.g. an Authorization bearer token) that Chariot
+    capabilities and Burp Enterprise will use when scanning the target.
+
+    \b
+    Example usage:
+        - guard add credential webauth -k "#webapplication#https://app.example.com" -l "Prod token" -H "Authorization=Bearer abc123" -H "X-Tenant=acme"
+    """
+    headers_dict = parse_kv_entries(headers, label='Header')
+    parameters = {'method': 'static-token', 'headers': headers_dict}
+    try:
+        result = sdk.credentials.add(resource_key, 'env-integration', 'web-auth', label, parameters)
+        click.echo(json.dumps(result, indent=2))
+    except Exception as e:
+        error(f'Unable to add web-auth credential. Error: {e}')

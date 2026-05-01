@@ -1,9 +1,12 @@
 # Changelog
 
+# 2.4.3
+- [New Feature] Added static token credentials for Web Applications, see `guard add credential webauth`
+
 # 2.4.2
 - [New Feature] Added automatic cloud credential refresh to the `guard access` command
 - [Update] Updated the customer onboard to new API standard
-
+ 
 # 2.4.1
 - [Bug fix] Improve the intutiveness of the `guard run list` command
 
