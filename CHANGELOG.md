@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.4.4
+- [Bug fix] Updated to new API requirements for credential retrieval, see `guard get credential`
+
 # 2.4.3
 - [New Feature] Added static token credentials for Web Applications, see `guard add credential webauth`
 
