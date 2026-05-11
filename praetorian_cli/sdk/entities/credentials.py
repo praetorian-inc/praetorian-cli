@@ -72,11 +72,14 @@ class Credentials:
         """
         return self.api.search.by_key_prefix('#credential', offset=offset, pages=pages)
 
-    def get(self, credential_id, category, type, format, **parameters):
+    def get(self, credential_id, category, type, format, resolution='by-target',
+            resource_key=None, **parameters):
         """
         Get a specific credential using the credential broker.
 
-        :param credential_id: The ID of the credential to retrieve
+        :param credential_id: The ID of the credential to retrieve. Required for
+            resolution='by-target'; optional for 'from-parent' (broker walks the
+            graph if empty).
         :type credential_id: str
         :param category: The category of the credential ('integration', 'cloud', 'env-integration')
         :type category: str
@@ -84,6 +87,13 @@ class Credentials:
         :type type: str
         :param format: The format of the credential response ('token', 'file', 'env')
         :type format: str or list
+        :param resolution: How the broker should locate the credential. One of
+            'by-target' (use credential_id as-is; default) or 'from-parent'
+            (walk DISCOVERED ancestors of resource_key).
+        :type resolution: str
+        :param resource_key: Asset/resource key the credential is scoped to.
+            Required when resolution='from-parent'.
+        :type resource_key: str or None
         :param parameters: Additional parameters required for the credential request (e.g., region, role_arn)
         :type parameters: dict
         :return: The processed credential response based on the requested format
@@ -101,8 +111,11 @@ class Credentials:
             'Category': category,
             'Type': type,
             'Format': broker_format,
-            'Parameters': parameters
+            'Resolution': resolution,
+            'Parameters': parameters,
         }
+        if resource_key:
+            request['ResourceKey'] = resource_key
         response = self.api.post('broker', request)
         return self._process_credential_output(response, format)
 
