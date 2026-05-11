@@ -9,6 +9,7 @@ from click.testing import CliRunner
 # Click commands on the `chariot` group via decorators at import time.
 import praetorian_cli.handlers.add  # noqa: F401
 import praetorian_cli.handlers.delete  # noqa: F401
+import praetorian_cli.handlers.get  # noqa: F401
 import praetorian_cli.handlers.update  # noqa: F401
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.sdk.entities.assets import Assets
@@ -44,6 +45,109 @@ class TestCredentialsAdd:
                 'label': 'Prod token',
             },
         })
+
+
+class TestCredentialsGet:
+    def test_get_builds_broker_request_with_resolution_by_target(self):
+        """The broker rejects Get requests without Resolution (PR #5457). The
+        CLI always passes an explicit credential_id, so Resolution must be
+        'by-target' — anything else either ignores the id (global) or requires
+        a ResourceKey the CLI doesn't have (from-parent)."""
+        api = MagicMock()
+        api.post.return_value = {'credentialValue': {'token': 'abc'}}
+        creds = Credentials(api=api)
+
+        creds.get(
+            credential_id='e699e73e-e371-4117-9192-e32147dfe98c',
+            category='env-integration',
+            type='aws',
+            format=['token'],
+            accountId='123456789012',
+        )
+
+        api.post.assert_called_once_with('broker', {
+            'Operation': 'get',
+            'CredentialID': 'e699e73e-e371-4117-9192-e32147dfe98c',
+            'Category': 'env-integration',
+            'Type': 'aws',
+            'Format': ['token'],
+            'Resolution': 'by-target',
+            'Parameters': {'accountId': '123456789012'},
+        })
+
+    def test_get_rewrites_credential_process_format_to_token(self):
+        """`credential-process` is a client-side format — the broker sees
+        'token' and the SDK assembles the AWS credential_process JSON from the
+        response."""
+        api = MagicMock()
+        api.post.return_value = {
+            'credentialValue': {
+                'accessKeyId': 'ASIA...',
+                'secretAccessKey': 'secret',
+                'sessionToken': 'session',
+                'expiration': '2026-04-10T12:00:00Z',
+            }
+        }
+        creds = Credentials(api=api)
+
+        creds.get(
+            credential_id='abc-123',
+            category='env-integration',
+            type='aws',
+            format=['credential-process'],
+        )
+
+        sent = api.post.call_args.args[1]
+        assert sent['Format'] == ['token']
+        assert sent['Resolution'] == 'by-target'
+
+    def test_get_with_from_parent_sends_resource_key(self):
+        """from-parent: broker walks DISCOVERED ancestors of ResourceKey for a
+        matching credential. ResourceKey is required, CredentialID may be
+        empty."""
+        api = MagicMock()
+        api.post.return_value = {'ok': True}
+        creds = Credentials(api=api)
+
+        creds.get(
+            credential_id='',
+            category='env-integration',
+            type='aws',
+            format=['token'],
+            resolution='from-parent',
+            resource_key='#asset#example.com#1.2.3.4',
+        )
+
+        api.post.assert_called_once_with('broker', {
+            'Operation': 'get',
+            'CredentialID': '',
+            'Category': 'env-integration',
+            'Type': 'aws',
+            'Format': ['token'],
+            'Resolution': 'from-parent',
+            'Parameters': {},
+            'ResourceKey': '#asset#example.com#1.2.3.4',
+        })
+
+    def test_get_with_global_resolution_omits_resource_key(self):
+        """global: broker synthesizes CredentialID from Type — ResourceKey is
+        not used, and the SDK should not include it."""
+        api = MagicMock()
+        api.post.return_value = {'ok': True}
+        creds = Credentials(api=api)
+
+        creds.get(
+            credential_id='',
+            category='env-integration',
+            type='shodan',
+            format=['token'],
+            resolution='global',
+        )
+
+        sent = api.post.call_args.args[1]
+        assert sent['Resolution'] == 'global'
+        assert sent['Type'] == 'shodan'
+        assert 'ResourceKey' not in sent
 
 
 class TestCredentialsDelete:
@@ -105,6 +209,8 @@ def fake_sdk():
     sdk = MagicMock()
     sdk.credentials.add.return_value = {'ok': True}
     sdk.credentials.delete.return_value = {'ok': True}
+    sdk.credentials.get.return_value = {'credentialValue': {'token': 'abc'}}
+    sdk.credentials.format_output.side_effect = lambda r: str(r)
     sdk.assets.update.return_value = {'ok': True}
     return sdk
 
@@ -249,6 +355,88 @@ class TestDeleteCredential:
             '#webapplication#https://app.example.com',
             'web-auth',
         )
+
+
+class TestGetCredentialCLI:
+    """`guard get credential ...` — verifies the --resolution flag and its
+    interaction with CREDENTIAL_ID / --resource-key."""
+
+    def test_default_resolution_is_by_target(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential', 'cred-abc-123',
+            '--category', 'env-integration',
+            '--type', 'aws',
+        ])
+        assert result.exit_code == 0, result.output
+        fake_sdk.credentials.get.assert_called_once_with(
+            'cred-abc-123', 'env-integration', 'aws', ['token'],
+            resolution='by-target', resource_key=None,
+        )
+
+    def test_explicit_by_target_passes_through(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential', 'cred-abc-123',
+            '--resolution', 'by-target',
+            '--type', 'aws',
+        ])
+        assert result.exit_code == 0, result.output
+        kwargs = fake_sdk.credentials.get.call_args.kwargs
+        assert kwargs['resolution'] == 'by-target'
+        assert kwargs['resource_key'] is None
+
+    def test_from_parent_requires_resource_key(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential',
+            '--resolution', 'from-parent',
+            '--type', 'aws',
+        ])
+        assert result.exit_code != 0
+        assert '--resource-key' in result.output
+        fake_sdk.credentials.get.assert_not_called()
+
+    def test_from_parent_with_resource_key(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential',
+            '--resolution', 'from-parent',
+            '--resource-key', '#asset#example.com#1.2.3.4',
+            '--type', 'aws',
+        ])
+        assert result.exit_code == 0, result.output
+        fake_sdk.credentials.get.assert_called_once_with(
+            '', 'env-integration', 'aws', ['token'],
+            resolution='from-parent',
+            resource_key='#asset#example.com#1.2.3.4',
+        )
+
+    def test_global_resolution_does_not_require_credential_id(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential',
+            '--resolution', 'global',
+            '--type', 'shodan',
+        ])
+        assert result.exit_code == 0, result.output
+        fake_sdk.credentials.get.assert_called_once_with(
+            '', 'env-integration', 'shodan', ['token'],
+            resolution='global', resource_key=None,
+        )
+
+    def test_by_target_requires_credential_id(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential',
+            '--resolution', 'by-target',
+            '--type', 'aws',
+        ])
+        assert result.exit_code != 0
+        assert 'CREDENTIAL_ID' in result.output
+        fake_sdk.credentials.get.assert_not_called()
+
+    def test_invalid_resolution_value_is_rejected(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential', 'cred-abc-123',
+            '--resolution', 'nope',
+        ])
+        assert result.exit_code != 0
+        assert 'nope' in result.output or "'by-target'" in result.output
 
 
 class TestUpdateAssetSecret:

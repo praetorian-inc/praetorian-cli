@@ -4,7 +4,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import error, print_json
 
 
 @chariot.group()
@@ -259,31 +259,51 @@ def configuration(chariot, key):
 
 @get.command()
 @cli_handler
-@click.argument('credential_id', required=True)
+@click.argument('credential_id', required=False, default='')
 @click.option('--category', default='env-integration', help='The category of the credential (e.g., integration, cloud)')
 @click.option('--type', default='default', help='The type of credential (e.g., aws, gcp, azure, static, ssh_key, json)')
 @click.option('--format', default='token', help='The format of the credential response')
+@click.option('--resolution',
+              type=click.Choice(['by-target', 'from-parent', 'global'], case_sensitive=False),
+              default='by-target',
+              show_default=True,
+              help='How the broker should locate the credential. '
+                   'by-target: use the supplied CREDENTIAL_ID as-is. '
+                   'from-parent: walk DISCOVERED ancestors of --resource-key to find one with a matching credential. '
+                   'global: platform-wide singleton credential identified by --type (CREDENTIAL_ID ignored).')
+@click.option('--resource-key', default=None,
+              help='Asset/resource key to scope the lookup. Required when --resolution=from-parent.')
 @click.option('--parameters', nargs=2, multiple=True, help='Additional parameters, as --parameters key value')
-def credential(chariot, credential_id, category, type, format, parameters):
+def credential(chariot, credential_id, category, type, format, resolution, resource_key, parameters):
     """ Get a specific credential
 
     Retrieve a specific credential using the credential broker.
 
     \b
     Argument:
-        - CREDENTIAL_ID: the ID of the credential to retrieve
+        - CREDENTIAL_ID: the ID of the credential to retrieve. Required for
+          --resolution=by-target; optional for from-parent; ignored for global.
 
     \b
     Example usages:
         - guard get credential aws-prod --category integration --type aws --format json
         - guard get credential ssh-key-1 --category cloud --type ssh_key --format pem
+        - guard get credential --resolution global --type shodan
+        - guard get credential --resolution from-parent --resource-key '#asset#example.com#1.2.3.4' --type aws
     """
-    
+    if resolution == 'by-target' and not credential_id:
+        error('CREDENTIAL_ID is required when --resolution=by-target.')
+    if resolution == 'from-parent' and not resource_key:
+        error('--resource-key is required when --resolution=from-parent.')
+
     params = {}
     if parameters:
         params = {key: value for key, value in parameters}
-    
-    result = chariot.credentials.get(credential_id, category, type, [format], **params)
+
+    result = chariot.credentials.get(
+        credential_id, category, type, [format],
+        resolution=resolution, resource_key=resource_key, **params,
+    )
     output = chariot.credentials.format_output(result)
     click.echo(output)
 
