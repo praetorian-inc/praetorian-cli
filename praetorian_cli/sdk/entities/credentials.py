@@ -78,8 +78,8 @@ class Credentials:
         Get a specific credential using the credential broker.
 
         :param credential_id: The ID of the credential to retrieve. Required for
-            resolution='by-target'; ignored by the broker for 'global' (synthesized
-            from type); optional for 'from-parent' (broker walks the graph).
+            resolution='by-target'; optional for 'from-parent' (broker walks the
+            graph if empty).
         :type credential_id: str
         :param category: The category of the credential ('integration', 'cloud', 'env-integration')
         :type category: str
@@ -88,9 +88,8 @@ class Credentials:
         :param format: The format of the credential response ('token', 'file', 'env')
         :type format: str or list
         :param resolution: How the broker should locate the credential. One of
-            'by-target' (use credential_id as-is; default), 'from-parent' (walk
-            DISCOVERED ancestors of resource_key), or 'global' (platform-wide
-            singleton keyed by type).
+            'by-target' (use credential_id as-is; default) or 'from-parent'
+            (walk DISCOVERED ancestors of resource_key).
         :type resolution: str
         :param resource_key: Asset/resource key the credential is scoped to.
             Required when resolution='from-parent'.

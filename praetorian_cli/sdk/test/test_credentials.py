@@ -129,26 +129,6 @@ class TestCredentialsGet:
             'ResourceKey': '#asset#example.com#1.2.3.4',
         })
 
-    def test_get_with_global_resolution_omits_resource_key(self):
-        """global: broker synthesizes CredentialID from Type — ResourceKey is
-        not used, and the SDK should not include it."""
-        api = MagicMock()
-        api.post.return_value = {'ok': True}
-        creds = Credentials(api=api)
-
-        creds.get(
-            credential_id='',
-            category='env-integration',
-            type='shodan',
-            format=['token'],
-            resolution='global',
-        )
-
-        sent = api.post.call_args.args[1]
-        assert sent['Resolution'] == 'global'
-        assert sent['Type'] == 'shodan'
-        assert 'ResourceKey' not in sent
-
 
 class TestCredentialsDelete:
     def test_delete_builds_broker_request(self):
@@ -406,18 +386,6 @@ class TestGetCredentialCLI:
             '', 'env-integration', 'aws', ['token'],
             resolution='from-parent',
             resource_key='#asset#example.com#1.2.3.4',
-        )
-
-    def test_global_resolution_does_not_require_credential_id(self, runner, fake_sdk):
-        result = _invoke(runner, fake_sdk, [
-            'get', 'credential',
-            '--resolution', 'global',
-            '--type', 'shodan',
-        ])
-        assert result.exit_code == 0, result.output
-        fake_sdk.credentials.get.assert_called_once_with(
-            '', 'env-integration', 'shodan', ['token'],
-            resolution='global', resource_key=None,
         )
 
     def test_by_target_requires_credential_id(self, runner, fake_sdk):
