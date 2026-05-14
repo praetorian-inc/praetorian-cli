@@ -120,7 +120,7 @@ class Accounts:
         :return: Email address of the current principal account
         :rtype: str
         """
-        return self.api.keychain.account if self.api.keychain.account else self.api.keychain.username()
+        return self.api.keychain.account if self.api.keychain.account else self.api.keychain.principal_email()
 
     def login_principal(self):
         """
@@ -129,4 +129,4 @@ class Accounts:
         :return: Email address of the login principal account
         :rtype: str
         """
-        return self.api.keychain.username()
+        return self.api.keychain.principal_email()

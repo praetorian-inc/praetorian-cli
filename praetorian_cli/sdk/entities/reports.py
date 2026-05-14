@@ -24,7 +24,7 @@ class Reports:
         :rtype: str
         :raises Exception: If no customer email can be determined
         """
-        email = self.api.keychain.account or self.api.keychain.username()
+        email = self.api.keychain.account or self.api.keychain.principal_email()
         if not email:
             raise Exception(
                 'Could not determine customer email. '

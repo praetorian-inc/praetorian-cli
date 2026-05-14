@@ -1,3 +1,5 @@
+import base64
+import json
 from configparser import ConfigParser
 from os import environ
 from os.path import join, split
@@ -123,6 +125,23 @@ class Keychain:
         """ Get the username field from the keychain profile """
         return self.get_option('username')
 
+    def principal_email(self):
+        """ Get the email address of the authenticated principal.
+
+        Returns the keychain 'username' field if set (the value populated
+        by username/password auth via `praetorian configure`). Under API-key
+        auth that field is not populated, so we fall back to the 'email'
+        claim in the JWT issued by the /token endpoint.
+        """
+        configured = self.get_option('username')
+        if configured:
+            return configured
+        if self.has_api_key():
+            payload = decode_jwt_payload(self.token())
+            if payload:
+                return payload.get('email')
+        return None
+
     def password(self):
         """ Get the password field from the keychain profile """
         return self.get_option('password')
@@ -190,3 +209,25 @@ class Keychain:
             config.write(f)
 
         click.echo(f'\nKeychain data written to {DEFAULT_KEYCHAIN_FILEPATH}')
+
+
+def decode_jwt_payload(token):
+    """ Decode the payload portion of a JWT. Returns the claims dict on
+    success, or None if the token is malformed or cannot be decoded.
+
+    JWTs are header.payload.signature, each base64url-encoded.
+
+    Example:
+        >>> payload = decode_jwt_payload(some_token)
+        >>> payload.get('email')
+        'user@example.com'
+    """
+    try:
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+        payload_part = parts[1]
+        payload_part += '=' * (-len(payload_part) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload_part))
+    except Exception:
+        return None
