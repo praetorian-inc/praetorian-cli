@@ -8,33 +8,56 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, error
 
 
-# Friendly names for well-known agents — descriptions for the CLI help.
-# Also exported as TOOL_ALIASES for console compatibility. The console
-# dynamically adds capabilities resolved from the API at runtime.
-FRIENDLY_NAMES = {
-    'asset-analyzer': 'Deep-dive reconnaissance & risk mapping',
-    'brutus':         'Credential attacks (SSH, RDP, FTP, SMB)',
-    'julius':         'LLM/AI service fingerprinting',
-    'augustus':        'LLM jailbreak & prompt injection attacks',
-    'aurelius':       'Cloud infrastructure discovery (AWS/Azure/GCP)',
-    'trajan':         'CI/CD pipeline security scanning',
-    'priscus':        'Remediation retesting',
-    'seneca':         'CVE research & exploit intelligence',
-    'titus':          'Secret scanning & credential leak detection',
-}
+def _get_tool_aliases():
+    from praetorian_cli.registry import get_registry
+    return get_registry().get_tool_aliases()
 
-# TOOL_ALIASES: mutable dict used by the console. Seeded from FRIENDLY_NAMES,
-# dynamically extended when the console resolves capabilities from the API.
-TOOL_ALIASES = {
-    name: {'capability': name, 'agent': name, 'target_type': 'asset', 'description': desc}
-    for name, desc in FRIENDLY_NAMES.items()
-}
+
+class _LazyAliases:
+    """Lazy-loading dict wrapper so `from handlers.run import TOOL_ALIASES` still works."""
+    def __init__(self):
+        self._loaded = None
+
+    def _ensure(self):
+        if self._loaded is None:
+            self._loaded = _get_tool_aliases()
+        return self._loaded
+
+    def __contains__(self, key):
+        return key in self._ensure()
+
+    def __getitem__(self, key):
+        return self._ensure()[key]
+
+    def __setitem__(self, key, value):
+        self._ensure()[key] = value
+
+    def __iter__(self):
+        return iter(self._ensure())
+
+    def __len__(self):
+        return len(self._ensure())
+
+    def items(self):
+        return self._ensure().items()
+
+    def keys(self):
+        return self._ensure().keys()
+
+    def values(self):
+        return self._ensure().values()
+
+    def get(self, key, default=None):
+        return self._ensure().get(key, default)
+
+
+TOOL_ALIASES = _LazyAliases()
 
 
 def resolve_capability(sdk, name):
     """Resolve a capability name to its metadata from the backend API.
 
-    Checks FRIENDLY_NAMES for aliases, then queries the /capabilities/ endpoint.
+    Checks TOOL_ALIASES for aliases, then queries the /capabilities/ endpoint.
     Returns dict with at minimum: name, target, description. Or None.
     """
     # Check backend capabilities
