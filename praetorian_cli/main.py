@@ -26,6 +26,7 @@ import praetorian_cli.handlers.hunt
 import praetorian_cli.handlers.knossos  # noqa: F401
 import praetorian_cli.handlers.run
 import praetorian_cli.handlers.schedule
+import praetorian_cli.handlers.module
 import praetorian_cli.handlers.imports
 import praetorian_cli.handlers.leaderboard
 import praetorian_cli.handlers.link
