@@ -39,6 +39,7 @@ CONSOLE_COMMANDS = [
     'search', 'find', 'assets', 'risks', 'jobs', 'info',
     'next', 'n', 'prev', 'p', 'page',
     'scan', 'tag',
+    'update', 'module',
     'run', 'status', 'download', 'install', 'installed',
     'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
     'trajan', 'cato', 'priscus', 'seneca', 'titus',
@@ -219,6 +220,8 @@ class GuardConsole(
             'download': self._cmd_download,
             'install': self._cmd_install,
             'installed': self._cmd_installed,
+            'update': self._cmd_module_update,
+            'module': self._cmd_module_dispatch,
             'capabilities': self._cmd_capabilities,
             'evidence': self._cmd_evidence,
             'report': self._cmd_report,
@@ -356,6 +359,10 @@ class GuardConsole(
         help_table.add_row('capabilities [name]', 'List all backend capabilities')
         help_table.add_row('install <tool|all>', 'Install binary from GitHub')
         help_table.add_row('installed', 'List locally installed binaries')
+        help_table.add_row('update [module|all]', 'Update installed modules to latest')
+        help_table.add_row('module search [query]', 'Search module registry (name, category, tag)')
+        help_table.add_row('module info <name>', 'Show module details (options, version, author)')
+        help_table.add_row('module update [name|all]', 'Update installed modules to latest')
 
         help_table.add_row('', '')
         help_table.add_row('[section]Evidence & Reports[/section]', '')
@@ -443,6 +450,28 @@ class GuardConsole(
 
     def _cmd_quit(self, args):
         raise EOFError()
+
+    def _cmd_module_dispatch(self, args):
+        """Route 'module <subcommand>' to the right handler."""
+        if not args:
+            self._cmd_module_search([])
+            return
+        sub = args[0].lower()
+        rest = args[1:]
+        routes = {
+            'search': self._cmd_module_search,
+            'info': self._cmd_module_info,
+            'update': self._cmd_module_update,
+            'install': self._cmd_install,
+            'installed': self._cmd_installed,
+            'options': self._cmd_options,
+            'list': self._cmd_module_search,
+        }
+        handler = routes.get(sub)
+        if handler:
+            handler(rest)
+        else:
+            self.console.print(f'[dim]Unknown: module {sub}. Try: search, info, install, installed, update, options[/dim]')
 
 
 def run_console(sdk: Chariot, account: Optional[str] = None):
