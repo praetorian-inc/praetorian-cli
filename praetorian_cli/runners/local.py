@@ -12,26 +12,46 @@ from typing import Optional
 # Where local binaries are installed
 INSTALL_DIR = os.path.join(os.path.expanduser('~'), '.praetorian', 'bin')
 
-# Map of tool name → GitHub repo + CLI interface
-INSTALLABLE_TOOLS = {
-    'brutus':      {'repo': 'praetorian-inc/brutus',      'description': 'Credential attacks (20+ protocols)'},
-    'julius':      {'repo': 'praetorian-inc/julius',      'description': 'LLM service fingerprinting'},
-    'augustus':     {'repo': 'praetorian-inc/augustus',     'description': 'LLM security testing (190+ probes)'},
-    'titus':       {'repo': 'praetorian-inc/titus',       'description': 'Secrets scanner (487 rules)'},
-    'trajan':      {'repo': 'praetorian-inc/trajan',      'description': 'CI/CD vulnerability scanner'},
-    'cato':        {'repo': 'praetorian-inc/cato',        'description': 'Injection scanner (SQLi, SSRF, SSTI, XXE)'},
-    'nerva':       {'repo': 'praetorian-inc/nerva',       'description': 'Service fingerprinting (120+ protocols)'},
-    'vespasian':   {'repo': 'praetorian-inc/vespasian',   'description': 'API discovery from traffic'},
-    'nuclei':      {'repo': 'praetorian-inc/nuclei',      'description': 'Vulnerability scanner templates'},
-    'gato':        {'repo': 'praetorian-inc/gato',        'description': 'GitHub Actions pipeline scanner'},
-    'constantine': {'repo': 'praetorian-inc/constantine', 'description': 'Repository security analysis'},
-    'aurelian':    {'repo': 'praetorian-inc/aurelian',    'description': 'Cloud security reconnaissance'},
-    'pius':        {'repo': 'praetorian-inc/pius',        'description': 'Organizational asset discovery'},
-    'florian':     {'repo': 'praetorian-inc/florian',     'description': 'Authentication flow testing'},
-    'caligula':    {'repo': 'praetorian-inc/caligula',    'description': 'Supply chain security scanner'},
-    'hadrian':     {'repo': 'praetorian-inc/hadrian',     'description': 'API security testing'},
-    'nero':        {'repo': 'praetorian-inc/nero',        'description': 'Default credential scanner'},
-}
+def _get_installable_tools():
+    from praetorian_cli.registry import get_registry
+    return get_registry().get_installable_tools()
+
+
+class _LazyTools:
+    def __init__(self):
+        self._loaded = None
+
+    def _ensure(self):
+        if self._loaded is None:
+            self._loaded = _get_installable_tools()
+        return self._loaded
+
+    def __contains__(self, key):
+        return key in self._ensure()
+
+    def __getitem__(self, key):
+        return self._ensure()[key]
+
+    def __iter__(self):
+        return iter(self._ensure())
+
+    def __len__(self):
+        return len(self._ensure())
+
+    def items(self):
+        return self._ensure().items()
+
+    def keys(self):
+        return self._ensure().keys()
+
+    def values(self):
+        return self._ensure().values()
+
+    def get(self, key, default=None):
+        return self._ensure().get(key, default)
+
+
+INSTALLABLE_TOOLS = _LazyTools()
 
 
 # Well-known service ports for Brutus protocol auto-detection.
@@ -178,6 +198,18 @@ def install_tool(tool_name: str, force=False) -> str:
 
     # Make executable
     os.chmod(binary_path, 0o755)
+
+    # Record version
+    try:
+        from praetorian_cli.registry import get_registry
+        ver_result = subprocess.run(
+            ['gh', 'release', 'view', '--repo', repo, '--json', 'tagName', '-q', '.tagName'],
+            capture_output=True, text=True, timeout=15,
+        )
+        version_tag = ver_result.stdout.strip() if ver_result.returncode == 0 else 'unknown'
+        get_registry().record_version(tool_name, version_tag, binary_path)
+    except Exception:
+        pass
 
     # Cleanup
     try:
