@@ -14,7 +14,9 @@ class MCPServer:
         self.allowable_tools = allowable_tools
         self.server = Server("praetorian-cli")
         self.discovered_tools = {}
+        self._module_tools = {}
         self._discover_tools()
+        self._define_module_tools()
         self._register_tools()
 
     def _is_tool_allowed(self, tool_name: str) -> bool:
@@ -150,6 +152,61 @@ class MCPServer:
         
         return "string"
 
+    def _define_module_tools(self):
+        """Populate self._module_tools with explicit module management MCP tools."""
+        self._module_tools["list_modules"] = Tool(
+            name="list_modules",
+            description="List all available Guard security modules with install status. "
+                        "Returns name, category, description, install status, and version for each module.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query (matches name, description, tags)"},
+                    "category": {"type": "string", "description": "Filter by category (scanner, credential, recon, cloud, cicd, ai, supply-chain, api)"},
+                },
+            },
+        )
+
+        self._module_tools["module_info"] = Tool(
+            name="module_info",
+            description="Get full details for a Guard security module including options, version, and install path.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Module name (e.g., brutus, nuclei, titus)"},
+                },
+                "required": ["name"],
+            },
+        )
+
+        self._module_tools["install_module"] = Tool(
+            name="install_module",
+            description="Install a Guard security module binary from GitHub releases to ~/.praetorian/bin/.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Module name to install, or 'all'"},
+                    "force": {"type": "boolean", "description": "Reinstall even if already present"},
+                },
+                "required": ["name"],
+            },
+        )
+
+        self._module_tools["run_module"] = Tool(
+            name="run_module",
+            description="Execute an installed Guard security module against a target. "
+                        "The module must be installed first (use install_module).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Module name"},
+                    "target": {"type": "string", "description": "Target (IP, domain, URL, or Guard key)"},
+                    "options": {"type": "object", "description": "Tool-specific options as key-value pairs"},
+                },
+                "required": ["name", "target"],
+            },
+        )
+
     def _register_tools(self):
         @self.server.list_tools()
         async def list_tools() -> List[Tool]:
@@ -159,24 +216,24 @@ class MCPServer:
 
                 properties = {}
                 required = []
-                
+
                 for param_name, param_info in parameters.items():
                     if param_name == 'self':
                         continue
-                        
+
                     properties[param_name] = {
                         "type": param_info.get("type", "string"),
                         "description": param_info.get("description", f"Parameter {param_name}")
                     }
-                    
+
                     if param_info.get("required", False):
                         required.append(param_name)
-                
+
                 tool_schema = {
                     "type": "object",
                     "properties": properties
                 }
-                
+
                 if required:
                     tool_schema["required"] = required
 
@@ -191,12 +248,85 @@ class MCPServer:
                     description=description,
                     inputSchema=tool_schema
                 )
-                
+
                 tools.append(tool)
-            
+
+            # Add module management tools
+            tools.extend(self._module_tools.values())
+
             return tools
 
+    async def _handle_module_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+        try:
+            if name == "list_modules":
+                from praetorian_cli.registry import get_registry
+                from praetorian_cli.runners.local import list_installed
+                reg = get_registry()
+                query = arguments.get("query", "")
+                category = arguments.get("category", "")
+                results = reg.search_modules(query, category=category)
+                installed = list_installed()
+                for r in results:
+                    r["installed"] = r["name"] in installed
+                    ver = reg.get_version(r["name"])
+                    r["version"] = ver["version"] if ver else None
+                return [TextContent(type="text", text=json.dumps(results, indent=2))]
+
+            elif name == "module_info":
+                from praetorian_cli.registry import get_registry
+                from praetorian_cli.runners.local import is_installed, get_binary_path
+                reg = get_registry()
+                mod_name = arguments["name"].lower()
+                mod = reg.get_module(mod_name)
+                if not mod:
+                    return [TextContent(type="text", text=f"Unknown module: {mod_name}")]
+                ver = reg.get_version(mod_name)
+                out = {"name": mod_name, **mod}
+                out["installed"] = is_installed(mod_name)
+                out["version"] = ver["version"] if ver else None
+                out["binary_path"] = get_binary_path(mod_name)
+                return [TextContent(type="text", text=json.dumps(out, indent=2))]
+
+            elif name == "install_module":
+                from praetorian_cli.runners.local import install_tool, is_installed
+                mod_name = arguments["name"].lower()
+                force = arguments.get("force", False)
+                if not force and is_installed(mod_name):
+                    return [TextContent(type="text", text=json.dumps({"name": mod_name, "status": "already_installed"}))]
+                path = install_tool(mod_name, force=force)
+                return [TextContent(type="text", text=json.dumps({"name": mod_name, "status": "installed", "path": path}))]
+
+            elif name == "run_module":
+                from praetorian_cli.runners.local import LocalRunner, get_tool_plugin, is_installed
+                mod_name = arguments["name"].lower()
+                target = arguments["target"]
+                options = arguments.get("options", {})
+                if not is_installed(mod_name):
+                    return [TextContent(type="text", text=f"Module {mod_name} is not installed. Use install_module first.")]
+                plugin = get_tool_plugin(mod_name)
+                extra_config = json.dumps(options) if options else ""
+                args = plugin.build_args(target, extra_config)
+                runner = LocalRunner(mod_name)
+                result = runner.run(args, timeout=300)
+                out = {
+                    "name": mod_name,
+                    "target": target,
+                    "exit_code": result.returncode,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                }
+                return [TextContent(type="text", text=json.dumps(out, indent=2))]
+
+            return [TextContent(type="text", text=f"Unknown module tool: {name}")]
+
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error in {name}: {str(e)}")]
+
     async def _call_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+        # Handle module management tools
+        if name in self._module_tools:
+            return await self._handle_module_tool(name, arguments)
+
         if name not in self.discovered_tools:
             return [TextContent(type="text", text=f"Tool {name} not found")]
         
