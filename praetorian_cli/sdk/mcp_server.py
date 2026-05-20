@@ -275,6 +275,8 @@ class MCPServer:
             elif name == "module_info":
                 from praetorian_cli.registry import get_registry
                 from praetorian_cli.runners.local import is_installed, get_binary_path
+                if not arguments.get("name"):
+                    return [TextContent(type="text", text="Missing required parameter: name")]
                 reg = get_registry()
                 mod_name = arguments["name"].lower()
                 mod = reg.get_module(mod_name)
@@ -289,6 +291,8 @@ class MCPServer:
 
             elif name == "install_module":
                 from praetorian_cli.runners.local import install_tool, is_installed
+                if not arguments.get("name"):
+                    return [TextContent(type="text", text="Missing required parameter: name")]
                 mod_name = arguments["name"].lower()
                 force = arguments.get("force", False)
                 if not force and is_installed(mod_name):
@@ -298,6 +302,8 @@ class MCPServer:
 
             elif name == "run_module":
                 from praetorian_cli.runners.local import LocalRunner, get_tool_plugin, is_installed
+                if not arguments.get("name") or not arguments.get("target"):
+                    return [TextContent(type="text", text="Missing required parameter: name and target are required")]
                 mod_name = arguments["name"].lower()
                 target = arguments["target"]
                 options = arguments.get("options", {})

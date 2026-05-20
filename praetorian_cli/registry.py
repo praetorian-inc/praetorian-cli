@@ -2,10 +2,13 @@
 
 import json
 import os
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+_MAX_REGISTRY_SIZE = 1024 * 1024  # 1 MB
 
 _PRAETORIAN_DIR = os.path.join(os.path.expanduser("~"), ".praetorian")
 CACHE_PATH = os.path.join(_PRAETORIAN_DIR, "registry.json")
@@ -64,10 +67,13 @@ class ModuleRegistry:
             import urllib.request
             req = urllib.request.Request(REGISTRY_URL, headers={"User-Agent": "guard-cli"})
             with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode())
-            os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
-            with open(CACHE_PATH, "w") as f:
-                json.dump(data, f, indent=2)
+                raw = resp.read(_MAX_REGISTRY_SIZE + 1)
+                if len(raw) > _MAX_REGISTRY_SIZE:
+                    return False
+                data = json.loads(raw.decode())
+            if not isinstance(data.get("modules"), dict):
+                return False
+            self._atomic_write(CACHE_PATH, data)
             self._data = data
             return True
         except Exception:
@@ -112,6 +118,21 @@ class ModuleRegistry:
         results.sort(key=lambda r: r["name"])
         return results
 
+    @staticmethod
+    def _atomic_write(path: str, data: Dict):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp, path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
     # -- Version tracking --
 
     def _load_versions(self) -> Dict:
@@ -124,9 +145,7 @@ class ModuleRegistry:
         return {}
 
     def _save_versions(self, versions: Dict):
-        os.makedirs(os.path.dirname(VERSIONS_PATH), exist_ok=True)
-        with open(VERSIONS_PATH, "w") as f:
-            json.dump(versions, f, indent=2)
+        self._atomic_write(VERSIONS_PATH, versions)
 
     def record_version(self, name: str, version: str, path: str):
         versions = self._load_versions()

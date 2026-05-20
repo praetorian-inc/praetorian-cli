@@ -288,7 +288,7 @@ def uninstall(sdk, name, as_json):
             error(f"{name} is not installed.")
         return
 
-    if not path.startswith(INSTALL_DIR):
+    if os.path.commonpath([path, INSTALL_DIR]) != INSTALL_DIR:
         if as_json:
             print_json({"name": name, "status": "error", "error": "System binary, not managed by guard"})
         else:
