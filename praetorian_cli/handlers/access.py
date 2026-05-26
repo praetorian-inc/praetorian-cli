@@ -207,3 +207,109 @@ def aws(sdk, account, prefix):
     click.echo(f'Wrote {len(all_profiles)} AWS profile(s) to ~/.aws/config:')
     for profile_name, _ in all_profiles:
         click.echo(f'  {profile_name}')
+
+
+# Tokens minted by Guard's GitHub App installation flow start with `ghs_`.
+# Static PATs (`ghp_` classic, `github_pat_` fine-grained) are refused so the
+# CLI only ever surfaces 1-hour temporary tokens.
+GITHUB_APP_TOKEN_PREFIX = 'ghs_'
+
+
+@access.command()
+@cli_handler
+@click.option('--account', default=None,
+              help='Guard account email (also inherited from guard --account).')
+@click.option('--format', 'output_format', default='token',
+              type=click.Choice(['token', 'env']), show_default=True,
+              help='Output shape. token: bare token on stdout. '
+                   'env: export GITHUB_TOKEN / GH_TOKEN lines for `eval`.')
+def github(sdk, account, output_format):
+    """Retrieve a temporary GitHub App installation token.
+
+    Looks up github integrations for the active account, asks the broker to
+    mint a 1-hour App installation token, and prints it. Only temporary App
+    installation tokens are returned — static PATs are refused via the `ghs_`
+    prefix check.
+
+    \b
+    Example usages:
+        - guard access github
+        - guard access github --format env
+        - eval "$(guard access github --format env)" && gh auth status
+    """
+    if account is None:
+        account = sdk.keychain.account
+    if account is None:
+        raise click.ClickException(
+            '--account is required. Provide it here or as guard --account.'
+        )
+    sdk.keychain.assume_role(account)
+
+    integrations, _ = sdk.integrations.list(name_filter='github')
+    if not integrations:
+        click.echo(f'No GitHub integrations found for account {account}', err=True)
+        return
+
+    printed = 0
+    for integration in integrations:
+        resource_key = integration.get('key', '')
+        target = integration.get('value') or resource_key
+        token = _fetch_github_app_token(sdk, resource_key, target)
+        if token is None:
+            continue
+        if not token.startswith(GITHUB_APP_TOKEN_PREFIX):
+            click.echo(
+                f'Refusing token from {target}: prefix is not '
+                f'{GITHUB_APP_TOKEN_PREFIX!r}; this looks like a static PAT '
+                'rather than a 1-hour App installation token.',
+                err=True,
+            )
+            continue
+        _print_github_token(token, output_format)
+        printed += 1
+
+    if not printed:
+        raise click.ClickException(
+            'No temporary GitHub App installation tokens were retrieved.'
+        )
+
+
+def _fetch_github_app_token(sdk, resource_key, target):
+    """Resolve a github credential via the broker's from-parent path.
+
+    The github credential is not surfaced in the per-account credentials list,
+    so the only request shape that reaches the github handler is
+    resolution=from-parent with the integration's resource_key. Returns the
+    token string on success, None after printing a stderr message on failure.
+    """
+    try:
+        result = sdk.credentials.get(
+            '', 'env-integration', 'github', ['token'],
+            resolution='from-parent', resource_key=resource_key,
+        )
+    except Exception as e:
+        msg = str(e)
+        if '[403]' in msg or 'unauthorized' in msg.lower():
+            click.echo(
+                f'Skipping {target}: Guard denied the request. End-user '
+                'retrieval of GitHub App installation tokens may not be '
+                'enabled on this deployment yet.',
+                err=True,
+            )
+        else:
+            click.echo(f'Skipping {target}: {msg.splitlines()[0]}', err=True)
+        return None
+
+    token = (result or {}).get('credentialValue', {}).get('github')
+    if not token:
+        click.echo(f'Skipping {target}: broker returned no token', err=True)
+        return None
+    return token
+
+
+def _print_github_token(token, output_format):
+    if output_format == 'env':
+        click.echo(f'export GITHUB_TOKEN={token}')
+        click.echo(f'export GH_TOKEN={token}')
+    else:
+        click.echo(token)
