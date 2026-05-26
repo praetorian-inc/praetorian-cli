@@ -4,6 +4,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.utils import error
 
 
 def extract_prefix(email):
@@ -240,9 +241,10 @@ def github(sdk, account, output_format):
     if account is None:
         account = sdk.keychain.account
     if account is None:
-        raise click.ClickException(
-            '--account is required. Provide it here or as guard --account.'
-        )
+        # error() raises SystemExit(1), bypassing the broad `except Exception`
+        # in cli_decorators.handle_error that would otherwise swallow a
+        # ClickException and let the process exit 0.
+        error('--account is required. Provide it here or as guard --account.')
     sdk.keychain.assume_role(account)
 
     integrations, _ = sdk.integrations.list(name_filter='github')
@@ -269,9 +271,7 @@ def github(sdk, account, output_format):
         printed += 1
 
     if not printed:
-        raise click.ClickException(
-            'No temporary GitHub App installation tokens were retrieved.'
-        )
+        error('No temporary GitHub App installation tokens were retrieved.')
 
 
 def _fetch_github_app_token(sdk, resource_key, target):
