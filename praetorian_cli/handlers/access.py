@@ -274,18 +274,25 @@ def github(sdk, account, output_format):
         error('No temporary GitHub App installation tokens were retrieved.')
 
 
-def _fetch_github_app_token(sdk, resource_key, target):
-    """Resolve a github credential via the broker's from-parent path.
+def _fetch_github_app_token(sdk, integration_key, target):
+    """Resolve a github credential via the broker.
 
-    The github credential is not surfaced in the per-account credentials list,
-    so the only request shape that reaches the github handler is
-    resolution=from-parent with the integration's resource_key. Returns the
-    token string on success, None after printing a stderr message on failure.
+    Github integrations don't use the standard "Asset + Credential record"
+    pattern that from-parent walks: the OAuth installation flow stores the
+    binding (installation_id, value) directly on the Account record, and the
+    broker reads it from SSM keyed by the integration's own key
+    (backend/pkg/services/account/integration_utils.go writes
+    aws.Secrets.Set(account.Key, account.Secret); the github handler reads
+    aws.Secrets.Get(request.CredentialID)). So for github, CredentialID *is*
+    the integration key, and the right resolution is by-target.
+
+    Returns the token string on success, None after printing a stderr message
+    on failure.
     """
     try:
         result = sdk.credentials.get(
-            '', 'env-integration', 'github', ['token'],
-            resolution='from-parent', resource_key=resource_key,
+            integration_key, 'env-integration', 'github', ['token'],
+            resolution='by-target',
         )
     except Exception as e:
         msg = str(e)

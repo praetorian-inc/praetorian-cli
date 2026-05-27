@@ -136,14 +136,22 @@ class TestGithubRetrieval:
         assert 'broker returned no token' in result.output
 
     def test_broker_request_shape(self):
-        """Lock in the only request shape the github broker handler routes."""
+        """Lock in the request shape the github broker handler actually accepts.
+
+        Github integrations store their secret directly on the Account record
+        keyed by the integration's own key (see
+        backend/pkg/services/account/integration_utils.go), not as a separate
+        Credential entity with a HAS_CREDENTIAL edge. So the broker resolves
+        github via by-target with the integration key as CredentialID, not via
+        from-parent (which would walk the graph for a non-existent Credential).
+        """
         fake_creds = FakeCredentials(response={'credentialValue': {'github': 'ghs_ok'}})
         sdk = FakeSdk(FakeIntegrations([_github_integration()]), fake_creds)
         _invoke(sdk)
         assert fake_creds.calls, 'broker should have been called'
         call = fake_creds.calls[0]
-        assert call['resolution'] == 'from-parent'
-        assert call['resource_key'] == _github_integration()['key']
+        assert call['resolution'] == 'by-target'
+        assert call['credential_id'] == _github_integration()['key']
         assert call['type'] == 'github'
         assert call['format'] == ['token']
 
