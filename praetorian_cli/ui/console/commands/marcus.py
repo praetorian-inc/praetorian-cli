@@ -173,8 +173,9 @@ class MarcusCommands:
         except Exception:
             pass
 
+        acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
+        self.console.print(f'[dim]Thinking...[/dim]{acct_label}')
         tool_log = []
-        pending_tool = None
         try:
             for msg in self._poll_messages(self.context.conversation_id, after_key=last_key):
                 role = msg.get('role', '')
@@ -189,7 +190,6 @@ class MarcusCommands:
                     self.console.print(f'  [dim]->[/dim] [accent]{tool_name}[/accent]')
                     if self.context.verbose:
                         self._print_verbose_tool_call(content, msg)
-                    pending_tool = tool_name
                 elif role == 'tool response':
                     result_summary = self._parse_tool_result(content)
                     inferred = self._infer_tool_from_response(content)
@@ -201,14 +201,13 @@ class MarcusCommands:
                         self.console.print(f'    [success]done[/success]')
                     if self.context.verbose:
                         self._print_verbose_tool_response(content)
-                    pending_tool = None
         except KeyboardInterrupt:
             self._last_tool_log = tool_log
             self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
             return None
         except MarcusError as e:
             self._last_tool_log = tool_log
-            self.console.print(f'\n[warning]{e}[/warning]')
+            self.console.print(f'\n[error]{e}[/error]')
             return None
         self._last_tool_log = tool_log
         return None
@@ -217,7 +216,7 @@ class MarcusCommands:
                        sleep=time.sleep, error_threshold=5):
         """Yield new conversation messages in key order until a 'chariot' reply.
 
-        Pages by after_key (client-side filter). Backs off when idle. Raises
+        Fetches the conversation and filters client-side for messages after `after_key`. Backs off when idle. Raises
         MarcusError after `error_threshold` consecutive fetch failures so
         problems surface instead of hanging.
         """
