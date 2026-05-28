@@ -151,6 +151,11 @@ class MarcusCommands:
         account is always restored.
         """
         message = self.context.apply_skills_to_message(message)
+    def _post_to_planner(self, message: str):
+        """POST to /planner, handling the 403 retry-as-Praetorian path safely.
+        Returns the parsed JSON dict. Raises on network/HTTP error; the keychain
+        account is always restored.
+        """
         url = self.sdk.url('/planner')
         payload = {'message': message, 'mode': self.context.mode}
         if self.context.conversation_id:
@@ -171,6 +176,9 @@ class MarcusCommands:
                 saved_account = self.sdk.keychain.account
                 try:
                     self.sdk.keychain.account = None
+                    account_context = f'[Context: querying data for account {self.context.account}]'
+                    if not message.startswith(account_context):
+                        message = f'{account_context} {message}'
                     if self.context.account not in message:
                         message = f'[Context: querying data for account {self.context.account}] {message}'
                     payload['message'] = message
@@ -183,6 +191,7 @@ class MarcusCommands:
                             response = self.sdk.chariot_request('POST', url, json=payload)
                         except RequestException as e:
                             raise MarcusError(f'Network error reaching Marcus: {e}')
+                    with self.console.status('Sending via Praetorian account...', spinner='dots', spinner_style=self.colors['primary']):
                 finally:
                     self.sdk.keychain.account = saved_account
 
@@ -194,6 +203,14 @@ class MarcusCommands:
         except (ValueError, json.JSONDecodeError):
             raise MarcusError(
                 f'Unexpected non-JSON response ({response.status_code}): {response.text[:200]}')
+    def _send_to_marcus(self, message: str) -> Optional[str]:
+        """Send message to Marcus and poll for response with live tool output."""
+            result = self._post_to_planner(message)
+        except MarcusError as e:
+            self.console.print(f'[error]{e}[/error]')
+            return None
+        if not self.context.conversation_id and 'conversation' in result:
+            self.context.conversation_id = result['conversation'].get('uuid')
 
     def _snapshot_last_key(self, conversation_id: Optional[str]) -> str:
         """Return the highest existing message key for a conversation, or '' if none/unknown."""
