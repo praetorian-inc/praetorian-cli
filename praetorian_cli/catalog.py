@@ -1,6 +1,7 @@
 """Capability catalog: guard's /capabilities API is the source of truth."""
 
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
 
@@ -70,3 +71,42 @@ class Capability:
             integration=bool(_ci(raw, 'Integration', default=False)),
             parameters=[Parameter.from_api(p) for p in _as_list(_ci(raw, 'Parameters', default=[]))],
         )
+
+
+def _score(cap: 'Capability', q: str) -> Optional[float]:
+    """Higher is better; None means filtered out."""
+    if not q:
+        return 0.0
+    name = cap.name.lower()
+    hay = ' '.join([name, cap.title.lower(), cap.description.lower(),
+                    ' '.join(cap.category)]).lower()
+    if name == q:
+        return 100.0
+    if name.startswith(q):
+        return 90.0 - (len(name) - len(q)) * 0.1
+    if q in hay:
+        return 70.0
+    ratio = SequenceMatcher(None, q, name).ratio()
+    if ratio >= 0.6:
+        return 40.0 + ratio * 10
+    return None
+
+
+def rank_search(caps, query='', *, category='', surface='', target='', tag=''):
+    q = (query or '').lower().strip()
+    out = []
+    for cap in caps:
+        if category and category not in cap.category:
+            continue
+        if surface and cap.surface != surface:
+            continue
+        if target and target not in cap.target:
+            continue
+        if tag and tag not in cap.category and tag not in cap.target:
+            continue
+        s = _score(cap, q)
+        if s is None:
+            continue
+        out.append((s, cap))
+    out.sort(key=lambda t: (-t[0], t[1].name))
+    return [c for _, c in out]

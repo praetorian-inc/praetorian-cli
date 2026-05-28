@@ -1,4 +1,4 @@
-from praetorian_cli.catalog import Capability
+from praetorian_cli.catalog import Capability, rank_search
 
 
 def test_capability_normalizes_agora_shape():
@@ -28,3 +28,29 @@ def test_capability_handles_missing_and_scalar_fields():
     assert cap.category == ['recon']  # scalar coerced to list
     assert cap.target == ['port']     # scalar coerced to list
     assert cap.parameters == []
+
+
+def _caps():
+    return [
+        Capability.from_api({'Name': 'nuclei', 'Category': 'scanner', 'Surface': 'external',
+                             'Target': ['port'], 'Description': 'vuln scanner', 'Title': 'Nuclei'}),
+        Capability.from_api({'Name': 'nuclei_dast', 'Category': 'scanner', 'Surface': 'external',
+                             'Target': ['webapp'], 'Description': 'dast', 'Title': 'Nuclei DAST'}),
+        Capability.from_api({'Name': 'brutus', 'Category': 'credential', 'Surface': 'internal',
+                             'Target': ['port'], 'Description': 'creds', 'Title': 'Brutus'}),
+    ]
+
+def test_rank_search_exact_before_prefix_before_fuzzy():
+    out = rank_search(_caps(), 'nuclei')
+    assert out[0].name == 'nuclei'          # exact wins
+    assert out[1].name == 'nuclei_dast'     # prefix next
+
+def test_rank_search_typo_tolerant():
+    out = rank_search(_caps(), 'nuclie')    # transposed
+    assert out and out[0].name in ('nuclei', 'nuclei_dast')
+
+def test_rank_search_filters():
+    out = rank_search(_caps(), '', category='credential')
+    assert [c.name for c in out] == ['brutus']
+    out = rank_search(_caps(), '', surface='external', target='port')
+    assert [c.name for c in out] == ['nuclei']
