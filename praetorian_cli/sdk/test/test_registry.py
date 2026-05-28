@@ -176,6 +176,29 @@ class TestVersionTracking:
         assert reg.get_version("brutus") is None
 
 
+def test_manifest_exposes_capability_alias_and_local_only(monkeypatch, tmp_path):
+    import praetorian_cli.registry as reg_mod
+    from praetorian_cli.registry import get_registry
+    manifest = tmp_path / 'registry.json'
+    manifest.write_text('''{
+      "version": 2,
+      "modules": {
+        "brutus": {"repo": "praetorian-inc/brutus", "binary_pattern": "brutus-{os}-{arch}*", "plugin": "brutus"},
+        "pius": {"repo": "praetorian-inc/pius", "capability": "pius_discovery"},
+        "titus": {"repo": "praetorian-inc/titus", "local_only": true}
+      }
+    }''')
+    monkeypatch.setattr(reg_mod, 'BUNDLED_REGISTRY_PATH', str(manifest))
+    monkeypatch.setattr(reg_mod, 'CACHE_PATH', str(tmp_path / 'cache-none.json'))
+    reg_mod._registry = None
+    reg = get_registry()
+    assert reg.get_capability_name('pius') == 'pius_discovery'
+    assert reg.get_capability_name('brutus') == 'brutus'   # defaults to name
+    assert reg.is_local_only('titus') is True
+    assert reg.is_local_only('brutus') is False
+    assert reg.get_binary_pattern('brutus') == 'brutus-{os}-{arch}*'
+
+
 class TestRegistryAsInstallableTools:
     def test_get_installable_tools_dict(self, seeded_cache):
         """get_installable_tools returns a dict compatible with the old INSTALLABLE_TOOLS."""
