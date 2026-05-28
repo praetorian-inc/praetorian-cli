@@ -12,6 +12,10 @@ from rich.panel import Panel
 from praetorian_cli.ui.aegis.theme import PRIMARY_RED, COMPLEMENTARY_GOLD
 
 
+class MarcusError(Exception):
+    """Raised for recoverable Marcus terminal errors (shown to the user)."""
+
+
 class MarcusCommands:
     """Marcus AI console commands. Mixed into GuardConsole."""
 
@@ -103,40 +107,58 @@ class MarcusCommands:
 
         self.console.print('[dim]Returned to console.[/dim]')
 
-    def _send_to_marcus(self, message: str) -> Optional[str]:
-        """Send message to Marcus and poll for response with live tool output."""
+    def _post_to_planner(self, message: str):
+        """POST to /planner, handling the 403 retry-as-Praetorian path safely.
+
+        Returns the parsed JSON dict. Raises on network/HTTP error; the keychain
+        account is always restored.
+        """
         url = self.sdk.url('/planner')
         payload = {'message': message, 'mode': self.context.mode}
         if self.context.conversation_id:
             payload['conversationId'] = self.context.conversation_id
 
-        with self.console.status('Sending...', spinner='dots', spinner_style=self.colors['primary']):
+        with self.console.status('Sending...', spinner='dots',
+                                 spinner_style=self.colors['primary']):
             response = self.sdk.chariot_request('POST', url, json=payload)
 
-        # If AI is disabled on the impersonated account, retry as the Praetorian user
         if response.status_code == 403 and self.context.account:
             login_user = self.sdk.accounts.login_principal()
             if login_user and login_user.endswith('@praetorian.com'):
-                self.console.print(f'[dim]AI not enabled on this account -- routing through {login_user}[/dim]')
-                # Temporarily clear impersonation for the AI call
+                self.console.print(
+                    f'[dim]AI not enabled on this account -- routing through {login_user}[/dim]')
                 saved_account = self.sdk.keychain.account
-                self.sdk.keychain.account = None
-                # Add engagement context to the message so Marcus queries the right data
-                if self.context.account not in message:
-                    message = f'[Context: querying data for account {self.context.account}] {message}'
-                payload['message'] = message
-                if self.context.conversation_id:
-                    payload.pop('conversationId', None)
-                    self.context.conversation_id = None
-                with self.console.status('Sending via Praetorian account...', spinner='dots', spinner_style=self.colors['primary']):
-                    response = self.sdk.chariot_request('POST', url, json=payload)
-                self.sdk.keychain.account = saved_account
+                try:
+                    self.sdk.keychain.account = None
+                    if self.context.account not in message:
+                        message = f'[Context: querying data for account {self.context.account}] {message}'
+                    payload['message'] = message
+                    if self.context.conversation_id:
+                        payload.pop('conversationId', None)
+                        self.context.conversation_id = None
+                    with self.console.status('Sending via Praetorian account...', spinner='dots',
+                                             spinner_style=self.colors['primary']):
+                        response = self.sdk.chariot_request('POST', url, json=payload)
+                finally:
+                    self.sdk.keychain.account = saved_account
 
         if not response.ok:
-            self.console.print(f'[error]API error: {response.status_code} - {response.text}[/error]')
+            raise MarcusError(f'API error: {response.status_code} - {response.text}')
+
+        try:
+            return response.json()
+        except (ValueError, json.JSONDecodeError):
+            raise MarcusError(
+                f'Unexpected non-JSON response ({response.status_code}): {response.text[:200]}')
+
+    def _send_to_marcus(self, message: str) -> Optional[str]:
+        """Send message to Marcus and poll for response with live tool output."""
+        try:
+            result = self._post_to_planner(message)
+        except MarcusError as e:
+            self.console.print(f'[error]{e}[/error]')
             return None
 
-        result = response.json()
         if not self.context.conversation_id and 'conversation' in result:
             self.context.conversation_id = result['conversation'].get('uuid')
 
