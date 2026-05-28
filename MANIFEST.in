@@ -1,2 +1,3 @@
 include praetorian_cli/sdk/test/pytest.ini
 include modules/registry.json
+include praetorian_cli/modules/capabilities_snapshot.json

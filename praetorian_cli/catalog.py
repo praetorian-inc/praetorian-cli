@@ -1,5 +1,9 @@
 """Capability catalog: guard's /capabilities API is the source of truth."""
 
+import json
+import os
+import tempfile
+import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
@@ -110,3 +114,91 @@ def rank_search(caps, query='', *, category='', surface='', target='', tag=''):
         out.append((s, cap))
     out.sort(key=lambda t: (-t[0], t[1].name))
     return [c for _, c in out]
+
+
+_PRAETORIAN_DIR = os.path.join(os.path.expanduser('~'), '.praetorian')
+DEFAULT_CACHE_PATH = os.path.join(_PRAETORIAN_DIR, 'capabilities-cache.json')
+DEFAULT_BUNDLED_PATH = os.path.join(
+    os.path.dirname(__file__), 'modules', 'capabilities_snapshot.json')
+CACHE_TTL_SECONDS = 86400
+
+
+def _atomic_write_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+class CapabilityCatalog:
+    def __init__(self, sdk, cache_path=DEFAULT_CACHE_PATH, bundled_path=DEFAULT_BUNDLED_PATH):
+        self.sdk = sdk
+        self.cache_path = cache_path
+        self.bundled_path = bundled_path
+        self._caps = None
+        self.source = ''
+
+    def _cache_stale(self) -> bool:
+        if not os.path.isfile(self.cache_path):
+            return True
+        return (time.time() - os.path.getmtime(self.cache_path)) > CACHE_TTL_SECONDS
+
+    def refresh(self, force=False) -> bool:
+        if not force and not self._cache_stale():
+            return False
+        try:
+            raw, _ = self.sdk.capabilities.list()
+            caps = raw if isinstance(raw, list) else raw.get('capabilities', raw.get('data', []))
+            _atomic_write_json(self.cache_path, {'capabilities': caps})
+            self._caps = [Capability.from_api(c) for c in caps]
+            self.source = 'live'
+            return True
+        except Exception:
+            return False
+
+    def _load_file(self, path):
+        with open(path) as f:
+            data = json.load(f)
+        return data.get('capabilities', data) if isinstance(data, dict) else data
+
+    def all(self):
+        if self._caps is not None:
+            return self._caps
+        if self.refresh():
+            return self._caps
+        if os.path.isfile(self.cache_path):
+            try:
+                age = int((time.time() - os.path.getmtime(self.cache_path)) / 3600)
+                self._caps = [Capability.from_api(c) for c in self._load_file(self.cache_path)]
+                self.source = f'cached ({age}h old)'
+                return self._caps
+            except (json.JSONDecodeError, OSError):
+                pass
+        if os.path.isfile(self.bundled_path):
+            try:
+                self._caps = [Capability.from_api(c) for c in self._load_file(self.bundled_path)]
+                self.source = 'bundled'
+                return self._caps
+            except (json.JSONDecodeError, OSError):
+                pass
+        self._caps = []
+        self.source = 'empty'
+        return self._caps
+
+    def get(self, name: str):
+        n = name.lower()
+        for c in self.all():
+            if c.name.lower() == n:
+                return c
+        return None
+
+    def search(self, query='', **filters):
+        return rank_search(self.all(), query, **filters)

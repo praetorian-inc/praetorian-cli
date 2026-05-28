@@ -54,3 +54,47 @@ def test_rank_search_filters():
     assert [c.name for c in out] == ['brutus']
     out = rank_search(_caps(), '', surface='external', target='port')
     assert [c.name for c in out] == ['nuclei']
+
+
+import json
+from praetorian_cli.catalog import CapabilityCatalog
+
+class _FakeSDK:
+    def __init__(self, caps, fail=False):
+        self._caps = caps; self._fail = fail
+        outer = self
+        class _C:
+            def list(inner, name='', target='', executor=''):
+                if outer._fail:
+                    raise RuntimeError('network down')
+                return (outer._caps, None)
+        self.capabilities = _C()
+
+def test_catalog_live_then_cache(tmp_path):
+    cache = tmp_path / 'cap-cache.json'
+    snap = tmp_path / 'snap.json'; snap.write_text('{"capabilities": []}')
+    sdk = _FakeSDK([{'Name': 'brutus', 'Category': 'credential'}])
+    cat = CapabilityCatalog(sdk, cache_path=str(cache), bundled_path=str(snap))
+    caps = cat.all()
+    assert [c.name for c in caps] == ['brutus']
+    assert cat.source == 'live'
+    assert cache.exists()
+
+def test_catalog_falls_back_to_cache_when_api_fails(tmp_path):
+    cache = tmp_path / 'cap-cache.json'
+    cache.write_text(json.dumps({'capabilities': [{'Name': 'nuclei'}]}))
+    snap = tmp_path / 'snap.json'; snap.write_text('{"capabilities": []}')
+    sdk = _FakeSDK([], fail=True)
+    cat = CapabilityCatalog(sdk, cache_path=str(cache), bundled_path=str(snap))
+    caps = cat.all()
+    assert [c.name for c in caps] == ['nuclei']
+    assert cat.source.startswith('cached')
+
+def test_catalog_falls_back_to_bundled(tmp_path):
+    cache = tmp_path / 'missing.json'
+    snap = tmp_path / 'snap.json'
+    snap.write_text(json.dumps({'capabilities': [{'Name': 'titus'}]}))
+    sdk = _FakeSDK([], fail=True)
+    cat = CapabilityCatalog(sdk, cache_path=str(cache), bundled_path=str(snap))
+    assert [c.name for c in cat.all()] == ['titus']
+    assert cat.source == 'bundled'
