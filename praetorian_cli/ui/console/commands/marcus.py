@@ -173,82 +173,44 @@ class MarcusCommands:
         except Exception:
             pass
 
-        # Poll for response -- show tool calls live
-        max_wait = 180
-        start_time = time.time()
+        tool_log = []
         pending_tool = None
-        tool_log = []  # Store all tool calls/responses for this interaction
-        seen_tool_keys = set()  # Track which tool messages we displayed live
-
-        acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
-        self.console.print(f'[dim]Thinking...[/dim]{acct_label}', end='')
-
-        while time.time() - start_time < max_wait:
-            try:
-                messages, _ = self.sdk.search.by_key_prefix(
-                    f'#message#{self.context.conversation_id}#', user=True
-                )
-                new_msgs = sorted(
-                    [m for m in messages if m.get('key', '') > last_key],
-                    key=lambda x: x.get('key', '')
-                )
-
-                for msg in new_msgs:
-                    role = msg.get('role', '')
-                    content = msg.get('content', '')
-                    last_key = msg.get('key', '')
-
-                    if role == 'chariot':
-                        if pending_tool:
-                            self.console.print()  # newline after tool output
-                        # Retroactively show any tool calls we missed during polling
-                        missed = [t for t in tool_log if t['key'] not in seen_tool_keys]
-                        if missed:
-                            self.console.print()
-                            for entry in missed:
-                                if entry['role'] == 'tool call':
-                                    self.console.print(f'  [dim]->[/dim] [accent]{entry["name"]}[/accent]', end='')
-                                elif entry['role'] == 'tool response':
-                                    summary = entry.get('summary', '')
-                                    if summary:
-                                        self.console.print(f' [dim]-- {summary}[/dim]', end='')
-                                    self.console.print(f' [success]done[/success]')
-                        # Save tool log for "show tools" command
-                        self._last_tool_log = tool_log
-                        return content
-                    elif role == 'tool call':
-                        tool_name = self._parse_tool_name(content, msg)
-                        tool_log.append({'role': role, 'name': tool_name, 'content': content, 'msg': msg, 'key': msg.get('key', '')})
-                        if pending_tool:
-                            self.console.print(f' [success]done[/success]')
-                        self.console.print(f'  [dim]->[/dim] [accent]{tool_name}[/accent]', end='')
-                        seen_tool_keys.add(msg.get('key', ''))
-                        if self.context.verbose:
-                            self.console.print()
-                            self._print_verbose_tool_call(content, msg)
-                        pending_tool = tool_name
-                    elif role == 'tool response':
-                        result_summary = self._parse_tool_result(content)
-                        inferred = self._infer_tool_from_response(content)
-                        tool_log.append({'role': role, 'name': inferred, 'content': content, 'summary': result_summary, 'key': msg.get('key', '')})
-                        # Retroactively fix the pending tool name if we inferred one
-                        if inferred and pending_tool == 'tool':
-                            # Rewrite the line: clear current and reprint with inferred name
-                            self.console.print(f'\r  [dim]->[/dim] [accent]{inferred}[/accent]', end='')
-                        if result_summary:
-                            self.console.print(f' [dim]-- {result_summary}[/dim]', end='')
-                        self.console.print(f' [success]done[/success]')
-                        seen_tool_keys.add(msg.get('key', ''))
-                        if self.context.verbose:
-                            self._print_verbose_tool_response(content)
-                        pending_tool = None
-            except Exception:
-                pass
-
-            time.sleep(1)
-
+        try:
+            for msg in self._poll_messages(self.context.conversation_id, after_key=last_key):
+                role = msg.get('role', '')
+                content = msg.get('content', '')
+                if role == 'chariot':
+                    self._last_tool_log = tool_log
+                    return content
+                elif role == 'tool call':
+                    tool_name = self._parse_tool_name(content, msg)
+                    tool_log.append({'role': role, 'name': tool_name, 'content': content,
+                                     'msg': msg, 'key': msg.get('key', '')})
+                    self.console.print(f'  [dim]->[/dim] [accent]{tool_name}[/accent]')
+                    if self.context.verbose:
+                        self._print_verbose_tool_call(content, msg)
+                    pending_tool = tool_name
+                elif role == 'tool response':
+                    result_summary = self._parse_tool_result(content)
+                    inferred = self._infer_tool_from_response(content)
+                    tool_log.append({'role': role, 'name': inferred, 'content': content,
+                                     'summary': result_summary, 'key': msg.get('key', '')})
+                    if result_summary:
+                        self.console.print(f'    [dim]-- {result_summary}[/dim] [success]done[/success]')
+                    else:
+                        self.console.print(f'    [success]done[/success]')
+                    if self.context.verbose:
+                        self._print_verbose_tool_response(content)
+                    pending_tool = None
+        except KeyboardInterrupt:
+            self._last_tool_log = tool_log
+            self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
+            return None
+        except MarcusError as e:
+            self._last_tool_log = tool_log
+            self.console.print(f'\n[warning]{e}[/warning]')
+            return None
         self._last_tool_log = tool_log
-        self.console.print('\n[warning]Timed out waiting for response[/warning]')
         return None
 
     def _poll_messages(self, conversation_id, after_key='', *, max_wait=180,
