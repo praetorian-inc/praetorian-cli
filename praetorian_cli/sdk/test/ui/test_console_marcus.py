@@ -131,3 +131,26 @@ def test_post_to_planner_guards_non_json_on_200(host):
     h, _ = _make_host_for_post(ok_but_bad)
     with pytest.raises(MarcusError):
         h._post_to_planner('hi')
+
+
+def test_send_to_marcus_handles_ctrl_c(host):
+    # _post_to_planner succeeds, but polling raises KeyboardInterrupt mid-stream
+    host._post_to_planner = lambda m: {'conversation': {'uuid': 'c1'}}
+    def _boom(*a, **k):
+        raise KeyboardInterrupt()
+    host._poll_messages = _boom
+    printed = []
+    class _Console:
+        def print(self, *a, **k): printed.append(' '.join(str(x) for x in a))
+        def status(self, *a, **k):
+            import contextlib; return contextlib.nullcontext()
+    host.console = _Console()
+    host.colors = {'primary': 'red'}
+    host.context = types.SimpleNamespace(account=None, mode='agent', conversation_id=None,
+                                         verbose=False)
+    class _Search:
+        def by_key_prefix(self, prefix, user=False): return ([], None)
+    host.sdk = types.SimpleNamespace(search=_Search())
+    result = host._send_to_marcus('hi')
+    assert result is None
+    assert any('cancel' in p.lower() or 'interrupt' in p.lower() for p in printed)
