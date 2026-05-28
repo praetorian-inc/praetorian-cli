@@ -360,6 +360,7 @@ def test_send_to_marcus_handles_ctrl_c(host):
     class _KC:
         def websocket_url(self): return None
     host.sdk = types.SimpleNamespace(search=_Search(), keychain=_KC())
+    host.sdk = types.SimpleNamespace(search=_Search())
     result = host._send_to_marcus('hi')
     assert result is None
     assert any('cancel' in p.lower() or 'interrupt' in p.lower() for p in printed)

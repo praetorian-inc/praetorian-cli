@@ -260,6 +260,8 @@ class MarcusCommands:
         tool_log = []
         try:
             for msg in self._stream_messages(self.context.conversation_id, after_key=last_key):
+        pending_tool = None
+            for msg in self._poll_messages(self.context.conversation_id, after_key=last_key):
                 role = msg.get('role', '')
                 content = msg.get('content', '')
                 if role == 'chariot':
@@ -272,6 +274,7 @@ class MarcusCommands:
                     self.console.print(f'  [dim]->[/dim] [accent]{tool_name}[/accent]')
                     if self.context.verbose:
                         self._print_verbose_tool_call(content, msg)
+                    pending_tool = tool_name
                 elif role == 'tool response':
                     result_summary = self._parse_tool_result(content)
                     inferred = self._infer_tool_from_response(content)
@@ -283,6 +286,7 @@ class MarcusCommands:
                         self.console.print(f'    [success]done[/success]')
                     if self.context.verbose:
                         self._print_verbose_tool_response(content)
+                    pending_tool = None
         except KeyboardInterrupt:
             self._last_tool_log = tool_log
             self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
@@ -411,6 +415,7 @@ class MarcusCommands:
                     raise MarcusError('WebSocket connection lost mid-stream')
                 # else fall through to polling
         yield from self._poll_messages(conversation_id, after_key=after_key)
+            self.console.print(f'\n[warning]{e}[/warning]')
 
     def _poll_messages(self, conversation_id, after_key='', *, max_wait=180,
                        sleep=time.sleep, error_threshold=5):
