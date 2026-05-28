@@ -1,187 +1,96 @@
 {
-  "version": 1,
+  "version": 2,
   "modules": {
     "brutus": {
       "repo": "praetorian-inc/brutus",
-      "description": "Credential attacks across 20+ protocols (SSH, RDP, FTP, SMB, etc.)",
-      "category": "credential",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {
-        "protocol": {"type": "string", "description": "Target protocol (auto-detected from port)", "required": false},
-        "usernames": {"type": "string", "description": "Username file or comma-separated list", "required": false},
-        "passwords": {"type": "string", "description": "Password file or comma-separated list", "required": false}
-      },
-      "args_template": ["--target", "{target}"],
-      "tags": ["brute-force", "password", "network"]
+      "binary_pattern": "brutus-{os}-{arch}*",
+      "plugin": "brutus"
     },
     "julius": {
       "repo": "praetorian-inc/julius",
-      "description": "LLM/AI service fingerprinting",
-      "category": "ai",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["-t", "{target}"],
-      "tags": ["llm", "ai", "fingerprint"]
+      "binary_pattern": "julius-{os}-{arch}*",
+      "plugin": "julius"
     },
     "augustus": {
       "repo": "praetorian-inc/augustus",
-      "description": "LLM jailbreak & prompt injection attacks (190+ probes)",
-      "category": "ai",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["scan", "-t", "{target}"],
-      "tags": ["llm", "ai", "jailbreak", "injection"]
+      "binary_pattern": "augustus-{os}-{arch}*",
+      "plugin": "augustus"
     },
     "titus": {
       "repo": "praetorian-inc/titus",
-      "description": "Secret scanning & credential leak detection (487 rules)",
-      "category": "scanner",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {
-        "validation": {"type": "string", "description": "Enable secret validation (true/false)", "required": false}
-      },
-      "args_template": ["scan", "{target}"],
-      "tags": ["secrets", "credentials", "leak"]
+      "binary_pattern": "titus-{os}-{arch}*",
+      "plugin": "titus",
+      "local_only": true
     },
     "trajan": {
       "repo": "praetorian-inc/trajan",
-      "description": "CI/CD pipeline security scanning",
-      "category": "cicd",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {
-        "token": {"type": "string", "description": "GitHub/GitLab token for API access", "required": false}
-      },
-      "args_template": ["scan", "{target}"],
-      "tags": ["cicd", "pipeline", "github", "gitlab"]
+      "binary_pattern": "trajan-{os}-{arch}*",
+      "plugin": "trajan"
     },
     "cato": {
       "repo": "praetorian-inc/cato",
-      "description": "Injection scanner (SQLi, SSRF, SSTI, XXE)",
-      "category": "scanner",
-      "author": "Praetorian",
-      "target_type": "webpage",
-      "options": {},
-      "args_template": ["scan", "-u", "{target}"],
-      "tags": ["injection", "sqli", "ssrf", "ssti", "xxe"]
+      "binary_pattern": "cato-{os}-{arch}*",
+      "plugin": "cato",
+      "local_only": true
     },
     "nerva": {
       "repo": "praetorian-inc/nerva",
-      "description": "Service fingerprinting (120+ protocols)",
-      "category": "recon",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["-t", "{target}"],
-      "tags": ["fingerprint", "service", "protocol"]
+      "binary_pattern": "nerva-{os}-{arch}*",
+      "plugin": "nerva",
+      "local_only": true
     },
     "vespasian": {
       "repo": "praetorian-inc/vespasian",
-      "description": "API discovery from traffic",
-      "category": "api",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["scan", "{target}"],
-      "tags": ["api", "discovery", "traffic"]
+      "binary_pattern": "vespasian-{os}-{arch}*",
+      "plugin": "vespasian"
     },
     "nuclei": {
       "repo": "praetorian-inc/nuclei",
-      "description": "Vulnerability scanner with template engine",
-      "category": "scanner",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {
-        "templates": {"type": "string", "description": "Template directory or file", "required": false}
-      },
-      "args_template": ["-u", "{target}", "-jsonl"],
-      "tags": ["vulnerability", "templates", "cve"]
+      "binary_pattern": "nuclei-{os}-{arch}*",
+      "plugin": "nuclei"
     },
     "gato": {
       "repo": "praetorian-inc/gato",
-      "description": "GitHub Actions pipeline scanner",
-      "category": "cicd",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {
-        "token": {"type": "string", "description": "GitHub token", "required": false}
-      },
-      "args_template": ["enumerate", "-t", "{target}"],
-      "tags": ["github", "actions", "pipeline"]
+      "binary_pattern": "gato-{os}-{arch}*",
+      "plugin": "gato",
+      "local_only": true
     },
     "constantine": {
       "repo": "praetorian-inc/constantine",
-      "description": "Repository security analysis",
-      "category": "scanner",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["scan", "{target}"],
-      "tags": ["repository", "code", "security"]
+      "binary_pattern": "constantine-{os}-{arch}*",
+      "plugin": "constantine"
     },
     "aurelian": {
       "repo": "praetorian-inc/aurelian",
-      "description": "Cloud security reconnaissance (AWS/Azure/GCP)",
-      "category": "cloud",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["scan", "{target}"],
-      "tags": ["cloud", "aws", "azure", "gcp", "recon"]
+      "binary_pattern": "aurelian-{os}-{arch}*",
+      "local_only": true
     },
     "pius": {
       "repo": "praetorian-inc/pius",
-      "description": "Organizational asset discovery",
-      "category": "recon",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["scan", "{target}"],
-      "tags": ["discovery", "org", "asset"]
+      "binary_pattern": "pius-{os}-{arch}*",
+      "capability": "pius_discovery"
     },
     "florian": {
       "repo": "praetorian-inc/florian",
-      "description": "Authentication flow testing",
-      "category": "api",
-      "author": "Praetorian",
-      "target_type": "webpage",
-      "options": {},
-      "args_template": ["scan", "-u", "{target}"],
-      "tags": ["auth", "authentication", "flow"]
+      "binary_pattern": "florian-{os}-{arch}*",
+      "plugin": "florian",
+      "local_only": true
     },
     "caligula": {
       "repo": "praetorian-inc/caligula",
-      "description": "Supply chain security scanner",
-      "category": "supply-chain",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["scan", "{target}"],
-      "tags": ["supply-chain", "dependency", "sbom"]
+      "binary_pattern": "caligula-{os}-{arch}*",
+      "plugin": "caligula"
     },
     "hadrian": {
       "repo": "praetorian-inc/hadrian",
-      "description": "API security testing",
-      "category": "api",
-      "author": "Praetorian",
-      "target_type": "webpage",
-      "options": {},
-      "args_template": ["scan", "-u", "{target}"],
-      "tags": ["api", "security", "testing"]
+      "binary_pattern": "hadrian-{os}-{arch}*",
+      "plugin": "hadrian"
     },
     "nero": {
       "repo": "praetorian-inc/nero",
-      "description": "Default credential scanner",
-      "category": "credential",
-      "author": "Praetorian",
-      "target_type": "asset",
-      "options": {},
-      "args_template": ["-t", "{target}"],
-      "tags": ["default", "credentials", "scanner"]
+      "binary_pattern": "nero-{os}-{arch}*",
+      "plugin": "nero",
+      "local_only": true
     }
   }
 }

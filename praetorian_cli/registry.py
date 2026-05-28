@@ -92,6 +92,23 @@ class ModuleRegistry:
                 return val
         return None
 
+    def get_capability_name(self, name: str) -> str:
+        """The guard capability a module maps to (defaults to its own name)."""
+        mod = self.get_module(name) or {}
+        return mod.get('capability', name.lower())
+
+    def is_local_only(self, name: str) -> bool:
+        mod = self.get_module(name) or {}
+        return bool(mod.get('local_only', False))
+
+    def get_binary_pattern(self, name: str):
+        mod = self.get_module(name) or {}
+        return mod.get('binary_pattern')
+
+    def get_plugin_name(self, name: str):
+        mod = self.get_module(name) or {}
+        return mod.get('plugin')
+
     def search_modules(
         self,
         query: str = "",
@@ -172,7 +189,7 @@ class ModuleRegistry:
     def get_installable_tools(self) -> Dict[str, Dict]:
         modules = self.get_modules()
         return {
-            name: {"repo": mod["repo"], "description": mod["description"]}
+            name: {"repo": mod.get("repo", ""), "description": mod.get("description", "")}
             for name, mod in modules.items()
         }
 
