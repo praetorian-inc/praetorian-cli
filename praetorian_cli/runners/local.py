@@ -1,5 +1,6 @@
 """Local capability runner — install and run Praetorian tools locally."""
 
+import hashlib
 import json
 import os
 import platform
@@ -127,6 +128,25 @@ def is_installed(tool_name: str) -> bool:
     return get_binary_path(tool_name) is not None
 
 
+def verify_sha256(path: str, expected: str) -> bool:
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(65536), b''):
+            h.update(chunk)
+    return h.hexdigest() == (expected or '').lower().strip()
+
+
+def uninstall_tool(tool_name: str) -> bool:
+    """Remove an installed binary from INSTALL_DIR and its version record."""
+    from praetorian_cli.registry import get_registry
+    path = os.path.join(INSTALL_DIR, tool_name)
+    existed = os.path.isfile(path)
+    if existed:
+        os.remove(path)
+    get_registry().remove_version(tool_name)
+    return existed
+
+
 def install_tool(tool_name: str, force=False) -> str:
     """Download and install a tool from GitHub releases. Returns binary path."""
     if tool_name not in INSTALLABLE_TOOLS:
@@ -141,13 +161,20 @@ def install_tool(tool_name: str, force=False) -> str:
     repo = INSTALLABLE_TOOLS[tool_name]['repo']
     os_name, arch = _detect_platform()
 
+    from praetorian_cli.registry import get_registry
+    _pattern = get_registry().get_binary_pattern(tool_name)
+    if _pattern:
+        asset_pattern = _pattern.replace('{os}', os_name).replace('{arch}', arch)
+    else:
+        asset_pattern = f'{tool_name}-{os_name}-{arch}*'
+
     os.makedirs(INSTALL_DIR, exist_ok=True)
 
     # Get latest release asset URL using gh CLI
     try:
         result = subprocess.run(
             ['gh', 'release', 'download', '--repo', repo,
-             '--pattern', f'{tool_name}-{os_name}-{arch}*',
+             '--pattern', asset_pattern,
              '--dir', tempfile.gettempdir(), '--clobber'],
             capture_output=True, text=True, timeout=120,
         )

@@ -228,3 +228,36 @@ class TestPluginsForwardPassthrough:
         assert NucleiPlugin().build_args('example.com') == ['-u', 'example.com', '-jsonl']
         assert TitusPlugin().build_args('x') == ['scan', 'x']
         assert JuliusPlugin().build_args('x') == ['-t', 'x']
+
+
+import os
+from praetorian_cli.runners import local
+
+
+def test_uninstall_removes_binary_and_version(tmp_path, monkeypatch):
+    monkeypatch.setattr(local, 'INSTALL_DIR', str(tmp_path))
+    binp = tmp_path / 'titus'
+    binp.write_text('#!/bin/sh\n'); os.chmod(binp, 0o755)
+    removed = {}
+    class _Reg:
+        def remove_version(self, n): removed['n'] = n
+    monkeypatch.setattr('praetorian_cli.registry.get_registry', lambda: _Reg())
+    assert local.uninstall_tool('titus') is True
+    assert not binp.exists()
+    assert removed['n'] == 'titus'
+
+
+def test_uninstall_missing_returns_false(tmp_path, monkeypatch):
+    monkeypatch.setattr(local, 'INSTALL_DIR', str(tmp_path))
+    class _Reg:
+        def remove_version(self, n): pass
+    monkeypatch.setattr('praetorian_cli.registry.get_registry', lambda: _Reg())
+    assert local.uninstall_tool('ghost') is False
+
+
+def test_verify_sha256_matches(tmp_path):
+    import hashlib
+    f = tmp_path / 'b'; f.write_bytes(b'hello')
+    digest = hashlib.sha256(b'hello').hexdigest()
+    assert local.verify_sha256(str(f), digest) is True
+    assert local.verify_sha256(str(f), 'deadbeef') is False
