@@ -94,3 +94,40 @@ def test_403_retries_through_praetorian_account(host):
     assert calls['n'] == 2
     assert out['conversation']['uuid'] == 'c1'
     assert h.sdk.keychain.account == 'client@acme.com'  # restored
+
+
+def test_poll_messages_yields_only_new_and_stops_on_chariot(host):
+    msgs_round1 = [{'key': '#message#c1#001', 'role': 'tool call', 'content': '{}'},
+                   {'key': '#message#c1#002', 'role': 'tool response', 'content': '{"assets":[1]}'}]
+    msgs_round2 = msgs_round1 + [{'key': '#message#c1#003', 'role': 'chariot', 'content': 'final answer'}]
+    rounds = iter([msgs_round1, msgs_round2])
+    class _Search:
+        def by_key_prefix(self, prefix, user=False):
+            return (next(rounds), None)
+    host.sdk = types.SimpleNamespace(search=_Search())
+    host.context = types.SimpleNamespace(verbose=False)
+    collected = list(host._poll_messages('c1', after_key='', max_wait=5, sleep=lambda s: None))
+    roles = [m['role'] for m in collected]
+    assert roles[-1] == 'chariot'
+    assert collected[-1]['content'] == 'final answer'
+
+def test_poll_messages_surfaces_persistent_errors(host):
+    class _Search:
+        def by_key_prefix(self, prefix, user=False):
+            raise RuntimeError('search down')
+    host.sdk = types.SimpleNamespace(search=_Search())
+    host.context = types.SimpleNamespace(verbose=False)
+    from praetorian_cli.ui.console.commands.marcus import MarcusError
+    with pytest.raises(MarcusError):
+        list(host._poll_messages('c1', after_key='', max_wait=2, sleep=lambda s: None,
+                                 error_threshold=1))
+
+def test_post_to_planner_guards_non_json_on_200(host):
+    # 200 OK but body is not JSON -> must raise MarcusError (the JSON-parse guard)
+    from praetorian_cli.ui.console.commands.marcus import MarcusError
+    ok_but_bad = _FakeResp(200, body='not json', ok=True)
+    def _raise(): raise ValueError('no json')
+    ok_but_bad.json = _raise
+    h, _ = _make_host_for_post(ok_but_bad)
+    with pytest.raises(MarcusError):
+        h._post_to_planner('hi')
