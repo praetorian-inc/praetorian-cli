@@ -251,6 +251,43 @@ class MarcusCommands:
         self.console.print('\n[warning]Timed out waiting for response[/warning]')
         return None
 
+    def _poll_messages(self, conversation_id, after_key='', *, max_wait=180,
+                       sleep=time.sleep, error_threshold=5):
+        """Yield new conversation messages in key order until a 'chariot' reply.
+
+        Pages by after_key (client-side filter). Backs off when idle. Raises
+        MarcusError after `error_threshold` consecutive fetch failures so
+        problems surface instead of hanging.
+        """
+        start = time.time()
+        last_key = after_key
+        delay = 1.0
+        consecutive_errors = 0
+        prefix = f'#message#{conversation_id}#'
+        while time.time() - start < max_wait:
+            try:
+                messages, _ = self.sdk.search.by_key_prefix(prefix, user=True)
+                consecutive_errors = 0
+            except Exception as e:
+                consecutive_errors += 1
+                if consecutive_errors >= error_threshold:
+                    raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
+                sleep(delay)
+                continue
+            new = sorted((m for m in messages if m.get('key', '') > last_key),
+                         key=lambda x: x.get('key', ''))
+            if new:
+                delay = 1.0
+                for msg in new:
+                    last_key = msg.get('key', '')
+                    yield msg
+                    if msg.get('role', '') == 'chariot':
+                        return
+            else:
+                delay = min(delay + 1.0, 3.0)
+            sleep(delay)
+        raise MarcusError('Timed out waiting for response')
+
     def _parse_tool_name(self, content: str, msg: dict = None) -> str:
         """Extract a human-readable tool name from a tool call message."""
         # Try explicit name fields first
