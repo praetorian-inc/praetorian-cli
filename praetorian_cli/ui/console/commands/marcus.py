@@ -235,6 +235,9 @@ class MarcusCommands:
         pre_conversation_id = self.context.conversation_id
         last_key = self._snapshot_last_key(pre_conversation_id)
 
+        acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
+        self.console.print(f'[dim]Thinking...[/dim]{acct_label}')
+        tool_log = []
         try:
             result = self._post_to_planner(message)
         except KeyboardInterrupt:
@@ -274,7 +277,6 @@ class MarcusCommands:
                     self.console.print(f'  [dim]->[/dim] [accent]{tool_name}[/accent]')
                     if self.context.verbose:
                         self._print_verbose_tool_call(content, msg)
-                    pending_tool = tool_name
                 elif role == 'tool response':
                     result_summary = self._parse_tool_result(content)
                     inferred = self._infer_tool_from_response(content)
@@ -286,7 +288,6 @@ class MarcusCommands:
                         self.console.print(f'    [success]done[/success]')
                     if self.context.verbose:
                         self._print_verbose_tool_response(content)
-                    pending_tool = None
         except KeyboardInterrupt:
             self._last_tool_log = tool_log
             self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
