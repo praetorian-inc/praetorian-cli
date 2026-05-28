@@ -200,7 +200,7 @@ class ModuleRegistry:
                 "capability": name,
                 "agent": name,
                 "target_type": mod.get("target_type", "asset"),
-                "description": mod["description"],
+                "description": mod.get("description", ""),
             }
             for name, mod in modules.items()
         }

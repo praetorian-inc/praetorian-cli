@@ -216,3 +216,18 @@ class TestRegistryAsInstallableTools:
         assert "target_type" in aliases["brutus"]
         assert "description" in aliases["brutus"]
         assert "capability" in aliases["brutus"]
+
+
+def test_get_tool_aliases_tolerates_slim_manifest(monkeypatch, tmp_path):
+    import praetorian_cli.registry as reg_mod
+    from praetorian_cli.registry import get_registry
+    manifest = tmp_path / 'registry.json'
+    manifest.write_text('{"version": 2, "modules": {"brutus": {"repo": "praetorian-inc/brutus"}}}')
+    monkeypatch.setattr(reg_mod, 'BUNDLED_REGISTRY_PATH', str(manifest))
+    monkeypatch.setattr(reg_mod, 'CACHE_PATH', str(tmp_path / 'none.json'))
+    reg_mod._registry = None
+    aliases = get_registry().get_tool_aliases()
+    assert 'brutus' in aliases
+    assert aliases['brutus']['description'] == ''          # defaults, no KeyError
+    assert aliases['brutus']['target_type'] == 'asset'
+    assert aliases['brutus']['capability'] == 'brutus'
