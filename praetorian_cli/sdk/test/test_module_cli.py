@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 
 import praetorian_cli.handlers.module  # registers `module` subcommand on chariot
+from praetorian_cli.catalog import Capability
 from praetorian_cli.handlers.chariot import chariot
 
 pytestmark = pytest.mark.cli
@@ -46,6 +47,25 @@ SAMPLE_MODULES = {
 }
 
 
+SAMPLE_CAPS = [
+    Capability.from_api({
+        "Name": "brutus", "Title": "Brutus", "Category": ["credential"],
+        "Surface": "external", "Target": ["port"],
+        "Description": "Credential attacks across 20+ protocols",
+        "Version": "v1.2.3", "Executor": "chariot",
+        "Parameters": [
+            {"Name": "protocol", "Type": "string", "Description": "Target protocol", "Required": False},
+        ],
+    }),
+    Capability.from_api({
+        "Name": "nuclei", "Title": "Nuclei", "Category": ["scanner"],
+        "Surface": "external", "Target": ["asset"],
+        "Description": "Vulnerability scanner",
+        "Version": "v2.0.0", "Executor": "chariot", "Parameters": [],
+    }),
+]
+
+
 def _invoke(runner, fake_sdk, argv):
     obj = {"keychain": MagicMock(), "proxy": ""}
     with patch("praetorian_cli.sdk.chariot.Chariot", return_value=fake_sdk), \
@@ -55,36 +75,49 @@ def _invoke(runner, fake_sdk, argv):
 
 class TestModuleSearch:
     def test_search_no_args_lists_all(self, runner, fake_sdk):
-        with patch("praetorian_cli.registry.ModuleRegistry.get_modules", return_value=SAMPLE_MODULES):
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPS):
             result = _invoke(runner, fake_sdk, ["module", "search"])
         assert result.exit_code == 0
         assert "brutus" in result.output
         assert "nuclei" in result.output
 
     def test_search_with_query(self, runner, fake_sdk):
-        with patch("praetorian_cli.registry.ModuleRegistry.get_modules", return_value=SAMPLE_MODULES):
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPS):
             result = _invoke(runner, fake_sdk, ["module", "search", "credential"])
         assert result.exit_code == 0
         assert "brutus" in result.output
 
     def test_search_with_category_filter(self, runner, fake_sdk):
-        with patch("praetorian_cli.registry.ModuleRegistry.get_modules", return_value=SAMPLE_MODULES):
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPS):
             result = _invoke(runner, fake_sdk, ["module", "search", "--category", "scanner"])
         assert result.exit_code == 0
         assert "nuclei" in result.output
 
     def test_search_json_output(self, runner, fake_sdk):
-        with patch("praetorian_cli.registry.ModuleRegistry.get_modules", return_value=SAMPLE_MODULES):
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPS):
             result = _invoke(runner, fake_sdk, ["module", "search", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
         assert len(data) == 2
 
+    @patch("praetorian_cli.catalog.CapabilityCatalog.all")
+    def test_module_search_json_uses_catalog(self, mock_all, runner, fake_sdk):
+        mock_all.return_value = [Capability.from_api(
+            {'Name': 'brutus', 'Title': 'Brutus', 'Category': ['credential'],
+             'Surface': 'external', 'Target': ['port'], 'Description': 'creds',
+             'Version': '0.2.0', 'Executor': 'chariot', 'Parameters': []})]
+        with patch("praetorian_cli.runners.local.list_installed", return_value={}):
+            result = _invoke(runner, fake_sdk, ["module", "search", "brutus", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data[0]["name"] == "brutus"
+        assert data[0]["version"] == "0.2.0"
+
 
 class TestModuleInfo:
     def test_info_existing_module(self, runner, fake_sdk):
-        with patch("praetorian_cli.registry.ModuleRegistry.get_modules", return_value=SAMPLE_MODULES), \
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPS), \
              patch("praetorian_cli.registry.ModuleRegistry.get_version", return_value=None):
             result = _invoke(runner, fake_sdk, ["module", "info", "brutus"])
         assert result.exit_code == 0
@@ -92,12 +125,12 @@ class TestModuleInfo:
         assert "credential" in result.output.lower() or "Credential" in result.output
 
     def test_info_unknown_module(self, runner, fake_sdk):
-        with patch("praetorian_cli.registry.ModuleRegistry.get_modules", return_value=SAMPLE_MODULES):
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPS):
             result = _invoke(runner, fake_sdk, ["module", "info", "nonexistent"])
         assert result.exit_code != 0
 
     def test_info_json_output(self, runner, fake_sdk):
-        with patch("praetorian_cli.registry.ModuleRegistry.get_modules", return_value=SAMPLE_MODULES), \
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPS), \
              patch("praetorian_cli.registry.ModuleRegistry.get_version", return_value=None):
             result = _invoke(runner, fake_sdk, ["module", "info", "brutus", "--json"])
         assert result.exit_code == 0
