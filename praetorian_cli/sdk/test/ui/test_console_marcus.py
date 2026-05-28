@@ -75,3 +75,22 @@ def test_impersonation_restored_after_exception(host):
     with pytest.raises(RuntimeError):
         h._post_to_planner('hello')
     assert h.sdk.keychain.account == 'client@acme.com'
+
+
+def test_non_json_response_raises_marcus_error(host):
+    from praetorian_cli.ui.console.commands.marcus import MarcusError
+    bad = _FakeResp(500, body='<html>oops</html>')
+    def _json(): raise ValueError('no json')
+    bad.json = _json
+    h, _ = _make_host_for_post(bad)
+    with pytest.raises(MarcusError):
+        h._post_to_planner('hi')
+
+def test_403_retries_through_praetorian_account(host):
+    first = _FakeResp(403, body='forbidden')
+    second = _FakeResp(200, payload={'conversation': {'uuid': 'c1'}})
+    h, calls = _make_host_for_post(first, second)
+    out = h._post_to_planner('hi')
+    assert calls['n'] == 2
+    assert out['conversation']['uuid'] == 'c1'
+    assert h.sdk.keychain.account == 'client@acme.com'  # restored
