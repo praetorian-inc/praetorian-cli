@@ -259,34 +259,66 @@ class MCPServer:
     async def _handle_module_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         try:
             if name == "list_modules":
+                from praetorian_cli.catalog import CapabilityCatalog
                 from praetorian_cli.registry import get_registry
                 from praetorian_cli.runners.local import list_installed
                 reg = get_registry()
                 query = arguments.get("query", "")
                 category = arguments.get("category", "")
-                results = reg.search_modules(query, category=category)
+                cat = CapabilityCatalog(self.chariot)
+                caps = cat.search(query, category=category) if (query or category) else cat.all()
                 installed = list_installed()
-                for r in results:
-                    r["installed"] = r["name"] in installed
-                    ver = reg.get_version(r["name"])
-                    r["version"] = ver["version"] if ver else None
+                results = []
+                for cap in caps:
+                    ver = reg.get_version(cap.name)
+                    results.append({
+                        "name": cap.name,
+                        "title": cap.title,
+                        "description": cap.description,
+                        "category": cap.category,
+                        "surface": cap.surface,
+                        "installed": cap.name in installed,
+                        "version": ver["version"] if ver else cap.version or None,
+                    })
                 return [TextContent(type="text", text=json.dumps(results, indent=2))]
 
             elif name == "module_info":
+                from praetorian_cli.catalog import CapabilityCatalog
                 from praetorian_cli.registry import get_registry
                 from praetorian_cli.runners.local import is_installed, get_binary_path
                 if not arguments.get("name"):
                     return [TextContent(type="text", text="Missing required parameter: name")]
-                reg = get_registry()
                 mod_name = arguments["name"].lower()
-                mod = reg.get_module(mod_name)
-                if not mod:
+                cat = CapabilityCatalog(self.chariot)
+                cap = cat.get(mod_name)
+                if not cap:
                     return [TextContent(type="text", text=f"Unknown module: {mod_name}")]
+                reg = get_registry()
                 ver = reg.get_version(mod_name)
-                out = {"name": mod_name, **mod}
-                out["installed"] = is_installed(mod_name)
-                out["version"] = ver["version"] if ver else None
-                out["binary_path"] = get_binary_path(mod_name)
+                out = {
+                    "name": cap.name,
+                    "title": cap.title,
+                    "description": cap.description,
+                    "category": cap.category,
+                    "surface": cap.surface,
+                    "target": cap.target,
+                    "executor": cap.executor,
+                    "parameters": [
+                        {
+                            "name": p.name,
+                            "description": p.description,
+                            "type": p.type,
+                            "default": p.default,
+                            "required": p.required,
+                            "options": p.options,
+                        }
+                        for p in cap.parameters
+                    ],
+                    "installed": is_installed(mod_name),
+                    "version": ver["version"] if ver else cap.version or None,
+                    "binary_path": get_binary_path(mod_name),
+                    "local_only": reg.is_local_only(mod_name),
+                }
                 return [TextContent(type="text", text=json.dumps(out, indent=2))]
 
             elif name == "install_module":
