@@ -192,6 +192,59 @@ class TestConsoleModuleNumberedLookup:
         )
 
 
+class TestConsoleModuleDispatch:
+    def test_module_sync_prints_count_and_source(self):
+        from praetorian_cli.ui.console.console import GuardConsole
+        h = _Harness()
+        # Borrow the real dispatch + sync handlers onto our harness.
+        h._cmd_module_dispatch = GuardConsole._cmd_module_dispatch.__get__(h)
+        h._cmd_module_options = GuardConsole._cmd_module_options.__get__(h)
+        h._cmd_module_sync = GuardConsole._cmd_module_sync.__get__(h)
+        h._cmd_module_uninstall = GuardConsole._cmd_module_uninstall.__get__(h)
+        with patch("praetorian_cli.catalog.CapabilityCatalog.refresh", return_value=True), \
+             patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPABILITIES):
+            h._cmd_module_dispatch(["sync"])
+        output = "\n".join(h.console.lines)
+        assert "3" in output  # SAMPLE_CAPABILITIES has 3 entries
+        assert "capabilit" in output.lower()
+
+    def test_module_uninstall_prints_result(self):
+        from praetorian_cli.ui.console.console import GuardConsole
+        h = _Harness()
+        h._cmd_module_dispatch = GuardConsole._cmd_module_dispatch.__get__(h)
+        h._cmd_module_options = GuardConsole._cmd_module_options.__get__(h)
+        h._cmd_module_sync = GuardConsole._cmd_module_sync.__get__(h)
+        h._cmd_module_uninstall = GuardConsole._cmd_module_uninstall.__get__(h)
+        with patch("praetorian_cli.runners.local.uninstall_tool", return_value=False):
+            h._cmd_module_dispatch(["uninstall", "brutus"])
+        output = "\n".join(h.console.lines)
+        assert "not installed" in output.lower() or "removed" in output.lower()
+
+    def test_module_options_renders_parameters(self):
+        from praetorian_cli.ui.console.console import GuardConsole
+        h = _Harness()
+        h._cmd_module_dispatch = GuardConsole._cmd_module_dispatch.__get__(h)
+        h._cmd_module_options = GuardConsole._cmd_module_options.__get__(h)
+        h._cmd_module_sync = GuardConsole._cmd_module_sync.__get__(h)
+        h._cmd_module_uninstall = GuardConsole._cmd_module_uninstall.__get__(h)
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPABILITIES):
+            h._cmd_module_dispatch(["options", "brutus"])
+        output = "\n".join(h.console.lines)
+        assert "protocol" in output
+
+    def test_module_options_unknown_prints_error(self):
+        from praetorian_cli.ui.console.console import GuardConsole
+        h = _Harness()
+        h._cmd_module_dispatch = GuardConsole._cmd_module_dispatch.__get__(h)
+        h._cmd_module_options = GuardConsole._cmd_module_options.__get__(h)
+        h._cmd_module_sync = GuardConsole._cmd_module_sync.__get__(h)
+        h._cmd_module_uninstall = GuardConsole._cmd_module_uninstall.__get__(h)
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPABILITIES):
+            h._cmd_module_dispatch(["options", "doesnotexist"])
+        output = "\n".join(h.console.lines)
+        assert "unknown" in output.lower() or "not found" in output.lower()
+
+
 # ---------------------------------------------------------------------------
 # Harness that mixes in both ContextCommands and ToolCommands to test use/set/options
 # ---------------------------------------------------------------------------

@@ -60,6 +60,10 @@ def resolve_capability(sdk, name):
     Checks TOOL_ALIASES for aliases, then queries the /capabilities/ endpoint.
     Returns dict with at minimum: name, target, description. Or None.
     """
+    # Map an install/module name to its guard capability name (e.g. pius -> pius_discovery).
+    from praetorian_cli.registry import get_registry
+    name = get_registry().get_capability_name(name)
+
     # Check backend capabilities
     try:
         caps = sdk.capabilities.list(name=name)

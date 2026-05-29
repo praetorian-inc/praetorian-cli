@@ -138,6 +138,32 @@ class TestModuleInfo:
         assert data["name"] == "brutus"
 
 
+PIUS_CAPS = [
+    Capability.from_api({
+        "Name": "pius_discovery", "Title": "Pius Discovery", "Category": ["discovery"],
+        "Surface": "external", "Target": ["asset"],
+        "Description": "Asset discovery via pius",
+        "Version": "v1.0.0", "Executor": "chariot", "Parameters": [],
+    }),
+]
+
+
+class TestModuleCapabilityAlias:
+    def test_info_resolves_via_capability_alias(self, runner, fake_sdk):
+        """`module info pius` must resolve to the aliased capability `pius_discovery`."""
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=PIUS_CAPS), \
+             patch("praetorian_cli.registry.ModuleRegistry.get_version", return_value=None):
+            result = _invoke(runner, fake_sdk, ["module", "info", "pius", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["name"] == "pius_discovery"
+
+    def test_options_resolves_via_capability_alias(self, runner, fake_sdk):
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=PIUS_CAPS):
+            result = _invoke(runner, fake_sdk, ["module", "options", "pius", "--json"])
+        assert result.exit_code == 0, result.output
+
+
 class TestModuleInstalled:
     def test_installed_lists_tools(self, runner, fake_sdk):
         with patch("praetorian_cli.registry.ModuleRegistry.get_modules", return_value=SAMPLE_MODULES), \
