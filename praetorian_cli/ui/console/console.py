@@ -6,7 +6,7 @@ import shlex
 from typing import Optional
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import WordCompleter, NestedCompleter
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
 
@@ -39,6 +39,7 @@ CONSOLE_COMMANDS = [
     'search', 'find', 'assets', 'risks', 'jobs', 'info',
     'next', 'n', 'prev', 'p', 'page',
     'scan', 'tag',
+    'update', 'module',
     'run', 'status', 'download', 'install', 'installed',
     'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
     'trajan', 'cato', 'priscus', 'seneca', 'titus',
@@ -76,8 +77,43 @@ class GuardConsole(
 
         self.session = PromptSession(
             history=FileHistory(history_path),
-            completer=WordCompleter(CONSOLE_COMMANDS, ignore_case=True),
+            completer=self._build_completer(),
         )
+
+    def _build_completer(self):
+        """Build a NestedCompleter with live module names; fall back to WordCompleter."""
+        try:
+            from praetorian_cli.catalog import CapabilityCatalog
+            caps = CapabilityCatalog(self.sdk).all()
+            module_names = {c.name: None for c in caps} if caps else {}
+
+            # module subcommands
+            module_sub = {
+                'search': None,
+                'info': module_names or None,
+                'options': None,
+                'install': module_names or None,
+                'uninstall': module_names or None,
+                'update': module_names or None,
+                'sync': None,
+                'list': None,
+                'installed': None,
+            }
+
+            # Build top-level nested dict from CONSOLE_COMMANDS (top-level → None)
+            # plus richer sub-completions for a few commands.
+            top: dict = {cmd: None for cmd in CONSOLE_COMMANDS}
+            top['module'] = module_sub
+            top['use'] = module_names or None
+            top['info'] = module_names or None
+            top['install'] = module_names or None
+            top['uninstall'] = module_names or None
+
+            return NestedCompleter.from_nested_dict(top)
+        except Exception:
+            # Any failure (SDK not authenticated yet, network error, etc.) —
+            # degrade gracefully to flat WordCompleter.
+            return WordCompleter(CONSOLE_COMMANDS, ignore_case=True)
 
     def run(self):
         """Main console loop."""
@@ -219,6 +255,8 @@ class GuardConsole(
             'download': self._cmd_download,
             'install': self._cmd_install,
             'installed': self._cmd_installed,
+            'update': self._cmd_module_update,
+            'module': self._cmd_module_dispatch,
             'capabilities': self._cmd_capabilities,
             'evidence': self._cmd_evidence,
             'report': self._cmd_report,
@@ -356,6 +394,10 @@ class GuardConsole(
         help_table.add_row('capabilities [name]', 'List all backend capabilities')
         help_table.add_row('install <tool|all>', 'Install binary from GitHub')
         help_table.add_row('installed', 'List locally installed binaries')
+        help_table.add_row('update [module|all]', 'Update installed modules to latest')
+        help_table.add_row('module search [query]', 'Search module registry (name, category, tag)')
+        help_table.add_row('module info <name>', 'Show module details (options, version, author)')
+        help_table.add_row('module update [name|all]', 'Update installed modules to latest')
 
         help_table.add_row('', '')
         help_table.add_row('[section]Evidence & Reports[/section]', '')
@@ -443,6 +485,88 @@ class GuardConsole(
 
     def _cmd_quit(self, args):
         raise EOFError()
+
+    def _cmd_module_dispatch(self, args):
+        """Route 'module <subcommand>' to the right handler."""
+        if not args:
+            self._cmd_module_search([])
+            return
+        sub = args[0].lower()
+        rest = args[1:]
+        routes = {
+            'search': self._cmd_module_search,
+            'info': self._cmd_module_info,
+            'update': self._cmd_module_update,
+            'install': self._cmd_install,
+            'installed': self._cmd_installed,
+            'uninstall': self._cmd_module_uninstall,
+            'sync': self._cmd_module_sync,
+            'options': self._cmd_module_options,
+            'list': self._cmd_module_search,
+        }
+        handler = routes.get(sub)
+        if handler:
+            handler(rest)
+        else:
+            self.console.print(
+                f'[dim]Unknown: module {sub}. '
+                f'Try: search, info, install, uninstall, installed, update, sync, options[/dim]'
+            )
+
+    def _cmd_module_uninstall(self, args):
+        """Remove an installed module binary."""
+        from praetorian_cli.runners.local import uninstall_tool
+        if not args:
+            self.console.print('[dim]Usage: module uninstall <name>[/dim]')
+            return
+        name = args[0].lower()
+        removed = uninstall_tool(name)
+        if removed:
+            self.console.print(f'[success]{name}: removed[/success]')
+        else:
+            self.console.print(f'[dim]{name}: not installed[/dim]')
+
+    def _cmd_module_sync(self, args):
+        """Force-refresh the capability catalog from the backend."""
+        from praetorian_cli.catalog import CapabilityCatalog
+        cat = CapabilityCatalog(self.sdk)
+        ok = cat.refresh(force=True)
+        n = len(cat.all())
+        verb = 'refreshed' if ok else 'unchanged'
+        self.console.print(f'[success]Catalog {verb}: {n} capabilities ({cat.source}).[/success]')
+
+    def _cmd_module_options(self, args):
+        """Show the configurable parameters for a module (no active tool required)."""
+        from praetorian_cli.catalog import CapabilityCatalog
+        from praetorian_cli.registry import get_registry
+        if not args:
+            self.console.print('[dim]Usage: module options <name>[/dim]')
+            return
+        name = args[0].lower()
+        reg = get_registry()
+        cat = CapabilityCatalog(self.sdk)
+        cap = cat.get(name) or cat.get(reg.get_capability_name(name))
+        if not cap:
+            self.console.print(f'[error]Unknown module: {name}. Use "module search" to find modules.[/error]')
+            return
+        if not cap.parameters:
+            self.console.print(f'[dim]{cap.name}: no configurable options.[/dim]')
+            return
+        param_table = Table(title=f'{cap.name} options', border_style=self.colors['dim'])
+        param_table.add_column('Parameter', style=f'bold {self.colors["primary"]}')
+        param_table.add_column('Type', style=self.colors['accent'])
+        param_table.add_column('Required')
+        param_table.add_column('Default')
+        param_table.add_column('Description')
+        for p in cap.parameters:
+            desc = p.description or ''
+            if p.options:
+                desc = f"{desc} [{', '.join(p.options)}]".strip()
+            param_table.add_row(
+                f'--{p.name}', p.type, 'yes' if p.required else 'no',
+                p.default or '', desc,
+            )
+        self.console.print(param_table)
 
 
 def run_console(sdk: Chariot, account: Optional[str] = None):

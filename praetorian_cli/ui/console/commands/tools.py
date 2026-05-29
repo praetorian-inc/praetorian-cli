@@ -121,6 +121,7 @@ class ToolCommands:
 
         capability = alias.get('capability')
         config = dict(alias.get('default_config', {}))
+        config.update(getattr(self.context, 'active_tool_config', {}) or {})
 
         if alias.get('agent') and (use_agent or not capability):
             agent_name = alias['agent']
@@ -543,3 +544,218 @@ class ToolCommands:
                 self.console.print('[dim]No capabilities found.[/dim]')
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
+
+    def _cmd_module_search(self, args):
+        """Search modules from the capability catalog."""
+        from praetorian_cli.catalog import CapabilityCatalog
+        from praetorian_cli.registry import get_registry
+        from praetorian_cli.runners.local import list_installed
+
+        query = ''
+        category = ''
+        surface = ''
+        target = ''
+        tag = ''
+
+        i = 0
+        while i < len(args):
+            a = args[i]
+            if a == '--category' and i + 1 < len(args):
+                category = args[i + 1]
+                i += 2
+            elif a == '--surface' and i + 1 < len(args):
+                surface = args[i + 1]
+                i += 2
+            elif a == '--target' and i + 1 < len(args):
+                target = args[i + 1]
+                i += 2
+            elif a == '--tag' and i + 1 < len(args):
+                tag = args[i + 1]
+                i += 2
+            elif not a.startswith('--'):
+                query = a
+                i += 1
+            else:
+                i += 1
+
+        cat = CapabilityCatalog(self.sdk)
+        results = cat.search(query, category=category, surface=surface, target=target, tag=tag)
+        installed = list_installed()
+        reg = get_registry()
+
+        if not results:
+            self.console.print('[dim]No modules match the query.[/dim]')
+            return
+
+        table = Table(title=f'Modules ({len(results)})', border_style=self.colors['primary'])
+        table.add_column('#', style=self.colors['dim'], width=4)
+        table.add_column('Name', style=f'bold {self.colors["primary"]}', min_width=16)
+        table.add_column('Category', style=self.colors['accent'])
+        table.add_column('Surface', style=self.colors['dim'], min_width=8)
+        table.add_column('Installed', min_width=10)
+        table.add_column('Description')
+
+        self._module_list = []
+        for n, cap in enumerate(results, 1):
+            name = cap.name
+            ver = reg.get_version(name)
+            local_only = reg.is_local_only(name)
+            if name in installed:
+                ver_str = ver['version'] if ver else 'yes'
+                status = f'[success]{ver_str}[/success]'
+            else:
+                status = '[dim]—[/dim]'
+            if local_only:
+                status += ' [dim][local-only][/dim]'
+            category_str = ', '.join(cap.category) if cap.category else ''
+            desc = cap.description or ''
+            if len(desc) > 50:
+                desc = desc[:49] + '…'
+            table.add_row(str(n), name, category_str, cap.surface or '', status, desc)
+            self._module_list.append(name)
+
+        self.console.print(table)
+        self.console.print(f'\n[dim]Use "info <name>" for details or "install <name>" to install.[/dim]')
+
+    def _cmd_module_info(self, args):
+        """Show full details for a module (by name or prior-search result number)."""
+        from praetorian_cli.catalog import CapabilityCatalog
+        from praetorian_cli.registry import get_registry
+        from praetorian_cli.runners.local import is_installed, get_binary_path
+
+        if not args:
+            self.console.print('[dim]Usage: info <module_name|#>[/dim]')
+            return
+
+        # Resolve numeric argument to a stored search result name.
+        if args[0].isdigit():
+            idx = int(args[0]) - 1
+            mods = getattr(self, '_module_list', [])
+            if 0 <= idx < len(mods):
+                args = [mods[idx]] + list(args[1:])
+
+        name = args[0].lower()
+        reg = get_registry()
+        cat = CapabilityCatalog(self.sdk)
+        cap = cat.get(name) or cat.get(reg.get_capability_name(name))
+        if not cap:
+            self.console.print(f'[error]Unknown module: {name}. Use "search" to find modules.[/error]')
+            return
+
+        ver_info = reg.get_version(name)
+        installed_str = 'not installed'
+        if is_installed(name):
+            try:
+                path = get_binary_path(name)
+            except Exception:
+                path = ''
+            ver = ver_info['version'] if ver_info else 'unknown'
+            installed_str = f'{ver} ({path})' if path else ver
+
+        category_str = ', '.join(cap.category) if cap.category else ''
+        target_str = ', '.join(cap.target) if cap.target else ''
+
+        info_text = Text()
+        info_text.append(f'Name:        ', style=self.colors['dim'])
+        info_text.append(f'{cap.name}\n', style=f'bold {self.colors["primary"]}')
+        info_text.append(f'Title:       ', style=self.colors['dim'])
+        info_text.append(f'{cap.title}\n')
+        info_text.append(f'Category:    ', style=self.colors['dim'])
+        info_text.append(f'{category_str}\n', style=self.colors['accent'])
+        info_text.append(f'Surface:     ', style=self.colors['dim'])
+        info_text.append(f'{cap.surface}\n')
+        info_text.append(f'Target:      ', style=self.colors['dim'])
+        info_text.append(f'{target_str}\n')
+        info_text.append(f'Version:     ', style=self.colors['dim'])
+        info_text.append(f'{cap.version}\n')
+        info_text.append(f'Executor:    ', style=self.colors['dim'])
+        info_text.append(f'{cap.executor}\n')
+        info_text.append(f'Installed:   ', style=self.colors['dim'])
+        info_text.append(f'{installed_str}\n')
+        info_text.append(f'Description: ', style=self.colors['dim'])
+        info_text.append(f'{cap.description}\n')
+
+        if reg.is_local_only(name):
+            info_text.append(f'[local-only] This capability runs exclusively as a local binary.\n',
+                             style=self.colors['dim'])
+
+        self.console.print(Panel(info_text, title=f'Module: {cap.name}', border_style=self.colors['primary']))
+
+        if cap.parameters:
+            param_table = Table(title='Parameters', border_style=self.colors['dim'])
+            param_table.add_column('Parameter', style=f'bold {self.colors["primary"]}')
+            param_table.add_column('Type', style=self.colors['accent'])
+            param_table.add_column('Required')
+            param_table.add_column('Default')
+            param_table.add_column('Description')
+            for p in cap.parameters:
+                param_table.add_row(
+                    f'--{p.name}',
+                    p.type,
+                    'yes' if p.required else 'no',
+                    p.default or '',
+                    p.description,
+                )
+            self.console.print(param_table)
+
+    def _cmd_module_update(self, args):
+        """Update installed modules to latest release."""
+        import subprocess
+        from praetorian_cli.registry import get_registry
+        from praetorian_cli.runners.local import install_tool, is_installed, INSTALLABLE_TOOLS
+
+        if '--registry' in args:
+            reg = get_registry()
+            refreshed = reg.refresh(force=True)
+            self.console.print(
+                '[success]Registry refreshed.[/success]' if refreshed
+                else '[warning]Registry refresh failed (using cached).[/warning]'
+            )
+            return
+
+        reg = get_registry()
+        name = args[0].lower() if args else 'all'
+        tools = sorted(INSTALLABLE_TOOLS) if name == 'all' else [name]
+
+        updated = 0
+        for tool_name in tools:
+            if not is_installed(tool_name):
+                if name != 'all':
+                    self.console.print(f'[dim]{tool_name}: not installed[/dim]')
+                continue
+
+            mod = reg.get_module(tool_name)
+            if not mod:
+                continue
+
+            current = reg.get_version(tool_name)
+            current_ver = current['version'] if current else 'unknown'
+
+            try:
+                ver_result = subprocess.run(
+                    ['gh', 'release', 'view', '--repo', mod['repo'],
+                     '--json', 'tagName', '-q', '.tagName'],
+                    capture_output=True, text=True, timeout=15,
+                )
+                latest = ver_result.stdout.strip() if ver_result.returncode == 0 else None
+            except Exception:
+                latest = None
+
+            if not latest:
+                self.console.print(f'[warning]{tool_name}: could not check latest version[/warning]')
+                continue
+
+            if latest == current_ver:
+                if name != 'all':
+                    self.console.print(f'[dim]{tool_name}: up to date ({current_ver})[/dim]')
+                continue
+
+            try:
+                install_tool(tool_name, force=True)
+                self.console.print(f'[success]{tool_name}: {current_ver} → {latest}[/success]')
+                updated += 1
+            except Exception as e:
+                self.console.print(f'[error]{tool_name}: {e}[/error]')
+
+        if name == 'all':
+            self.console.print(f'[dim]{updated} module(s) updated.[/dim]')

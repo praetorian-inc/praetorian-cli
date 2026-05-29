@@ -6,6 +6,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from praetorian_cli.catalog import CapabilityCatalog
+
 
 class ContextCommands:
     """Context-related console commands. Mixed into GuardConsole."""
@@ -15,6 +17,35 @@ class ContextCommands:
             self.console.print('[dim]Usage: set <account|scope|mode|target> <value>[/dim]')
             return
         key, value = args[0].lower(), ' '.join(args[1:]).strip().rstrip('.')
+
+        # When a capability is selected, validate the key against its live parameters.
+        # Skip validation for built-in context keys (account, scope, mode, target, etc.).
+        _builtin_keys = {'account', 'scope', 'mode', 'target', 'rhost', 'rhosts', 'verbose'}
+        selected_cap = getattr(self, '_selected_cap', None)
+        if selected_cap is not None and key not in _builtin_keys:
+            param_names = {p.name.lower() for p in selected_cap.parameters}
+            if key not in param_names:
+                self.console.print(
+                    f'[{self.colors["error"]}]Unknown option: {key}. '
+                    f'Known parameters: {", ".join(sorted(param_names)) or "(none)"}[/{self.colors["error"]}]'
+                )
+                return
+            # Validate against allowed enum values if the parameter has options.
+            matched_param = next((p for p in selected_cap.parameters if p.name.lower() == key), None)
+            if matched_param and matched_param.options and value not in matched_param.options:
+                allowed = ', '.join(matched_param.options)
+                self.console.print(
+                    f'[{self.colors["error"]}]Invalid value for {key}: "{value}". '
+                    f'Allowed values: {allowed}[/{self.colors["error"]}]'
+                )
+                return
+            # Valid capability param — store in active_tool_config.
+            if not hasattr(self.context, 'active_tool_config') or self.context.active_tool_config is None:
+                self.context.active_tool_config = {}
+            self.context.active_tool_config[key] = value
+            self.console.print(f'[{self.colors["success"]}]{key} => {value}[/{self.colors["success"]}]')
+            return
+
         if key == 'account':
             # Always validate against the real account list
             if not (hasattr(self, '_account_list') and self._account_list):
@@ -302,6 +333,11 @@ class ContextCommands:
             self.context.active_tool_config = dict(alias.get('default_config', {}))
             self.console.print(f'[info]Using {tool_name} -- {alias["description"]}[/info]')
             self.console.print(f'[dim]Target type: {alias["target_type"]}. Use "show targets" to see valid targets.[/dim]')
+            # Resolve live capability for options/set validation (best-effort).
+            try:
+                self._selected_cap = CapabilityCatalog(self.sdk).get(tool_name)
+            except Exception:
+                self._selected_cap = None
             return
 
         # Try resolving as a backend capability name (any of the 141 capabilities)
@@ -322,6 +358,11 @@ class ContextCommands:
                 'target_type': target_type,
                 'description': desc,
             }
+            # Resolve live capability for options/set validation (best-effort).
+            try:
+                self._selected_cap = CapabilityCatalog(self.sdk).get(tool_name)
+            except Exception:
+                self._selected_cap = None
             return
 
         available = ', '.join(sorted(k for k in TOOL_ALIASES if k != 'secrets'))
@@ -350,16 +391,33 @@ class ContextCommands:
         if not self.context.active_tool:
             self.console.print('[dim]No tool selected. Use "use <tool>" first.[/dim]')
             return
-        alias = TOOL_ALIASES[self.context.active_tool]
+        alias = TOOL_ALIASES.get(self.context.active_tool, {})
         table = Table(title=f'Options: {self.context.active_tool}', border_style=self.colors['primary'])
         table.add_column('Name', style=f'bold {self.colors["primary"]}', min_width=15)
         table.add_column('Current Value', min_width=20)
         table.add_column('Required', style=self.colors['accent'])
         table.add_column('Description')
-        table.add_row('TARGET', self.context.target or '', 'yes', f'Target {alias["target_type"]} key')
+
+        target_type = alias.get('target_type', 'asset')
+        table.add_row('TARGET', self.context.target or '', 'yes', f'Target {target_type} key')
+
         config = self.context.active_tool_config or {}
-        for k, v in config.items():
-            table.add_row(k, str(v), 'no', f'Config: {k}')
+
+        # If we have a live capability, render its parameters.
+        selected_cap = getattr(self, '_selected_cap', None)
+        if selected_cap and selected_cap.parameters:
+            for p in selected_cap.parameters:
+                current = config.get(p.name, p.default or '')
+                req = 'yes' if p.required else 'no'
+                desc = p.description or ''
+                if p.options:
+                    desc = f'{desc} [{", ".join(p.options)}]' if desc else f'[{", ".join(p.options)}]'
+                table.add_row(p.name, str(current), req, desc)
+        else:
+            # Fallback: show whatever is in active_tool_config.
+            for k, v in config.items():
+                table.add_row(k, str(v), 'no', f'Config: {k}')
+
         if alias.get('agent'):
             table.add_row('USE_AGENT', 'false', 'no', f'Route through {alias["agent"]} for AI analysis')
         self.console.print(table)
@@ -391,5 +449,6 @@ class ContextCommands:
         if self.context.active_tool:
             self.console.print(f'[dim]Deselected {self.context.active_tool}[/dim]')
             self.context.clear_tool()
+            self._selected_cap = None
         else:
             self.console.print('[dim]Nothing to go back from.[/dim]')
