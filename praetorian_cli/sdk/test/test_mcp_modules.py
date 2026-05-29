@@ -110,3 +110,50 @@ def test_module_info_missing_name_param():
     server = _make_server()
     result = asyncio.run(server._handle_module_tool('module_info', {}))
     assert 'Missing required parameter' in result[0].text
+
+
+# ---------------------------------------------------------------------------
+# install_module — name='all' installs every installable tool
+# ---------------------------------------------------------------------------
+
+def test_install_module_all_installs_each_tool():
+    """install_module with name='all' should attempt each tool and return a list."""
+    server = _make_server()
+    calls = []
+
+    def _stub_install(name, force=False):
+        calls.append(name)
+        return f'/bin/{name}'
+
+    with patch('praetorian_cli.runners.local.install_tool', side_effect=_stub_install), \
+         patch('praetorian_cli.runners.local.is_installed', return_value=False), \
+         patch('praetorian_cli.runners.local.INSTALLABLE_TOOLS', {'brutus': {}, 'nuclei': {}}):
+        result = asyncio.run(server._handle_module_tool('install_module', {'name': 'all'}))
+
+    assert sorted(calls) == ['brutus', 'nuclei']
+    data = json.loads(result[0].text)
+    assert isinstance(data, list)
+    names = {item['name'] for item in data}
+    assert names == {'brutus', 'nuclei'}
+    assert all(item['status'] == 'installed' for item in data)
+
+
+def test_install_module_all_isolates_failures():
+    """One tool failing must not abort the batch."""
+    server = _make_server()
+
+    def _stub_install(name, force=False):
+        if name == 'brutus':
+            raise RuntimeError('boom')
+        return f'/bin/{name}'
+
+    with patch('praetorian_cli.runners.local.install_tool', side_effect=_stub_install), \
+         patch('praetorian_cli.runners.local.is_installed', return_value=False), \
+         patch('praetorian_cli.runners.local.INSTALLABLE_TOOLS', {'brutus': {}, 'nuclei': {}}):
+        result = asyncio.run(server._handle_module_tool('install_module', {'name': 'all'}))
+
+    data = json.loads(result[0].text)
+    by_name = {item['name']: item for item in data}
+    assert by_name['brutus']['status'] == 'error'
+    assert 'boom' in by_name['brutus']['error']
+    assert by_name['nuclei']['status'] == 'installed'

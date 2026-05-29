@@ -173,12 +173,12 @@ def info(sdk, name, as_json):
     from praetorian_cli.registry import get_registry
     from praetorian_cli.runners.local import is_installed, get_binary_path
 
+    reg = get_registry()
     cat = _catalog(sdk)
-    c = cat.get(name)
+    c = cat.get(name) or cat.get(reg.get_capability_name(name))
     if c is None:
         error(f"Unknown module: {name}. Use 'guard module search' to find modules.")
 
-    reg = get_registry()
     ver_info = reg.get_version(c.name)
 
     if as_json:
@@ -232,8 +232,10 @@ def options(sdk, name, as_json):
     \b
     Example: guard module options brutus
     """
+    from praetorian_cli.registry import get_registry
+
     cat = _catalog(sdk)
-    c = cat.get(name)
+    c = cat.get(name) or cat.get(get_registry().get_capability_name(name))
     if c is None:
         error(f"Unknown module: {name}")
 

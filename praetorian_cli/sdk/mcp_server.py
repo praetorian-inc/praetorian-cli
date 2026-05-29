@@ -322,11 +322,25 @@ class MCPServer:
                 return [TextContent(type="text", text=json.dumps(out, indent=2))]
 
             elif name == "install_module":
-                from praetorian_cli.runners.local import install_tool, is_installed
+                from praetorian_cli.runners.local import install_tool, is_installed, INSTALLABLE_TOOLS
                 if not arguments.get("name"):
                     return [TextContent(type="text", text="Missing required parameter: name")]
                 mod_name = arguments["name"].lower()
                 force = arguments.get("force", False)
+
+                if mod_name == "all":
+                    results = []
+                    for tool in sorted(INSTALLABLE_TOOLS):
+                        try:
+                            if not force and is_installed(tool):
+                                results.append({"name": tool, "status": "already_installed"})
+                            else:
+                                path = install_tool(tool, force=force)
+                                results.append({"name": tool, "status": "installed", "path": path})
+                        except Exception as e:
+                            results.append({"name": tool, "status": "error", "error": str(e)})
+                    return [TextContent(type="text", text=json.dumps(results, indent=2))]
+
                 if not force and is_installed(mod_name):
                     return [TextContent(type="text", text=json.dumps({"name": mod_name, "status": "already_installed"}))]
                 path = install_tool(mod_name, force=force)

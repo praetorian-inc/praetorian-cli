@@ -499,14 +499,74 @@ class GuardConsole(
             'update': self._cmd_module_update,
             'install': self._cmd_install,
             'installed': self._cmd_installed,
-            'options': self._cmd_options,
+            'uninstall': self._cmd_module_uninstall,
+            'sync': self._cmd_module_sync,
+            'options': self._cmd_module_options,
             'list': self._cmd_module_search,
         }
         handler = routes.get(sub)
         if handler:
             handler(rest)
         else:
-            self.console.print(f'[dim]Unknown: module {sub}. Try: search, info, install, installed, update, options[/dim]')
+            self.console.print(
+                f'[dim]Unknown: module {sub}. '
+                f'Try: search, info, install, uninstall, installed, update, sync, options[/dim]'
+            )
+
+    def _cmd_module_uninstall(self, args):
+        """Remove an installed module binary."""
+        from praetorian_cli.runners.local import uninstall_tool
+        if not args:
+            self.console.print('[dim]Usage: module uninstall <name>[/dim]')
+            return
+        name = args[0].lower()
+        removed = uninstall_tool(name)
+        if removed:
+            self.console.print(f'[success]{name}: removed[/success]')
+        else:
+            self.console.print(f'[dim]{name}: not installed[/dim]')
+
+    def _cmd_module_sync(self, args):
+        """Force-refresh the capability catalog from the backend."""
+        from praetorian_cli.catalog import CapabilityCatalog
+        cat = CapabilityCatalog(self.sdk)
+        ok = cat.refresh(force=True)
+        n = len(cat.all())
+        verb = 'refreshed' if ok else 'unchanged'
+        self.console.print(f'[success]Catalog {verb}: {n} capabilities ({cat.source}).[/success]')
+
+    def _cmd_module_options(self, args):
+        """Show the configurable parameters for a module (no active tool required)."""
+        from praetorian_cli.catalog import CapabilityCatalog
+        from praetorian_cli.registry import get_registry
+        if not args:
+            self.console.print('[dim]Usage: module options <name>[/dim]')
+            return
+        name = args[0].lower()
+        reg = get_registry()
+        cat = CapabilityCatalog(self.sdk)
+        cap = cat.get(name) or cat.get(reg.get_capability_name(name))
+        if not cap:
+            self.console.print(f'[error]Unknown module: {name}. Use "module search" to find modules.[/error]')
+            return
+        if not cap.parameters:
+            self.console.print(f'[dim]{cap.name}: no configurable options.[/dim]')
+            return
+        param_table = Table(title=f'{cap.name} options', border_style=self.colors['dim'])
+        param_table.add_column('Parameter', style=f'bold {self.colors["primary"]}')
+        param_table.add_column('Type', style=self.colors['accent'])
+        param_table.add_column('Required')
+        param_table.add_column('Default')
+        param_table.add_column('Description')
+        for p in cap.parameters:
+            desc = p.description or ''
+            if p.options:
+                desc = f"{desc} [{', '.join(p.options)}]".strip()
+            param_table.add_row(
+                f'--{p.name}', p.type, 'yes' if p.required else 'no',
+                p.default or '', desc,
+            )
+        self.console.print(param_table)
 
 
 def run_console(sdk: Chariot, account: Optional[str] = None):

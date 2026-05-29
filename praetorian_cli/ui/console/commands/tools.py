@@ -635,13 +635,13 @@ class ToolCommands:
                 args = [mods[idx]] + list(args[1:])
 
         name = args[0].lower()
+        reg = get_registry()
         cat = CapabilityCatalog(self.sdk)
-        cap = cat.get(name)
+        cap = cat.get(name) or cat.get(reg.get_capability_name(name))
         if not cap:
             self.console.print(f'[error]Unknown module: {name}. Use "search" to find modules.[/error]')
             return
 
-        reg = get_registry()
         ver_info = reg.get_version(name)
         installed_str = 'not installed'
         if is_installed(name):
