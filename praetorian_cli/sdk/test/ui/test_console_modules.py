@@ -353,3 +353,90 @@ class TestOptionsPopulatedFromLiveParams:
         # Must NOT contain an error about unknown/invalid
         assert "unknown" not in output.lower(), f"Valid enum value should be accepted. Got:\n{output}"
         assert "invalid" not in output.lower(), f"Valid enum value should be accepted. Got:\n{output}"
+
+
+# ---------------------------------------------------------------------------
+# FIX 1: set→execute config merge
+# After `use brutus` + `set protocol ssh`, calling `_cmd_run` must pass the
+# set value through to sdk.jobs.add as part of the config_str argument.
+# ---------------------------------------------------------------------------
+
+class _ExecuteHarness(ContextCommands, ToolCommands):
+    """Full harness that uses the REAL _cmd_run (not stubbed) for FIX 1 test."""
+
+    def __init__(self, sdk=None):
+        self.console = MockConsole()
+        self.sdk = sdk or MagicMock()
+        self.context = _FullFakeContext()
+        self.colors = {
+            "primary": "cyan", "accent": "magenta", "dim": "dim",
+            "info": "blue", "success": "green", "warning": "yellow", "error": "red",
+        }
+
+    def _send_to_marcus(self, message):
+        return ""
+
+    def _wait_for_job(self, *a, **kw):
+        pass
+
+    def _show_engagement_status(self):
+        pass
+
+    def _cmd_switch(self, args):
+        pass
+
+
+_BRUTUS_FOR_EXECUTE = Capability.from_api({
+    "Name": "brutus",
+    "Title": "Brutus Credential Attacks",
+    "Description": "Credential attacks across 20+ protocols",
+    "Category": ["credential"],
+    "Surface": "network",
+    "Target": ["asset"],
+    "Version": "1.2.3",
+    "Executor": "local",
+    "Parameters": [
+        {
+            "Name": "protocol",
+            "Description": "Target protocol",
+            "Type": "string",
+            "Required": False,
+            "Options": ["ssh", "rdp"],
+        }
+    ],
+})
+
+
+class TestSetConfigReachesExecute:
+    def test_set_value_passed_to_jobs_add(self):
+        """set protocol ssh → execute must pass protocol=ssh in config_str to sdk.jobs.add."""
+        import json as _json
+
+        sdk = MagicMock()
+        sdk.jobs.add.return_value = [{"key": "#job#123"}]
+        h = _ExecuteHarness(sdk=sdk)
+
+        with patch("praetorian_cli.catalog.CapabilityCatalog.get", return_value=_BRUTUS_FOR_EXECUTE), \
+             patch("praetorian_cli.handlers.run.TOOL_ALIASES", {"brutus": {
+                 "capability": "brutus",
+                 "agent": None,
+                 "target_type": "asset",
+                 "description": "Credential attacks",
+                 "default_config": {},
+             }}), \
+             patch("praetorian_cli.handlers.run.resolve_target", return_value=("#asset#target1", None)):
+            h._cmd_use(["brutus"])
+            h._cmd_set(["protocol", "ssh"])
+            # target key must start with '#' so resolve_target short-circuits,
+            # but we patch it to be safe
+            h._cmd_run(["brutus", "#asset#target1"])
+
+        assert sdk.jobs.add.called, "sdk.jobs.add was never called"
+        call_args = sdk.jobs.add.call_args
+        # Third positional arg is config_str (json string or None)
+        config_str = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("config_str")
+        assert config_str is not None, "config_str should not be None when active_tool_config is set"
+        config = _json.loads(config_str)
+        assert config.get("protocol") == "ssh", (
+            f"Expected protocol=ssh in config passed to sdk.jobs.add. Got: {config}"
+        )

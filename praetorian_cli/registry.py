@@ -3,10 +3,13 @@
 import json
 import os
 import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+_versions_lock = threading.Lock()
 
 _MAX_REGISTRY_SIZE = 1024 * 1024  # 1 MB
 
@@ -165,13 +168,14 @@ class ModuleRegistry:
         self._atomic_write(VERSIONS_PATH, versions)
 
     def record_version(self, name: str, version: str, path: str):
-        versions = self._load_versions()
-        versions[name] = {
-            "version": version,
-            "path": path,
-            "installed_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self._save_versions(versions)
+        with _versions_lock:
+            versions = self._load_versions()
+            versions[name] = {
+                "version": version,
+                "path": path,
+                "installed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            self._save_versions(versions)
 
     def get_version(self, name: str) -> Optional[Dict]:
         return self._load_versions().get(name)
@@ -180,9 +184,10 @@ class ModuleRegistry:
         return self._load_versions()
 
     def remove_version(self, name: str):
-        versions = self._load_versions()
-        versions.pop(name, None)
-        self._save_versions(versions)
+        with _versions_lock:
+            versions = self._load_versions()
+            versions.pop(name, None)
+            self._save_versions(versions)
 
     # -- Backward-compat dict interfaces --
 
