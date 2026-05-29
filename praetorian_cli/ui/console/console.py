@@ -6,7 +6,7 @@ import shlex
 from typing import Optional
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import WordCompleter, NestedCompleter
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
 
@@ -77,8 +77,43 @@ class GuardConsole(
 
         self.session = PromptSession(
             history=FileHistory(history_path),
-            completer=WordCompleter(CONSOLE_COMMANDS, ignore_case=True),
+            completer=self._build_completer(),
         )
+
+    def _build_completer(self):
+        """Build a NestedCompleter with live module names; fall back to WordCompleter."""
+        try:
+            from praetorian_cli.catalog import CapabilityCatalog
+            caps = CapabilityCatalog(self.sdk).all()
+            module_names = {c.name: None for c in caps} if caps else {}
+
+            # module subcommands
+            module_sub = {
+                'search': None,
+                'info': module_names or None,
+                'options': None,
+                'install': module_names or None,
+                'uninstall': module_names or None,
+                'update': module_names or None,
+                'sync': None,
+                'list': None,
+                'installed': None,
+            }
+
+            # Build top-level nested dict from CONSOLE_COMMANDS (top-level → None)
+            # plus richer sub-completions for a few commands.
+            top: dict = {cmd: None for cmd in CONSOLE_COMMANDS}
+            top['module'] = module_sub
+            top['use'] = module_names or None
+            top['info'] = module_names or None
+            top['install'] = module_names or None
+            top['uninstall'] = module_names or None
+
+            return NestedCompleter.from_nested_dict(top)
+        except Exception:
+            # Any failure (SDK not authenticated yet, network error, etc.) —
+            # degrade gracefully to flat WordCompleter.
+            return WordCompleter(CONSOLE_COMMANDS, ignore_case=True)
 
     def run(self):
         """Main console loop."""
