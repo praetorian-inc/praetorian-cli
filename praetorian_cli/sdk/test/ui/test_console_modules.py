@@ -5,6 +5,7 @@ import pytest
 
 from praetorian_cli.catalog import Capability
 from praetorian_cli.ui.console.commands.tools import ToolCommands
+from praetorian_cli.ui.console.commands.context import ContextCommands
 from praetorian_cli.sdk.test.ui_mocks import MockConsole as _BaseMockConsole
 
 pytestmark = pytest.mark.tui
@@ -45,6 +46,20 @@ SAMPLE_CAPABILITIES = [
         "Executor": "local",
         "Parameters": [
             {"Name": "protocol", "Description": "Target protocol", "Type": "string", "Required": False},
+        ],
+    }),
+    Capability.from_api({
+        "Name": "brutus-with-enum",
+        "Title": "Brutus with enum param",
+        "Description": "Test capability with required param + enum options",
+        "Category": ["credential"],
+        "Surface": "network",
+        "Target": ["asset"],
+        "Version": "1.0.0",
+        "Executor": "local",
+        "Parameters": [
+            {"Name": "protocol", "Description": "svc", "Type": "string", "Required": True,
+             "Options": ["ssh", "rdp"]},
         ],
     }),
     Capability.from_api({
@@ -175,3 +190,166 @@ class TestConsoleModuleNumberedLookup:
         assert first_name in output, (
             f"Expected '{first_name}' in output after 'info 1'. Got:\n{output}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Harness that mixes in both ContextCommands and ToolCommands to test use/set/options
+# ---------------------------------------------------------------------------
+
+class _FullFakeContext:
+    """A richer fake context that includes all fields used by use/options/set."""
+    active_tool = None
+    account = "acct"
+    _last_job_key = ""
+    target = None
+    scope = None
+    mode = "query"
+    verbose = False
+    active_agent = None
+    conversation_id = ""
+    active_tool_config = {}
+
+    def apply_scope_to_message(self, msg):
+        return msg
+
+    def clear_tool(self):
+        self.active_tool = None
+        self.target = None
+        self.active_tool_config = {}
+
+    def clear_conversation(self):
+        pass
+
+
+class _ContextHarness(ContextCommands, ToolCommands):
+    """Harness that covers the Metasploit-style use/options/set commands."""
+
+    def __init__(self, sdk=None):
+        from unittest.mock import MagicMock
+        self.console = MockConsole()
+        self.sdk = sdk or MagicMock()
+        self.context = _FullFakeContext()
+        self.colors = {
+            "primary": "cyan", "accent": "magenta", "dim": "dim",
+            "info": "blue", "success": "green", "warning": "yellow", "error": "red",
+        }
+
+    # Stubs for cross-mixin calls not exercised in these tests
+    def _cmd_run(self, args):
+        pass
+
+    def _cmd_switch(self, args):
+        pass
+
+    def _send_to_marcus(self, message):
+        return ""
+
+    def _wait_for_job(self, *a, **kw):
+        pass
+
+    def _show_engagement_status(self):
+        pass
+
+
+# Use a capability that has a *required* parameter with an enum (Options list)
+_BRUTUS_WITH_ENUM = Capability.from_api({
+    "Name": "brutus",
+    "Title": "Brutus Credential Attacks",
+    "Description": "Credential attacks across 20+ protocols",
+    "Category": ["credential"],
+    "Surface": "network",
+    "Target": ["asset"],
+    "Version": "1.2.3",
+    "Executor": "local",
+    "Parameters": [
+        {
+            "Name": "protocol",
+            "Description": "svc",
+            "Type": "string",
+            "Required": True,
+            "Options": ["ssh", "rdp"],
+        }
+    ],
+})
+
+
+class TestOptionsPopulatedFromLiveParams:
+    def test_options_populated_from_live_params(self):
+        """After 'use brutus', 'options' must render the live capability params."""
+        h = _ContextHarness()
+        with patch("praetorian_cli.catalog.CapabilityCatalog.get", return_value=_BRUTUS_WITH_ENUM), \
+             patch("praetorian_cli.handlers.run.TOOL_ALIASES", {"brutus": {
+                 "capability": "brutus",
+                 "agent": None,
+                 "target_type": "asset",
+                 "description": "Credential attacks",
+                 "default_config": {},
+             }}):
+            h._cmd_use(["brutus"])
+            h.console.lines.clear()
+            h._cmd_options([])
+
+        output = "\n".join(h.console.lines)
+        assert "protocol" in output, f"Expected 'protocol' in options output. Got:\n{output}"
+        # Required indicator should appear — 'yes' for required params
+        assert "yes" in output.lower(), f"Expected required indicator in options output. Got:\n{output}"
+
+    def test_set_rejects_unknown_param(self):
+        """After 'use brutus', 'set nonsense x' must print an error containing 'unknown'."""
+        h = _ContextHarness()
+        with patch("praetorian_cli.catalog.CapabilityCatalog.get", return_value=_BRUTUS_WITH_ENUM), \
+             patch("praetorian_cli.handlers.run.TOOL_ALIASES", {"brutus": {
+                 "capability": "brutus",
+                 "agent": None,
+                 "target_type": "asset",
+                 "description": "Credential attacks",
+                 "default_config": {},
+             }}):
+            h._cmd_use(["brutus"])
+            h.console.lines.clear()
+            h._cmd_set(["nonsense", "x"])
+
+        output = "\n".join(h.console.lines)
+        assert "unknown" in output.lower(), (
+            f"Expected 'unknown' in error output for invalid param. Got:\n{output}"
+        )
+
+    def test_set_rejects_bad_enum_value(self):
+        """After 'use brutus', 'set protocol telnet' (not in enum) must print an error."""
+        h = _ContextHarness()
+        with patch("praetorian_cli.catalog.CapabilityCatalog.get", return_value=_BRUTUS_WITH_ENUM), \
+             patch("praetorian_cli.handlers.run.TOOL_ALIASES", {"brutus": {
+                 "capability": "brutus",
+                 "agent": None,
+                 "target_type": "asset",
+                 "description": "Credential attacks",
+                 "default_config": {},
+             }}):
+            h._cmd_use(["brutus"])
+            h.console.lines.clear()
+            h._cmd_set(["protocol", "telnet"])
+
+        output = "\n".join(h.console.lines)
+        assert any(word in output.lower() for word in ("allowed", "invalid", "ssh", "rdp")), (
+            f"Expected enum error mentioning allowed values. Got:\n{output}"
+        )
+
+    def test_set_accepts_valid_enum_value(self):
+        """After 'use brutus', 'set protocol ssh' must be accepted without error."""
+        h = _ContextHarness()
+        with patch("praetorian_cli.catalog.CapabilityCatalog.get", return_value=_BRUTUS_WITH_ENUM), \
+             patch("praetorian_cli.handlers.run.TOOL_ALIASES", {"brutus": {
+                 "capability": "brutus",
+                 "agent": None,
+                 "target_type": "asset",
+                 "description": "Credential attacks",
+                 "default_config": {},
+             }}):
+            h._cmd_use(["brutus"])
+            h.console.lines.clear()
+            h._cmd_set(["protocol", "ssh"])
+
+        output = "\n".join(h.console.lines)
+        # Must NOT contain an error about unknown/invalid
+        assert "unknown" not in output.lower(), f"Valid enum value should be accepted. Got:\n{output}"
+        assert "invalid" not in output.lower(), f"Valid enum value should be accepted. Got:\n{output}"
