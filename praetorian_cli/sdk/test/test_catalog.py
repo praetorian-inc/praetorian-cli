@@ -98,3 +98,31 @@ def test_catalog_falls_back_to_bundled(tmp_path):
     cat = CapabilityCatalog(sdk, cache_path=str(cache), bundled_path=str(snap))
     assert [c.name for c in cat.all()] == ['titus']
     assert cat.source == 'bundled'
+
+
+def test_catalog_falls_back_to_cache_when_api_fails_stale(tmp_path):
+    """API failure with a STALE cache must fall back to the cache (exercises the actual fallback branch)."""
+    import os, time as _time
+    cache = tmp_path / 'cap-cache.json'
+    cache.write_text(json.dumps({'capabilities': [{'Name': 'nuclei'}]}))
+    # Make the cache stale so refresh() actually attempts the API call
+    old_mtime = _time.time() - 100000
+    os.utime(str(cache), (old_mtime, old_mtime))
+    snap = tmp_path / 'snap.json'; snap.write_text('{"capabilities": []}')
+    sdk = _FakeSDK([], fail=True)
+    cat = CapabilityCatalog(sdk, cache_path=str(cache), bundled_path=str(snap))
+    caps = cat.all()
+    assert [c.name for c in caps] == ['nuclei']
+    assert cat.source.startswith('cached')
+
+
+def test_bundled_snapshot_is_populated():
+    """The bundled capabilities_snapshot.json must have >= 17 entries including core tools."""
+    from praetorian_cli.catalog import DEFAULT_BUNDLED_PATH
+    data = json.load(open(DEFAULT_BUNDLED_PATH))
+    caps = data['capabilities'] if isinstance(data, dict) else data
+    assert len(caps) >= 17, f"Expected >= 17 capabilities in bundled snapshot, got {len(caps)}"
+    names = {c.get('name', c.get('Name')) for c in caps}
+    assert {'brutus', 'nuclei', 'caligula'} <= names, (
+        f"Core tools missing from bundled snapshot. Present: {sorted(names)[:20]}"
+    )

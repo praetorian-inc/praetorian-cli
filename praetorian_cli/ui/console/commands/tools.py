@@ -121,6 +121,7 @@ class ToolCommands:
 
         capability = alias.get('capability')
         config = dict(alias.get('default_config', {}))
+        config.update(getattr(self.context, 'active_tool_config', {}) or {})
 
         if alias.get('agent') and (use_agent or not capability):
             agent_name = alias['agent']

@@ -231,3 +231,37 @@ def test_get_tool_aliases_tolerates_slim_manifest(monkeypatch, tmp_path):
     assert aliases['brutus']['description'] == ''          # defaults, no KeyError
     assert aliases['brutus']['target_type'] == 'asset'
     assert aliases['brutus']['capability'] == 'brutus'
+
+
+# ---------------------------------------------------------------------------
+# FIX 2: Thread-safe version writes under concurrent install all
+# ---------------------------------------------------------------------------
+
+def test_record_version_concurrent_no_lost_writes(tmp_path, monkeypatch):
+    """12 concurrent threads each calling record_version must all persist; no lost writes."""
+    import concurrent.futures
+    import praetorian_cli.registry as reg_mod
+
+    monkeypatch.setattr(reg_mod, 'VERSIONS_PATH', str(tmp_path / 'versions.json'))
+    monkeypatch.setattr(reg_mod, 'CACHE_PATH', str(tmp_path / 'cache-none.json'))
+
+    # Each thread gets its own registry instance so no in-process _data caching
+    # masks the race — they all read/write the same file.
+    n = 12
+
+    def install(i):
+        reg = reg_mod.ModuleRegistry()
+        reg.record_version(f'tool{i}', 'v1', f'/path/{i}')
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=n) as ex:
+        futures = [ex.submit(install, i) for i in range(n)]
+        for f in concurrent.futures.as_completed(futures):
+            f.result()  # re-raise any exceptions
+
+    # Read back via a fresh instance
+    final_reg = reg_mod.ModuleRegistry()
+    all_versions = final_reg.get_all_versions()
+    assert len(all_versions) == n, (
+        f"Expected {n} version entries (no lost writes), got {len(all_versions)}: "
+        f"{sorted(all_versions.keys())}"
+    )
