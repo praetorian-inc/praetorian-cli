@@ -388,6 +388,7 @@ class MarcusCommands:
                     if yielded:
                         raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
                     raise _WSUnavailable(str(e))
+                    pass  # periodic wake to re-check / honor max_wait
                 new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
                              key=lambda x: x.get('key', ''))
                 for msg in new:
