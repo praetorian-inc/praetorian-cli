@@ -272,7 +272,12 @@ class MarcusCommands:
         import websocket  # websocket-client
         ws_url = self.sdk.keychain.websocket_url()
         token = self.sdk.keychain.token()
+        # Token is embedded as a query-string parameter — must never be logged or
+        # interpolated into exception messages.
         url = f"{ws_url}?token={token}&user=true"
+        # Unlike _post_to_planner, the WS path does not perform the 403 "route
+        # through @praetorian.com" reroute — it assumes the account has direct AI
+        # access (opt-in transport).
         if self.sdk.keychain.account:
             url += f"&account={self.sdk.keychain.account}"
         try:
@@ -280,6 +285,8 @@ class MarcusCommands:
             conn.send(json.dumps({"action": "subscribe", "subscriptions": [
                 {"pattern": f"#message#{conversation_id}", "matchType": "prefix"}]}))
         except Exception as e:
+            # str(e) from websocket-client does not contain the URL/token, so
+            # this is safe; the URL variable is intentionally not interpolated here.
             raise _WSUnavailable(str(e))
         last_key = after_key
         start = time.time()
@@ -289,8 +296,9 @@ class MarcusCommands:
                     conn.settimeout(5)
                     conn.recv()  # block until a change event (content ignored; signal only)
                 except websocket.WebSocketTimeoutException:
-                    pass  # periodic wake to re-check / honor max_wait
+                    pass  # 5 s timeout doubles as an idle safety re-poll (intentional)
                 except Exception as e:
+                    # str(e) does not contain the URL/token — safe to forward as-is.
                     raise _WSUnavailable(str(e))
                 messages, _ = self.sdk.search.by_key_prefix(
                     f'#message#{conversation_id}#', user=True)
