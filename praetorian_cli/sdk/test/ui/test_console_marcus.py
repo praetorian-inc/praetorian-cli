@@ -201,6 +201,106 @@ def test_poll_messages_skips_non_dict_items(host):
 
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── WebSocket transport with polling fallback ────────────────────────────────
+
+def _ws_host(ws_url=None, token='jwt-tok', account=None):
+    h = _Host()
+
+    class _KC:
+        def websocket_url(self): return ws_url
+        def token(self): return token
+    _KC.account = account
+
+    class _Search:
+        calls = []
+        def by_key_prefix(self, prefix, user=False):
+            raise AssertionError('by_key_prefix should not be called in this test')
+
+    h.sdk = types.SimpleNamespace(keychain=_KC(), search=_Search())
+    return h
+
+
+def test_stream_uses_polling_when_no_ws_url(host):
+    h = _ws_host(ws_url=None)
+    sentinel = [{'key': 'a', 'role': 'chariot', 'content': 'polled'}]
+    h._poll_messages = lambda cid, after_key='': iter(sentinel)
+    h._ws_messages = lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError('ws should not be used when no url'))
+    assert list(h._stream_messages('c1')) == sentinel
+
+
+def test_stream_uses_ws_when_configured(host):
+    h = _ws_host(ws_url='wss://x')
+    ws_msgs = [{'key': '1', 'role': 'tool call', 'content': '{}'},
+               {'key': '2', 'role': 'chariot', 'content': 'ws-done'}]
+    h._ws_messages = lambda cid, after_key='': iter(ws_msgs)
+    def _poll_boom(*a, **k):
+        raise AssertionError('polling must not be called when ws works')
+    h._poll_messages = _poll_boom
+    assert list(h._stream_messages('c1')) == ws_msgs
+
+
+def test_stream_falls_back_to_polling_on_ws_unavailable_before_yield(host):
+    from praetorian_cli.ui.console.commands.marcus import _WSUnavailable
+    h = _ws_host(ws_url='wss://x')
+    def _ws_fail(cid, after_key=''):
+        raise _WSUnavailable('connect failed')
+        yield  # pragma: no cover (make it a generator)
+    h._ws_messages = _ws_fail
+    sentinel = [{'key': 'p', 'role': 'chariot', 'content': 'polled-fallback'}]
+    h._poll_messages = lambda cid, after_key='': iter(sentinel)
+    assert list(h._stream_messages('c1')) == sentinel
+
+
+def test_stream_raises_if_ws_drops_after_yield(host):
+    from praetorian_cli.ui.console.commands.marcus import _WSUnavailable, MarcusError
+    h = _ws_host(ws_url='wss://x')
+    def _ws_drop(cid, after_key=''):
+        yield {'key': '1', 'role': 'tool call', 'content': '{}'}
+        raise _WSUnavailable('dropped mid-stream')
+    h._ws_messages = _ws_drop
+    def _poll_boom(*a, **k):
+        raise AssertionError('must not fall back to polling after yielding')
+    h._poll_messages = _poll_boom
+    with pytest.raises(MarcusError):
+        list(h._stream_messages('c1'))
+
+
+def test_ws_messages_yields_until_chariot(host):
+    from unittest.mock import patch
+    h = _Host()
+
+    class _KC:
+        account = None
+        def websocket_url(self): return 'wss://x'
+        def token(self): return 'jwt-tok'
+
+    rounds = iter([
+        [{'key': '#message#c1#001', 'role': 'tool call', 'content': '{}'}],
+        [{'key': '#message#c1#001', 'role': 'tool call', 'content': '{}'},
+         {'key': '#message#c1#002', 'role': 'chariot', 'content': 'final'}],
+    ])
+
+    class _Search:
+        def by_key_prefix(self, prefix, user=False):
+            return (next(rounds), None)
+
+    h.sdk = types.SimpleNamespace(keychain=_KC(), search=_Search())
+
+    class _FakeConn:
+        def send(self, *a, **k): pass
+        def recv(self, *a, **k): return ''
+        def settimeout(self, *a, **k): pass
+        def close(self, *a, **k): pass
+
+    with patch('websocket.create_connection', return_value=_FakeConn()):
+        collected = list(h._ws_messages('c1', after_key=''))
+
+    roles = [m['role'] for m in collected]
+    assert roles == ['tool call', 'chariot']
+    assert collected[-1]['content'] == 'final'
+
+
 def test_send_to_marcus_handles_ctrl_c(host):
     # _post_to_planner succeeds, but polling raises KeyboardInterrupt mid-stream
     host._post_to_planner = lambda m: {'conversation': {'uuid': 'c1'}}
@@ -218,7 +318,9 @@ def test_send_to_marcus_handles_ctrl_c(host):
                                          verbose=False)
     class _Search:
         def by_key_prefix(self, prefix, user=False): return ([], None)
-    host.sdk = types.SimpleNamespace(search=_Search())
+    class _KC:
+        def websocket_url(self): return None
+    host.sdk = types.SimpleNamespace(search=_Search(), keychain=_KC())
     result = host._send_to_marcus('hi')
     assert result is None
     assert any('cancel' in p.lower() or 'interrupt' in p.lower() for p in printed)

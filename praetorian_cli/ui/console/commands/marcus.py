@@ -18,6 +18,10 @@ class MarcusError(Exception):
     """Raised for recoverable Marcus terminal errors (shown to the user)."""
 
 
+class _WSUnavailable(Exception):
+    """Internal: WebSocket transport unavailable; fall back to polling."""
+
+
 class MarcusCommands:
     """Marcus AI console commands. Mixed into GuardConsole."""
 
@@ -188,7 +192,7 @@ class MarcusCommands:
         self.console.print(f'[dim]Thinking...[/dim]{acct_label}')
         tool_log = []
         try:
-            for msg in self._poll_messages(self.context.conversation_id, after_key=last_key):
+            for msg in self._stream_messages(self.context.conversation_id, after_key=last_key):
                 role = msg.get('role', '')
                 content = msg.get('content', '')
                 if role == 'chariot':
@@ -259,6 +263,68 @@ class MarcusCommands:
                 delay = min(delay + 1.0, 3.0)
             sleep(delay)
         raise MarcusError('Timed out waiting for response')
+
+    def _ws_messages(self, conversation_id, after_key='', *, max_wait=180):
+        """Yield new conversation messages via the WebSocket change-feed until a
+        'chariot' reply. Reuses by_key_prefix to fetch message bodies on each WS
+        event. Raises MarcusError on timeout. Raises _WSUnavailable on
+        connect/subscribe failure so the caller can fall back to polling."""
+        import websocket  # websocket-client
+        ws_url = self.sdk.keychain.websocket_url()
+        token = self.sdk.keychain.token()
+        url = f"{ws_url}?token={token}&user=true"
+        if self.sdk.keychain.account:
+            url += f"&account={self.sdk.keychain.account}"
+        try:
+            conn = websocket.create_connection(url, timeout=10)
+            conn.send(json.dumps({"action": "subscribe", "subscriptions": [
+                {"pattern": f"#message#{conversation_id}", "matchType": "prefix"}]}))
+        except Exception as e:
+            raise _WSUnavailable(str(e))
+        last_key = after_key
+        start = time.time()
+        try:
+            while time.time() - start < max_wait:
+                try:
+                    conn.settimeout(5)
+                    conn.recv()  # block until a change event (content ignored; signal only)
+                except websocket.WebSocketTimeoutException:
+                    pass  # periodic wake to re-check / honor max_wait
+                except Exception as e:
+                    raise _WSUnavailable(str(e))
+                messages, _ = self.sdk.search.by_key_prefix(
+                    f'#message#{conversation_id}#', user=True)
+                new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
+                             key=lambda x: x.get('key', ''))
+                for msg in new:
+                    last_key = msg.get('key', '')
+                    yield msg
+                    if msg.get('role', '') == 'chariot':
+                        return
+            raise MarcusError('Timed out waiting for response')
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    def _stream_messages(self, conversation_id, after_key=''):
+        """Yield conversation messages via WebSocket if configured, else polling.
+        Falls back to polling if the WS connection/subscribe fails before any
+        message is yielded. If the WS drops after yielding, re-raise as
+        MarcusError to avoid silently replaying messages via polling."""
+        if self.sdk.keychain.websocket_url():
+            yielded = False
+            try:
+                for msg in self._ws_messages(conversation_id, after_key=after_key):
+                    yielded = True
+                    yield msg
+                return
+            except _WSUnavailable:
+                if yielded:
+                    raise MarcusError('WebSocket connection lost mid-stream')
+                # else fall through to polling
+        yield from self._poll_messages(conversation_id, after_key=after_key)
 
     def _parse_tool_name(self, content: str, msg: dict = None) -> str:
         """Extract a human-readable tool name from a tool call message."""
