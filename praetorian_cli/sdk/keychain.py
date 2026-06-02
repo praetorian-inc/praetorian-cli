@@ -213,6 +213,13 @@ class Keychain:
         """ Get the optional WebSocket endpoint URL (profile 'websocket' option or PRAETORIAN_CLI_WS_URL env). Returns None if unset. """
         return self.get_option('websocket')
 
+    def websocket_url(self):
+        """ Get the optional WebSocket endpoint URL (profile 'websocket' option or PRAETORIAN_CLI_WS_URL env). Returns None if unset. """
+        try:
+            return self.get_option('websocket')
+        except Exception:
+            return None
+
     def username(self):
         """ Get the username field from the keychain profile """
         return self.get_option('username')

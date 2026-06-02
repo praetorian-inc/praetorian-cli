@@ -34,6 +34,10 @@ class TestWebsocketUrl:
         kc = self._make_keychain(MINIMAL_PROFILE)
         result = kc.websocket_url()
         assert result is None
+        """websocket_url() should return None (or '') when neither profile option nor env var is set."""
+        assert result is None or result == '', (
+            f"Expected None or '' when websocket is unset, got {result!r}"
+        )
 
     def test_websocket_url_returns_env_var(self, monkeypatch):
         """PRAETORIAN_CLI_WS_URL env var overrides the profile option."""
