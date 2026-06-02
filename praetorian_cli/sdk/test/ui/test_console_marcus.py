@@ -301,6 +301,45 @@ def test_ws_messages_yields_until_chariot(host):
     assert collected[-1]['content'] == 'final'
 
 
+def test_ws_messages_builds_url_and_subscribe_frame(host, monkeypatch):
+    import json as _json
+    captured = {}
+
+    class _Conn:
+        def send(self, payload): captured['sub'] = payload
+        def recv(self): return ''
+        def settimeout(self, t): pass
+        def close(self): pass
+
+    def _fake_create_connection(url, *a, **k):
+        captured['url'] = url
+        return _Conn()
+
+    import websocket
+    monkeypatch.setattr(websocket, 'create_connection', _fake_create_connection)
+
+    class _KC:
+        account = 'client@acme.com'
+        def websocket_url(self): return 'wss://x/ws'
+        def token(self): return 'TKN'
+
+    class _Search:
+        def by_key_prefix(self, prefix, user=False):
+            return ([{'key': '#message#c1#001', 'role': 'chariot', 'content': 'done'}], None)
+
+    host.sdk = types.SimpleNamespace(keychain=_KC(), search=_Search())
+    msgs = list(host._ws_messages('c1', after_key=''))
+    assert msgs and msgs[-1]['role'] == 'chariot'
+    assert captured['url'].startswith('wss://x/ws?')
+    assert 'token=TKN' in captured['url']
+    assert 'user=true' in captured['url']
+    assert 'account=client@acme.com' in captured['url']
+    sub = _json.loads(captured['sub'])
+    assert sub['action'] == 'subscribe'
+    assert sub['subscriptions'][0]['pattern'] == '#message#c1'
+    assert sub['subscriptions'][0]['matchType'] == 'prefix'
+
+
 def test_send_to_marcus_handles_ctrl_c(host):
     # _post_to_planner succeeds, but polling raises KeyboardInterrupt mid-stream
     host._post_to_planner = lambda m: {'conversation': {'uuid': 'c1'}}
