@@ -206,10 +206,14 @@ class MarcusCommands:
     def _send_to_marcus(self, message: str) -> Optional[str]:
         """Send message to Marcus and poll for response with live tool output."""
             result = self._post_to_planner(message)
+        except KeyboardInterrupt:
+            self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
+            return None
         except MarcusError as e:
             self.console.print(f'[error]{e}[/error]')
             return None
         if not self.context.conversation_id and 'conversation' in result:
+        if isinstance(result, dict) and not self.context.conversation_id and 'conversation' in result:
             self.context.conversation_id = result['conversation'].get('uuid')
 
     def _snapshot_last_key(self, conversation_id: Optional[str]) -> str:
