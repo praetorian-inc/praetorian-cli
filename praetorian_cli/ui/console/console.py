@@ -9,6 +9,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.shortcuts import CompleteStyle
 
 from rich.console import Console
 from rich.table import Table
@@ -77,6 +78,8 @@ class GuardConsole(
         self.session = PromptSession(
             history=FileHistory(history_path),
             completer=WordCompleter(CONSOLE_COMMANDS, ignore_case=True),
+            complete_style=CompleteStyle.MULTI_COLUMN,
+            reserve_space_for_menu=3,
         )
 
     def run(self):
