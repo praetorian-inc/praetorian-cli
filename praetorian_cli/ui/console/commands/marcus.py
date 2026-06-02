@@ -5,11 +5,21 @@ import os
 import time
 from typing import Optional
 
+from requests.exceptions import RequestException
+
 from prompt_toolkit.formatted_text import HTML
 from rich.markdown import Markdown
 from rich.panel import Panel
 
 from praetorian_cli.ui.aegis.theme import PRIMARY_RED, COMPLEMENTARY_GOLD
+
+
+class MarcusError(Exception):
+    """Raised for recoverable Marcus terminal errors (shown to the user)."""
+
+
+class _WSUnavailable(Exception):
+    """Internal: WebSocket transport unavailable; fall back to polling."""
 
 
 class MarcusCommands:
@@ -103,41 +113,68 @@ class MarcusCommands:
 
         self.console.print('[dim]Returned to console.[/dim]')
 
-    def _send_to_marcus(self, message: str) -> Optional[str]:
-        """Send message to Marcus and poll for response with live tool output."""
+    def _post_to_planner(self, message: str):
+        """POST to /planner, handling the 403 retry-as-Praetorian path safely.
+
+        Returns the parsed JSON dict. Raises on network/HTTP error; the keychain
+        account is always restored.
+        """
         url = self.sdk.url('/planner')
         payload = {'message': message, 'mode': self.context.mode}
         if self.context.conversation_id:
             payload['conversationId'] = self.context.conversation_id
 
-        with self.console.status('Sending...', spinner='dots', spinner_style=self.colors['primary']):
-            response = self.sdk.chariot_request('POST', url, json=payload)
+        with self.console.status('Sending...', spinner='dots',
+                                 spinner_style=self.colors['primary']):
+            try:
+                response = self.sdk.chariot_request('POST', url, json=payload)
+            except RequestException as e:
+                raise MarcusError(f'Network error reaching Marcus: {e}')
 
-        # If AI is disabled on the impersonated account, retry as the Praetorian user
         if response.status_code == 403 and self.context.account:
             login_user = self.sdk.accounts.login_principal()
             if login_user and login_user.endswith('@praetorian.com'):
-                self.console.print(f'[dim]AI not enabled on this account -- routing through {login_user}[/dim]')
-                # Temporarily clear impersonation for the AI call
+                self.console.print(
+                    f'[dim]AI not enabled on this account -- routing through {login_user}[/dim]')
                 saved_account = self.sdk.keychain.account
-                self.sdk.keychain.account = None
-                # Add engagement context to the message so Marcus queries the right data
-                if self.context.account not in message:
-                    message = f'[Context: querying data for account {self.context.account}] {message}'
-                payload['message'] = message
-                if self.context.conversation_id:
-                    payload.pop('conversationId', None)
-                    self.context.conversation_id = None
-                with self.console.status('Sending via Praetorian account...', spinner='dots', spinner_style=self.colors['primary']):
-                    response = self.sdk.chariot_request('POST', url, json=payload)
-                self.sdk.keychain.account = saved_account
+                try:
+                    self.sdk.keychain.account = None
+                    if self.context.account not in message:
+                        message = f'[Context: querying data for account {self.context.account}] {message}'
+                    payload['message'] = message
+                    if self.context.conversation_id:
+                        payload.pop('conversationId', None)
+                        self.context.conversation_id = None
+                    with self.console.status('Sending via Praetorian account...', spinner='dots',
+                                             spinner_style=self.colors['primary']):
+                        try:
+                            response = self.sdk.chariot_request('POST', url, json=payload)
+                        except RequestException as e:
+                            raise MarcusError(f'Network error reaching Marcus: {e}')
+                finally:
+                    self.sdk.keychain.account = saved_account
 
         if not response.ok:
-            self.console.print(f'[error]API error: {response.status_code} - {response.text}[/error]')
+            raise MarcusError(f'API error: {response.status_code} - {response.text}')
+
+        try:
+            return response.json()
+        except (ValueError, json.JSONDecodeError):
+            raise MarcusError(
+                f'Unexpected non-JSON response ({response.status_code}): {response.text[:200]}')
+
+    def _send_to_marcus(self, message: str) -> Optional[str]:
+        """Send message to Marcus and poll for response with live tool output."""
+        try:
+            result = self._post_to_planner(message)
+        except KeyboardInterrupt:
+            self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
+            return None
+        except MarcusError as e:
+            self.console.print(f'[error]{e}[/error]')
             return None
 
-        result = response.json()
-        if not self.context.conversation_id and 'conversation' in result:
+        if isinstance(result, dict) and not self.context.conversation_id and 'conversation' in result:
             self.context.conversation_id = result['conversation'].get('uuid')
 
         # Snapshot existing messages so we only process NEW ones from this request
@@ -151,83 +188,151 @@ class MarcusCommands:
         except Exception:
             pass
 
-        # Poll for response -- show tool calls live
-        max_wait = 180
-        start_time = time.time()
-        pending_tool = None
-        tool_log = []  # Store all tool calls/responses for this interaction
-        seen_tool_keys = set()  # Track which tool messages we displayed live
-
         acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
-        self.console.print(f'[dim]Thinking...[/dim]{acct_label}', end='')
+        self.console.print(f'[dim]Thinking...[/dim]{acct_label}')
+        tool_log = []
+        try:
+            for msg in self._stream_messages(self.context.conversation_id, after_key=last_key):
+                role = msg.get('role', '')
+                content = msg.get('content', '')
+                if role == 'chariot':
+                    self._last_tool_log = tool_log
+                    return content
+                elif role == 'tool call':
+                    tool_name = self._parse_tool_name(content, msg)
+                    tool_log.append({'role': role, 'name': tool_name, 'content': content,
+                                     'msg': msg, 'key': msg.get('key', '')})
+                    self.console.print(f'  [dim]->[/dim] [accent]{tool_name}[/accent]')
+                    if self.context.verbose:
+                        self._print_verbose_tool_call(content, msg)
+                elif role == 'tool response':
+                    result_summary = self._parse_tool_result(content)
+                    inferred = self._infer_tool_from_response(content)
+                    tool_log.append({'role': role, 'name': inferred, 'content': content,
+                                     'summary': result_summary, 'key': msg.get('key', '')})
+                    if result_summary:
+                        self.console.print(f'    [dim]-- {result_summary}[/dim] [success]done[/success]')
+                    else:
+                        self.console.print(f'    [success]done[/success]')
+                    if self.context.verbose:
+                        self._print_verbose_tool_response(content)
+        except KeyboardInterrupt:
+            self._last_tool_log = tool_log
+            self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
+            return None
+        except MarcusError as e:
+            self._last_tool_log = tool_log
+            self.console.print(f'\n[error]{e}[/error]')
+            return None
+        self._last_tool_log = tool_log
+        return None
 
-        while time.time() - start_time < max_wait:
+    def _poll_messages(self, conversation_id, after_key='', *, max_wait=180,
+                       sleep=time.sleep, error_threshold=5):
+        """Yield new conversation messages in key order until a 'chariot' reply.
+
+        Fetches the conversation and filters client-side for messages after `after_key`. Backs off when idle. Raises
+        MarcusError after `error_threshold` consecutive fetch failures so
+        problems surface instead of hanging.
+        """
+        start = time.time()
+        last_key = after_key
+        delay = 1.0
+        consecutive_errors = 0
+        prefix = f'#message#{conversation_id}#'
+        while time.time() - start < max_wait:
             try:
-                messages, _ = self.sdk.search.by_key_prefix(
-                    f'#message#{self.context.conversation_id}#', user=True
-                )
-                new_msgs = sorted(
-                    [m for m in messages if m.get('key', '') > last_key],
-                    key=lambda x: x.get('key', '')
-                )
-
-                for msg in new_msgs:
-                    role = msg.get('role', '')
-                    content = msg.get('content', '')
+                messages, _ = self.sdk.search.by_key_prefix(prefix, user=True)
+                consecutive_errors = 0
+            except Exception as e:
+                consecutive_errors += 1
+                if consecutive_errors >= error_threshold:
+                    raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
+                sleep(delay)
+                continue
+            new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
+                         key=lambda x: x.get('key', ''))
+            if new:
+                delay = 1.0
+                for msg in new:
                     last_key = msg.get('key', '')
+                    yield msg
+                    if msg.get('role', '') == 'chariot':
+                        return
+            else:
+                delay = min(delay + 1.0, 3.0)
+            sleep(delay)
+        raise MarcusError('Timed out waiting for response')
 
-                    if role == 'chariot':
-                        if pending_tool:
-                            self.console.print()  # newline after tool output
-                        # Retroactively show any tool calls we missed during polling
-                        missed = [t for t in tool_log if t['key'] not in seen_tool_keys]
-                        if missed:
-                            self.console.print()
-                            for entry in missed:
-                                if entry['role'] == 'tool call':
-                                    self.console.print(f'  [dim]->[/dim] [accent]{entry["name"]}[/accent]', end='')
-                                elif entry['role'] == 'tool response':
-                                    summary = entry.get('summary', '')
-                                    if summary:
-                                        self.console.print(f' [dim]-- {summary}[/dim]', end='')
-                                    self.console.print(f' [success]done[/success]')
-                        # Save tool log for "show tools" command
-                        self._last_tool_log = tool_log
-                        return content
-                    elif role == 'tool call':
-                        tool_name = self._parse_tool_name(content, msg)
-                        tool_log.append({'role': role, 'name': tool_name, 'content': content, 'msg': msg, 'key': msg.get('key', '')})
-                        if pending_tool:
-                            self.console.print(f' [success]done[/success]')
-                        self.console.print(f'  [dim]->[/dim] [accent]{tool_name}[/accent]', end='')
-                        seen_tool_keys.add(msg.get('key', ''))
-                        if self.context.verbose:
-                            self.console.print()
-                            self._print_verbose_tool_call(content, msg)
-                        pending_tool = tool_name
-                    elif role == 'tool response':
-                        result_summary = self._parse_tool_result(content)
-                        inferred = self._infer_tool_from_response(content)
-                        tool_log.append({'role': role, 'name': inferred, 'content': content, 'summary': result_summary, 'key': msg.get('key', '')})
-                        # Retroactively fix the pending tool name if we inferred one
-                        if inferred and pending_tool == 'tool':
-                            # Rewrite the line: clear current and reprint with inferred name
-                            self.console.print(f'\r  [dim]->[/dim] [accent]{inferred}[/accent]', end='')
-                        if result_summary:
-                            self.console.print(f' [dim]-- {result_summary}[/dim]', end='')
-                        self.console.print(f' [success]done[/success]')
-                        seen_tool_keys.add(msg.get('key', ''))
-                        if self.context.verbose:
-                            self._print_verbose_tool_response(content)
-                        pending_tool = None
+    def _ws_messages(self, conversation_id, after_key='', *, max_wait=180):
+        """Yield new conversation messages via the WebSocket change-feed until a
+        'chariot' reply. Reuses by_key_prefix to fetch message bodies on each WS
+        event. Raises MarcusError on timeout. Raises _WSUnavailable on
+        connect/subscribe failure so the caller can fall back to polling."""
+        import websocket  # websocket-client
+        ws_url = self.sdk.keychain.websocket_url()
+        token = self.sdk.keychain.token()
+        # Token is embedded as a query-string parameter — must never be logged or
+        # interpolated into exception messages.
+        url = f"{ws_url}?token={token}&user=true"
+        # Unlike _post_to_planner, the WS path does not perform the 403 "route
+        # through @praetorian.com" reroute — it assumes the account has direct AI
+        # access (opt-in transport).
+        if self.sdk.keychain.account:
+            url += f"&account={self.sdk.keychain.account}"
+        try:
+            conn = websocket.create_connection(url, timeout=10)
+            conn.send(json.dumps({"action": "subscribe", "subscriptions": [
+                {"pattern": f"#message#{conversation_id}", "matchType": "prefix"}]}))
+        except Exception as e:
+            # str(e) from websocket-client does not contain the URL/token, so
+            # this is safe; the URL variable is intentionally not interpolated here.
+            raise _WSUnavailable(str(e))
+        last_key = after_key
+        start = time.time()
+        try:
+            while time.time() - start < max_wait:
+                try:
+                    conn.settimeout(5)
+                    conn.recv()  # block until a change event (content ignored; signal only)
+                except websocket.WebSocketTimeoutException:
+                    pass  # 5 s timeout doubles as an idle safety re-poll (intentional)
+                except Exception as e:
+                    # str(e) does not contain the URL/token — safe to forward as-is.
+                    raise _WSUnavailable(str(e))
+                messages, _ = self.sdk.search.by_key_prefix(
+                    f'#message#{conversation_id}#', user=True)
+                new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
+                             key=lambda x: x.get('key', ''))
+                for msg in new:
+                    last_key = msg.get('key', '')
+                    yield msg
+                    if msg.get('role', '') == 'chariot':
+                        return
+            raise MarcusError('Timed out waiting for response')
+        finally:
+            try:
+                conn.close()
             except Exception:
                 pass
 
-            time.sleep(1)
-
-        self._last_tool_log = tool_log
-        self.console.print('\n[warning]Timed out waiting for response[/warning]')
-        return None
+    def _stream_messages(self, conversation_id, after_key=''):
+        """Yield conversation messages via WebSocket if configured, else polling.
+        Falls back to polling if the WS connection/subscribe fails before any
+        message is yielded. If the WS drops after yielding, re-raise as
+        MarcusError to avoid silently replaying messages via polling."""
+        if self.sdk.keychain.websocket_url():
+            yielded = False
+            try:
+                for msg in self._ws_messages(conversation_id, after_key=after_key):
+                    yielded = True
+                    yield msg
+                return
+            except _WSUnavailable:
+                if yielded:
+                    raise MarcusError('WebSocket connection lost mid-stream')
+                # else fall through to polling
+        yield from self._poll_messages(conversation_id, after_key=after_key)
 
     def _parse_tool_name(self, content: str, msg: dict = None) -> str:
         """Extract a human-readable tool name from a tool call message."""
