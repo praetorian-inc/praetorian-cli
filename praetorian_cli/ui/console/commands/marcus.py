@@ -5,6 +5,8 @@ import os
 import time
 from typing import Optional
 
+from requests.exceptions import RequestException
+
 from prompt_toolkit.formatted_text import HTML
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -120,7 +122,10 @@ class MarcusCommands:
 
         with self.console.status('Sending...', spinner='dots',
                                  spinner_style=self.colors['primary']):
-            response = self.sdk.chariot_request('POST', url, json=payload)
+            try:
+                response = self.sdk.chariot_request('POST', url, json=payload)
+            except RequestException as e:
+                raise MarcusError(f'Network error reaching Marcus: {e}')
 
         if response.status_code == 403 and self.context.account:
             login_user = self.sdk.accounts.login_principal()
@@ -138,7 +143,10 @@ class MarcusCommands:
                         self.context.conversation_id = None
                     with self.console.status('Sending via Praetorian account...', spinner='dots',
                                              spinner_style=self.colors['primary']):
-                        response = self.sdk.chariot_request('POST', url, json=payload)
+                        try:
+                            response = self.sdk.chariot_request('POST', url, json=payload)
+                        except RequestException as e:
+                            raise MarcusError(f'Network error reaching Marcus: {e}')
                 finally:
                     self.sdk.keychain.account = saved_account
 
@@ -155,11 +163,14 @@ class MarcusCommands:
         """Send message to Marcus and poll for response with live tool output."""
         try:
             result = self._post_to_planner(message)
+        except KeyboardInterrupt:
+            self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
+            return None
         except MarcusError as e:
             self.console.print(f'[error]{e}[/error]')
             return None
 
-        if not self.context.conversation_id and 'conversation' in result:
+        if isinstance(result, dict) and not self.context.conversation_id and 'conversation' in result:
             self.context.conversation_id = result['conversation'].get('uuid')
 
         # Snapshot existing messages so we only process NEW ones from this request
@@ -235,7 +246,7 @@ class MarcusCommands:
                     raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
                 sleep(delay)
                 continue
-            new = sorted((m for m in messages if m.get('key', '') > last_key),
+            new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
                          key=lambda x: x.get('key', ''))
             if new:
                 delay = 1.0

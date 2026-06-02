@@ -133,6 +133,74 @@ def test_post_to_planner_guards_non_json_on_200(host):
         h._post_to_planner('hi')
 
 
+# ── FIX 1: Ctrl-C during the initial POST ────────────────────────────────────
+
+def test_ctrl_c_during_initial_request_returns_none(host):
+    """KeyboardInterrupt during _post_to_planner must return None and print cancel msg."""
+    import contextlib
+
+    def _boom(m):
+        raise KeyboardInterrupt()
+
+    host._post_to_planner = _boom
+    printed = []
+
+    class _Console:
+        def print(self, *a, **k): printed.append(' '.join(str(x) for x in a))
+        def status(self, *a, **k): return contextlib.nullcontext()
+
+    host.console = _Console()
+    host.colors = {'primary': 'red'}
+    host.context = types.SimpleNamespace(account=None, mode='agent', conversation_id=None,
+                                         verbose=False)
+
+    class _Search:
+        def by_key_prefix(self, prefix, user=False): return ([], None)
+
+    host.sdk = types.SimpleNamespace(search=_Search())
+    result = host._send_to_marcus('hi')
+    assert result is None
+    assert any('cancel' in p.lower() or 'interrupt' in p.lower() for p in printed)
+
+
+# ── FIX 2: Network exceptions in _post_to_planner become MarcusError ─────────
+
+def test_post_to_planner_network_error_becomes_marcus_error(host):
+    """RequestException from chariot_request must be re-raised as MarcusError."""
+    from requests.exceptions import RequestException
+    from praetorian_cli.ui.console.commands.marcus import MarcusError
+
+    h, _ = _make_host_for_post(RequestException('boom'))
+    with pytest.raises(MarcusError):
+        h._post_to_planner('hi')
+
+
+# ── FIX 3 + 4: Guard result type and non-dict poll items ─────────────────────
+
+def test_poll_messages_skips_non_dict_items(host):
+    """Non-dict items in the message list must be silently skipped."""
+    msgs = [
+        {'key': '#message#c1#001', 'role': 'tool call', 'content': '{}'},
+        'garbage',
+        {'key': '#message#c1#002', 'role': 'chariot', 'content': 'done'},
+    ]
+    call_count = {'n': 0}
+
+    class _Search:
+        def by_key_prefix(self, prefix, user=False):
+            call_count['n'] += 1
+            return (msgs, None)
+
+    host.sdk = types.SimpleNamespace(search=_Search())
+    host.context = types.SimpleNamespace(verbose=False)
+    collected = list(host._poll_messages('c1', after_key='', max_wait=5, sleep=lambda s: None))
+    roles = [m['role'] for m in collected]
+    assert 'chariot' in roles
+    assert collected[-1]['content'] == 'done'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 def test_send_to_marcus_handles_ctrl_c(host):
     # _post_to_planner succeeds, but polling raises KeyboardInterrupt mid-stream
     host._post_to_planner = lambda m: {'conversation': {'uuid': 'c1'}}
