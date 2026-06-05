@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.4.5
+- [Bug fix] Improved the `guard console` completion menu to use a compact multi-column grid with a smaller idle gap below the prompt
+
 # 2.4.4
 - [Bug fix] Updated to new API requirements for credential retrieval, see `guard get credential`
 
