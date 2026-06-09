@@ -1,0 +1,36 @@
+name: graphify-graph
+# Builds the guard-cli code knowledge graph via the shared public-workflows reusable
+# and publishes graph.json as an artifact, so engineers and agents query the latest
+# graph without each rebuilding it locally. graphify has no server — the graph is a
+# file (graphify-out/graph.json) that `graphify query` reads. The build is code-only
+# and keyless (respects the committed .graphifyignore; no LLM API key needed).
+#
+# The monorepo SessionStart hook auto-discovers this artifact by name and downloads
+# the latest CI-built graph for local + agent use.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'setup.py'
+      - 'requirements*.txt'
+      - '.graphifyignore'
+      - '.github/workflows/graphify-graph.yml'
+  pull_request:
+    paths:
+      - '.graphifyignore'
+      - '.github/workflows/graphify-graph.yml'
+  schedule:
+    - cron: '0 7 * * 1'   # Mondays 07:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  graph:
+    uses: praetorian-inc/public-workflows/.github/workflows/graphify-graph.yml@0c602372f3d0d038912dd08e159ecc83954a4995  # v2.9.3
+    permissions:
+      contents: read
