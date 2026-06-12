@@ -109,7 +109,7 @@ class Chariot:
     def my_by_query(self, query: Query, pages=1) -> dict:
         return self.my_by_raw_query(query.to_dict(), pages, query.params())
 
-    def my_by_raw_query(self, raw_query: dict, pages=1, params: dict = {}) -> dict:
+    def my_by_raw_query(self, raw_query: dict, pages=1, params: dict = {}) -> dict | list:
         if 'page' not in raw_query:
             raw_query['page'] = 0
 
@@ -132,6 +132,14 @@ class Chariot:
 
             process_failure(resp)
             resp = resp.json()
+            if isinstance(resp, list):
+                # Tree-shaped queries (the `tree=true` query param) return a bare
+                # JSON array of nodes instead of the usual keyed dict. They carry
+                # no offset, so the loop ends after this page.
+                if not isinstance(final_resp, list):
+                    final_resp = []
+                final_resp.extend(resp)
+                break
             extend(final_resp, resp)
 
             if 'offset' in resp:
@@ -140,7 +148,7 @@ class Chariot:
             else:
                 break
 
-        if 'offset' in resp:
+        if isinstance(resp, dict) and 'offset' in resp:
             final_resp['offset'] = resp['offset']
 
         return final_resp
