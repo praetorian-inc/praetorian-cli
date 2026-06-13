@@ -1126,7 +1126,7 @@ In `praetorian_cli/runners/local.py`, directly above the `TOOL_PLUGINS = {` line
 # - julius/nerva/nero: use -t <target>; unverified against each binary's --help
 # - titus/trajan/vespasian/constantine/caligula: `scan <target>` — unverified
 # - augustus/gato: `scan -t <target>` / `enumerate -t <target>` — unverified
-# - cato/florian/hadrian: `scan -u <target>` — unverified
+# - probus/florian/hadrian: `scan -u <target>` — unverified
 # Users can always override via `guard run tool <tool> <target> -- <raw args>`.
 ```
 
