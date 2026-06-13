@@ -70,16 +70,16 @@ class Chariot:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    def chariot_request(self, method: str, url: str, headers: dict = {}, **kwargs) -> requests.Response:
+    def chariot_request(self, method: str, url: str, headers: dict | None = None, **kwargs) -> requests.Response:
         """
-        Centralized wrapper around requests.request. Takes care of proxy and 
+        Centralized wrapper around requests.request. Takes care of proxy and
         supplies the authentication headers
         """
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
             kwargs['verify'] = False
 
-        return requests.request(method, url, headers=(headers | self.keychain.headers()), **kwargs)
+        return requests.request(method, url, headers=((headers or {}) | self.keychain.headers()), **kwargs)
 
 
     def my(self, params: dict, pages=1) -> dict:
@@ -91,6 +91,7 @@ class Chariot:
             return self.my_by_query(query, pages)
 
         # The search is on data in DynamoDB, which uses DynamoDB's native offset format.
+        resp = None
         for _ in range(pages):
             resp = self.chariot_request('GET', self.url('/my'), params=params)
             process_failure(resp)
@@ -101,7 +102,7 @@ class Chariot:
             else:
                 break
 
-        if 'offset' in resp:
+        if resp and 'offset' in resp:
             final_resp['offset'] = json.dumps(resp['offset'])
 
         return final_resp
@@ -109,7 +110,7 @@ class Chariot:
     def my_by_query(self, query: Query, pages=1) -> dict:
         return self.my_by_raw_query(query.to_dict(), pages, query.params())
 
-    def my_by_raw_query(self, raw_query: dict, pages=1, params: dict = {}) -> dict | list:
+    def my_by_raw_query(self, raw_query: dict, pages=1, params: dict | None = None) -> dict | list:
         if 'page' not in raw_query:
             raw_query['page'] = 0
 
@@ -117,9 +118,10 @@ class Chariot:
             raw_query['limit'] = DEFAULT_PAGE_SIZE
 
         final_resp = dict()
+        resp = None
 
         while pages > 0:
-            resp = self.chariot_request('POST', self.url('/my'), json=raw_query, params=params)
+            resp = self.chariot_request('POST', self.url('/my'), json=raw_query, params=params or {})
             if is_query_limit_failure(resp):
                 # In this block, the data size is too large for the number of records requested in raw_query['limit'].
                 # We need to halve the page size: LIMIT = LIMIT / 2
@@ -153,18 +155,18 @@ class Chariot:
 
         return final_resp
 
-    def post(self, type: str, body: dict, params: dict = {}) -> dict:
-        resp = self.chariot_request('POST', self.url(f'/{type}'), json=body, params=params)
+    def post(self, type: str, body: dict, params: dict | None = None) -> dict:
+        resp = self.chariot_request('POST', self.url(f'/{type}'), json=body, params=params or {})
         process_failure(resp)
         return resp.json()
 
-    def put(self, type: str, body: dict, params: dict = {}) -> dict:
-        resp = self.chariot_request('PUT', self.url(f'/{type}'), json=body, params=params)
+    def put(self, type: str, body: dict, params: dict | None = None) -> dict:
+        resp = self.chariot_request('PUT', self.url(f'/{type}'), json=body, params=params or {})
         process_failure(resp)
         return resp.json()
 
-    def get(self, type: str, params: dict = {}) -> dict:
-        resp = self.chariot_request('GET', self.url(f'/{type}'), params=params)
+    def get(self, type: str, params: dict | None = None) -> dict:
+        resp = self.chariot_request('GET', self.url(f'/{type}'), params=params or {})
         process_failure(resp)
         return resp.json()
 
@@ -178,31 +180,31 @@ class Chariot:
         process_failure(resp)
         return resp.json()
 
-    def delete_by_key(self, type: str, key: str, body: dict = {}, params: dict = {}) -> dict:
-        self.delete(type, body | dict(key=key), params)
+    def delete_by_key(self, type: str, key: str, body: dict | None = None, params: dict | None = None) -> dict:
+        self.delete(type, (body or {}) | dict(key=key), params or {})
 
-    def add(self, type: str, body: dict, params: dict = {}) -> dict:
+    def add(self, type: str, body: dict, params: dict | None = None) -> dict:
         return self.upsert(type, body, params)
 
-    def force_add(self, type: str, body: dict, params: dict = {}) -> dict:
+    def force_add(self, type: str, body: dict, params: dict | None = None) -> dict:
         return self.post(type, body, params)
 
-    def update(self, type: str, body: dict, params: dict = {}) -> dict:
+    def update(self, type: str, body: dict, params: dict | None = None) -> dict:
         return self.upsert(type, body, params)
 
-    def upsert(self, type: str, body: dict, params: dict = {}) -> dict:
+    def upsert(self, type: str, body: dict, params: dict | None = None) -> dict:
         return self.put(type, body, params)
 
-    def link_account(self, username: str, role: str = '', value: str = '', config: dict = {}) -> dict:
-        body = dict(config=config, value=value)
+    def link_account(self, username: str, role: str = '', value: str = '', config: dict | None = None) -> dict:
+        body = dict(config=config or {}, value=value)
         if role:
             body['role'] = role
         resp = self.chariot_request('POST', self.url(f'/account/{username}'), json=body)
         process_failure(resp)
         return resp.json()
 
-    def unlink(self, username: str, value: str = '', config: dict = {}) -> dict:
-        resp = self.chariot_request('DELETE', self.url(f'/account/{username}'), json=dict(value=value, config=config))
+    def unlink(self, username: str, value: str = '', config: dict | None = None) -> dict:
+        resp = self.chariot_request('DELETE', self.url(f'/account/{username}'), json=dict(value=value, config=config or {}))
         process_failure(resp)
         return resp.json()
 

@@ -1,3 +1,4 @@
+import inspect
 import json
 from unittest.mock import MagicMock
 
@@ -69,3 +70,29 @@ class TestMyByRawQuery:
 
         assert result['risks'] == [{'key': '#risk#1'}]
         assert result['offset'] == '1'
+
+    def test_pages_zero_returns_empty(self):
+        sdk = make_sdk([])
+
+        result = sdk.my_by_raw_query({'node': {'labels': ['Risk']}}, pages=0)
+
+        assert result == {}
+        assert sdk.chariot_request.call_count == 0
+
+    def test_my_pages_zero_returns_empty(self):
+        sdk = make_sdk([])
+
+        result = sdk.my({}, pages=0)
+
+        assert result == {}
+        assert sdk.chariot_request.call_count == 0
+
+    def test_no_mutable_default_arguments(self):
+        # dict/list defaults are shared across calls; every default must be
+        # immutable (use `dict | None = None` and normalize inside the method)
+        offenders = []
+        for name, member in inspect.getmembers(Chariot, predicate=inspect.isfunction):
+            for param in inspect.signature(member).parameters.values():
+                if isinstance(param.default, (dict, list, set)):
+                    offenders.append(f'{name}({param.name}={param.default!r})')
+        assert offenders == []
