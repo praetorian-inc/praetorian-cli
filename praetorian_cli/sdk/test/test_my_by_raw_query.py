@@ -111,6 +111,16 @@ class TestMyByRawQuery:
 
         assert mock_request.call_args.kwargs['timeout'] == 5
 
+    def test_delete_by_key_returns_api_response(self):
+        # entity delete() methods `return self.api.delete_by_key(...)` and
+        # document :rtype: dict — a missing return would hand callers None
+        deleted = {'key': '#asset#example.com#1.2.3.4', 'status': 'D'}
+        sdk = make_sdk([mock_response(deleted)])
+
+        result = sdk.delete_by_key('asset', '#asset#example.com#1.2.3.4')
+
+        assert result == deleted
+
     def test_no_mutable_default_arguments(self):
         # dict/list defaults are shared across calls; every default must be
         # immutable (use `dict | None = None` and normalize inside the method)

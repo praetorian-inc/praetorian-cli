@@ -184,7 +184,7 @@ class Chariot:
         return resp.json()
 
     def delete_by_key(self, type: str, key: str, body: dict | None = None, params: dict | None = None) -> dict:
-        self.delete(type, (body or {}) | dict(key=key), params or {})
+        return self.delete(type, (body or {}) | dict(key=key), params or {})
 
     def add(self, type: str, body: dict, params: dict | None = None) -> dict:
         return self.upsert(type, body, params)
