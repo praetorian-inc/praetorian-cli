@@ -27,7 +27,7 @@ from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webpage import Webpage
 from praetorian_cli.sdk.entities.webhook import Webhook
 from praetorian_cli.sdk.keychain import Keychain
-from praetorian_cli.sdk.model.globals import GLOBAL_FLAG
+from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, DEFAULT_HTTP_TIMEOUT
 from praetorian_cli.sdk.model.query import Query, my_params_to_query, DEFAULT_PAGE_SIZE
 
 
@@ -78,6 +78,9 @@ class Chariot:
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
             kwargs['verify'] = False
+
+        # Bound stalled connections; callers may override by passing timeout=.
+        kwargs.setdefault('timeout', DEFAULT_HTTP_TIMEOUT)
 
         return requests.request(method, url, headers=((headers or {}) | self.keychain.headers()), **kwargs)
 
@@ -224,7 +227,7 @@ class Chariot:
         # Regular files use presigned URLs
         presigned_url = self.chariot_request('PUT', self.url('/file'), params=dict(name=chariot_filepath))
         process_failure(presigned_url)
-        resp = requests.put(presigned_url.json()['url'], data=content)
+        resp = requests.put(presigned_url.json()['url'], data=content, timeout=DEFAULT_HTTP_TIMEOUT)
         process_failure(resp)
         return resp
 
@@ -251,7 +254,7 @@ class Chariot:
             message = f'Download request failed: response missing URL' + (f'\nBody: {resp.text}' if resp.text else '(empty)')
             raise Exception(message)
         
-        resp = requests.request('GET', url)
+        resp = requests.request('GET', url, timeout=DEFAULT_HTTP_TIMEOUT)
         process_failure(resp)
         return resp.content
 

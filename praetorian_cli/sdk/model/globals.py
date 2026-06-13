@@ -134,3 +134,9 @@ EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}
 USER_FLAG = {'user': 'true'}
+
+# (connect, read) timeout for all outbound HTTP. The read value is the gap
+# requests waits between bytes from the server, NOT a total-duration budget, so
+# it does not cap large file transfers that keep streaming — it only bounds a
+# stalled/half-open connection that would otherwise hang the CLI forever.
+DEFAULT_HTTP_TIMEOUT = (10, 60)

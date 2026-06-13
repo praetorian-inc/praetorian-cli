@@ -1,10 +1,11 @@
 import inspect
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from praetorian_cli.sdk.chariot import Chariot
+from praetorian_cli.sdk.model.globals import DEFAULT_HTTP_TIMEOUT
 
 
 def mock_response(body, status_code=200):
@@ -86,6 +87,29 @@ class TestMyByRawQuery:
 
         assert result == {}
         assert sdk.chariot_request.call_count == 0
+
+    def test_chariot_request_applies_default_timeout(self):
+        # un-timed requests can hang forever on a stalled connection
+        sdk = Chariot.__new__(Chariot)
+        sdk.proxy = ''
+        sdk.keychain = MagicMock()
+        sdk.keychain.headers.return_value = {}
+
+        with patch('praetorian_cli.sdk.chariot.requests.request') as mock_request:
+            sdk.chariot_request('GET', 'https://example.test/my')
+
+        assert mock_request.call_args.kwargs['timeout'] == DEFAULT_HTTP_TIMEOUT
+
+    def test_chariot_request_explicit_timeout_overrides_default(self):
+        sdk = Chariot.__new__(Chariot)
+        sdk.proxy = ''
+        sdk.keychain = MagicMock()
+        sdk.keychain.headers.return_value = {}
+
+        with patch('praetorian_cli.sdk.chariot.requests.request') as mock_request:
+            sdk.chariot_request('GET', 'https://example.test/my', timeout=5)
+
+        assert mock_request.call_args.kwargs['timeout'] == 5
 
     def test_no_mutable_default_arguments(self):
         # dict/list defaults are shared across calls; every default must be
