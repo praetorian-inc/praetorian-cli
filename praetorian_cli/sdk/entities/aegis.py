@@ -1,10 +1,48 @@
-from typing import List, Optional
+from typing import Callable, List, Optional
+import json
 import shlex
 import shutil
 import subprocess
 import time
+
 from praetorian_cli.sdk.model.aegis import Agent
 from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
+
+
+TASK_TERMINAL_STATUSES = ('AMT_COMPLETED', 'AMT_FAILED')
+
+
+def parse_task_result(task: dict) -> dict:
+    """Parse a management task response into a display-friendly structure.
+
+    Returns a dict with:
+        status, is_success, error_message, result,
+        output_data (parsed JSON dict or None), output_raw,
+        success, exit_code, error_output, command_error
+    """
+    status = task.get('status', '')
+    cmd = task.get('commandResult') or {}
+    output_str = cmd.get('output', '')
+
+    output_data = None
+    if output_str:
+        try:
+            output_data = json.loads(output_str)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return {
+        'status': status,
+        'is_success': status == 'AMT_COMPLETED',
+        'error_message': task.get('errorMessage'),
+        'result': task.get('result'),
+        'output_data': output_data if isinstance(output_data, dict) else None,
+        'output_raw': output_str,
+        'success': cmd.get('success'),
+        'exit_code': cmd.get('exit_code'),
+        'error_output': cmd.get('error_output'),
+        'command_error': cmd.get('error_message'),
+    }
 
 
 def normalize_to_list(value, item_keys: List[str] = None) -> List:
@@ -539,6 +577,207 @@ class Aegis:
             'status': status,
         }
     
+    def ingest_result(self, filepath, dry_run=False, skip_files=False,
+                      on_progress: Optional[Callable[[str], None]] = None):
+        """Ingest a chariot_result.json file into Guard.
+
+        Parses assets, risks, and proof files from the result file and
+        pushes them to Guard in order: assets first, then risks (linked
+        to those assets), then proof files.
+
+        :param filepath: Path to the chariot_result.json file
+        :param dry_run: If True, parse and show summary without sending data
+        :param skip_files: If True, skip uploading proof file items
+        :param on_progress: Optional callback for progress messages
+        """
+        log = on_progress or (lambda msg: None)
+
+        with open(filepath) as f:
+            data = json.load(f)
+
+        items = data.get('items')
+        if items is None:
+            raise Exception(f"No 'items' key found in {filepath}")
+
+        assets = []
+        risks = []
+        files = []
+
+        for item in items:
+            item_type = item.get('_type', '')
+            if item_type == 'risk':
+                risks.append(item)
+            elif item_type == 'file':
+                files.append(item)
+            else:
+                assets.append(item)
+
+        log(f"Parsed {len(items)} items: {len(assets)} assets, {len(risks)} risks, {len(files)} files")
+
+        if dry_run:
+            log("Dry run — no data sent")
+            return
+
+        errors = []
+
+        # Phase 1: Assets
+        log(f"\nIngesting {len(assets)} assets...")
+        for i, item in enumerate(assets, 1):
+            try:
+                body = self._transform_asset(item)
+                self.api.upsert('asset', body)
+            except Exception as e:
+                errors.append(f"Asset {item.get('key', '?')}: {e}")
+            if i % 100 == 0:
+                log(f"  {i}/{len(assets)} assets processed")
+        log(f"  {len(assets)}/{len(assets)} assets done")
+
+        # Phase 2: Risks
+        log(f"\nIngesting {len(risks)} risks...")
+        for i, item in enumerate(risks, 1):
+            try:
+                target = item.get('_target', {})
+                target_key = target.get('key', '')
+                if not target_key:
+                    errors.append(f"Risk {item.get('name', '?')}: missing _target.key")
+                    continue
+                name = item.get('name', '')
+                status = item.get('status', '')
+                source = item.get('source', '')
+                self.api.risks.add(target_key, name, status, capability=source)
+            except Exception as e:
+                errors.append(f"Risk {item.get('name', '?')}: {e}")
+            if i % 100 == 0:
+                log(f"  {i}/{len(risks)} risks processed")
+        log(f"  {len(risks)}/{len(risks)} risks done")
+
+        # Phase 3: Files
+        if not skip_files and files:
+            log(f"\nUploading {len(files)} files...")
+            for i, item in enumerate(files, 1):
+                try:
+                    name = item.get('name', '')
+                    content = item.get('bytes', '')
+                    if not name:
+                        errors.append("File item missing 'name'")
+                        continue
+                    self.api._upload(name, content.encode('utf-8'))
+                except Exception as e:
+                    errors.append(f"File {item.get('name', '?')}: {e}")
+                if i % 100 == 0:
+                    log(f"  {i}/{len(files)} files processed")
+            log(f"  {len(files)}/{len(files)} files done")
+        elif skip_files and files:
+            log(f"\nSkipped {len(files)} files (--skip-files)")
+
+        # Summary
+        total = len(assets) + len(risks) + (len(files) if not skip_files else 0)
+        success = total - len(errors)
+        log(f"\nComplete: {success}/{total} items ingested")
+        if errors:
+            log(f"\n{len(errors)} errors:")
+            for err in errors:
+                log(f"  - {err}")
+            raise SystemExit(1)
+
+    @staticmethod
+    def _transform_asset(item):
+        """Transform a result item into an asset upsert body.
+
+        Copies the dict, renames _type to type, and drops all _-prefixed keys.
+        """
+        body = {}
+        for k, v in item.items():
+            if k == '_type':
+                body['type'] = v
+            elif not k.startswith('_'):
+                body[k] = v
+        return body
+
+    def credential_auth(self, client_id: str, credential_id: str) -> dict:
+        """Run credential authentication on an Aegis agent.
+
+        Invokes the linux-ad-umber-auth management capability to authenticate
+        AD credentials against a domain controller via the specified agent.
+
+        :param client_id: The Aegis agent client ID to run auth from
+        :type client_id: str
+        :param credential_id: UUID of the credential to authenticate
+        :type credential_id: str
+        :return: Task status dict with taskId, status, and message
+        :rtype: dict
+
+        **Example Usage:**
+            >>> result = sdk.aegis.credential_auth("C.abc123", "550e8400-e29b-41d4-a716-446655440000")
+            >>> print(result['status'])
+        """
+        task_request = {
+            "aegisManagementCapability": "linux-ad-umber-auth",
+            "aegisClientId": client_id,
+            "parameters": {
+                "credential_id": credential_id,
+            },
+        }
+        return self.api.post('aegis/management/tasks', task_request)
+
+    def get_management_task(self, task_key: str) -> dict:
+        """Get the status of an Aegis management task.
+
+        :param task_key: The task key returned from credential_auth or other management operations
+        :type task_key: str
+        :return: Task details including status, result, and error information
+        :rtype: dict
+
+        Note: Uses the list endpoint and filters client-side because the
+        single-task endpoint has a known issue where the DynamoDB partition
+        key overwrites the task username field, causing access-denied errors
+        under account assumption.
+        """
+        tasks = self.api.get('aegis/management/tasks', params={})
+        if isinstance(tasks, list):
+            for task in tasks:
+                if isinstance(task, dict) and task.get('key') == task_key:
+                    return task
+        raise Exception(f'Task not found: {task_key}')
+
+    def poll_management_task(
+        self,
+        task_key: str,
+        timeout: int = 120,
+        interval: int = 5,
+        on_status: Optional[Callable[[int, str, bool], None]] = None,
+    ) -> Optional[dict]:
+        """Poll a management task until it reaches a terminal status.
+
+        :param task_key: The task key to poll
+        :param timeout: Max seconds to wait
+        :param interval: Seconds between polls
+        :param on_status: Optional callback(elapsed, message, retrying) called each iteration
+        :return: The completed/failed task dict, or None on timeout
+        """
+        start = time.monotonic()
+        deadline = start + timeout
+
+        while time.monotonic() < deadline:
+            time.sleep(interval)
+            elapsed = int(time.monotonic() - start)
+
+            try:
+                task = self.get_management_task(task_key)
+            except Exception:
+                if on_status:
+                    on_status(elapsed, 'Waiting for agent...', True)
+                continue
+
+            status = task.get('status', '')
+            if status in TASK_TERMINAL_STATUSES:
+                return task
+
+            if on_status:
+                on_status(elapsed, 'Running on agent...', False)
+
+        return None
+
     def format_agents_list(self, details: bool = False, filter_text: str = None):
         """
         Format agents list for display with optional filtering and details.
