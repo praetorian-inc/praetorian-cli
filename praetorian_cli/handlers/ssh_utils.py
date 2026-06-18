@@ -148,7 +148,7 @@ def validate_agent_for_ssh(agent: Agent) -> tuple[bool, str]:
     
     # Check if tunnel has a public hostname
     public_hostname = agent.health_check.cloudflared_status.hostname if has_tunnel else None
-    if not public_hostname:
+    if not public_hostname or public_hostname == "null":
         return False, f"No public hostname found in tunnel configuration for {hostname}"
     
     return True, ""

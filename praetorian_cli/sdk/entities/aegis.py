@@ -352,6 +352,29 @@ class Aegis:
         result = subprocess.run(ssh_command)
         return result.returncode
 
+    def build_ssh_command(self, agent: Agent, options: List[str] = None, user: str = None) -> str:
+        """Build an SSH command string for the given agent without executing it.
+
+        Returns the full command as a shell-safe string (via ``shlex.join``),
+        suitable for sending into a tmux pane with ``send-keys``.
+        """
+        options = options or []
+
+        if not user:
+            _, user = self.api.get_current_user()
+
+        is_valid, error_msg = validate_agent_for_ssh(agent)
+        if not is_valid:
+            raise Exception(error_msg)
+
+        cf_status = agent.health_check.cloudflared_status
+        public_hostname = cf_status.hostname
+
+        parts = ['ssh', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=30']
+        parts.extend(options)
+        parts.append(f'{user}@{public_hostname}')
+        return shlex.join(parts)
+
     def copy_to_agent(self, agent: Agent, local_path: str, remote_path: str,
                       direction: str = 'upload', user: str | None = None,
                       ssh_options: List[str] | None = None, display_info: bool = True,
