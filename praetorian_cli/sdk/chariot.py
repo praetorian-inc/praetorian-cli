@@ -10,6 +10,7 @@ from praetorian_cli.sdk.entities.capabilities import Capabilities
 from praetorian_cli.sdk.entities.configurations import Configurations
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
+from praetorian_cli.sdk.entities.engineer_vm import EngineerVms
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
@@ -61,6 +62,7 @@ class Chariot:
         self.webpage = Webpage(self)
         self.schema = Schema(self)
         self.schedules = Schedules(self)
+        self.vms = EngineerVms(self)
         self.proxy = proxy
 
         if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):

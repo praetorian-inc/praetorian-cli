@@ -21,6 +21,7 @@ import praetorian_cli.handlers.search
 import praetorian_cli.handlers.test
 import praetorian_cli.handlers.unlink
 import praetorian_cli.handlers.update
+import praetorian_cli.handlers.vm
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.configure import configure
 from praetorian_cli.sdk.keychain import Keychain
