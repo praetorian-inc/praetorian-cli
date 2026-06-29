@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from praetorian_cli.sdk.model.globals import GLOBAL_FLAG, Kind
+from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, GLOBAL_FLAG, Kind
 
 DEFAULT_PAGE_SIZE = 4096
 
@@ -354,7 +354,7 @@ class Node:
 
 class Query:
     def __init__(self, node: Node = None, page: int = 0, limit: int = DEFAULT_PAGE_SIZE, order_by: str = None,
-                 descending: bool = False, global_: bool = False, shortest: int = 0):
+                 descending: bool = False, global_: bool = False, shortest: int = 0, all_tenants: bool = False):
         self.node = node
         self.page = page
         self.limit = limit
@@ -362,6 +362,7 @@ class Query:
         self.descending = descending
         self.global_ = global_
         self.shortest = shortest
+        self.all_tenants = all_tenants
 
     def to_dict(self):
         ret = dict()
@@ -380,7 +381,10 @@ class Query:
         return ret
 
     def params(self):
-        return GLOBAL_FLAG if self.global_ else dict()
+        p = dict(GLOBAL_FLAG) if self.global_ else dict()
+        if self.all_tenants:
+            p |= ALL_TENANTS_FLAG
+        return p
 
 
 # helpers for building graph queries
@@ -481,8 +485,9 @@ def my_params_to_query(params: dict):
 
     page = int(params.get('offset', 0))
     global_ = bool(params.get('global', False))
+    all_tenants = str(params.get('allTenants', '')).lower() == 'true'
 
-    return Query(node=node, page=page, limit=DEFAULT_PAGE_SIZE, global_=global_)
+    return Query(node=node, page=page, limit=DEFAULT_PAGE_SIZE, global_=global_, all_tenants=all_tenants)
 
 
 # AD node label helpers

@@ -15,7 +15,8 @@ from praetorian_cli.sdk.model.globals import Kind
 @click.option('-d', '--details', is_flag=True, default=False, help='Show detailed information')
 @click.option('-desc', '--desc', is_flag=True, default=False, help='Return data in descending order')
 @click.option('-g', '--global', 'global_', is_flag=True, default=False, help='Use the global data set')
-def search(chariot, term, count, kind, details, offset, page, desc, global_):
+@click.option('-a', '--all-tenants', 'all_tenants', is_flag=True, default=False, help='Search across all tenants you are authorized to access')
+def search(chariot, term, count, kind, details, offset, page, desc, global_, all_tenants):
     """ Query Guard for matches or counts using the search syntax
 
     \b
@@ -67,5 +68,6 @@ def search(chariot, term, count, kind, details, offset, page, desc, global_):
             error(f'Search term "{term}" requires the entity kind (--kind) argument.')
 
         render_list_results(
-            chariot.search.by_term(term, kind, offset, pagination_size(page), descending=desc, global_=global_),
+            chariot.search.by_term(term, kind, offset, pagination_size(page), descending=desc, global_=global_,
+                                   all_tenants=all_tenants),
             details)

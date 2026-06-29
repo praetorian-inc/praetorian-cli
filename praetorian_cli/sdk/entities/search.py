@@ -1,6 +1,6 @@
 import json
 from praetorian_cli.sdk.model.query import Query
-from praetorian_cli.sdk.model.globals import EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
+from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
 class Search:
 
     def __init__(self, api):
@@ -119,7 +119,7 @@ class Search:
         return self.by_term(f'dns:{dns_prefix}', kind, offset, pages)
 
     def by_term(self, search_term, kind=None, offset=None, pages=100000, exact=False, descending=False,
-                global_=False, user=False) -> tuple:
+                global_=False, user=False, all_tenants=False) -> tuple:
         """
         Search for a given kind by term.
 
@@ -153,6 +153,8 @@ class Search:
             params |= GLOBAL_FLAG
         if user:
             params |= USER_FLAG
+        if all_tenants:
+            params |= ALL_TENANTS_FLAG
 
         results = self.api.my(params, pages)
 

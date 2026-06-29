@@ -134,3 +134,4 @@ EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}
 USER_FLAG = {'user': 'true'}
+ALL_TENANTS_FLAG = {'allTenants': 'true'}
