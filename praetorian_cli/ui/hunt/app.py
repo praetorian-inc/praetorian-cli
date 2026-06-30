@@ -13,10 +13,33 @@ from textual import on, work
 from praetorian_cli.sdk.chariot import Chariot
 
 
-HUNT_LOGO = r"""[bold red]
-  ╦ ╦╔═╗╔╗╔╔╗╔╦╗╔╗ ╔═╗╦
-  ╠═╣╠═╣║║║║║║║╠╩╗╠═╣║
-  ╩ ╩╩ ╩╝╚╝╝╚╝╩╚═╝╩ ╩╩═╝[/bold red]"""
+HUNT_BANNER = """[bold red]                                    ██ ████                     ████ ██
+                                 ██ ███                             ███ ██
+                                 ███                                   ███
+                              █  █████                               █████  █
+                             ████                                         ████
+                              █████                                     █████
+                           █████                                           █████
+                           ████████                                     ████████
+                             ███                                           ███
+                         ███ █  ███                                     ████ █ ███
+                          ████████                                       ████████
+                           █████   █                                    █  █████
+                              █ ███                                     ███ █
+                          █████████                                     █████████
+                           ███████  ██                               ██  ███████
+                                ██ ███  ██                        █  ███ ██
+                                 █████ ███  ██               ██  ███ █████
+                            █████████  ████████             ████ ████ █████████
+                               ████  ███████████           █████ ██████ ████
+                                   ████████ ████           ████ ████████
+                                █████████  █████           ██████ █████████
+                                        ████████████   ████████████
+                                      ████████     █████     ████████
+                                        ██        ███ ████       ██
+                                                ██       ██[/bold red]"""
+
+HUNT_TITLE = "[bold red]Hannibal[/bold red] [dim]—[/dim] [bold #d4a017]Persistent Hunting Agent[/bold #d4a017]"
 
 STATUS_STYLE = {
     'active': '[bold green]● active[/bold green]',
@@ -129,7 +152,10 @@ class HuntApp(App):
     def on_mount(self) -> None:
         self._update_context_bar()
         log = self.query_one("#activity-log", RichLog)
-        log.write(HUNT_LOGO)
+        log.write(HUNT_BANNER)
+        log.write("")
+        log.write(HUNT_TITLE)
+        log.write(f"[dim]Praetorian Offensive Security Platform[/dim]")
         log.write("")
 
         if self._initial_uuid:
@@ -140,8 +166,6 @@ class HuntApp(App):
             log.write("[dim]Launching new hunt...[/dim]")
             self._launch_hunt()
         else:
-            log.write("[bold]Welcome to Hannibal[/bold]")
-            log.write("")
             log.write("Start a hunt or connect to an existing one:")
             log.write("  [cyan]/start[/cyan] <prompt>  — launch a new hunt")
             log.write("  [cyan]/connect[/cyan] <uuid>  — connect to a running hunt")
