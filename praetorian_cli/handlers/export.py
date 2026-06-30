@@ -44,6 +44,16 @@ def loa(sdk, client_name, target, start_date, end_date, output, json_out):
     result = sdk.post('export/loa', body)
     if json_out:
         print_json(result)
+        return
+
+    download_url = result.get('url') or result.get('download_url') or '' if isinstance(result, dict) else ''
+    if download_url and output:
+        import urllib.request
+        resolved = os.path.realpath(os.path.expanduser(output))
+        if os.path.isdir(resolved):
+            resolved = os.path.join(resolved, 'loa.pdf')
+        urllib.request.urlretrieve(download_url, resolved)
+        click.echo(click.style('LOA saved to ', fg='green') + resolved)
     else:
         click.echo(click.style('LOA generated.', fg='green'))
         print_json(result)
@@ -85,7 +95,10 @@ def data_export(sdk, export_type, filter_key, status, output, json_out):
         if not resolved.startswith(os.path.realpath(os.getcwd())):
             error(f'Output path must be under the current directory: {output}')
         with open(resolved, 'w') as f:
-            json.dump(result, f, indent=2)
+            if export_type == 'csv' and isinstance(result, str):
+                f.write(result)
+            else:
+                json.dump(result, f, indent=2)
         click.echo(f'Exported to {resolved}')
 
 

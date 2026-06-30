@@ -169,11 +169,11 @@ def list_findings(sdk, status, json_out):
     total = len(risks)
     click.echo(click.style(f'{total} finding(s)', bold=True))
 
-    for priority in [10, 20, 30, 40, 50]:
-        items = by_priority.get(priority, [])
+    for priority in sorted(by_priority.keys()):
+        items = by_priority[priority]
         if not items:
             continue
-        sev_label, sev_color = PRIORITY_LABELS.get(priority, ('OTHER', 'white'))
+        sev_label, sev_color = PRIORITY_LABELS.get(priority, (f'PRIORITY {priority}', 'white'))
         click.echo()
         click.echo(click.style(f'  {sev_label} ({len(items)})', fg=sev_color, bold=True))
         click.echo(click.style('  ' + '─' * 80, dim=True))
@@ -226,10 +226,10 @@ def summary(sdk, json_out):
     click.echo()
 
     click.echo(click.style('  By Severity:', bold=True))
-    for priority in [10, 20, 30, 40, 50]:
-        count = by_priority.get(priority, 0)
+    for priority in sorted(by_priority.keys()):
+        count = by_priority[priority]
         if count:
-            label, color = PRIORITY_LABELS.get(priority, ('OTHER', 'white'))
+            label, color = PRIORITY_LABELS.get(priority, (f'PRIORITY {priority}', 'white'))
             click.echo(f'    {click.style(label, fg=color, bold=True):>15s}: {count}')
 
     click.echo()

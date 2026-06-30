@@ -67,7 +67,7 @@ def list_templates(sdk, severity, tag, author, json_output):
     if author:
         params['author'] = author
 
-    path = '/nuclei-templates'
+    path = 'nuclei-templates'
     if params:
         qs = '&'.join(f'{k}={quote(str(v), safe="")}' for k, v in params.items())
         path = f'{path}?{qs}'
@@ -148,7 +148,7 @@ def show_template(sdk, template_id, json_output):
         guard nuclei show --template-id cves/2024/CVE-2024-1234.yaml
         guard nuclei show --template-id CVE-2024-1234 --json-output
     """
-    data = sdk.get(f'/nuclei-template?id={quote(template_id, safe="")}')
+    data = sdk.get(f'nuclei-template?id={quote(template_id, safe="")}')
 
     if not data:
         error(f'Template not found: {template_id}')
@@ -199,7 +199,7 @@ def list_branches(sdk, json_output):
         guard nuclei branches
         guard nuclei branches --json-output
     """
-    data = sdk.get('/nuclei-templates/branches')
+    data = sdk.get('nuclei-templates/branches')
 
     if json_output:
         print_json(data)
@@ -253,7 +253,7 @@ def commit_template(sdk, template_id, content, message, branch, json_output):
     if branch:
         body['branch'] = branch
 
-    data = sdk.post('/templates/commit', body)
+    data = sdk.post('templates/commit', body)
 
     if not data:
         error('Commit returned an empty response — check the template ID and content.')

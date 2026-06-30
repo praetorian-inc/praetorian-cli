@@ -84,7 +84,7 @@ def profile_show(sdk, json_output):
         guard knossos profile show
         guard knossos profile show --json-output
     """
-    result = sdk.get('/knossos/profile')
+    result = sdk.get('knossos/profile')
     if json_output:
         print_json(result)
         return
@@ -124,7 +124,7 @@ def profile_create(sdk, name, description, json_output):
     if description:
         body['description'] = description
 
-    result = sdk.post('/knossos/profile', body)
+    result = sdk.post('knossos/profile', body)
     click.echo(click.style('Profile created.', fg='green'))
     if json_output:
         print_json(result)
@@ -147,7 +147,7 @@ def profile_update(sdk, field, value, json_output):
         guard knossos profile update --field description --value "Updated description"
     """
     body = {field: value}
-    result = sdk.put('/knossos/profile', body)
+    result = sdk.put('knossos/profile', body)
     click.echo(click.style('Profile updated.', fg='green'))
     if json_output:
         print_json(result)
@@ -169,7 +169,7 @@ def profile_delete(sdk, force):
     if not force:
         click.confirm('Delete the current Knossos profile? This cannot be undone.', abort=True)
 
-    sdk.delete('/knossos/profile', {}, {})
+    sdk.delete('knossos/profile', {}, {})
     click.echo(click.style('Profile deleted.', fg='yellow'))
 
 
@@ -188,7 +188,7 @@ def profile_infer(sdk, json_output):
         guard knossos profile infer --json-output
     """
     click.echo('Inferring profile from existing assets...', err=True)
-    result = sdk.post('/knossos/profile/infer', {})
+    result = sdk.post('knossos/profile/infer', {})
     click.echo(click.style('Profile inferred.', fg='green'))
     if json_output:
         print_json(result)
@@ -211,7 +211,7 @@ def profile_versions(sdk, json_output):
         guard knossos profile versions
         guard knossos profile versions --json-output
     """
-    result = sdk.get('/knossos/profile/versions')
+    result = sdk.get('knossos/profile/versions')
     if json_output:
         print_json(result)
         return
@@ -256,7 +256,7 @@ def environment_list(sdk, json_output):
         guard knossos environment list
         guard knossos environment list --json-output
     """
-    result = sdk.get('/knossos/environments')
+    result = sdk.get('knossos/environments')
     if json_output:
         print_json(result)
         return
@@ -287,7 +287,7 @@ def environment_show(sdk, id, json_output):
         guard knossos environment show <environment-id>
         guard knossos environment show <environment-id> --json-output
     """
-    result = sdk.get(f'/knossos/environment/{quote(id, safe="")}')
+    result = sdk.get(f'knossos/environment/{quote(id, safe="")}')
     if json_output:
         print_json(result)
         return
@@ -327,7 +327,7 @@ def environment_generate(sdk, profile_name, json_output):
     """
     body = {'profile': profile_name}
     click.echo('Generating environment...', err=True)
-    result = sdk.post('/knossos/environment/generate', body)
+    result = sdk.post('knossos/environment/generate', body)
     click.echo(click.style('Environment generated.', fg='green'))
     if json_output:
         print_json(result)
@@ -356,7 +356,7 @@ def environment_delete(sdk, id, force):
     if not force:
         click.confirm(f'Delete environment {id}? This cannot be undone.', abort=True)
 
-    sdk.delete(f'/knossos/environment/{quote(id, safe="")}', {}, {})
+    sdk.delete(f'knossos/environment/{quote(id, safe="")}', {}, {})
     click.echo(click.style(f'Environment {id} deleted.', fg='yellow'))
 
 
@@ -374,7 +374,7 @@ def environment_validate(sdk, id):
         guard knossos environment validate <environment-id>
     """
     click.echo(f'Validating environment {id}...', err=True)
-    result = sdk.post(f'/knossos/environment/{quote(id, safe="")}/validate', {})
+    result = sdk.post(f'knossos/environment/{quote(id, safe="")}/validate', {})
 
     valid = result.get('valid', result.get('status') == 'ok') if result else False
     if valid:
@@ -403,7 +403,7 @@ def environment_deploy(sdk, id, json_output):
         guard knossos environment deploy <environment-id> --json-output
     """
     click.echo(f'Deploying environment {id}...', err=True)
-    result = sdk.post(f'/knossos/environment/{quote(id, safe="")}/deploy', {})
+    result = sdk.post(f'knossos/environment/{quote(id, safe="")}/deploy', {})
     click.echo(click.style('Deployment initiated.', fg='green'))
     if json_output:
         print_json(result)
@@ -426,7 +426,7 @@ def environment_status(sdk, id, json_output):
         guard knossos environment status <environment-id>
         guard knossos environment status <environment-id> --json-output
     """
-    result = sdk.get(f'/knossos/environment/{quote(id, safe="")}/status')
+    result = sdk.get(f'knossos/environment/{quote(id, safe="")}/status')
     if json_output:
         print_json(result)
         return
@@ -465,7 +465,7 @@ def environment_events(sdk, id, limit, json_output):
         guard knossos environment events <environment-id> --limit 100
         guard knossos environment events <environment-id> --json-output
     """
-    result = sdk.get(f'/knossos/environment/{quote(id, safe="")}/events')
+    result = sdk.get(f'knossos/environment/{quote(id, safe="")}/events')
     if json_output:
         print_json(result)
         return
@@ -502,7 +502,7 @@ def environment_cost(sdk, id, json_output):
         guard knossos environment cost <environment-id>
         guard knossos environment cost <environment-id> --json-output
     """
-    result = sdk.get(f'/knossos/environment/{quote(id, safe="")}/cost')
+    result = sdk.get(f'knossos/environment/{quote(id, safe="")}/cost')
     if json_output:
         print_json(result)
         return
@@ -549,7 +549,7 @@ def environment_emit(sdk, id, signal, data):
         except json.JSONDecodeError:
             error(f'--data must be valid JSON. Got: {data}')
 
-    result = sdk.post(f'/knossos/environment/{quote(id, safe="")}/emit', body)
+    result = sdk.post(f'knossos/environment/{quote(id, safe="")}/emit', body)
     click.echo(click.style(f'Signal "{signal}" emitted.', fg='green'))
     if result:
         print_json(result)

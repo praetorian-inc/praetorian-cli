@@ -160,7 +160,9 @@ def deployment_history(sdk, name, json_output):
     if json_output:
         print_json(result)
     else:
-        entries = result if isinstance(result, list) else (result or [])
+        entries = result if isinstance(result, list) else (result or {}).get('history', result or {}).get('events', [])
+        if not isinstance(entries, list):
+            entries = []
         if not entries:
             click.echo('No deployment history found.')
             return
@@ -902,7 +904,7 @@ def campaign_variants(sdk, template, count):
     for i, v in enumerate(variants, 1):
         click.echo(click.style(f'Variant {i}:', bold=True, fg='cyan'))
         click.echo(click.style('─' * 60, dim=True))
-        content = v.get('content') or v.get('draft') or v if isinstance(v, (str, dict)) else str(v)
+        content = v.get('content') or v.get('draft') or v if isinstance(v, dict) else v if isinstance(v, str) else str(v)
         if isinstance(content, str):
             click.echo(content)
         else:

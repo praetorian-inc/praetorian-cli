@@ -150,16 +150,18 @@ def activities(sdk, program_handle, limit, json_output):
         guard hackerone activities --limit 50
         guard hackerone activities --program acme-corp --limit 10 --json-output
     """
-    params = f'hackerone/activities'
-    body = {}
+    path = 'hackerone/activities'
+    query_params = {}
     if program_handle:
-        body['program'] = program_handle
+        query_params['program'] = program_handle
     if limit:
-        body['limit'] = limit
+        query_params['limit'] = str(limit)
 
-    # Pass filters as query params via path construction when body is empty,
-    # otherwise fall through to a GET with the body as query string hints
-    result = sdk.get(params)
+    if query_params:
+        qs = '&'.join(f'{k}={quote(v, safe="")}' for k, v in query_params.items())
+        path = f'{path}?{qs}'
+
+    result = sdk.get(path)
     if json_output:
         print_json(result)
         return

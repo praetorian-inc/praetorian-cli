@@ -56,7 +56,7 @@ def exploit(sdk, risk_key, preset, json_output):
         err=True,
     )
 
-    result = sdk.post('/constantine/exploit', body)
+    result = sdk.post('constantine/exploit', body)
 
     if not result:
         error('No response from Constantine exploit endpoint')
@@ -105,7 +105,7 @@ def patch(sdk, risk_key, preset, json_output):
     if preset:
         body['preset'] = preset
 
-    result = sdk.post('/constantine/patch', body)
+    result = sdk.post('constantine/patch', body)
 
     if not result:
         error('No response from Constantine patch endpoint')
@@ -154,7 +154,7 @@ def validate(sdk, risk_key, validate_type, json_output):
     """
     body = {'key': risk_key, 'type': validate_type}
 
-    result = sdk.post('/constantine/validate', body)
+    result = sdk.post('constantine/validate', body)
 
     if not result:
         error('No response from Constantine validate endpoint')
@@ -194,7 +194,7 @@ def manifest(sdk, json_output):
         guard constantine manifest
         guard constantine manifest --json-output
     """
-    result = sdk.get('/constantine/manifest')
+    result = sdk.get('constantine/manifest')
 
     if not result:
         error('No response from Constantine manifest endpoint')
@@ -251,7 +251,7 @@ def guess_repo(sdk, asset, json_output):
     """
     body = {'key': asset}
 
-    result = sdk.post('/osint/guess-repo', body)
+    result = sdk.post('osint/guess-repo', body)
 
     if not result:
         error('No response from OSINT guess-repo endpoint')
@@ -294,7 +294,7 @@ def submit(sdk, asset, finding, source, json_output):
     if source:
         body['source'] = source
 
-    result = sdk.post('/osint/submit', body)
+    result = sdk.post('osint/submit', body)
 
     if not result:
         error('No response from OSINT submit endpoint')
@@ -332,7 +332,7 @@ def create_tech(sdk, asset, name, version, json_output):
     """
     body = {'key': asset, 'name': name, 'version': version}
 
-    result = sdk.post('/osint/create-technology', body)
+    result = sdk.post('osint/create-technology', body)
 
     if not result:
         error('No response from OSINT create-technology endpoint')
