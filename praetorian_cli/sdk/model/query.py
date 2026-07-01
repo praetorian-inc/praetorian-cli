@@ -98,6 +98,18 @@ class Relationship:
         HAS_WEBPAGE = 'HAS_WEBPAGE'
         HAS_PORT = 'HAS_PORT'
         HAS_MEMBER = 'HAS_MEMBER'
+        ENRICHED = 'ENRICHED'
+        ENRICHES_VULNERABILITY = 'ENRICHES_VULNERABILITY'
+        INSTANCE_OF = 'INSTANCE_OF'
+        HAS_TECHNOLOGY = 'HAS_TECHNOLOGY'
+        HAS_CREDENTIAL = 'HAS_CREDENTIAL'
+        HAS_REPOSITORY = 'HAS_REPOSITORY'
+        SCANNED_BY = 'SCANNED_BY'
+        REPORTED_BY = 'REPORTED_BY'
+        CORRELATED_WITH = 'CORRELATED_WITH'
+        HAS_TECHNIQUE = 'HAS_TECHNIQUE'
+        MATCHED = 'MATCHED'
+        IAM_AWS_PERMISSION = 'IAM_AWS_PERMISSION'
 
         # AD: Ownership and Control
         OWNS = 'Owns'
@@ -246,47 +258,28 @@ class Relationship:
         # AD: Trust Keys
         HAS_TRUST_KEYS = 'HasTrustKeys'
 
-    def __init__(self, label=None, source: 'Optional[Node]' = None, target: 'Optional[Node]' = None,
-                 optional: bool = False, length: int = 0, labels: list = None):
+    def __init__(self, labels: list = None, source: 'Optional[Node]' = None, target: 'Optional[Node]' = None,
+                 optional: bool = False, length: int = 0):
         """Create a Relationship.
 
         Args:
-            label: A single Label enum value (backward compatible).
+            labels: List of Label enum values to match (OR'd together).
             source: Source node (set when target is the parent).
             target: Target node (set when source is the parent).
             optional: Whether the relationship is optional.
             length: Variable-length path depth (0=single edge, N=1..N, -1=unbounded).
-            labels: A list of Label enum values for multi-relationship queries.
         """
-        if labels is not None:
-            self._labels = labels
-        elif label is not None:
-            self._labels = [label]
-        else:
-            self._labels = []
+        self.labels = labels or []
         self.source = source
         self.target = target
         self.optional = optional
         self.length = length
 
-    @property
-    def label(self):
-        """Return the single label (backward compatible)."""
-        return self._labels[0] if self._labels else None
-
-    @label.setter
-    def label(self, value):
-        self._labels = [value]
-
-    @property
-    def labels(self):
-        return self._labels
-
     def to_dict(self):
-        if len(self._labels) == 1:
-            ret = dict(label=self._labels[0].value)
-        elif len(self._labels) > 1:
-            ret = dict(label=[label.value for label in self._labels])
+        if len(self.labels) == 1:
+            ret = dict(label=self.labels[0].value)
+        elif len(self.labels) > 1:
+            ret = dict(label=[l.value for l in self.labels])
         else:
             ret = dict()
         if self.source:
@@ -315,6 +308,31 @@ class Node:
         TTL = 'TTL'
         WEBAPPLICATION = 'WebApplication'
         WEBPAGE = 'Webpage'
+        APPLICATION = 'Application'
+        TECHNOLOGY = 'Technology'
+        VULNERABILITY = 'Vulnerability'
+        CREDENTIAL = 'Credential'
+        GROUP = 'Group'
+        PERSON = 'Person'
+        ORGANIZATION = 'Organization'
+        PARKED_DOMAIN = 'ParkedDomain'
+        TI_ENRICHMENT = 'TIEnrichment'
+        RUSE_TEMPLATE = 'RuseTemplate'
+
+        # Cloud resource labels (secondary labels on Asset nodes)
+        CLOUD_RESOURCE = 'CloudResource'
+        AWS_RESOURCE = 'AWSResource'
+        AZURE_RESOURCE = 'AzureResource'
+        GCP_RESOURCE = 'GCPResource'
+        K8S_RESOURCE = 'K8sResource'
+
+        # Hunt / campaign / monitoring
+        HUNT = 'Hunt'
+        CAMPAIGN = 'Campaign'
+        CAMPAIGN_RECIPIENT = 'CampaignRecipient'
+        MONITORING_SESSION = 'MonitoringSession'
+        MONITORED_TECHNIQUE = 'MonitoredTechnique'
+        MONITOR_EVENT = 'MonitorEvent'
 
         # Active Directory object types
         ADOBJECT = 'ADObject'
@@ -409,6 +427,21 @@ KIND_TO_LABEL = {
     Kind.ADDOMAIN.value: Node.Label.ADDOMAIN,
     Kind.WEBAPPLICATION.value: Node.Label.WEBAPPLICATION,
     Kind.WEBPAGE.value: Node.Label.WEBPAGE,
+    Kind.APPLICATION.value: Node.Label.APPLICATION,
+    Kind.TECHNOLOGY.value: Node.Label.TECHNOLOGY,
+    Kind.VULNERABILITY.value: Node.Label.VULNERABILITY,
+    Kind.CREDENTIAL.value: Node.Label.CREDENTIAL,
+    Kind.PERSON.value: Node.Label.PERSON,
+    Kind.ORGANIZATION.value: Node.Label.ORGANIZATION,
+    Kind.PARKEDDOMAIN.value: Node.Label.PARKED_DOMAIN,
+    Kind.TIENRICHMENT.value: Node.Label.TI_ENRICHMENT,
+    Kind.RUSETEMPLATE.value: Node.Label.RUSE_TEMPLATE,
+    Kind.HUNT.value: Node.Label.HUNT,
+    Kind.CAMPAIGN.value: Node.Label.CAMPAIGN,
+    Kind.CAMPAIGNRECIPIENT.value: Node.Label.CAMPAIGN_RECIPIENT,
+    Kind.MONITORINGSESSION.value: Node.Label.MONITORING_SESSION,
+    Kind.MONITOREDTECHNIQUE.value: Node.Label.MONITORED_TECHNIQUE,
+    Kind.MONITOREVENT.value: Node.Label.MONITOR_EVENT,
 
     # Active Directory types
     Kind.ADOBJECT.value: Node.Label.ADOBJECT,

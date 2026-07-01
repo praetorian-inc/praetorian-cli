@@ -191,19 +191,19 @@ class Risks:
         :rtype: list
         """
         # assets directly linked to the risk
-        to_this = Relationship(Relationship.Label.HAS_VULNERABILITY, target=risk_of_key(key))
+        to_this = Relationship([Relationship.Label.HAS_VULNERABILITY], target=risk_of_key(key))
         query = Query(Node(ASSET_NODE, relationships=[to_this]))
         assets, _ = self.api.search.by_query(query)
 
         # assets indirectly linked to the risk via a port
         ports = Node(PORT_NODE, relationships=[to_this])
-        to_ports = Relationship(Relationship.Label.HAS_PORT, target=ports)
+        to_ports = Relationship([Relationship.Label.HAS_PORT], target=ports)
         query = Query(Node(ASSET_NODE, relationships=[to_ports]))
         indirect_assets, _ = self.api.search.by_query(query)
 
         # webpages linked to the risk
         webpages = Node(WEBPAGE_NODE, relationships=[to_this])
-        to_webpages = Relationship(Relationship.Label.HAS_WEBPAGE, target=webpages)
+        to_webpages = Relationship([Relationship.Label.HAS_WEBPAGE], target=webpages)
         query = Query(Node(ASSET_NODE, relationships=[to_webpages]))
         web_assets, _ = self.api.search.by_query(query)
 

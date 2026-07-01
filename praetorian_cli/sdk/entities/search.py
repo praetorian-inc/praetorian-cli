@@ -1,7 +1,8 @@
 import json
 import time
 
-from praetorian_cli.sdk.model.query import Query, ttl_blockers_query
+from praetorian_cli.sdk.model.query import (Query, Node, Relationship, KIND_TO_LABEL, node_of_key,
+                                             ttl_blockers_query)
 from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
 class Search:
 
@@ -490,6 +491,37 @@ class Search:
         expired = isinstance(ttl, int) and 0 < ttl < int(time.time())
         return dict(key=key, ttl=ttl, ttl_expired=expired,
                     would_delete=expired and not blockers, blockers=blockers)
+
+    def relationships(self, anchor_key, labels=None, neighbor_kind=None, optional=False) -> list:
+        """One-hop traversal from an anchor node to its neighbors.
+
+        The agent/human-friendly shorthand for the common "what does this node
+        connect to" query, without hand-writing a graph query.
+
+        :param anchor_key: exact key of the starting node
+        :param labels: list of relationship labels to follow (e.g.
+            ['HAS_WEBPAGE', 'HAS_VULNERABILITY']). Omit to follow every known edge
+            type -- the backend has no wildcard, so we OR the full label set.
+        :param neighbor_kind: optional Kind to constrain the neighbor (e.g. 'risk')
+        :param optional: keep entries whose edge didn't match (rarely useful here)
+        :return: [{label, edge, target}], one per matched edge; 'edge' holds the
+            relationship's own properties, 'target' is the neighbor node.
+        :rtype: list
+        """
+        rel_labels = [Relationship.Label(l) for l in labels] if labels else list(Relationship.Label)
+
+        if neighbor_kind:
+            label = KIND_TO_LABEL.get(neighbor_kind)
+            if not label:
+                raise ValueError(f'Unsupported neighbor kind: {neighbor_kind}')
+            target = Node(labels=[label])
+        else:
+            target = Node()
+
+        node = node_of_key(anchor_key)
+        node.relationships = [Relationship(labels=rel_labels, target=target, optional=optional)]
+        tree = self.api.tree(Query(node=node).to_dict())
+        return [edge for entry in walk_tree(tree) for edge in entry['edges']]
 
 
 def walk_tree(tree) -> list:
