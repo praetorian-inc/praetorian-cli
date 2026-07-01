@@ -502,6 +502,7 @@ class Search:
         :param labels: list of relationship labels to follow (e.g.
             ['HAS_WEBPAGE', 'HAS_VULNERABILITY']). Omit to follow every known edge
             type -- the backend has no wildcard, so we OR the full label set.
+        :type labels: list
         :param neighbor_kind: optional Kind to constrain the neighbor (e.g. 'risk')
         :param optional: keep entries whose edge didn't match (rarely useful here)
         :return: [{label, edge, target}], one per matched edge; 'edge' holds the
