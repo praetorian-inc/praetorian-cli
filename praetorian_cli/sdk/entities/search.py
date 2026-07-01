@@ -293,7 +293,7 @@ class Search:
                     ],
                     relationships=[
                         Relationship(
-                            label="HAS_ATTRIBUTE",
+                            labels=["HAS_ATTRIBUTE"],
                             target=Node(
                                 labels=["Attribute"],
                                 filters=[
@@ -317,7 +317,7 @@ class Search:
                     labels=["Asset"],
                     relationships=[
                         Relationship(
-                            label="HAS_VULNERABILITY", 
+                            labels=["HAS_VULNERABILITY"], 
                             target=Node(
                                 labels=["Risk"],
                                 filters=[
@@ -343,7 +343,7 @@ class Search:
                     ],
                     relationships=[
                         Relationship(
-                            label="HAS_ATTRIBUTE",
+                            labels=["HAS_ATTRIBUTE"],
                             target=Node(
                                 labels=["Attribute"], 
                                 filters=[
@@ -353,7 +353,7 @@ class Search:
                             )
                         ),
                         Relationship(
-                            label="HAS_VULNERABILITY",
+                            labels=["HAS_VULNERABILITY"],
                             target=Node(
                                 labels=["Risk"],
                                 filters=[
@@ -374,12 +374,12 @@ class Search:
                     labels=["Asset"],
                     relationships=[
                         Relationship(
-                            label="DISCOVERED",
+                            labels=["DISCOVERED"],
                             target=Node(
                                 labels=["Asset"],
                                 relationships=[
                                     Relationship(
-                                        label="HAS_TECHNOLOGY",
+                                        labels=["HAS_TECHNOLOGY"],
                                         target=Node(
                                             labels=["Technology"],
                                             filters=[
