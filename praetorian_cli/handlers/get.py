@@ -1,3 +1,4 @@
+import json
 import os
 
 import click
@@ -390,3 +391,107 @@ def schedule(chariot, schedule_id):
         print_json(result)
     else:
         click.echo(f'Schedule not found: {schedule_id}')
+
+
+@get.command('ttl-status')
+@cli_handler
+@click.argument('key', required=True)
+@click.option('--format', 'fmt', type=click.Choice(['text', 'json']), default='text', show_default=True)
+def ttl_status(chariot, key, fmt):
+    """ Explain why the TTL cron would (or would not) collect an entity
+
+    \b
+    A :TTL node is deleted only when its ttl has expired AND it has no
+    outgoing HAS_VULNERABILITY / HAS_PORT / HAS_WEBPAGE / HAS_MEMBER edge.
+    This shows the node's ttl plus the exact edges pinning it alive, so you
+    can chase the chain (e.g. WebApplication -HAS_WEBPAGE-> Webpage
+    -HAS_VULNERABILITY-> Risk) by re-running against a blocker's key.
+
+    \b
+    Example usages:
+        - guard get ttl-status "#webapplication#https://example.com:443/"
+        - guard get ttl-status "#webpage#https://example.com/login" --format json
+    """
+    status = chariot.search.ttl_status(key)
+
+    if fmt == 'json':
+        print_json(status)
+        return
+
+    ttl, blockers = status['ttl'], status['blockers']
+    click.echo(f"key:          {status['key']}")
+    click.echo(f'ttl:          {ttl}' + (' (expired)' if status['ttl_expired']
+                                         else ' (not expired)' if ttl else ' (none)'))
+    if blockers:
+        click.echo(f'blocked by:   {len(blockers)} edge(s)')
+        for b in blockers:
+            click.echo(f"  {b['edge']} -> {b['target']}  (edge visited {b['visited']})")
+    else:
+        click.echo('blocked by:   none')
+    click.echo(f"would delete: {status['would_delete']}")
+
+
+@get.command()
+@cli_handler
+@click.argument('conversation_id', required=True)
+@click.option('--format', 'fmt', type=click.Choice(['text', 'json']), default='text', show_default=True)
+@click.option('--full', is_flag=True, help='Do not truncate long tool inputs/responses in text mode')
+def conversation(chariot, conversation_id, fmt, full):
+    """ Get a full conversation transcript, including every tool call
+
+    \b
+    Argument:
+        - CONVERSATION_ID: the uuid of a conversation (see 'guard list conversations')
+
+    \b
+    Example usages:
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --full
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --format json
+    """
+    convo = chariot.conversations.get(conversation_id)
+    if fmt == 'json':
+        print_json(convo)
+        return
+    _render_conversation(convo, full)
+
+
+def _render_conversation(convo, full):
+    click.echo(click.style(f"Conversation {convo['uuid']}", bold=True) + f"  ({convo['status']})")
+    if convo['topic']:
+        click.echo(f"Topic:   {convo['topic']}")
+    if convo['created']:
+        click.echo(f"Created: {convo['created']}")
+    click.echo('─' * 70)
+    for m in convo['messages']:
+        if m.get('tool'):
+            _echo_tool(m['tool'], full)
+        else:
+            click.secho(f"[{m['role']}]", fg=_ROLE_COLOR.get(m['role'], 'white'))
+            click.echo(_indent(m['content']))
+        click.echo()
+
+
+_ROLE_COLOR = {'user': 'cyan', 'chariot': 'green', 'system': 'magenta'}
+
+
+def _echo_tool(tool, full):
+    args = _as_text(tool['input'])
+    header = click.style(f"[tool call] {tool['name']}", fg='yellow')
+    click.echo(header + (f'  {_truncate(args, 200, full)}' if args else ''))
+    if tool['response'] is not None:
+        click.echo(_indent('→ ' + _truncate(_as_text(tool['response']), 800, full)))
+
+
+def _as_text(value):
+    if value is None or value == '':
+        return ''
+    return value if isinstance(value, str) else json.dumps(value, separators=(',', ':'))
+
+
+def _truncate(s, limit, full):
+    return s if full or len(s) <= limit else f'{s[:limit]}… ({len(s)} chars, --full for all)'
+
+
+def _indent(text):
+    return '\n'.join('    ' + line for line in str(text).splitlines())

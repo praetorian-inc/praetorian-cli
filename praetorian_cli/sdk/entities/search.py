@@ -1,5 +1,7 @@
 import json
-from praetorian_cli.sdk.model.query import Query
+import time
+
+from praetorian_cli.sdk.model.query import Query, ttl_blockers_query
 from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
 class Search:
 
@@ -463,6 +465,69 @@ class Search:
                 pass
 
         return all_results, None
+
+    def ttl_status(self, key) -> dict:
+        """
+        Explain whether the backend TTL cron would collect an entity.
+
+        A :TTL node is deleted only when its ``ttl`` has expired AND it has no
+        outgoing TTL-blocking edge (see ``ttl_blockers_query``). Chase the chain
+        by re-running against a blocker's target.
+
+        :param key: The exact key of the entity to inspect
+        :return: {key, ttl, ttl_expired, would_delete, blockers}, where each
+            blocker is {edge, target, visited}
+        :rtype: dict
+        """
+        tree = self.api.tree(ttl_blockers_query(key).to_dict())
+        if not tree:
+            raise ValueError(f'No entity found for key: {key}')
+
+        entries = walk_tree(tree)
+        ttl = entries[0]['node'].get('ttl') if entries else None
+        blockers = [dict(edge=e['label'], target=e['target'].get('key'), visited=e['edge'].get('visited'))
+                    for entry in entries for e in entry['edges']]
+        expired = isinstance(ttl, int) and 0 < ttl < int(time.time())
+        return dict(key=key, ttl=ttl, ttl_expired=expired,
+                    would_delete=expired and not blockers, blockers=blockers)
+
+
+def walk_tree(tree) -> list:
+    """Normalize a ``tree=true`` /my response into flat, unwrapped entries.
+
+    The response wraps every matched object in a result bag
+    (``{count, <plural>: [...]}``) and returns one entry per traversed
+    (anchor, edge, neighbor) path. This unwraps the bags into::
+
+        [{'node': <dict>,
+          'edges': [{'label': str, 'edge': <dict>, 'target': <dict>}, ...]}, ...]
+
+    where 'edge' holds the relationship's own properties (e.g. visited) and
+    'target' is the neighbor node. Relationships with no matched target
+    (unmatched optional edges) are dropped. Assumes single-hop relationships.
+    """
+    entries = []
+    for entry in tree:
+        node_bag = entry.get('node', {})
+        edges = []
+        for rel in node_bag.get('relationships', []):
+            target = _first(_nodes(rel.get('target', {}).get('result', {})))
+            if target:
+                edges.append(dict(label=rel.get('label'),
+                                  edge=_first(_nodes(rel.get('result', {}))), target=target))
+        entries.append(dict(node=_first(_nodes(node_bag.get('result', {}))), edges=edges))
+    return entries
+
+
+def _nodes(result):
+    """Yield node dicts from a tree ``result`` bag (``{count, <plural>: [...]}``)."""
+    for value in result.values():
+        if isinstance(value, list):
+            yield from value
+
+
+def _first(iterable):
+    return next(iter(iterable), {})
 
 
 def flatten_results(results):

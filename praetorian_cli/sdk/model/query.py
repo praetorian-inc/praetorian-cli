@@ -97,6 +97,7 @@ class Relationship:
         HAS_ATTRIBUTE = 'HAS_ATTRIBUTE'
         HAS_WEBPAGE = 'HAS_WEBPAGE'
         HAS_PORT = 'HAS_PORT'
+        HAS_MEMBER = 'HAS_MEMBER'
 
         # AD: Ownership and Control
         OWNS = 'Owns'
@@ -446,6 +447,35 @@ def get_graph_kind(key: str):
         if len(split_key) > 1 and split_key[1] in KIND_TO_LABEL:
             return split_key[1]
     return None
+
+
+def node_of_key(key: str) -> Node:
+    """A single node matched by its exact key, anchored on its label so Neo4j
+    hits an index instead of scanning."""
+    label = KIND_TO_LABEL.get(get_graph_kind(key))
+    if label is None:
+        raise ValueError(f'Cannot derive a node label from key: {key}')
+    return Node(labels=[label], filters=key_equals(key))
+
+
+# Outgoing edges that keep a :TTL node alive: the backend TTL cron
+# (handler/cron/crons/ttl) spares an expired node from DETACH DELETE while it
+# still has any of these. Mirror changes here when that guard changes.
+TTL_BLOCKING_EDGES = [
+    Relationship.Label.HAS_VULNERABILITY,
+    Relationship.Label.HAS_PORT,
+    Relationship.Label.HAS_WEBPAGE,
+    Relationship.Label.HAS_MEMBER,
+]
+
+
+def ttl_blockers_query(key: str) -> Query:
+    """The keyed node plus its direct TTL-blocking edges (one hop, unlabeled
+    target). Pair with a tree query to read back the neighbors and per-edge
+    visited timestamps."""
+    node = node_of_key(key)
+    node.relationships = [Relationship(labels=TTL_BLOCKING_EDGES, length=1, optional=True, target=Node())]
+    return Query(node=node)
 
 
 def my_params_to_query(params: dict):

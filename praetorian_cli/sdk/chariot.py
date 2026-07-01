@@ -8,6 +8,7 @@ from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
 from praetorian_cli.sdk.entities.capabilities import Capabilities
 from praetorian_cli.sdk.entities.configurations import Configurations
+from praetorian_cli.sdk.entities.conversations import Conversations
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.files import Files
@@ -53,6 +54,7 @@ class Chariot:
         self.ad = AD(self)
         self.aegis = Aegis(self)
         self.agents = Agents(self)
+        self.conversations = Conversations(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
         self.keys = Keys(self)
@@ -144,6 +146,15 @@ class Chariot:
             final_resp['offset'] = resp['offset']
 
         return final_resp
+
+    def tree(self, raw_query: dict, params: dict = {}) -> list:
+        """Run a graph query with tree=true. Returns ScanTree rows -- each root
+        node with its matched relationships and neighbor nodes nested -- which
+        the default /my response drops. The response is a list (not a keyed
+        page), so it is not paginated/merged like my_by_raw_query."""
+        resp = self.chariot_request('POST', self.url('/my'), json=raw_query, params=params | {'tree': 'true'})
+        process_failure(resp)
+        return resp.json()
 
     def post(self, type: str, body: dict, params: dict = {}) -> dict:
         resp = self.chariot_request('POST', self.url(f'/{type}'), json=body, params=params)
