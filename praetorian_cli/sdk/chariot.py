@@ -145,6 +145,15 @@ class Chariot:
 
         return final_resp
 
+    def tree(self, raw_query: dict, params: dict = {}) -> list:
+        """Run a graph query with tree=true. Returns ScanTree rows -- each root
+        node with its matched relationships and neighbor nodes nested -- which
+        the default /my response drops. The response is a list (not a keyed
+        page), so it is not paginated/merged like my_by_raw_query."""
+        resp = self.chariot_request('POST', self.url('/my'), json=raw_query, params=params | {'tree': 'true'})
+        process_failure(resp)
+        return resp.json()
+
     def post(self, type: str, body: dict, params: dict = {}) -> dict:
         resp = self.chariot_request('POST', self.url(f'/{type}'), json=body, params=params)
         process_failure(resp)
