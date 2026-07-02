@@ -1,5 +1,8 @@
 import json
-from praetorian_cli.sdk.model.query import (Query, Node, Relationship, KIND_TO_LABEL, node_of_key)
+import time
+
+from praetorian_cli.sdk.model.query import (Query, Node, Relationship, KIND_TO_LABEL, node_of_key,
+                                             ttl_blockers_query)
 from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
 class Search:
 
@@ -463,6 +466,31 @@ class Search:
                 pass
 
         return all_results, None
+
+    def ttl_status(self, key) -> dict:
+        """
+        Explain whether the backend TTL cron would collect an entity.
+
+        A :TTL node is deleted only when its ``ttl`` has expired AND it has no
+        outgoing TTL-blocking edge (see ``ttl_blockers_query``). Chase the chain
+        by re-running against a blocker's target.
+
+        :param key: The exact key of the entity to inspect
+        :return: {key, ttl, ttl_expired, would_delete, blockers}, where each
+            blocker is {edge, target, visited}
+        :rtype: dict
+        """
+        tree = self.api.tree(ttl_blockers_query(key).to_dict())
+        if not tree:
+            raise ValueError(f'No entity found for key: {key}')
+
+        entries = walk_tree(tree)
+        ttl = entries[0]['node'].get('ttl') if entries else None
+        blockers = [dict(edge=e['label'], target=e['target'].get('key'), visited=e['edge'].get('visited'))
+                    for entry in entries for e in entry['edges']]
+        expired = isinstance(ttl, int) and 0 < ttl < int(time.time())
+        return dict(key=key, ttl=ttl, ttl_expired=expired,
+                    would_delete=expired and not blockers, blockers=blockers)
 
     def relationships(self, anchor_key, labels=None, neighbor_kind=None, optional=False) -> list:
         """One-hop traversal from an anchor node to its neighbors.
