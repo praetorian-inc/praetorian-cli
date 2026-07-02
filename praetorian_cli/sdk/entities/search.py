@@ -481,7 +481,7 @@ class Search:
             relationship's own properties, 'target' is the neighbor node.
         :rtype: list
         """
-        rel_labels = [Relationship.Label(l) for l in labels] if labels else list(Relationship.Label)
+        rel_labels = [Relationship.Label(label) for label in labels] if labels else list(Relationship.Label)
 
         if neighbor_kind:
             label = KIND_TO_LABEL.get(neighbor_kind)
