@@ -32,7 +32,7 @@ class Conversations:
             convos, offset = mine + [c for c in shared if c.get('uuid') not in seen], None
         else:
             raise ValueError(f"scope must be 'user', 'tenant', or 'all', got: {scope!r}")
-        convos.sort(key=lambda c: c.get('created', ''), reverse=True)
+        convos.sort(key=lambda c: c.get('created') or '', reverse=True)
         return convos, offset
 
     def get(self, conversation_id) -> dict:
@@ -80,12 +80,14 @@ def _transcript(uuid, meta, records) -> dict:
             message['tool'] = _tool_call(r, responses)
         messages.append(message)
 
-    return dict(uuid=uuid, topic=meta.get('topic', ''), created=meta.get('created', ''),
-                status=meta.get('status', ''), messages=messages)
+    return dict(uuid=uuid, topic=meta.get('topic') or '', created=meta.get('created') or '',
+                status=meta.get('status') or '', messages=messages)
 
 
 def _tool_call(call, responses) -> dict:
-    spec = _loads(call.get('toolUseContent')) or {}
+    spec = _loads(call.get('toolUseContent'))
+    if not isinstance(spec, dict):
+        spec = {}
     tool_use_id = spec.get('ToolUseID') or call.get('toolUseId', '')
     response = responses.get(tool_use_id)
     return dict(name=spec.get('Name', ''), input=spec.get('Input'),

@@ -450,7 +450,7 @@ def conversations(chariot, offset, page, scope, fmt):
         print_json(dict(data=convos, offset=offset))
     else:
         for c in convos:
-            topic = ' '.join(c.get('topic', '').split())
-            click.echo(f"{c.get('uuid', ''):38} {c.get('created', '')[:16]:16} "
-                       f"{c.get('status', ''):8} {topic}")
+            topic = ' '.join((c.get('topic') or '').split())
+            click.echo(f"{(c.get('uuid') or ''):38} {(c.get('created') or '')[:16]:16} "
+                       f"{(c.get('status') or ''):8} {topic}")
     render_offset(offset)

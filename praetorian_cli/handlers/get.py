@@ -414,6 +414,8 @@ def conversation(chariot, conversation_id, fmt, full, watch):
         - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --watch
     """
     if watch:
+        if fmt == 'json':
+            error('--watch streams the text transcript and cannot be combined with --format json')
         watch_conversation(chariot, conversation_id, full)
         return
     convo = chariot.conversations.get(conversation_id)
@@ -430,10 +432,18 @@ def watch_conversation(chariot, conversation_id, full=False, interval=3, timeout
     deadline = time.time() + timeout
     while True:
         convo = chariot.conversations.get(conversation_id)
-        for m in convo['messages'][seen:]:
+        ended = bool(convo.get('status')) and convo['status'] != 'active'
+        messages = convo['messages']
+        while seen < len(messages):
+            m = messages[seen]
+            # A tool call's response is folded into the same message and may
+            # arrive on a later poll; hold the message until it lands (unless
+            # the conversation has ended and nothing more is coming).
+            if not ended and m.get('tool') and m['tool'].get('response') is None:
+                break
             _echo_message(m, full)
-        seen = len(convo['messages'])
-        if convo.get('status') and convo['status'] != 'active':
+            seen += 1
+        if ended:
             click.secho(f"— conversation {convo['status']} —", fg='blue')
             return
         if time.time() >= deadline:
