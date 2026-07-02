@@ -50,7 +50,7 @@ class Risks:
                          or 'full' for all proof contents
         :return: The matching risk object, or hydrated dict if evidence is enabled
         """
-        if evidence != 'off':
+        if evidence in ('basic', 'full'):
             return self._hydrate_evidence(key, mode=evidence)
         risk = self.api.search.by_exact_key(key, details)
         if risk and details:
@@ -351,8 +351,6 @@ class Risks:
             return ''
 
         try:
-            return self.api.files.get_utf8(file_path)
-        except UnicodeDecodeError:
             return self.api.files.get(file_path).decode('utf-8', errors='replace')
         except Exception:
             return ''
@@ -364,7 +362,7 @@ class Risks:
     @staticmethod
     def _extract_section(raw_text, *headers):
         for header in headers:
-            pattern = rf'(?sm)^#{{1,4}}\s+{header}\s*\n(.*?)(?:^#{{1,4}}\s|$)'
+            pattern = rf'(?sim)^#{{1,4}}\s+{header}\s*\n(.*?)(?:^#{{1,4}}\s|$)'
             matches = re.search(pattern, raw_text)
             if matches:
                 return matches.group(1).strip()
@@ -373,7 +371,7 @@ class Risks:
     @staticmethod
     def _extract_html_section(raw_text, start_label, end_label=None):
         end_pattern = rf'<p><strong>{end_label}</strong></p>' if end_label else '$'
-        pattern = rf'(?s)<p><strong>{start_label}</strong></p>(.*?){end_pattern}'
+        pattern = rf'(?si)<p><strong>{start_label}</strong></p>(.*?){end_pattern}'
         matches = re.search(pattern, raw_text)
         if not matches:
             return ''
