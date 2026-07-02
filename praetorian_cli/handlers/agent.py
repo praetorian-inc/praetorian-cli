@@ -8,6 +8,21 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
 
 
+def _prepend_skills(message, skill_paths):
+    """Read local skill files and prepend their content to the message."""
+    if not skill_paths:
+        return message
+    parts = []
+    for path in skill_paths:
+        resolved = os.path.realpath(os.path.expanduser(path))
+        if not os.path.isfile(resolved):
+            error(f'Skill file not found: {path}')
+        with open(resolved, 'r') as f:
+            content = f.read()
+        parts.append(f'<skill source="{os.path.basename(path)}">\n{content}\n</skill>')
+    return '\n\n'.join(parts) + '\n\n' + message
+
+
 @chariot.group()
 def agent():
     """ A collection of AI features """
@@ -76,7 +91,8 @@ def tools(sdk, allowed):
 
 @agent.command()
 @cli_handler
-def conversation(sdk):
+@click.option('--skill', multiple=True, help='Path to a local skill/prompt file to prepend as context. Repeatable.')
+def conversation(sdk, skill):
     """ Interactive conversation with Guard AI assistant
 
     Start an interactive chat session with the Guard AI assistant.
@@ -88,20 +104,17 @@ def conversation(sdk):
         - help    Show available commands and query examples
         - clear   Clear the screen
         - new     Start a new conversation
+        - skill <path>  Load a local skill file
+        - skills  Show loaded skills
         - quit    Exit the conversation
 
     \b
-    Example queries:
-        - "Find all active assets"
-        - "Show me critical risks"
-        - "What assets do we have for example.com?"
-
-    \b
-    Usage:
+    Example usages:
         guard agent conversation
+        guard agent conversation --skill ./skills/recon.md
     """
     from praetorian_cli.ui.conversation import run_textual_conversation
-    run_textual_conversation(sdk)
+    run_textual_conversation(sdk, skills=list(skill))
 
 
 @chariot.group()
@@ -120,7 +133,8 @@ def marcus():
 @click.argument('path')
 @click.option('--local', is_flag=True, default=False, help='Path is a local file (upload to Guard first)')
 @click.option('--instructions', '-i', default='', help='Additional instructions for Marcus')
-def marcus_read(sdk, path, local, instructions):
+@click.option('--skill', multiple=True, help='Path to a local skill/prompt file to prepend as context. Repeatable.')
+def marcus_read(sdk, path, local, instructions, skill):
     """ Have Marcus read and analyze a file
 
     Reads a file from Guard storage (or uploads a local file) and asks Marcus
@@ -132,6 +146,7 @@ def marcus_read(sdk, path, local, instructions):
         guard marcus read "vault/engagement/sow.pdf"
         guard marcus read ./local-report.md --local
         guard marcus read "vault/nessus-export.csv" -i "create risks for critical findings"
+        guard marcus read "vault/scope.pdf" --skill ./skills/scope-parser.md
     """
     if local:
         if not os.path.exists(path):
@@ -153,6 +168,7 @@ def marcus_read(sdk, path, local, instructions):
             f'If it contains credentials or secrets, flag them.'
         )
 
+    message = _prepend_skills(message, skill)
     result = sdk.agents.ask(message, mode='agent', new=True)
     click.echo(result['response'])
 
@@ -196,20 +212,25 @@ def marcus_ingest(sdk, path, scope, findings):
 @marcus.command('do')
 @cli_handler
 @click.argument('instruction')
-def marcus_do(sdk, instruction):
+@click.option('--skill', multiple=True, help='Path to a local skill/prompt file to prepend as context. Repeatable.')
+def marcus_do(sdk, instruction, skill):
     """ Give Marcus a direct instruction to execute
 
     Marcus operates in agent mode with full access to tools: seed_add, job
     (run scans), spawn_agent (brutus, julius, etc.), and more.
 
+    Use --skill to load a local file as context before the instruction,
+    teaching Marcus a workflow or methodology.
+
     \b
     Example usages:
         guard marcus do "add example.com as a seed and start discovery"
         guard marcus do "run nuclei on all assets with port 443"
-        guard marcus do "create a risk for CVE-2024-1234 on asset api.example.com"
-        guard marcus do "generate an executive summary"
+        guard marcus do "find SQLi" --skill ./skills/sqli-methodology.md
+        guard marcus do "generate an executive summary" --skill ./skills/report-template.md
     """
-    result = sdk.agents.ask(instruction, mode='agent', timeout=300)
+    message = _prepend_skills(instruction, skill)
+    result = sdk.agents.ask(message, mode='agent', timeout=300)
     click.echo(result['response'])
 
 
@@ -219,7 +240,8 @@ def marcus_do(sdk, instruction):
 @click.option('-m', '--mode', type=click.Choice(['query', 'agent']), default='agent', help='Conversation mode')
 @click.option('--new', 'new_conversation', is_flag=True, default=False, help='Start a new conversation')
 @click.option('--format', 'output_format', type=click.Choice(['text', 'json']), default='text', help='Output format')
-def ask(sdk, message, mode, new_conversation, output_format):
+@click.option('--skill', multiple=True, help='Path to a local skill/prompt file to prepend as context. Repeatable.')
+def ask(sdk, message, mode, new_conversation, output_format, skill):
     """One-shot query to Guard AI assistant (Marcus)
 
     Send a question and get a response inline. Conversation state is preserved
@@ -231,7 +253,9 @@ def ask(sdk, message, mode, new_conversation, output_format):
         - guard ask "show me critical risks" --mode query
         - guard ask --new "unrelated question"
         - guard ask "summarize findings" --format json
+        - guard ask "find SQLi" --skill ./skills/sqli.md
     """
+    message = _prepend_skills(message, skill)
     # Load conversation state for persistence across CLI invocations
     state_file = os.path.join(os.path.expanduser('~'), '.praetorian', 'conversation_state.json')
     conversation_id = None
@@ -253,8 +277,9 @@ def ask(sdk, message, mode, new_conversation, output_format):
         error(str(e))
 
     # Save conversation state
-    os.makedirs(os.path.dirname(state_file), exist_ok=True)
-    with open(state_file, 'w') as f:
+    os.makedirs(os.path.dirname(state_file), exist_ok=True, mode=0o700)
+    fd = os.open(state_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as f:
         json.dump({'conversation_id': result['conversation_id']}, f)
 
     # Show tool call progress
@@ -279,7 +304,8 @@ def ask(sdk, message, mode, new_conversation, output_format):
 @click.option('--depth', default=1, type=int, help='Pipeline cycles (1=single pass, 2-3=iterative)')
 @click.option('--novel', is_flag=True, default=False, help='Hunt for 0days and new variants')
 @click.option('--mode', 'research_mode', type=click.Choice(['offensive', 'knowledge']), default='offensive', help='Research mode')
-def research(sdk, target, depth, novel, research_mode):
+@click.option('--skill', multiple=True, help='Path to a local skill/prompt file to prepend as context. Repeatable.')
+def research(sdk, target, depth, novel, research_mode, skill):
     """Run CritFinder vulnerability research pipeline.
 
     Alias for 'guard critfinder'. See 'guard critfinder --help' for details.
@@ -289,10 +315,12 @@ def research(sdk, target, depth, novel, research_mode):
         guard marcus research                     # full engagement scan
         guard marcus research k8s.client.com      # scoped to target
         guard marcus research --novel             # 0day hunting mode
+        guard marcus research --skill ./skills/api-hunting.md
     """
     from praetorian_cli.handlers.critfinder import _build_research_message, _stream_research
 
     message = _build_research_message(target, depth, novel, research_mode)
+    message = _prepend_skills(message, skill)
 
     click.echo(click.style('CritFinder', bold=True) + ' — via Marcus')
     click.echo(click.style('─' * 60, dim=True))
