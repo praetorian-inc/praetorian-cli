@@ -292,8 +292,6 @@ class Risks:
             'returned_files': len(selected_proof_files),
             'omitted_files': max(0, len(proof_files) - len(selected_proof_files)),
         }
-        if mode != 'full' and len(proof_files) > 1:
-            proof_summary['sample_omitted_paths'] = [proof_file.get('name', '') for proof_file in proof_files[1:4]]
 
         return {
             'risk': risk_record,

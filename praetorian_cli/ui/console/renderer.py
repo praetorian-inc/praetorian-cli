@@ -225,8 +225,6 @@ class RendererMixin:
                 f"  mode={proof_summary.get('mode')} returned={proof_summary.get('returned_files')} "
                 f"total={proof_summary.get('total_files')} omitted={proof_summary.get('omitted_files')}"
             )
-            for path in proof_summary.get('sample_omitted_paths', []):
-                self.console.print(f'  [dim]omitted:[/dim] {path}')
 
         # References
         if definition and definition.get('references'):

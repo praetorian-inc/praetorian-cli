@@ -51,10 +51,7 @@ def risk(chariot, key, details, evidence):
         - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence basic
         - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence full
      """
-    if evidence != 'off':
-        print_json(chariot.risks.get(key, evidence=evidence))
-    else:
-        print_json(chariot.risks.get(key, details))
+    print_json(chariot.risks.get(key, details, evidence=evidence))
 
 
 @get.command()
