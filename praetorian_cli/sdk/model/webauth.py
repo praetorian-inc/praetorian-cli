@@ -59,9 +59,14 @@ def validate_recipe(steps, inputs=None):
 
 
 def _validate_step(i, kind, s):
+    # Required fields are always strings; enforcing that here keeps the template
+    # scan and string ops (startswith, .values()) from raising raw TypeErrors.
     def req(field):
-        if not s.get(field):
+        v = s.get(field)
+        if not v:
             raise ValueError(f'step {i} ({kind}): {field} is required')
+        if not isinstance(v, str):
+            raise ValueError(f'step {i} ({kind}): {field} must be a string')
 
     if kind == 'navigate' or kind == 'load_request':
         req('url')
@@ -74,14 +79,20 @@ def _validate_step(i, kind, s):
         has_one, has_many = bool(s.get('selector')), bool(s.get('selectors'))
         if has_one == has_many:
             raise ValueError(f'step {i} (totp): exactly one of selector or selectors is required')
-        if has_many and len(s['selectors']) != 6:
-            raise ValueError(f'step {i} (totp): selectors must have 6 entries, got {len(s["selectors"])}')
+        if has_many and (not isinstance(s['selectors'], list) or len(s['selectors']) != 6):
+            raise ValueError(f'step {i} (totp): selectors must be a list of 6 entries')
     elif kind == 'cookie':
         pass
     elif kind == 'http':
         if str(s.get('method', '')).upper() not in _HTTP_METHODS:
             raise ValueError(f'step {i} (http): unsupported method {s.get("method")!r}')
         req('url')
+        if 'body' in s and not isinstance(s['body'], str):
+            raise ValueError(f'step {i} (http): body must be a string')
+        headers = s.get('headers')
+        if headers is not None and (not isinstance(headers, dict)
+                                    or not all(isinstance(v, str) for v in headers.values())):
+            raise ValueError(f'step {i} (http): headers must be an object of string values')
     elif kind == 'extract':
         req('save_as')
         req('from')
