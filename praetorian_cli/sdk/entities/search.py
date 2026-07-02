@@ -1,6 +1,21 @@
 import json
 from praetorian_cli.sdk.model.query import (Query, Node, Relationship, KIND_TO_LABEL, node_of_key)
 from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
+
+# Common asset/risk/web edges followed when the caller doesn't name any. The
+# backend has no wildcard, so we OR a small core set instead of every label
+# (which would drag in AD/hunt/campaign edges and slow the traversal). Pass
+# explicit labels to follow AD or other edge types.
+CORE_TRAVERSAL_LABELS = [
+    Relationship.Label.HAS_VULNERABILITY,
+    Relationship.Label.HAS_PORT,
+    Relationship.Label.HAS_WEBPAGE,
+    Relationship.Label.HAS_ATTRIBUTE,
+    Relationship.Label.HAS_CREDENTIAL,
+    Relationship.Label.HAS_TECHNOLOGY,
+]
+
+
 class Search:
 
     def __init__(self, api):
@@ -472,8 +487,8 @@ class Search:
 
         :param anchor_key: exact key of the starting node
         :param labels: list of relationship labels to follow (e.g.
-            ['HAS_WEBPAGE', 'HAS_VULNERABILITY']). Omit to follow every known edge
-            type -- the backend has no wildcard, so we OR the full label set.
+            ['HAS_WEBPAGE', 'HAS_VULNERABILITY']). Omit to follow the common core
+            set (CORE_TRAVERSAL_LABELS); pass explicit labels for AD/other edges.
         :type labels: list
         :param neighbor_kind: optional Kind to constrain the neighbor (e.g. 'risk')
         :param optional: keep entries whose edge didn't match (rarely useful here)
@@ -481,7 +496,7 @@ class Search:
             relationship's own properties, 'target' is the neighbor node.
         :rtype: list
         """
-        rel_labels = [Relationship.Label(label) for label in labels] if labels else list(Relationship.Label)
+        rel_labels = [Relationship.Label(label) for label in labels] if labels else CORE_TRAVERSAL_LABELS
 
         if neighbor_kind:
             label = KIND_TO_LABEL.get(neighbor_kind)

@@ -31,7 +31,7 @@ def assets(chariot, filter, model_type, details, offset, page):
 
 @list.command()
 @list_params('group of the associated assets')
-@click.option('-s', '--sort', 'sort_by', type=click.Choice(['visited', 'created', 'updated', 'name', 'status', 'source', 'title']), default=None, help='Sort risks by a field')
+@click.option('-s', '--sort', 'sort_by', type=click.Choice(['visited', 'created', 'updated', 'name', 'status']), default=None, help='Sort risks by a field')
 @click.option('-desc', '--desc', is_flag=True, default=False, help='Return data in descending order')
 def risks(chariot, filter, details, offset, page, sort_by, desc):
     """ List risks
