@@ -40,18 +40,18 @@ class Risks:
             body['tags'] = list(tags)
         return self.api.upsert('risk', body)['risks'][0]
 
-    def get(self, key, details=False, evidence=False):
+    def get(self, key, details=False, evidence='off'):
         """
         Get details of a risk by its exact key.
 
         :param key: The exact key of a risk (format: #risk#{asset_dns}#{risk_name})
         :param details: Whether to also retrieve attributes and affected assets
-        :param evidence: False for normal output, True/'basic' for a single inlined proof,
+        :param evidence: 'off' for normal output, 'basic' for a single inlined proof,
                          or 'full' for all proof contents
         :return: The matching risk object, or hydrated dict if evidence is enabled
         """
-        if evidence:
-            return self._hydrate_evidence(key, mode='full' if evidence == 'full' else 'basic')
+        if evidence != 'off':
+            return self._hydrate_evidence(key, mode=evidence)
         risk = self.api.search.by_exact_key(key, details)
         if risk and details:
             risk['affected_assets'] = self.affected_assets(key)

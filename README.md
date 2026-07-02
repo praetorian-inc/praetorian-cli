@@ -274,7 +274,7 @@ guard find "example.com"
 guard find "CVE-2024" --type risk
 
 # Evidence hydration
-guard get risk "#risk#example.com#CVE-2024-1234" --evidence one
+guard get risk "#risk#example.com#CVE-2024-1234" --evidence basic
 guard get risk "#risk#example.com#CVE-2024-1234" --evidence full
 
 # Reports

@@ -439,7 +439,7 @@ def schedules(chariot, details, offset, page):
 @list.command()
 @pagination
 @cli_handler
-@click.option('--scope', type=click.Choice(['user', 'tenant', 'all']), default='user', show_default=True,
+@click.option('--scope', type=click.Choice(['user', 'tenant', 'all']), default='all', show_default=True,
               help='user: your private conversations; tenant: shared public + hunt-owned; all: both')
 @click.option('--format', 'fmt', type=click.Choice(['text', 'json']), default='text', show_default=True)
 def conversations(chariot, offset, page, scope, fmt):

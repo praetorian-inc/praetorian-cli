@@ -38,7 +38,7 @@ def asset(chariot, key, details):
 @cli_handler
 @click.argument('key', required=True)
 @click.option('-d', '--details', is_flag=True, help='Further retrieve the attributes and affected assets of the risk')
-@click.option('-e', '--evidence', type=click.Choice(['off', 'one', 'full']), default='off', show_default=True, help='Evidence hydration mode. "one" inlines one proof file; "full" inlines all proof files.')
+@click.option('-e', '--evidence', type=click.Choice(['off', 'basic', 'full']), default='off', show_default=True, help='Evidence hydration mode. "basic" inlines one proof file; "full" inlines all proof files.')
 def risk(chariot, key, details, evidence):
     """ Get risk details
 
@@ -50,11 +50,11 @@ def risk(chariot, key, details, evidence):
     Example usages:
         - guard get risk "#risk#api.example.com#CVE-2024-23049"
         - guard get risk "#risk#api.example.com#CVE-2024-23049" --details
-        - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence one
+        - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence basic
         - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence full
      """
     if evidence != 'off':
-        print_json(chariot.risks.get(key, evidence='full' if evidence == 'full' else 'basic'))
+        print_json(chariot.risks.get(key, evidence=evidence))
     else:
         print_json(chariot.risks.get(key, details))
 
@@ -470,12 +470,7 @@ def watch_conversation(chariot, conversation_id, full=False, interval=3, timeout
     while True:
         convo = chariot.conversations.get(conversation_id)
         for m in convo['messages'][seen:]:
-            if m.get('tool'):
-                _echo_tool(m['tool'], full)
-            else:
-                click.secho(f"[{m['role']}]", fg=_ROLE_COLOR.get(m['role'], 'white'))
-                click.echo(_indent(m['content']))
-            click.echo()
+            _echo_message(m, full)
         seen = len(convo['messages'])
         if convo.get('status') and convo['status'] != 'active':
             click.secho(f"— conversation {convo['status']} —", fg='blue')
@@ -494,15 +489,19 @@ def _render_conversation(convo, full):
         click.echo(f"Created: {convo['created']}")
     click.echo('─' * 70)
     for m in convo['messages']:
-        if m.get('tool'):
-            _echo_tool(m['tool'], full)
-        else:
-            click.secho(f"[{m['role']}]", fg=_ROLE_COLOR.get(m['role'], 'white'))
-            click.echo(_indent(m['content']))
-        click.echo()
+        _echo_message(m, full)
 
 
 _ROLE_COLOR = {'user': 'cyan', 'chariot': 'green', 'system': 'magenta'}
+
+
+def _echo_message(m, full):
+    if m.get('tool'):
+        _echo_tool(m['tool'], full)
+    else:
+        click.secho(f"[{m['role']}]", fg=_ROLE_COLOR.get(m['role'], 'white'))
+        click.echo(_indent(m['content']))
+    click.echo()
 
 
 def _echo_tool(tool, full):
