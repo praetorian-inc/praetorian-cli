@@ -389,3 +389,41 @@ def schedule(chariot, schedule_id):
         print_json(result)
     else:
         click.echo(f'Schedule not found: {schedule_id}')
+
+
+@get.command('ttl-status')
+@cli_handler
+@click.argument('key', required=True)
+@click.option('--format', 'fmt', type=click.Choice(['text', 'json']), default='text', show_default=True)
+def ttl_status(chariot, key, fmt):
+    """ Explain why the TTL cron would (or would not) collect an entity
+
+    \b
+    A :TTL node is deleted only when its ttl has expired AND it has no
+    outgoing HAS_VULNERABILITY / HAS_PORT / HAS_WEBPAGE / HAS_MEMBER edge.
+    This shows the node's ttl plus the exact edges pinning it alive, so you
+    can chase the chain (e.g. WebApplication -HAS_WEBPAGE-> Webpage
+    -HAS_VULNERABILITY-> Risk) by re-running against a blocker's key.
+
+    \b
+    Example usages:
+        - guard get ttl-status "#webapplication#https://example.com:443/"
+        - guard get ttl-status "#webpage#https://example.com/login" --format json
+    """
+    status = chariot.search.ttl_status(key)
+
+    if fmt == 'json':
+        print_json(status)
+        return
+
+    ttl, blockers = status['ttl'], status['blockers']
+    click.echo(f"key:          {status['key']}")
+    click.echo(f'ttl:          {ttl}' + (' (expired)' if status['ttl_expired']
+                                         else ' (not expired)' if ttl else ' (none)'))
+    if blockers:
+        click.echo(f'blocked by:   {len(blockers)} edge(s)')
+        for b in blockers:
+            click.echo(f"  {b['edge']} -> {b['target']}  (edge visited {b['visited']})")
+    else:
+        click.echo('blocked by:   none')
+    click.echo(f"would delete: {status['would_delete']}")
