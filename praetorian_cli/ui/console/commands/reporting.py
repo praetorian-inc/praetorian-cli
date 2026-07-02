@@ -12,7 +12,7 @@ class ReportingCommands:
             return
         key = args[0]
         try:
-            result = self.sdk.risks.get(key, evidence=True)
+            result = self.sdk.risks.get(key, evidence='basic')
             self._render_evidence(result)
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
