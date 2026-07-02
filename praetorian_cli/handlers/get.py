@@ -396,10 +396,10 @@ def schedule(chariot, schedule_id):
 @get.command()
 @cli_handler
 @click.argument('conversation_id', required=True)
-@click.option('--format', 'fmt', type=click.Choice(['text', 'json']), default='text', show_default=True)
+@click.option('--format', 'fmt', type=click.Choice(['text', 'json', 'live']), default='text', show_default=True,
+              help='text/json render the current transcript; live polls and streams new messages until the conversation is no longer active')
 @click.option('--full', is_flag=True, help='Do not truncate long tool inputs/responses in text mode')
-@click.option('--watch', is_flag=True, help='Poll and stream new messages until the conversation is no longer active')
-def conversation(chariot, conversation_id, fmt, full, watch):
+def conversation(chariot, conversation_id, fmt, full):
     """ Get a full conversation transcript, including every tool call
 
     \b
@@ -411,11 +411,9 @@ def conversation(chariot, conversation_id, fmt, full, watch):
         - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14
         - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --full
         - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --format json
-        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --watch
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --format live
     """
-    if watch:
-        if fmt == 'json':
-            error('--watch streams the text transcript and cannot be combined with --format json')
+    if fmt == 'live':
         watch_conversation(chariot, conversation_id, full)
         return
     convo = chariot.conversations.get(conversation_id)

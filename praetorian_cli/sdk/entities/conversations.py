@@ -17,7 +17,7 @@ class Conversations:
         :param scope: which partition to read:
             'user' (default) your private conversations;
             'tenant' tenant-shared conversations (public + hunt-owned);
-            'all' the union of both, de-duplicated.
+            'all' the union of both, de-duplicated (fetched in full; not paginated).
         :return: (list of conversation dicts, next page offset)
         :rtype: tuple
         """
@@ -26,8 +26,11 @@ class Conversations:
         elif scope == 'tenant':
             convos, offset = self._shared(offset, pages)
         elif scope == 'all':
-            mine, _ = self.api.search.by_key_prefix('#conversation#', pages=pages, user=True)
-            shared, _ = self._shared(None, pages)
+            # A newest-first union of two partitions can't be resumed by a single
+            # cursor, so drain both fully (by_key_prefix pages through with extend)
+            # and merge. 'all' is intentionally unpaginated; `pages` is ignored.
+            mine, _ = self.api.search.by_key_prefix('#conversation#', user=True)
+            shared, _ = self._shared()
             seen = {c.get('uuid') for c in mine}
             convos, offset = mine + [c for c in shared if c.get('uuid') not in seen], None
         else:
@@ -53,7 +56,7 @@ class Conversations:
             raise ValueError(f'No conversation found for id: {conversation_id}')
         return _transcript(conversation_id, meta[0] if meta else {}, records)
 
-    def _shared(self, offset, pages) -> tuple:
+    def _shared(self, offset=None, pages=100000) -> tuple:
         # The tenant partition (no user flag) mixes shared conversations in with
         # other tenant records; keep only the public and hunt-owned ones.
         convos, offset = self.api.search.by_key_prefix('#conversation#', offset=offset, pages=pages)
