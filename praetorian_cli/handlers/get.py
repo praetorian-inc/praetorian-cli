@@ -1,4 +1,6 @@
+import json
 import os
+import time
 
 import click
 
@@ -389,3 +391,97 @@ def schedule(chariot, schedule_id):
         print_json(result)
     else:
         click.echo(f'Schedule not found: {schedule_id}')
+
+
+@get.command()
+@cli_handler
+@click.argument('conversation_id', required=True)
+@click.option('--format', 'fmt', type=click.Choice(['text', 'json']), default='text', show_default=True)
+@click.option('--full', is_flag=True, help='Do not truncate long tool inputs/responses in text mode')
+@click.option('--watch', is_flag=True, help='Poll and stream new messages until the conversation is no longer active')
+def conversation(chariot, conversation_id, fmt, full, watch):
+    """ Get a full conversation transcript, including every tool call
+
+    \b
+    Argument:
+        - CONVERSATION_ID: the uuid of a conversation (see 'guard list conversations')
+
+    \b
+    Example usages:
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --full
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --format json
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --watch
+    """
+    if watch:
+        watch_conversation(chariot, conversation_id, full)
+        return
+    convo = chariot.conversations.get(conversation_id)
+    if fmt == 'json':
+        print_json(convo)
+        return
+    _render_conversation(convo, full)
+
+
+def watch_conversation(chariot, conversation_id, full=False, interval=3, timeout=600):
+    """Stream a conversation, printing new messages as they arrive. Stops when the
+    conversation leaves 'active' status or after `timeout` seconds."""
+    seen = 0
+    deadline = time.time() + timeout
+    while True:
+        convo = chariot.conversations.get(conversation_id)
+        for m in convo['messages'][seen:]:
+            _echo_message(m, full)
+        seen = len(convo['messages'])
+        if convo.get('status') and convo['status'] != 'active':
+            click.secho(f"— conversation {convo['status']} —", fg='blue')
+            return
+        if time.time() >= deadline:
+            click.secho('— watch timed out (conversation still active) —', fg='yellow')
+            return
+        time.sleep(interval)
+
+
+def _render_conversation(convo, full):
+    click.echo(click.style(f"Conversation {convo['uuid']}", bold=True) + f"  ({convo['status']})")
+    if convo['topic']:
+        click.echo(f"Topic:   {convo['topic']}")
+    if convo['created']:
+        click.echo(f"Created: {convo['created']}")
+    click.echo('─' * 70)
+    for m in convo['messages']:
+        _echo_message(m, full)
+
+
+_ROLE_COLOR = {'user': 'cyan', 'chariot': 'green', 'system': 'magenta'}
+
+
+def _echo_message(m, full):
+    if m.get('tool'):
+        _echo_tool(m['tool'], full)
+    else:
+        click.secho(f"[{m['role']}]", fg=_ROLE_COLOR.get(m['role'], 'white'))
+        click.echo(_indent(m['content']))
+    click.echo()
+
+
+def _echo_tool(tool, full):
+    args = _as_text(tool['input'])
+    header = click.style(f"[tool call] {tool['name']}", fg='yellow')
+    click.echo(header + (f'  {_truncate(args, 200, full)}' if args else ''))
+    if tool['response'] is not None:
+        click.echo(_indent('→ ' + _truncate(_as_text(tool['response']), 800, full)))
+
+
+def _as_text(value):
+    if value is None or value == '':
+        return ''
+    return value if isinstance(value, str) else json.dumps(value, separators=(',', ':'))
+
+
+def _truncate(s, limit, full):
+    return s if full or len(s) <= limit else f'{s[:limit]}… ({len(s)} chars, --full for all)'
+
+
+def _indent(text):
+    return '\n'.join('    ' + line for line in str(text).splitlines())

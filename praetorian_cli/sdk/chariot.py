@@ -8,6 +8,7 @@ from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
 from praetorian_cli.sdk.entities.capabilities import Capabilities
 from praetorian_cli.sdk.entities.configurations import Configurations
+from praetorian_cli.sdk.entities.conversations import Conversations
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.files import Files
@@ -53,6 +54,7 @@ class Chariot:
         self.ad = AD(self)
         self.aegis = Aegis(self)
         self.agents = Agents(self)
+        self.conversations = Conversations(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
         self.keys = Keys(self)
