@@ -36,25 +36,6 @@ def asset(chariot, key, status, surface, secret):
 
 @update.command()
 @cli_handler
-@click.option('-k', '--resource-key', required=True,
-              help='Web-application key (e.g., #webapplication#https://app.example.com)')
-@click.option('--id', 'credential_id', required=True,
-              help='The credential ID to set as this WebApplication default')
-def credential(chariot, resource_key, credential_id):
-    """ Set the default web-auth credential for a WebApplication
-
-    The default credential is what scans authenticate with. Convenience alias
-    for `guard update asset <webapp> --secret <id>`.
-
-    \b
-    Example usage:
-        - guard update credential -k "#webapplication#https://app.example.com" --id abc-123
-    """
-    chariot.assets.update(resource_key, secret=credential_id)
-
-
-@update.command()
-@cli_handler
 @click.argument('key', required=True)
 @click.option('-s', '--status', type=click.Choice([s.value for s in Risk]), help=f'Status of the risk')
 @click.option('-c', '--comment', default='', help='Comment for the risk')

@@ -8,7 +8,6 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error, parse_configuration_value, parse_kv_entries
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
-from praetorian_cli.sdk.model.webauth import validate_recipe
 
 
 @chariot.group()
@@ -511,9 +510,6 @@ def credential_webauth_recipe(sdk, resource_key, label, steps_file, inputs):
         steps = json.load(steps_file)
     except json.JSONDecodeError as e:
         error(f'--steps is not valid JSON: {e}')
-    try:
-        validate_recipe(steps, inputs_dict)
-    except ValueError as e:
-        error(f'Invalid recipe: {e}')
 
+    # The backend validates the recipe schema; we only ensure it is valid JSON.
     _add_webauth(sdk, resource_key, label, {'method': 'dynamic-login', 'steps': steps, 'inputs': inputs_dict})
