@@ -109,9 +109,9 @@ class Risks:
 
         return self.api.delete_by_key('risk', key, body)
 
-    def list(self, contains_filter='', offset=None, pages=100000) -> tuple:
+    def list(self, contains_filter='', offset=None, pages=100000, sort_by=None, descending=False) -> tuple:
         """
-        List risks with optional filtering and pagination.
+        List risks with optional filtering, sorting, and pagination.
 
         :param contains_filter: Filter to apply to the risk key. Ensure the risk's key contains the filter.
         :type contains_filter: str
@@ -119,6 +119,10 @@ class Risks:
         :type offset: str or None
         :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
+        :param sort_by: Field to sort by (for example: visited, created, updated, name, status)
+        :type sort_by: str or None
+        :param descending: Whether to return results in descending order
+        :type descending: bool
         :return: A tuple containing (list of matching risks, next page offset)
         :rtype: tuple
         """
@@ -126,7 +130,9 @@ class Risks:
             Node(
                 labels=[Node.Label.RISK],
                 search=contains_filter if contains_filter else None
-            )
+            ),
+            order_by=sort_by,
+            descending=descending,
         )
 
         if offset:
@@ -183,19 +189,19 @@ class Risks:
         :rtype: list
         """
         # assets directly linked to the risk
-        to_this = Relationship(Relationship.Label.HAS_VULNERABILITY, target=risk_of_key(key))
+        to_this = Relationship([Relationship.Label.HAS_VULNERABILITY], target=risk_of_key(key))
         query = Query(Node(ASSET_NODE, relationships=[to_this]))
         assets, _ = self.api.search.by_query(query)
 
         # assets indirectly linked to the risk via a port
         ports = Node(PORT_NODE, relationships=[to_this])
-        to_ports = Relationship(Relationship.Label.HAS_PORT, target=ports)
+        to_ports = Relationship([Relationship.Label.HAS_PORT], target=ports)
         query = Query(Node(ASSET_NODE, relationships=[to_ports]))
         indirect_assets, _ = self.api.search.by_query(query)
 
         # webpages linked to the risk
         webpages = Node(WEBPAGE_NODE, relationships=[to_this])
-        to_webpages = Relationship(Relationship.Label.HAS_WEBPAGE, target=webpages)
+        to_webpages = Relationship([Relationship.Label.HAS_WEBPAGE], target=webpages)
         query = Query(Node(ASSET_NODE, relationships=[to_webpages]))
         web_assets, _ = self.api.search.by_query(query)
 
