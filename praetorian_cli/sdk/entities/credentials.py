@@ -59,7 +59,7 @@ class Credentials:
         }
         return self.api.delete('broker', request, params={})
 
-    def list(self, offset=None, pages=100000):
+    def list(self, offset=None, pages=100000, resource_key=None):
         """
         List credentials available to the current principal.
 
@@ -67,9 +67,15 @@ class Credentials:
         :type offset: str or None
         :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
+        :param resource_key: Scope to credentials attached to this WebApplication
+            (follows its HAS_CREDENTIAL edges) instead of listing all credentials.
+        :type resource_key: str or None
         :return: A tuple containing (list of credential entities, next page offset)
         :rtype: tuple
         """
+        if resource_key:
+            edges = self.api.search.relationships(resource_key, ['HAS_CREDENTIAL'])
+            return [e['target'] for e in edges], None
         return self.api.search.by_key_prefix('#credential', offset=offset, pages=pages)
 
     def get(self, credential_id, category, type, format, resolution='by-target',
