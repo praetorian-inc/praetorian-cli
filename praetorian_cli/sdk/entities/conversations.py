@@ -31,8 +31,7 @@ class Conversations:
             # and merge. 'all' is intentionally unpaginated; `pages` is ignored.
             mine, _ = self.api.search.by_key_prefix('#conversation#', user=True)
             shared, _ = self._shared()
-            seen = {c.get('uuid') for c in mine}
-            convos, offset = mine + [c for c in shared if c.get('uuid') not in seen], None
+            convos, offset = mine + shared, None
         else:
             raise ValueError(f"scope must be 'user', 'tenant', or 'all', got: {scope!r}")
         convos.sort(key=lambda c: c.get('created') or '', reverse=True)
