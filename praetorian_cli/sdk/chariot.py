@@ -267,9 +267,6 @@ class Chariot:
         filename = f'{id}.json' if type == 'cve' else id
         return json.loads(self.download(f'enrichments/{type}/{filename}', True).decode('utf-8'))
 
-    def purge(self):
-        self.chariot_request('DELETE', self.url('/account/purge'))
-
     def agent(self, agent: str, body: dict) -> dict:
         body = body | dict(agent=agent)
         resp = self.chariot_request('PUT', self.url('/agent'), json=body)
