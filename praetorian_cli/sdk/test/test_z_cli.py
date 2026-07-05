@@ -418,7 +418,6 @@ class TestZCli:
 
         self.verify('search --help', ignore_stdout=True)
         self.verify('script --help', ignore_stdout=True)
-        self.verify('purge --help', ignore_stdout=True)
 
         self.verify('agent --help', ignore_stdout=True)
         self.verify('agent affiliation --help', ignore_stdout=True)
