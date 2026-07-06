@@ -1,5 +1,11 @@
 # Changelog
 
+# 2.4.6
+- [New Feature] Added the `guard list conversations` and `guard get conversation` commands
+- [New Feature] Added a new `guard query` command to build custom queries against the API
+- [New Feature] Enriched the evidence available from `guard get risk`
+- [New Feature] Added Web Application authentication setup support to `guard add credential webauth`
+
 # 2.4.5
 - [Bug fix] Improved the `guard console` completion menu to use a compact multi-column grid with a smaller idle gap below the prompt
 
