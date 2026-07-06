@@ -112,6 +112,21 @@ class Kind(Enum):
     WEBAPPLICATION = 'webapplication'
     WEBPAGE = 'webpage'
     PORT = 'port'
+    APPLICATION = 'application'
+    TECHNOLOGY = 'technology'
+    VULNERABILITY = 'vulnerability'
+    CREDENTIAL = 'credential'
+    PERSON = 'person'
+    ORGANIZATION = 'organization'
+    PARKEDDOMAIN = 'parkeddomain'
+    TIENRICHMENT = 'tienrichment'
+    RUSETEMPLATE = 'rusetemplate'
+    HUNT = 'hunt'
+    CAMPAIGN = 'campaign'
+    CAMPAIGNRECIPIENT = 'campaignrecipient'
+    MONITORINGSESSION = 'monitoringsession'
+    MONITOREDTECHNIQUE = 'monitoredtechnique'
+    MONITOREVENT = 'monitorevent'
 
     # Active Directory object types
     ADOBJECT = 'adobject'
@@ -134,9 +149,6 @@ EXACT_FLAG = {'exact': 'true'}
 DESCENDING_FLAG = {'desc': 'true'}
 GLOBAL_FLAG = {'global': 'true'}
 USER_FLAG = {'user': 'true'}
+ALL_TENANTS_FLAG = {'allTenants': 'true'}
 
-# (connect, read) timeout for all outbound HTTP. The read value is the gap
-# requests waits between bytes from the server, NOT a total-duration budget, so
-# it does not cap large file transfers that keep streaming — it only bounds a
-# stalled/half-open connection that would otherwise hang the CLI forever.
 DEFAULT_HTTP_TIMEOUT = (10, 60)

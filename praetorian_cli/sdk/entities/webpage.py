@@ -120,7 +120,7 @@ class Webpage:
         filters = []
         if parent_key:
             parentFilter = Filter(field=Filter.Field.KEY, operator=Filter.Operator.EQUAL, value=parent_key)
-            relationship = Relationship(label=Relationship.Label.HAS_WEBPAGE, target=Node(labels=[Node.Label.WEBAPPLICATION], filters=[parentFilter]))
+            relationship = Relationship(labels=[Relationship.Label.HAS_WEBPAGE], target=Node(labels=[Node.Label.WEBAPPLICATION], filters=[parentFilter]))
             relationships.append(relationship)
         node = Node(labels=[Node.Label.WEBPAGE], filters=filters, relationships=relationships,
                     search=filter if filter else None)

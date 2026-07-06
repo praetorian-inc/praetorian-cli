@@ -31,7 +31,9 @@ def assets(chariot, filter, model_type, details, offset, page):
 
 @list.command()
 @list_params('group of the associated assets')
-def risks(chariot, filter, details, offset, page):
+@click.option('-s', '--sort', 'sort_by', type=click.Choice(['visited', 'created', 'updated', 'name', 'status']), default=None, help='Sort risks by a field')
+@click.option('-desc', '--desc', is_flag=True, default=False, help='Return data in descending order')
+def risks(chariot, filter, details, offset, page, sort_by, desc):
     """ List risks
 
     Retrieve and display a list of risks.
@@ -42,8 +44,9 @@ def risks(chariot, filter, details, offset, page):
         - guard list risks --filter api.example.com
         - guard list risks --details
         - guard list risks --page all
+        - guard list risks --sort visited --desc
     """
-    render_list_results(chariot.risks.list(filter, offset, pagination_size(page)), details)
+    render_list_results(chariot.risks.list(filter, offset, pagination_size(page), sort_by=sort_by, descending=desc), details)
 
 
 @list.command()

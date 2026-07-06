@@ -160,6 +160,11 @@ class Chariot:
 
         return final_resp
 
+    def tree(self, raw_query: dict, params: dict = {}) -> list:
+        resp = self.chariot_request('POST', self.url('/my'), json=raw_query, params=params | {'tree': 'true'})
+        process_failure(resp)
+        return resp.json()
+      
     def post(self, type: str, body: dict, params: dict | None = None) -> dict:
         resp = self.chariot_request('POST', self.url(f'/{type}'), json=body, params=params or {})
         process_failure(resp)

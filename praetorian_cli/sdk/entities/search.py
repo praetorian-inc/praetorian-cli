@@ -1,6 +1,21 @@
 import json
-from praetorian_cli.sdk.model.query import Query
-from praetorian_cli.sdk.model.globals import EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
+from praetorian_cli.sdk.model.query import (Query, Node, Relationship, KIND_TO_LABEL, node_of_key)
+from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
+
+# Common asset/risk/web edges followed when the caller doesn't name any. The
+# backend has no wildcard, so we OR a small core set instead of every label
+# (which would drag in AD/hunt/campaign edges and slow the traversal). Pass
+# explicit labels to follow AD or other edge types.
+CORE_TRAVERSAL_LABELS = [
+    Relationship.Label.HAS_VULNERABILITY,
+    Relationship.Label.HAS_PORT,
+    Relationship.Label.HAS_WEBPAGE,
+    Relationship.Label.HAS_ATTRIBUTE,
+    Relationship.Label.HAS_CREDENTIAL,
+    Relationship.Label.HAS_TECHNOLOGY,
+]
+
+
 class Search:
 
     def __init__(self, api):
@@ -119,7 +134,7 @@ class Search:
         return self.by_term(f'dns:{dns_prefix}', kind, offset, pages)
 
     def by_term(self, search_term, kind=None, offset=None, pages=100000, exact=False, descending=False,
-                global_=False, user=False) -> tuple:
+                global_=False, user=False, all_tenants=False) -> tuple:
         """
         Search for a given kind by term.
 
@@ -153,6 +168,8 @@ class Search:
             params |= GLOBAL_FLAG
         if user:
             params |= USER_FLAG
+        if all_tenants:
+            params |= ALL_TENANTS_FLAG
 
         results = self.api.my(params, pages)
 
@@ -288,7 +305,7 @@ class Search:
                     ],
                     relationships=[
                         Relationship(
-                            label="HAS_ATTRIBUTE",
+                            labels=["HAS_ATTRIBUTE"],
                             target=Node(
                                 labels=["Attribute"],
                                 filters=[
@@ -312,7 +329,7 @@ class Search:
                     labels=["Asset"],
                     relationships=[
                         Relationship(
-                            label="HAS_VULNERABILITY", 
+                            labels=["HAS_VULNERABILITY"], 
                             target=Node(
                                 labels=["Risk"],
                                 filters=[
@@ -338,7 +355,7 @@ class Search:
                     ],
                     relationships=[
                         Relationship(
-                            label="HAS_ATTRIBUTE",
+                            labels=["HAS_ATTRIBUTE"],
                             target=Node(
                                 labels=["Attribute"], 
                                 filters=[
@@ -348,7 +365,7 @@ class Search:
                             )
                         ),
                         Relationship(
-                            label="HAS_VULNERABILITY",
+                            labels=["HAS_VULNERABILITY"],
                             target=Node(
                                 labels=["Risk"],
                                 filters=[
@@ -369,12 +386,12 @@ class Search:
                     labels=["Asset"],
                     relationships=[
                         Relationship(
-                            label="DISCOVERED",
+                            labels=["DISCOVERED"],
                             target=Node(
                                 labels=["Asset"],
                                 relationships=[
                                     Relationship(
-                                        label="HAS_TECHNOLOGY",
+                                        labels=["HAS_TECHNOLOGY"],
                                         target=Node(
                                             labels=["Technology"],
                                             filters=[
@@ -461,6 +478,76 @@ class Search:
                 pass
 
         return all_results, None
+
+    def relationships(self, anchor_key, labels=None, neighbor_kind=None, optional=False) -> list:
+        """One-hop traversal from an anchor node to its neighbors.
+
+        The agent/human-friendly shorthand for the common "what does this node
+        connect to" query, without hand-writing a graph query.
+
+        :param anchor_key: exact key of the starting node
+        :param labels: list of relationship labels to follow (e.g.
+            ['HAS_WEBPAGE', 'HAS_VULNERABILITY']). Omit to follow the common core
+            set (CORE_TRAVERSAL_LABELS); pass explicit labels for AD/other edges.
+        :type labels: list
+        :param neighbor_kind: optional Kind to constrain the neighbor (e.g. 'risk')
+        :param optional: keep entries whose edge didn't match (rarely useful here)
+        :return: [{label, edge, target}], one per matched edge; 'edge' holds the
+            relationship's own properties, 'target' is the neighbor node.
+        :rtype: list
+        """
+        rel_labels = [Relationship.Label(label) for label in labels] if labels else CORE_TRAVERSAL_LABELS
+
+        if neighbor_kind:
+            label = KIND_TO_LABEL.get(neighbor_kind)
+            if not label:
+                raise ValueError(f'Unsupported neighbor kind: {neighbor_kind}')
+            target = Node(labels=[label])
+        else:
+            target = Node()
+
+        node = node_of_key(anchor_key)
+        node.relationships = [Relationship(labels=rel_labels, target=target, optional=optional)]
+        tree = self.api.tree(Query(node=node).to_dict())
+        return [edge for entry in walk_tree(tree) for edge in entry['edges']]
+
+
+def walk_tree(tree) -> list:
+    """Normalize a ``tree=true`` /my response into flat, unwrapped entries.
+
+    The response wraps every matched object in a result bag
+    (``{count, <plural>: [...]}``) and returns one entry per traversed
+    (anchor, edge, neighbor) path. This unwraps the bags into::
+
+        [{'node': <dict>,
+          'edges': [{'label': str, 'edge': <dict>, 'target': <dict>}, ...]}, ...]
+
+    where 'edge' holds the relationship's own properties (e.g. visited) and
+    'target' is the neighbor node. Relationships with no matched target
+    (unmatched optional edges) are dropped. Assumes single-hop relationships.
+    """
+    entries = []
+    for entry in tree:
+        node_bag = entry.get('node', {})
+        edges = []
+        for rel in node_bag.get('relationships', []):
+            target = _first(_nodes(rel.get('target', {}).get('result', {})))
+            if target:
+                edges.append(dict(label=rel.get('label'),
+                                  edge=_first(_nodes(rel.get('result', {}))), target=target))
+        entries.append(dict(node=_first(_nodes(node_bag.get('result', {}))), edges=edges))
+    return entries
+
+
+def _nodes(result):
+    """Yield node dicts from a tree ``result`` bag (``{count, <plural>: [...]}``)."""
+    for value in result.values():
+        if isinstance(value, list):
+            yield from value
+
+
+def _first(iterable):
+    return next(iter(iterable), {})
 
 
 def flatten_results(results):
