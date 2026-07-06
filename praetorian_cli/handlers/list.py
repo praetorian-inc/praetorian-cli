@@ -427,3 +427,30 @@ def schedules(chariot, details, offset, page):
         - guard list schedules --page all
     """
     render_list_results(chariot.schedules.list(pagination_size(page)), details)
+
+
+@list.command()
+@pagination
+@cli_handler
+@click.option('--scope', type=click.Choice(['user', 'tenant', 'all']), default='all', show_default=True,
+              help='user: your private conversations; tenant: shared public + hunt-owned; all: both')
+@click.option('--format', 'fmt', type=click.Choice(['text', 'json']), default='text', show_default=True)
+def conversations(chariot, offset, page, scope, fmt):
+    """ List Guard AI conversations, most recent first
+
+    \b
+    Example usages:
+        - guard list conversations
+        - guard list conversations --scope tenant
+        - guard list conversations --scope all --page all
+        - guard list conversations --format json
+    """
+    convos, offset = chariot.conversations.list(scope, offset or None, pagination_size(page))
+    if fmt == 'json':
+        print_json(dict(data=convos, offset=offset))
+    else:
+        for c in convos:
+            topic = ' '.join((c.get('topic') or '').split())
+            click.echo(f"{(c.get('uuid') or ''):38} {(c.get('created') or '')[:16]:16} "
+                       f"{(c.get('status') or ''):8} {topic}")
+    render_offset(offset)
