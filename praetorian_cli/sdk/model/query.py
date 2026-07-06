@@ -279,7 +279,7 @@ class Relationship:
         if len(self.labels) == 1:
             ret = dict(label=self.labels[0].value)
         elif len(self.labels) > 1:
-            ret = dict(label=[l.value for l in self.labels])
+            ret = dict(label=[label.value for label in self.labels])
         else:
             ret = dict()
         if self.source:

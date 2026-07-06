@@ -1,4 +1,6 @@
+import json
 import os
+import time
 
 import click
 
@@ -36,7 +38,7 @@ def asset(chariot, key, details):
 @cli_handler
 @click.argument('key', required=True)
 @click.option('-d', '--details', is_flag=True, help='Further retrieve the attributes and affected assets of the risk')
-@click.option('-e', '--evidence', is_flag=True, help='Retrieve all evidence from all sources (attributes, webpages, files, definitions)')
+@click.option('-e', '--evidence', type=click.Choice(['off', 'basic', 'full']), default='off', show_default=True, help='Evidence hydration mode. "basic" inlines one proof file; "full" inlines all proof files.')
 def risk(chariot, key, details, evidence):
     """ Get risk details
 
@@ -48,12 +50,10 @@ def risk(chariot, key, details, evidence):
     Example usages:
         - guard get risk "#risk#api.example.com#CVE-2024-23049"
         - guard get risk "#risk#api.example.com#CVE-2024-23049" --details
-        - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence
+        - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence basic
+        - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence full
      """
-    if evidence:
-        print_json(chariot.risks.get(key, evidence=True))
-    else:
-        print_json(chariot.risks.get(key, details))
+    print_json(chariot.risks.get(key, details, evidence=evidence))
 
 
 @get.command()
@@ -427,3 +427,106 @@ def ttl_status(chariot, key, fmt):
     else:
         click.echo('blocked by:   none')
     click.echo(f"would delete: {status['would_delete']}")
+
+
+@get.command()
+@cli_handler
+@click.argument('conversation_id', required=True)
+@click.option('--format', 'fmt', type=click.Choice(['text', 'json', 'live']), default='text', show_default=True,
+              help='text/json render the current transcript; live polls and streams new messages until the conversation is no longer active')
+@click.option('--full', is_flag=True, help='Do not truncate long tool inputs/responses in text mode')
+def conversation(chariot, conversation_id, fmt, full):
+    """ Get a full conversation transcript, including every tool call
+
+    \b
+    Argument:
+        - CONVERSATION_ID: the uuid of a conversation (see 'guard list conversations')
+
+    \b
+    Example usages:
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --full
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --format json
+        - guard get conversation e5e8db7d-9116-4d7a-a16a-e36680a78c14 --format live
+    """
+    if fmt == 'live':
+        watch_conversation(chariot, conversation_id, full)
+        return
+    convo = chariot.conversations.get(conversation_id)
+    if fmt == 'json':
+        print_json(convo)
+        return
+    _render_conversation(convo, full)
+
+
+def watch_conversation(chariot, conversation_id, full=False, interval=3, timeout=600):
+    """Stream a conversation, printing new messages as they arrive. Stops when the
+    conversation leaves 'active' status or after `timeout` seconds."""
+    seen = 0
+    deadline = time.time() + timeout
+    while True:
+        convo = chariot.conversations.get(conversation_id)
+        ended = bool(convo.get('status')) and convo['status'] != 'active'
+        messages = convo['messages']
+        while seen < len(messages):
+            m = messages[seen]
+            # A tool call's response is folded into the same message and may
+            # arrive on a later poll; hold the message until it lands (unless
+            # the conversation has ended and nothing more is coming).
+            if not ended and m.get('tool') and m['tool'].get('response') is None:
+                break
+            _echo_message(m, full)
+            seen += 1
+        if ended:
+            click.secho(f"— conversation {convo['status']} —", fg='blue')
+            return
+        if time.time() >= deadline:
+            click.secho('— watch timed out (conversation still active) —', fg='yellow')
+            return
+        time.sleep(interval)
+
+
+def _render_conversation(convo, full):
+    click.echo(click.style(f"Conversation {convo['uuid']}", bold=True) + f"  ({convo['status']})")
+    if convo['topic']:
+        click.echo(f"Topic:   {convo['topic']}")
+    if convo['created']:
+        click.echo(f"Created: {convo['created']}")
+    click.echo('─' * 70)
+    for m in convo['messages']:
+        _echo_message(m, full)
+
+
+_ROLE_COLOR = {'user': 'cyan', 'chariot': 'green', 'system': 'magenta'}
+
+
+def _echo_message(m, full):
+    if m.get('tool'):
+        _echo_tool(m['tool'], full)
+    else:
+        click.secho(f"[{m['role']}]", fg=_ROLE_COLOR.get(m['role'], 'white'))
+        click.echo(_indent(m['content']))
+    click.echo()
+
+
+def _echo_tool(tool, full):
+    args = _as_text(tool['input'])
+    header = click.style(f"[tool call] {tool['name']}", fg='yellow')
+    click.echo(header + (f'  {_truncate(args, 200, full)}' if args else ''))
+    if tool['response'] is not None:
+        click.echo(_indent('→ ' + _truncate(_as_text(tool['response']), 800, full)))
+
+
+def _as_text(value):
+    if value is None or value == '':
+        return ''
+    return value if isinstance(value, str) else json.dumps(value, separators=(',', ':'))
+
+
+def _truncate(s, limit, full):
+    return s if full or len(s) <= limit else f'{s[:limit]}… ({len(s)} chars, --full for all)'
+
+
+def _indent(text):
+    return '\n'.join('    ' + line for line in str(text).splitlines())
+
