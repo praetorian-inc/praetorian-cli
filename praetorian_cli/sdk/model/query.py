@@ -491,6 +491,26 @@ def node_of_key(key: str) -> Node:
     return Node(labels=[label], filters=key_equals(key))
 
 
+# Outgoing edges that keep a :TTL node alive: the backend TTL cron
+# (handler/cron/crons/ttl) spares an expired node from DETACH DELETE while it
+# still has any of these. Mirror changes here when that guard changes.
+TTL_BLOCKING_EDGES = [
+    Relationship.Label.HAS_VULNERABILITY,
+    Relationship.Label.HAS_PORT,
+    Relationship.Label.HAS_WEBPAGE,
+    Relationship.Label.HAS_MEMBER,
+]
+
+
+def ttl_blockers_query(key: str) -> Query:
+    """The keyed node plus its direct TTL-blocking edges (one hop, unlabeled
+    target). Pair with a tree query to read back the neighbors and per-edge
+    visited timestamps."""
+    node = node_of_key(key)
+    node.relationships = [Relationship(labels=TTL_BLOCKING_EDGES, length=1, optional=True, target=Node())]
+    return Query(node=node)
+
+
 def my_params_to_query(params: dict):
     key = params.get('key', None)
     if not key:
