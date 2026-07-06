@@ -347,18 +347,22 @@ def keys(chariot, details, offset, page):
     render_list_results(chariot.keys.list(offset, pagination_size(page)), details)
 
 @list.command()
+@click.option('-k', '--resource-key', 'resource_key', default=None,
+              help='Scope to credentials attached to this WebApplication (via HAS_CREDENTIAL)')
 @list_params('credential ID', has_details=False, has_filter=False)
-def credentials(chariot, offset, page):
+def credentials(chariot, resource_key, offset, page):
     """ List credentials
 
-    Retrieve and display a list of credentials.
+    Retrieve and display a list of credentials, optionally scoped to one
+    WebApplication.
 
     \b
     Example usages:
         - guard list credentials
         - guard list credentials --page all
+        - guard list credentials -k "#webapplication#https://app.example.com"
     """
-    print_json(chariot.credentials.list(offset, pagination_size(page)))
+    print_json(chariot.credentials.list(offset, pagination_size(page), resource_key=resource_key))
 
 
 @list.command()
