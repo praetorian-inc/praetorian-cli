@@ -185,6 +185,7 @@ class RendererMixin:
         definition = hydrated.get('definition')
         evidence = hydrated.get('evidence', [])
         affected = hydrated.get('affected_assets', [])
+        proof_summary = hydrated.get('proof_summary', {})
 
         # Header
         self.console.print(Panel(
@@ -217,6 +218,13 @@ class RendererMixin:
                     self.console.print(f"  [dim][webpage][/dim]   {ev.get('url', '?')}")
                 elif src == 'file':
                     self.console.print(f"  [dim][file][/dim]      {ev.get('path', '?')} ({ev.get('size', '?')})")
+
+        if proof_summary.get('total_files'):
+            self.console.print(
+                f"\n[section]PROOF FILES[/section]\n"
+                f"  mode={proof_summary.get('mode')} returned={proof_summary.get('returned_files')} "
+                f"total={proof_summary.get('total_files')} omitted={proof_summary.get('omitted_files')}"
+            )
 
         # References
         if definition and definition.get('references'):
