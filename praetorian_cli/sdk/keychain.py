@@ -9,6 +9,7 @@ import click
 import requests
 
 from praetorian_cli.handlers.utils import error
+from praetorian_cli.sdk.model.globals import DEFAULT_HTTP_TIMEOUT
 
 DEFAULT_API = 'https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot'
 DEFAULT_CLIENT_ID = '795dnnr45so7m17cppta0b295o'
@@ -98,7 +99,8 @@ class Keychain:
                     headers={
                         'X-GUARD-API-KEY-ID': self.api_key_id(),
                         'X-GUARD-API-KEY-SECRET': self.api_key_secret(),
-                    }
+                    },
+                    timeout=DEFAULT_HTTP_TIMEOUT,
                 )
                 if response.status_code != 200:
                     error(f"API key authentication failed: {response.text}")

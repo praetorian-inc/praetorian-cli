@@ -11,7 +11,7 @@ from praetorian_cli.sdk.model.globals import Kind
 @click.option('--json', 'raw_json', help='Raw graph query as a JSON string (see sdk search.by_query)')
 @click.option('--anchor', help='Exact key of the node to traverse from (shorthand mode)')
 @click.option('--rel', 'rels', multiple=True,
-              help='Relationship label(s) to follow, e.g. HAS_WEBPAGE. Omit to follow every edge type.')
+              help='Relationship label(s) to follow, e.g. HAS_WEBPAGE. Omit to follow the common core edges.')
 @click.option('--neighbor', type=click.Choice([k.value for k in Kind]), help='Constrain the neighbor kind')
 @click.option('-d', '--details', is_flag=True, default=False, help='Show full records instead of just keys')
 def query(chariot, raw_json, anchor, rels, neighbor, details):

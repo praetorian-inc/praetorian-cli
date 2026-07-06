@@ -1,3 +1,4 @@
+import html
 import re
 
 from praetorian_cli.sdk.model.globals import Kind
@@ -39,17 +40,18 @@ class Risks:
             body['tags'] = list(tags)
         return self.api.upsert('risk', body)['risks'][0]
 
-    def get(self, key, details=False, evidence=False):
+    def get(self, key, details=False, evidence='off'):
         """
         Get details of a risk by its exact key.
 
         :param key: The exact key of a risk (format: #risk#{asset_dns}#{risk_name})
         :param details: Whether to also retrieve attributes and affected assets
-        :param evidence: Whether to retrieve all evidence from all sources (attributes, webpages, files, definitions)
-        :return: The matching risk object, or hydrated dict if evidence=True
+        :param evidence: 'off' for normal output, 'basic' for a single inlined proof,
+                         or 'full' for all proof contents
+        :return: The matching risk object, or hydrated dict if evidence is enabled
         """
-        if evidence:
-            return self._hydrate_evidence(key)
+        if evidence in ('basic', 'full'):
+            return self._hydrate_evidence(key, mode=evidence)
         risk = self.api.search.by_exact_key(key, details)
         if risk and details:
             risk['affected_assets'] = self.affected_assets(key)
@@ -233,7 +235,7 @@ class Risks:
 
         return note_indices[note_index]
 
-    def _hydrate_evidence(self, key):
+    def _hydrate_evidence(self, key, mode='basic'):
         """
         Fetch all evidence associated with a risk from all sources: attributes, webpages,
         files, and definitions. Returns a normalized dict with the risk record, parsed
@@ -253,23 +255,8 @@ class Risks:
         # 3. Fetch webpages associated with the risk
         webpages, _ = self.api.search.by_source(key, Kind.WEBPAGE.value)
 
-        # 4. Try to fetch the risk definition
-        # Extract the risk name from the key (format: #risk#{asset_dns}#{risk_name})
-        parts = key.split('#')
-        risk_name = parts[-1] if parts else key
-
-        definition = None
-        try:
-            # Try account-level definition first
-            raw_definition = self.api.files.get_utf8(f'definitions/{risk_name}')
-            definition = self._parse_definition(raw_definition)
-        except Exception:
-            try:
-                # Fall back to global definition
-                raw_definition = self.api.files.get_utf8(f'definitions/{risk_name}', _global=True)
-                definition = self._parse_definition(raw_definition)
-            except Exception:
-                definition = None
+        # 4. Fetch the risk definition using backend-compatible fallback order.
+        definition = self._get_definition(key, risk_record)
 
         # 5. Build evidence list
         evidence = []
@@ -285,58 +272,150 @@ class Risks:
                 'url': wp.get('name', ''),
                 'content': wp.get('value', ''),
             })
+        proof_files = self._get_proof_files(risk_record)
+        selected_proof_files = proof_files if mode == 'full' else proof_files[:1]
+        for proof_file in selected_proof_files:
+            evidence.append({
+                'source': 'file',
+                'key': proof_file.get('key', ''),
+                'path': proof_file.get('name', ''),
+                'size': proof_file.get('bytes', ''),
+                'updated': proof_file.get('updated', ''),
+                'content': self._get_file_content(proof_file),
+            })
 
         # 6. Get affected assets from the risk record (already fetched via details=True)
         affected_assets = risk_record.get('affected_assets', []) if risk_record else []
+        proof_summary = {
+            'mode': mode,
+            'total_files': len(proof_files),
+            'returned_files': len(selected_proof_files),
+            'omitted_files': max(0, len(proof_files) - len(selected_proof_files)),
+        }
 
         return {
             'risk': risk_record,
             'definition': definition,
             'evidence': evidence,
             'affected_assets': affected_assets,
+            'proof_summary': proof_summary,
         }
 
+    def _get_definition(self, key, risk_record):
+        parts = key.split('#')
+        risk_name = parts[-1] if parts else key
+
+        definition_paths = [f'definitions/{key}', f'definitions/{risk_name}']
+        for definition_path in definition_paths:
+            try:
+                return self._parse_definition(self.api.files.get_utf8(definition_path))
+            except Exception:
+                pass
+
+        try:
+            return self._parse_definition(self.api.files.get_utf8(f'definitions/{risk_name}', _global=True))
+        except Exception:
+            return None
+
+    def _get_proof_files(self, risk_record):
+        if not risk_record:
+            return []
+
+        dns = risk_record.get('dns')
+        name = risk_record.get('name')
+        if not dns or not name:
+            return []
+
+        proof_prefix = f'proofs/{dns}/{name}'
+        proof_files, _ = self.api.files.list(proof_prefix)
+
+        if not proof_files:
+            return []
+
+        exact_path = proof_prefix
+        explicit_uniqueness = risk_record.get('proofUniquenessID')
+        if explicit_uniqueness:
+            exact_path = f'{proof_prefix}/{self._remove_reserved_characters(explicit_uniqueness)}'
+
+        def sort_key(file_record):
+            path = file_record.get('name', '')
+            return (0 if path == exact_path else 1, path)
+
+        return sorted(proof_files, key=sort_key)
+
+    def _get_file_content(self, file_record):
+        file_path = file_record.get('name', '')
+        if not file_path:
+            return ''
+
+        try:
+            return self.api.files.get(file_path).decode('utf-8', errors='replace')
+        except Exception:
+            return ''
+
     @staticmethod
-    def _parse_definition(raw_markdown):
+    def _remove_reserved_characters(value):
+        return re.sub(r'[<>:"/\\|?*#]', '_', value)
+
+    @staticmethod
+    def _extract_section(raw_text, *headers):
+        for header in headers:
+            pattern = rf'(?sim)^#{{1,4}}\s+{header}\s*\n(.*?)(?:^#{{1,4}}\s|$)'
+            matches = re.search(pattern, raw_text)
+            if matches:
+                return matches.group(1).strip()
+        return ''
+
+    @staticmethod
+    def _extract_html_section(raw_text, start_label, end_label=None):
+        end_pattern = rf'<p><strong>{end_label}</strong></p>' if end_label else '$'
+        pattern = rf'(?si)<p><strong>{start_label}</strong></p>(.*?){end_pattern}'
+        matches = re.search(pattern, raw_text)
+        if not matches:
+            return ''
+
+        content = matches.group(1).strip()
+        content = re.sub(r'^<p>|</p>$', '', content)
+        return html.unescape(content).strip()
+
+    @classmethod
+    def _parse_references(cls, raw_references):
+        if not raw_references:
+            return []
+        return [line.strip().lstrip('- ').strip() for line in raw_references.split('\n') if line.strip()]
+
+    @classmethod
+    def _parse_definition(cls, raw_markdown):
         """
         Parse a definition markdown string and extract known sections:
         Description, Impact, Recommendation, References.
+
+        Supports both markdown headings and the HTML format returned by some
+        backend-generated definitions.
 
         :param raw_markdown: The raw markdown text of the definition
         :type raw_markdown: str
         :return: A dict with keys: description, impact, recommendation, references, raw
         :rtype: dict
         """
-        sections = {
-            'description': '',
-            'impact': '',
-            'recommendation': '',
-            'references': [],
+        description = cls._extract_section(raw_markdown, r'(?:Vulnerability\s+)?Description')
+        impact = cls._extract_section(raw_markdown, r'Impact')
+        recommendation = cls._extract_section(raw_markdown, r'Recommendations?')
+        references = cls._parse_references(cls._extract_section(raw_markdown, r'References?'))
+
+        if not any([description, impact, recommendation, references]):
+            description = cls._extract_html_section(raw_markdown, 'Vulnerability Description', 'Impact')
+            impact = cls._extract_html_section(raw_markdown, 'Impact', 'Recommendation')
+            recommendation = cls._extract_html_section(raw_markdown, 'Recommendation', 'References')
+            references = cls._parse_references(cls._extract_html_section(raw_markdown, 'References'))
+
+        return {
+            'description': description,
+            'impact': impact,
+            'recommendation': recommendation,
+            'references': references,
             'raw': raw_markdown,
         }
-
-        # Split on ## headers
-        parts = re.split(r'^##\s+', raw_markdown, flags=re.MULTILINE)
-
-        for part in parts:
-            lines = part.strip().split('\n', 1)
-            if len(lines) < 1:
-                continue
-            header = lines[0].strip().lower()
-            body = lines[1].strip() if len(lines) > 1 else ''
-
-            if header == 'description':
-                sections['description'] = body
-            elif header == 'impact':
-                sections['impact'] = body
-            elif header == 'recommendation':
-                sections['recommendation'] = body
-            elif header == 'references':
-                # Parse references as a list of non-empty lines
-                refs = [line.strip().lstrip('- ').strip() for line in body.split('\n') if line.strip()]
-                sections['references'] = refs
-
-        return sections
 
 
 def get_note_entries(risk):
