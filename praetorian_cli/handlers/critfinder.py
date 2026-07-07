@@ -114,31 +114,27 @@ def _stream_research(sdk, message, agent='research-coordinator'):
         error(f'CritFinder error: {e}')
 
 
-@chariot.command('critfinder')
+@chariot.command('critfinder', deprecated=True)
 @cli_handler
 @click.argument('target', required=False, default=None)
 @click.option('--depth', default=1, type=int, help='Pipeline cycles (1=single pass, 2-3=iterative)')
 @click.option('--novel', is_flag=True, default=False, help='Hunt for 0days and new variants')
 @click.option('--mode', 'research_mode', type=click.Choice(['offensive', 'knowledge']), default='offensive', help='Research mode')
 def critfinder(sdk, target, depth, novel, research_mode):
-    """Hunt for critical vulnerabilities in the current engagement.
-
-    Runs the CritFinder adversarial research pipeline: SCANNER generates
-    vulnerability hypotheses, GATEKEEPER filters weak findings, EXPLOITER
-    validates and produces proof-of-concept exploits.
+    """[DEPRECATED] Use 'guard hunt start' for persistent hunting.
 
     \b
-    Auto-selects the most promising attack surface if no target specified.
-    Streams progress in real-time.
+    This command is deprecated. Use:
+        guard hunt start "Find vulnerabilities"           # persistent Hannibal hunt
+        guard hunt interactive                            # interactive TUI
+        guard hunt start "Find SQLi" --scope "#asset#x"   # scoped hunt
 
     \b
-    Examples:
-        guard critfinder                          # full engagement scan
-        guard critfinder k8s.client.com           # scoped to target
-        guard critfinder --depth 3                # iterative deep hunt
-        guard critfinder --novel                  # 0day hunting mode
-        guard critfinder --mode knowledge CVE-2024-1234
+    The critfinder pipeline still works but will be removed in a future release.
     """
+    click.echo(click.style('⚠ critfinder is deprecated. Use "guard hunt start" for persistent hunting.', fg='yellow'), err=True)
+    click.echo(click.style('  See "guard hunt --help" for the new hunt management commands.', fg='yellow'), err=True)
+    click.echo(err=True)
     message = _build_research_message(target, depth, novel, research_mode)
 
     click.echo(click.style('CritFinder', bold=True) + ' — Adversarial Vulnerability Research Pipeline')
