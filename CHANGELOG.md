@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.4.7
+- [New Feature] Added an `aws_endpoint_url` keychain profile option to authenticate against a local Cognito emulator (e.g. Floci/LocalStack) for local development
+
 # 2.4.6
 - [New Feature] Added the `guard list conversations` and `guard get conversation` commands
 - [New Feature] Added a new `guard query` command to build custom queries against the API
