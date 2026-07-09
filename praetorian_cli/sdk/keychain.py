@@ -109,7 +109,13 @@ class Keychain:
                 self.token_expiry = time() + 3600
                 self.token_cache = token_data.get('token') or token_data.get('IdToken')
             else:
-                response = boto3.client('cognito-idp', region_name='us-east-2').initiate_auth(
+                # aws_endpoint_url points Cognito at a local emulator (Floci/
+                # LocalStack) for local dev; None (unset) uses real AWS.
+                # USER_PASSWORD_AUTH is an unsigned Cognito operation, so no AWS
+                # credentials are needed for either endpoint.
+                cognito = boto3.client('cognito-idp', region_name='us-east-2',
+                                       endpoint_url=self.get_option('aws_endpoint_url'))
+                response = cognito.initiate_auth(
                     AuthFlow='USER_PASSWORD_AUTH',
                     AuthParameters=dict(USERNAME=self.username(), PASSWORD=self.password()),
                     ClientId=self.client_id())
