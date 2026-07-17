@@ -14,7 +14,7 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
 from praetorian_cli.handlers.vm_proxy import build_code_server_url, run_ws_proxy
-from praetorian_cli.sdk.model.vm import MODES, TIERS, status_label
+from praetorian_cli.sdk.model.vm import TIERS, status_label
 
 
 @chariot.group()
@@ -39,17 +39,15 @@ def list_vms(ctx, sdk):
 @cli_handler
 @click.option('--tier', type=click.Choice(TIERS), default='light', show_default=True,
               help='Instance class.')
-@click.option('--mode', type=click.Choice(MODES), default='code-review', show_default=True,
-              help='Auto-start set baked into the AMI.')
 @click.option('--restore-snapshot', 'restore_snapshot_id', default='',
               help='Restore the data volume from a tenant-owned snapshot id.')
 @click.pass_context
-def launch(ctx, sdk, tier, mode, restore_snapshot_id):
+def launch(ctx, sdk, tier, restore_snapshot_id):
     """ Launch a new Engineer VM. """
-    new_vm = sdk.vms.launch(tier=tier, mode=mode, restore_snapshot_id=restore_snapshot_id)
+    new_vm = sdk.vms.launch(tier=tier, restore_snapshot_id=restore_snapshot_id)
     vm_id = new_vm.get('vm_id', '?')
     click.echo(f"Launched engineer VM {vm_id} "
-               f"(status: {status_label(new_vm.get('status', ''))}, tier: {tier}, mode: {mode}).")
+               f"(status: {status_label(new_vm.get('status', ''))}, tier: {tier}).")
     click.echo(f"  It takes a couple minutes to reach 'running'. Track it with: "
                f"praetorian vm status {vm_id}")
 
@@ -87,7 +85,7 @@ def resume(ctx, sdk, vm_id):
 @cli_handler
 @click.argument('vm_id', required=True)
 @click.option('--hours', type=int, default=0,
-              help='Hours to push expiry out by (server defaults + clamps to the ceiling).')
+              help='Hours to push expiry out (default +7d/168h; RUNNING-only; clamps to the 30-day ceiling).')
 @click.pass_context
 def extend(ctx, sdk, vm_id, hours):
     """ Extend a VM's soft expiry. """
@@ -95,18 +93,32 @@ def extend(ctx, sdk, vm_id, hours):
     click.echo(f"Extended {vm_id}; new expiry: {fmt_epoch(result.get('expiry_at'))}.")
 
 
-@vm.command('terminate')
+@vm.command('archive')
 @cli_handler
 @click.argument('vm_id', required=True)
 @click.option('--yes', is_flag=True, help='Skip the confirmation prompt.')
 @click.pass_context
-def terminate(ctx, sdk, vm_id, yes):
-    """ Snapshot the data volume, then terminate the VM. """
+def archive(ctx, sdk, vm_id, yes):
+    """ Snapshot the data volume and terminate the VM; revive to bring it back. """
     if not yes:
-        click.confirm(f"Terminate engineer VM {vm_id}? Its data volume is snapshotted first.",
-                      abort=True)
-    result = sdk.vms.terminate(vm_id)
-    click.echo(f"Terminated {vm_id} (status: {status_label(result.get('status', ''))}).")
+        click.confirm(
+            f"Archive engineer VM {vm_id}? Its data volume is snapshotted, then the instance "
+            f"is terminated. You can revive it later.",
+            abort=True)
+    result = sdk.vms.archive(vm_id)
+    click.echo(f"Archived {vm_id} (status: {status_label(result.get('status', ''))})."
+               f" Revive it with: praetorian vm revive {vm_id}")
+
+
+@vm.command('revive')
+@cli_handler
+@click.argument('vm_id', required=True)
+@click.pass_context
+def revive(ctx, sdk, vm_id):
+    """ Relaunch an archived VM from its snapshot (re-enters provisioning). """
+    result = sdk.vms.revive(vm_id)
+    click.echo(f"Reviving {vm_id} (status: {status_label(result.get('status', ''))})."
+               f" It re-enters provisioning; track with: praetorian vm status {vm_id}")
 
 
 @vm.command('ssh')
@@ -243,18 +255,21 @@ def fmt_epoch(ts) -> str:
         return str(ts)
 
 
+def _display_status(v: dict) -> str:
+    return v.get('phase') or status_label(v.get('status', ''))
+
+
 def format_vm_table(vms: list) -> str:
     """ Render the VM list as a fixed-width table. """
     if not vms:
         return 'No engineer VMs.'
-    header = ('VM ID', 'STATUS', 'TIER', 'MODE', 'PRIVATE IP', 'EXPIRES')
+    header = ('VM ID', 'STATUS', 'TIER', 'PRIVATE IP', 'EXPIRES')
     rows = [header]
     for v in vms:
         rows.append((
             v.get('vm_id', ''),
-            status_label(v.get('status', '')),
+            _display_status(v),
             v.get('tier', '') or '-',
-            v.get('mode', '') or '-',
             v.get('private_ip', '') or '-',
             fmt_epoch(v.get('expiry_at')),
         ))

@@ -18,17 +18,20 @@ class EngineerVms:
         """ Fetch one VM row by id. """
         return self.api.get(f'engineer-vm/{vm_id}')
 
-    def launch(self, tier: str = 'light', mode: str = 'code-review',
-               restore_snapshot_id: str = '') -> dict:
+    def launch(self, tier: str = 'light', restore_snapshot_id: str = '') -> dict:
         """ Launch a new VM, optionally restoring a tenant-owned snapshot. """
-        body = {'tier': tier, 'mode': mode}
+        body = {'tier': tier}
         if restore_snapshot_id:
             body['restore_snapshot_id'] = restore_snapshot_id
         return self.api.post('engineer-vm', body)
 
-    def terminate(self, vm_id: str) -> dict:
-        """ Snapshot the data volume, then terminate the instance. """
+    def archive(self, vm_id: str) -> dict:
+        """ Snapshot the data volume and terminate the instance; revive to restore it. """
         return self.api.delete(f'engineer-vm/{vm_id}', {}, {})
+
+    def revive(self, vm_id: str) -> dict:
+        """ Relaunch this VM from its own retained snapshot (non-destructive). """
+        return self.api.post(f'engineer-vm/{vm_id}/restore', {})
 
     def pause(self, vm_id: str) -> dict:
         """ Stop the instance, keeping the volume + SG for a later resume. """

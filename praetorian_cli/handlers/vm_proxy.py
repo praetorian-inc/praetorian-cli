@@ -12,6 +12,7 @@ The URL builders are kept pure (no I/O) so they are unit-testable.
 
 import os
 import select
+import ssl
 import sys
 import threading
 from urllib.parse import urlencode
@@ -68,8 +69,14 @@ def run_ws_proxy(gateway: str, token: str, vm_id: str, target: str, account: str
         return 1
 
     url = build_connect_url(gateway, token, vm_id, target, account)
+    # DEV STOPGAP (remove with real TLS / WI4-proper): a dev
+    # gateway may present a self-signed cert; GUARD_VM_INSECURE_TLS=1 skips OUTER-TLS verification
+    # (SSH wire is already E2E-encrypted). Unset keeps full verification.
+    kwargs = {'enable_multithread': True}
+    if os.environ.get('GUARD_VM_INSECURE_TLS', '').strip().lower() in ('1', 'true', 'yes'):
+        kwargs['sslopt'] = {'cert_reqs': ssl.CERT_NONE}
     try:
-        ws = websocket.create_connection(url, enable_multithread=True)
+        ws = websocket.create_connection(url, **kwargs)
     except Exception as e:  # noqa: BLE001 - surface any connect failure to ssh
         sys.stderr.write(f'engineer-vm proxy: connect failed: {e}\n')
         return 1
