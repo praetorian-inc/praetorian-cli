@@ -61,16 +61,16 @@ def asset(sdk, identifier, group, asset_type, status, surface, resource_type):
 @add.command()
 @cli_handler
 @click.argument('path')
-@click.option('-n', '--name', help='The file name in Guard. Default: the full path of the uploaded file')
-def file(sdk, path, name):
+@click.option('-n', '--name', help='Destination path in Guard storage. Without this flag, the file is placed automatically')
+@click.option('--public', 'is_public', is_flag=True, default=False, help='Share file with the customer (Praetorian users only)')
+def file(sdk, path, name, is_public):
     """ Upload a file
 
     This commands takes the path to a local file and uploads it to the
     Guard file system. The Guard file system is where the platform
     stores proofs of exploit, risk definitions, and other supporting data.
 
-    User files reside in the "home/" folder. Those files appear in the app
-    at https://guard.praetorian.com/app/files
+    User files appear in the app at https://guard.praetorian.com/app/files
 
     \b
     Arguments:
@@ -79,10 +79,28 @@ def file(sdk, path, name):
     \b
     Example usages:
         - guard add file ./file.txt
-        - guard add file ./file.txt --name "home/file.txt"
+        - guard add file ./file.txt --public
+        - guard add file ./file.txt --name "custom/path/file.txt"
     """
     try:
-        sdk.files.add(path, name)
+        expanded = os.path.expanduser(path)
+        filename = os.path.basename(expanded)
+        praetorian = False
+
+        if name:
+            dest_path = name
+        elif sdk.is_praetorian_user():
+            if is_public:
+                dest_path = f'home/shared-with/{filename}'
+            else:
+                dest_path = f'home/internal/{filename}'
+                praetorian = True
+        else:
+            dest_path = f'home/shared-by/{filename}'
+
+        sdk.files.add(expanded, dest_path, praetorian=praetorian)
+        size = os.path.getsize(expanded)
+        click.echo(f'Uploaded {expanded} -> {dest_path} ({size} bytes)')
     except Exception as e:
         error(f'Unable to upload file {path}. Error: {e}')
 
