@@ -222,21 +222,22 @@ class Chariot:
         process_failure(resp)
         return resp.json()
 
-    def upload(self, local_filepath: str, chariot_filepath: str = None) -> dict:
+    def upload(self, local_filepath: str, chariot_filepath: str = None, praetorian: bool = False) -> dict:
         if not chariot_filepath:
             chariot_filepath = local_filepath
         with open(local_filepath, 'rb') as content:
-            resp = self._upload(chariot_filepath, content)
+            resp = self._upload(chariot_filepath, content, praetorian=praetorian)
         return resp
 
-    def _upload(self, chariot_filepath: str, content: str) -> dict:
-        # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
-        # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
+    def _upload(self, chariot_filepath: str, content: str, praetorian: bool = False) -> dict:
         if is_encrypted_partition(chariot_filepath):
             return self.chariot_request('PUT', self.url('/encrypted-file'), params=dict(name=chariot_filepath), data=content)
 
-        # Regular files use presigned URLs
-        presigned_url = self.chariot_request('PUT', self.url('/file'), params=dict(name=chariot_filepath))
+        params = dict(name=chariot_filepath)
+        if praetorian:
+            params['praetorian'] = 'true'
+
+        presigned_url = self.chariot_request('PUT', self.url('/file'), params=params)
         process_failure(presigned_url)
         resp = requests.put(presigned_url.json()['url'], data=content, timeout=DEFAULT_HTTP_TIMEOUT)
         process_failure(resp)
@@ -288,7 +289,7 @@ class Chariot:
         return self.keychain.base_url() + path
 
     def is_praetorian_user(self) -> bool:
-        return self.keychain.username().endswith('@praetorian.com')
+        return (self.keychain.username() or self.keychain.account or '').endswith('@praetorian.com')
 
     def start_mcp_server(self, allowable_tools=None):
         """ Start MCP server exposing SDK methods as tools
