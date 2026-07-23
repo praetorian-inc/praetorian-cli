@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.4.8
+- [Update] Improved support for file uploads
+
 # 2.4.7
 - [Update] Added an `aws_endpoint_url` keychain profile option 
 
