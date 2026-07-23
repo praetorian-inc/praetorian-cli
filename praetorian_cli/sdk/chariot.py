@@ -289,7 +289,7 @@ class Chariot:
         return self.keychain.base_url() + path
 
     def is_praetorian_user(self) -> bool:
-        return (self.keychain.username() or self.keychain.account or '').endswith('@praetorian.com')
+        return (self.keychain.username() or '').endswith('@praetorian.com')
 
     def start_mcp_server(self, allowable_tools=None):
         """ Start MCP server exposing SDK methods as tools

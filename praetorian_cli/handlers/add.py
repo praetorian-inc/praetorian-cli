@@ -88,6 +88,10 @@ def file(sdk, path, name, is_public):
         praetorian = False
 
         if name:
+            # if name is provided, use it as the destination path regardless of whether
+            # the path follows the Guard file system filepath conventions. If it does not
+            # follow the conventions, it will still be uploaded but it will not be
+            # displayed in the Guard app UI.
             dest_path = name
         elif sdk.is_praetorian_user():
             if is_public:
