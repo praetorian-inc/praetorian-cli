@@ -172,7 +172,7 @@ class AD:
 
         target_node = Node(labels=target_labels, filters=target_filters)
 
-        rel = Relationship(label=rel_label, target=target_node) if rel_label else \
+        rel = Relationship(labels=[rel_label], target=target_node) if rel_label else \
             Relationship(labels=AD_ACL_RELATIONSHIPS, target=target_node)
 
         source_node = Node(labels=source_labels, filters=source_filters, relationships=[rel])
@@ -232,7 +232,7 @@ class AD:
         source_labels = self._resolve_type(principal_type) if principal_type else None
         target_node = Node(filters=key_equals(target_key))
 
-        rel = Relationship(label=rel_label, target=target_node)
+        rel = Relationship(labels=[rel_label], target=target_node)
         node = Node(labels=source_labels, relationships=[rel])
         return self._run(Query(node=node), pages)
 
@@ -257,7 +257,7 @@ class AD:
         target_labels = self._resolve_type(target_type) if target_type else None
         source_node = Node(filters=key_equals(source_key))
 
-        rel = Relationship(label=rel_label, source=source_node)
+        rel = Relationship(labels=[rel_label], source=source_node)
         node = Node(labels=target_labels, relationships=[rel])
         return self._run(Query(node=node), pages)
 
@@ -286,7 +286,7 @@ class AD:
         group_node = Node(filters=key_equals(group_key))
 
         length = -1 if recursive else 0
-        rel = Relationship(label=Relationship.Label.MEMBER_OF, target=group_node, length=length)
+        rel = Relationship(labels=[Relationship.Label.MEMBER_OF], target=group_node, length=length)
         node = Node(labels=member_labels, relationships=[rel])
         return self._run(Query(node=node), pages)
 
@@ -311,7 +311,7 @@ class AD:
 
         length = -1 if recursive else 0
         group_node = Node(labels=ADGROUP_NODE)
-        rel = Relationship(label=Relationship.Label.MEMBER_OF, target=group_node, length=length)
+        rel = Relationship(labels=[Relationship.Label.MEMBER_OF], target=group_node, length=length)
         node = Node(filters=key_equals(object_key), relationships=[rel])
         return self._run(Query(node=node), pages)
 
@@ -414,7 +414,7 @@ class AD:
             target_filters = [self._domain_filter(domain)]
 
         target_node = Node(labels=ADDOMAIN_NODE, filters=target_filters or None)
-        rel = Relationship(label=Relationship.Label.DCSYNC, target=target_node)
+        rel = Relationship(labels=[Relationship.Label.DCSYNC], target=target_node)
         node = Node(relationships=[rel])
         return self._run(Query(node=node), pages)
 

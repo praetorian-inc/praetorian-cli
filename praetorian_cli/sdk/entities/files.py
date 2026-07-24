@@ -8,7 +8,7 @@ class Files:
     def __init__(self, api):
         self.api = api
 
-    def add(self, local_filepath, chariot_filepath=None):
+    def add(self, local_filepath, chariot_filepath=None, praetorian=False):
         """
         Upload a file to Chariot storage.
 
@@ -16,10 +16,12 @@ class Files:
         :type local_filepath: str
         :param chariot_filepath: Optional destination path in Chariot storage. If None, uses the local filename
         :type chariot_filepath: str or None
+        :param praetorian: If True, upload to the scoped partition (requires praetorian user)
+        :type praetorian: bool
         :return: The uploaded file entity
         :rtype: dict
         """
-        return self.api.upload(local_filepath, chariot_filepath)
+        return self.api.upload(local_filepath, chariot_filepath, praetorian=praetorian)
 
     def save(self, chariot_filepath, download_directory=os.getcwd()):
         """

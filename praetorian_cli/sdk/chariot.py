@@ -8,6 +8,7 @@ from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.attributes import Attributes
 from praetorian_cli.sdk.entities.capabilities import Capabilities
 from praetorian_cli.sdk.entities.configurations import Configurations
+from praetorian_cli.sdk.entities.conversations import Conversations
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.engineer_vm import EngineerVms
@@ -54,6 +55,7 @@ class Chariot:
         self.ad = AD(self)
         self.aegis = Aegis(self)
         self.agents = Agents(self)
+        self.conversations = Conversations(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
         self.keys = Keys(self)
@@ -160,6 +162,15 @@ class Chariot:
 
         return final_resp
 
+    def tree(self, raw_query: dict, params: dict | None = None) -> list:
+        """Run a graph query with tree=true. Returns ScanTree rows -- each root
+        node with its matched relationships and neighbor nodes nested -- which
+        the default /my response drops. The response is a list (not a keyed
+        page), so it is not paginated/merged like my_by_raw_query."""
+        resp = self.chariot_request('POST', self.url('/my'), json=raw_query, params=(params or {}) | {'tree': 'true'})
+        process_failure(resp)
+        return resp.json()
+
     def post(self, type: str, body: dict, params: dict | None = None) -> dict:
         resp = self.chariot_request('POST', self.url(f'/{type}'), json=body, params=params or {})
         process_failure(resp)
@@ -213,21 +224,22 @@ class Chariot:
         process_failure(resp)
         return resp.json()
 
-    def upload(self, local_filepath: str, chariot_filepath: str = None) -> dict:
+    def upload(self, local_filepath: str, chariot_filepath: str = None, praetorian: bool = False) -> dict:
         if not chariot_filepath:
             chariot_filepath = local_filepath
         with open(local_filepath, 'rb') as content:
-            resp = self._upload(chariot_filepath, content)
+            resp = self._upload(chariot_filepath, content, praetorian=praetorian)
         return resp
 
-    def _upload(self, chariot_filepath: str, content: str) -> dict:
-        # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
-        # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
+    def _upload(self, chariot_filepath: str, content: str, praetorian: bool = False) -> dict:
         if is_encrypted_partition(chariot_filepath):
             return self.chariot_request('PUT', self.url('/encrypted-file'), params=dict(name=chariot_filepath), data=content)
 
-        # Regular files use presigned URLs
-        presigned_url = self.chariot_request('PUT', self.url('/file'), params=dict(name=chariot_filepath))
+        params = dict(name=chariot_filepath)
+        if praetorian:
+            params['praetorian'] = 'true'
+
+        presigned_url = self.chariot_request('PUT', self.url('/file'), params=params)
         process_failure(presigned_url)
         resp = requests.put(presigned_url.json()['url'], data=content, timeout=DEFAULT_HTTP_TIMEOUT)
         process_failure(resp)
@@ -269,9 +281,6 @@ class Chariot:
         filename = f'{id}.json' if type == 'cve' else id
         return json.loads(self.download(f'enrichments/{type}/{filename}', True).decode('utf-8'))
 
-    def purge(self):
-        self.chariot_request('DELETE', self.url('/account/purge'))
-
     def agent(self, agent: str, body: dict) -> dict:
         body = body | dict(agent=agent)
         resp = self.chariot_request('PUT', self.url('/agent'), json=body)
@@ -282,7 +291,7 @@ class Chariot:
         return self.keychain.base_url() + path
 
     def is_praetorian_user(self) -> bool:
-        return self.keychain.username().endswith('@praetorian.com')
+        return (self.keychain.username() or '').endswith('@praetorian.com')
 
     def start_mcp_server(self, allowable_tools=None):
         """ Start MCP server exposing SDK methods as tools

@@ -173,14 +173,14 @@ class Assets:
         :rtype: list
         """
         # risks directly linked to the asset
-        risks_from_this = Relationship(Relationship.Label.HAS_VULNERABILITY, source=asset_of_key(key))
+        risks_from_this = Relationship([Relationship.Label.HAS_VULNERABILITY], source=asset_of_key(key))
         query = Query(Node(RISK_NODE, relationships=[risks_from_this]))
         risks, _ = self.api.search.by_query(query)
 
         # risks indirectly linked to this asset via asset attributes
-        attributes_from_this = Relationship(Relationship.Label.HAS_ATTRIBUTE, source=asset_of_key(key))
+        attributes_from_this = Relationship([Relationship.Label.HAS_ATTRIBUTE], source=asset_of_key(key))
         attributes = Node(ATTRIBUTE_NODE, relationships=[attributes_from_this])
-        risks_from_attributes = Relationship(Relationship.Label.HAS_VULNERABILITY, source=attributes)
+        risks_from_attributes = Relationship([Relationship.Label.HAS_VULNERABILITY], source=attributes)
         query = Query(Node(RISK_NODE, relationships=[risks_from_attributes]))
         indirect_risks, _ = self.api.search.by_query(query)
 

@@ -61,16 +61,16 @@ def asset(sdk, identifier, group, asset_type, status, surface, resource_type):
 @add.command()
 @cli_handler
 @click.argument('path')
-@click.option('-n', '--name', help='The file name in Guard. Default: the full path of the uploaded file')
-def file(sdk, path, name):
+@click.option('-n', '--name', help='Destination path in Guard storage. Without this flag, the file is placed automatically')
+@click.option('--public', 'is_public', is_flag=True, default=False, help='Share file with the customer (Praetorian users only)')
+def file(sdk, path, name, is_public):
     """ Upload a file
 
     This commands takes the path to a local file and uploads it to the
     Guard file system. The Guard file system is where the platform
     stores proofs of exploit, risk definitions, and other supporting data.
 
-    User files reside in the "home/" folder. Those files appear in the app
-    at https://guard.praetorian.com/app/files
+    User files appear in the app at https://guard.praetorian.com/app/files
 
     \b
     Arguments:
@@ -79,10 +79,32 @@ def file(sdk, path, name):
     \b
     Example usages:
         - guard add file ./file.txt
-        - guard add file ./file.txt --name "home/file.txt"
+        - guard add file ./file.txt --public
+        - guard add file ./file.txt --name "custom/path/file.txt"
     """
     try:
-        sdk.files.add(path, name)
+        expanded = os.path.expanduser(path)
+        filename = os.path.basename(expanded)
+        praetorian = False
+
+        if name:
+            # if name is provided, use it as the destination path regardless of whether
+            # the path follows the Guard file system filepath conventions. If it does not
+            # follow the conventions, it will still be uploaded but it will not be
+            # displayed in the Guard app UI.
+            dest_path = name
+        elif sdk.is_praetorian_user():
+            if is_public:
+                dest_path = f'home/shared-with/{filename}'
+            else:
+                dest_path = f'home/internal/{filename}'
+                praetorian = True
+        else:
+            dest_path = f'home/shared-by/{filename}'
+
+        sdk.files.add(expanded, dest_path, praetorian=praetorian)
+        size = os.path.getsize(expanded)
+        click.echo(f'Uploaded {expanded} -> {dest_path} ({size} bytes)')
     except Exception as e:
         error(f'Unable to upload file {path}. Error: {e}')
 
@@ -419,9 +441,97 @@ def credential_webauth(sdk, resource_key, label, headers):
         - guard add credential webauth -k "#webapplication#https://app.example.com" -l "Prod token" -H "Authorization=Bearer abc123" -H "X-Tenant=acme"
     """
     headers_dict = parse_kv_entries(headers, label='Header')
-    parameters = {'method': 'static-token', 'headers': headers_dict}
+    return _add_webauth(sdk, resource_key, label, {'method': 'static-token', 'headers': headers_dict})
+
+
+def _add_webauth(sdk, resource_key, label, parameters):
+    """Send a web-auth credential to the broker and echo the response. Returns the result."""
     try:
         result = sdk.credentials.add(resource_key, 'env-integration', 'web-auth', label, parameters)
-        click.echo(json.dumps(result, indent=2))
     except Exception as e:
         error(f'Unable to add web-auth credential. Error: {e}')
+    click.echo(json.dumps(result, indent=2))
+    return result
+
+
+@credential.command('webauth-discover')
+@cli_handler
+@click.option('-k', '--resource-key', required=True,
+              help='Web-application key (e.g., #webapplication#https://app.example.com)')
+@click.option('-l', '--label', required=True, help='A human-readable label for the credential')
+@click.option('--login-url', required=True, help='URL of the login page for the recorder agent to drive')
+@click.option('-i', '--input', 'inputs', multiple=True, required=True,
+              help='Login input as key=value (e.g. username=alice, password=s3cret). Repeatable.')
+@click.option('--hint', default=None,
+              help='Free-text guidance for the recorder agent (e.g. "MFA via authenticator app")')
+def credential_webauth_discover(sdk, resource_key, label, login_url, inputs, hint):
+    """ Add a discover-login web-auth credential (AI records the login flow).
+
+    A recorder agent drives a browser through the login at --login-url using
+    the supplied inputs, then commits a replayable recipe for you. This is the
+    recommended path for browser-based logins — far more reliable than
+    hand-authoring browser steps in a recipe. Follow the recorder run with
+    `guard get conversation <id> --watch` using the returned conversation_id.
+
+    \b
+    Example usage:
+        - guard add credential webauth-discover -k "#webapplication#https://app.example.com" -l "Admin" --login-url https://app.example.com/login -i username=alice -i password=s3cret
+    """
+    inputs_dict = parse_kv_entries(inputs, label='Input')
+    parameters = {'method': 'discover-login', 'login_url': login_url, 'inputs': inputs_dict}
+    if hint:
+        parameters['hint'] = hint
+    _add_webauth(sdk, resource_key, label, parameters)
+
+
+@credential.command('webauth-recipe')
+@cli_handler
+@click.option('-k', '--resource-key', required=True,
+              help='Web-application key (e.g., #webapplication#https://app.example.com)')
+@click.option('-l', '--label', required=True, help='A human-readable label for the credential')
+@click.option('--steps', 'steps_file', required=True, type=click.File('r'),
+              help='Path to a JSON file containing the recipe steps array (see step reference below)')
+@click.option('-i', '--input', 'inputs', multiple=True,
+              help='Recipe input as key=value, referenced as {{key}} in steps (e.g. username=alice). Repeatable.')
+def credential_webauth_recipe(sdk, resource_key, label, steps_file, inputs):
+    """ Add a dynamic-login web-auth credential from a recipe.
+
+    A recipe is a JSON array of steps that logs in and captures the resulting
+    auth header, replayed before each scan. PREFER HTTP-BASED STEPS
+    (http/extract/capture) — they replay reliably. For browser-driven logins
+    (SPAs, MFA, JS-set cookies) use `webauth-discover` instead; hand-authored
+    browser steps are brittle.
+
+    \b
+    HTTP-based step reference:
+        - http     {method, url, headers?, body?}  send a request; fields take {{vars}}
+        - extract  {from, save_as, jsonpath?|regex?}  bind a var from the last response
+                     from: "response_body" (needs jsonpath OR one-group regex),
+                           "response_header:<Name>", "response_cookie:<Name>",
+                           "request_header:<Name>"
+        - capture  {name, value}  write an output header (value takes {{vars}})  [required]
+    Browser steps (discouraged — use webauth-discover): navigate, click, type,
+    totp, cookie, load_request.
+
+    \b
+    Example recipe.json (POST login, pull token from JSON, set Authorization):
+        [
+          {"kind": "http", "method": "POST", "url": "https://app.example.com/api/login",
+           "headers": {"Content-Type": "application/json"},
+           "body": "{\\"user\\":\\"{{username}}\\",\\"pass\\":\\"{{password}}\\"}"},
+          {"kind": "extract", "from": "response_body", "jsonpath": "$.token", "save_as": "token"},
+          {"kind": "capture", "name": "Authorization", "value": "Bearer {{token}}"}
+        ]
+
+    \b
+    Example usage:
+        - guard add credential webauth-recipe -k "#webapplication#https://app.example.com" -l "API login" --steps recipe.json -i username=alice -i password=s3cret
+    """
+    inputs_dict = parse_kv_entries(inputs, label='Input') if inputs else {}
+    try:
+        steps = json.load(steps_file)
+    except json.JSONDecodeError as e:
+        error(f'--steps is not valid JSON: {e}')
+
+    # The backend validates the recipe schema; we only ensure it is valid JSON.
+    _add_webauth(sdk, resource_key, label, {'method': 'dynamic-login', 'steps': steps, 'inputs': inputs_dict})

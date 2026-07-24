@@ -31,7 +31,9 @@ def assets(chariot, filter, model_type, details, offset, page):
 
 @list.command()
 @list_params('group of the associated assets')
-def risks(chariot, filter, details, offset, page):
+@click.option('-s', '--sort', 'sort_by', type=click.Choice(['visited', 'created', 'updated', 'name', 'status', 'source', 'title']), default=None, help='Sort risks by a field')
+@click.option('-desc', '--desc', is_flag=True, default=False, help='Return data in descending order')
+def risks(chariot, filter, details, offset, page, sort_by, desc):
     """ List risks
 
     Retrieve and display a list of risks.
@@ -42,8 +44,9 @@ def risks(chariot, filter, details, offset, page):
         - guard list risks --filter api.example.com
         - guard list risks --details
         - guard list risks --page all
+        - guard list risks --sort visited --desc
     """
-    render_list_results(chariot.risks.list(filter, offset, pagination_size(page)), details)
+    render_list_results(chariot.risks.list(filter, offset, pagination_size(page), sort_by=sort_by, descending=desc), details)
 
 
 @list.command()
@@ -344,18 +347,22 @@ def keys(chariot, details, offset, page):
     render_list_results(chariot.keys.list(offset, pagination_size(page)), details)
 
 @list.command()
+@click.option('-k', '--resource-key', 'resource_key', default=None,
+              help='Scope to credentials attached to this WebApplication (via HAS_CREDENTIAL)')
 @list_params('credential ID', has_details=False, has_filter=False)
-def credentials(chariot, offset, page):
+def credentials(chariot, resource_key, offset, page):
     """ List credentials
 
-    Retrieve and display a list of credentials.
+    Retrieve and display a list of credentials, optionally scoped to one
+    WebApplication.
 
     \b
     Example usages:
         - guard list credentials
         - guard list credentials --page all
+        - guard list credentials -k "#webapplication#https://app.example.com"
     """
-    print_json(chariot.credentials.list(offset, pagination_size(page)))
+    print_json(chariot.credentials.list(offset, pagination_size(page), resource_key=resource_key))
 
 
 @list.command()
@@ -427,3 +434,30 @@ def schedules(chariot, details, offset, page):
         - guard list schedules --page all
     """
     render_list_results(chariot.schedules.list(pagination_size(page)), details)
+
+
+@list.command()
+@pagination
+@cli_handler
+@click.option('--scope', type=click.Choice(['user', 'tenant', 'all']), default='all', show_default=True,
+              help='user: your private conversations; tenant: shared public + hunt-owned; all: both')
+@click.option('--format', 'fmt', type=click.Choice(['text', 'json']), default='text', show_default=True)
+def conversations(chariot, offset, page, scope, fmt):
+    """ List Guard AI conversations, most recent first
+
+    \b
+    Example usages:
+        - guard list conversations
+        - guard list conversations --scope tenant
+        - guard list conversations --scope all --page all
+        - guard list conversations --format json
+    """
+    convos, offset = chariot.conversations.list(scope, offset or None, pagination_size(page))
+    if fmt == 'json':
+        print_json(dict(data=convos, offset=offset))
+    else:
+        for c in convos:
+            topic = ' '.join((c.get('topic') or '').split())
+            click.echo(f"{(c.get('uuid') or ''):38} {(c.get('created') or '')[:16]:16} "
+                       f"{(c.get('status') or ''):8} {topic}")
+    render_offset(offset)

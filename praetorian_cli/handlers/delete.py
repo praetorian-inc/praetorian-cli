@@ -115,23 +115,6 @@ def file(chariot, filepath):
     chariot.files.delete(filepath)
 
 
-# Special command for deleting your account and all related information.
-@chariot.command()
-@cli_handler
-def purge(controller):
-    """ Delete account and all related information
-
-    Example usage:
-        - guard purge
-    """
-    if click.confirm('This will delete all your data and revoke access, are you sure?', default=False):
-        controller.purge()
-    else:
-        click.echo('Purge cancelled')
-        return
-    click.echo('Account deleted successfully')
-
-
 @delete.command()
 @cli_handler
 @click.argument('name', required=True)
