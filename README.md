@@ -29,6 +29,7 @@
     - [SDK](#sdk)
     - [Developing external scripts](#developing-external-scripts)
     - [Contributing](#contributing)
+    - [Releasing](#releasing)
     - [Support](#support)
     - [License](#license)
 - [Backwards Compatibility](#backwards-compatibility)
@@ -354,6 +355,12 @@ repository and following the
 to create pull requests.
 
 By contributing, you agree to our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Releasing
+
+Maintainers publish new versions to PyPI from GitHub Actions using PyPI Trusted
+Publishing — no API tokens required. See
+[the documentation on publishing](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/publishing.md).
 
 ## Support
 
