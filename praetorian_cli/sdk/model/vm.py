@@ -31,12 +31,11 @@ def is_running(vm: dict) -> bool:
     return (vm or {}).get('status') == STATUS_RUNNING
 
 
-# EV#paused and EV#snapshot_retained are legacy read-side aliases for stopped/snapshotted.
 def is_stopped(vm: dict) -> bool:
-    """ True when the VM is stopped (includes legacy EV#paused alias). """
-    return (vm or {}).get('status') in {STATUS_STOPPED, 'EV#paused'}
+    """ True when the VM is stopped. """
+    return (vm or {}).get('status') == STATUS_STOPPED
 
 
 def is_snapshotted(vm: dict) -> bool:
-    """ True when the VM is snapshotted (includes legacy EV#snapshot_retained alias). """
-    return (vm or {}).get('status') in {STATUS_SNAPSHOTTED, 'EV#snapshot_retained'}
+    """ True when the VM is snapshotted. """
+    return (vm or {}).get('status') == STATUS_SNAPSHOTTED

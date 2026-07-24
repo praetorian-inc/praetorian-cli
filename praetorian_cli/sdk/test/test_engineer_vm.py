@@ -144,18 +144,16 @@ def test_status_label_strips_prefix():
 
 def test_is_running():
     assert is_running({'status': 'EV#running'})
-    assert not is_running({'status': 'EV#paused'})
+    assert not is_running({'status': 'EV#stopped'})
     assert not is_running({})
 
 
 def test_is_stopped_and_is_snapshotted():
     assert is_stopped({'status': 'EV#stopped'})
-    assert is_stopped({'status': 'EV#paused'})
     assert not is_stopped({})
     assert not is_stopped({'status': 'EV#running'})
 
     assert is_snapshotted({'status': 'EV#snapshotted'})
-    assert is_snapshotted({'status': 'EV#snapshot_retained'})
     assert not is_snapshotted({})
     assert not is_snapshotted({'status': 'EV#stopped'})
 
