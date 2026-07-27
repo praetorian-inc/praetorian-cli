@@ -9,7 +9,7 @@ from ..constants import DEFAULT_COLORS
 def handle_help(menu, args):
     """Show help for commands or a specific command."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
-    if args and args[0] in ['ssh', 'cp', 'list', 'info', 'job', 'schedule', 'set', 'proxy']:
+    if args and args[0] in ['ssh', 'cp', 'list', 'info', 'job', 'schedule', 'set', 'proxy', 'cred-auth']:
         menu.console.print(f"\nHelp for '{args[0]}' command - see main help for details\n")
         menu.pause()
         return
@@ -35,12 +35,17 @@ def handle_help(menu, args):
     commands_table.add_row("job list", "List recent jobs for selected agent")
     commands_table.add_row("job capabilities [--details]", "List available capabilities")
     commands_table.add_row("job run <capability>", "Run capability on selected agent")
+    commands_table.add_row("job status [job_key]", "Check job status (defaults to last job)")
+    commands_table.add_row("job artifacts [--save]", "List/download job artifacts")
     commands_table.add_row("schedule list", "List scheduled jobs")
     commands_table.add_row("schedule add", "Create a new scheduled job")
     commands_table.add_row("schedule view <id>", "View schedule details")
     commands_table.add_row("schedule edit <id>", "Edit a schedule")
     commands_table.add_row("schedule delete <id>", "Delete a schedule")
     commands_table.add_row("schedule pause/resume <id>", "Pause or resume a schedule")
+    commands_table.add_row("cred-auth", "Authenticate AD credentials (waits for result)")
+    commands_table.add_row("cred-auth <uuid>", "Authenticate with a specific credential UUID")
+    commands_table.add_row("cred-auth --no-wait", "Submit auth task without waiting")
     commands_table.add_row("proxy <port>", "Start SOCKS proxy on localhost:<port>")
     commands_table.add_row("proxy list", "Show active proxies")
     commands_table.add_row("proxy stop <port|all>", "Stop a proxy or all proxies")
@@ -76,11 +81,15 @@ def handle_help(menu, args):
     examples_table.add_row("job list", "List recent jobs")
     examples_table.add_row("job capabilities", "List available capabilities")
     examples_table.add_row("job caps --details", "Show full capability descriptions")
-    examples_table.add_row("job run windows-enum", "Run capability on selected agent")
+    examples_table.add_row("job run linux-network-nmap", "Run capability on selected agent")
+    examples_table.add_row("job status", "Check status of last submitted job")
+    examples_table.add_row("job artifacts --save", "Download artifacts for last job")
     examples_table.add_row("schedule list", "List all scheduled jobs")
     examples_table.add_row("schedule add", "Create a new scheduled job")
     examples_table.add_row("schedule view abc123", "View schedule details")
     examples_table.add_row("schedule pause abc123", "Pause a scheduled job")
+    examples_table.add_row("cred-auth", "Pick a credential and authenticate (waits)")
+    examples_table.add_row("cred-auth --no-wait", "Submit auth without waiting for result")
     examples_table.add_row("proxy 1080", "Start SOCKS proxy on port 1080")
     examples_table.add_row("proxy list", "Show active proxies with uptime")
     examples_table.add_row("proxy stop 1080", "Stop proxy on port 1080")

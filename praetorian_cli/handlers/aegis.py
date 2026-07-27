@@ -1,6 +1,15 @@
+import re
+import sys
+
 import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.sdk.entities.aegis import parse_task_result
+
+
+_UUID_RE = re.compile(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+)
 
 
 @chariot.group(invoke_without_command=True)
@@ -169,3 +178,106 @@ def info(ctx, sdk, client_id):
         return
     
     click.echo(agent.to_detailed_string())
+
+
+@aegis.command('cred-auth')
+@cli_handler
+@click.argument('client_id', required=True)
+@click.argument('credential_id', required=True)
+@click.option('--no-wait', is_flag=True, help='Submit task without waiting for completion')
+@click.option('--timeout', default=120, type=int, help='Max seconds to wait (default: 120)')
+@click.pass_context
+def cred_auth(ctx, sdk, client_id, credential_id, no_wait, timeout):
+    """Authenticate AD credentials via an Aegis agent.
+
+    Runs the linux-ad-umber-auth management capability on the specified agent
+    to validate credentials against a domain controller. Waits for the result
+    by default; use --no-wait to return immediately after submission.
+
+    CREDENTIAL_ID is the UUID of the credential stored in Guard.
+    """
+    if not _UUID_RE.match(credential_id):
+        click.echo("Error: credential_id must be a valid UUID", err=True)
+        return
+
+    try:
+        result = sdk.aegis.credential_auth(client_id, credential_id)
+        task_id = result.get('taskId', '')
+        click.echo(f"Task submitted: {task_id}")
+
+        if no_wait or not task_id:
+            return
+
+        _FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        frame_idx = 0
+
+        def _on_status(elapsed, message, retrying):
+            nonlocal frame_idx
+            frame_idx = (frame_idx + 1) % len(_FRAMES)
+            suffix = f" ({elapsed}s, retrying)" if retrying else f" ({elapsed}s)"
+            sys.stderr.write(f"\r\033[K  {_FRAMES[frame_idx]} {message}{suffix}")
+            sys.stderr.flush()
+
+        try:
+            task = sdk.aegis.poll_management_task(
+                task_id, timeout=timeout, on_status=_on_status,
+            )
+            sys.stderr.write("\r\033[K")
+            sys.stderr.flush()
+
+            if task:
+                _print_task_result_cli(task)
+            else:
+                click.echo(f"Timed out after {timeout}s. Task may still be running.", err=True)
+        except KeyboardInterrupt:
+            sys.stderr.write("\r\033[K")
+            sys.stderr.flush()
+            click.echo("\nInterrupted — task may still be running in background.")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+
+
+def _print_task_result_cli(task):
+    """Display a completed management task result on the CLI."""
+    r = parse_task_result(task)
+    label = '✓' if r['is_success'] else '✗'
+    click.echo(f"{label} {r['status']}")
+
+    if r['error_message']:
+        click.echo(f"Error: {r['error_message']}")
+
+    if r['output_data']:
+        max_key = max((len(str(k)) for k in r['output_data']), default=0)
+        for k, v in r['output_data'].items():
+            click.echo(f"  {str(k):<{max_key}}  {v}")
+    else:
+        if r['result']:
+            click.echo(f"Result: {r['result']}")
+        if r['success'] is not None or r['exit_code'] is not None:
+            click.echo(f"Success:   {r['success'] or 'N/A'}")
+            click.echo(f"Exit code: {r['exit_code'] or 'N/A'}")
+        if r['output_raw']:
+            click.echo("--- Output ---")
+            click.echo(r['output_raw'])
+
+    if r['error_output']:
+        click.echo("--- Error Output ---", err=True)
+        click.echo(r['error_output'], err=True)
+    if r['command_error']:
+        click.echo(f"Error: {r['command_error']}", err=True)
+
+
+@aegis.command('ingest')
+@cli_handler
+@click.argument('file', type=click.Path(exists=True))
+@click.option('--dry-run', is_flag=True, help='Parse and show summary without sending data')
+@click.option('--skip-files', is_flag=True, help='Skip uploading proof file items')
+@click.pass_context
+def ingest(ctx, sdk, file, dry_run, skip_files):
+    """Ingest an Aegis result file into Guard.
+
+    Reads assets, risks, and proof files from a chariot_result.json
+    and pushes them to Guard. Assets are created first, then risks
+    (linked to those assets), then proof files.
+    """
+    sdk.aegis.ingest_result(file, dry_run=dry_run, skip_files=skip_files, on_progress=click.echo)

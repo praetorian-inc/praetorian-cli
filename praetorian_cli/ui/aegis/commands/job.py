@@ -1,4 +1,5 @@
 import json
+import os
 from rich.table import Table
 from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
@@ -8,6 +9,7 @@ from .job_helpers import (
     interactive_capability_picker as _interactive_capability_picker,
     select_domain as _select_domain,
     select_credentials as _select_credentials,
+    select_target as _select_target,
     configure_parameters as _configure_parameters,
     capability_needs_credentials as _capability_needs_credentials,
     resolve_addomain_target_key,
@@ -16,7 +18,7 @@ from .job_helpers import (
 
 
 def handle_job(menu, args):
-    """Handle job command with subcommands: list, run, capabilities."""
+    """Handle job command with subcommands: list, run, status, artifacts, capabilities."""
     if not args:
         show_job_help(menu)
         return
@@ -26,6 +28,10 @@ def handle_job(menu, args):
         list_jobs(menu)
     elif subcommand == 'run':
         run_job(menu, args[1:])
+    elif subcommand in ['status', 'check']:
+        check_job_status(menu, args[1:])
+    elif subcommand in ['artifacts', 'files', 'results']:
+        show_job_artifacts(menu, args[1:])
     elif subcommand in ['capabilities', 'caps']:
         list_capabilities(menu, args[1:])
     else:
@@ -39,15 +45,21 @@ def show_job_help(menu):
 
   job list                  List recent jobs for selected agent
   job run [capability]      Run a capability on selected agent (interactive picker)
+  job status [job_key]      Check status of a job (defaults to last submitted job)
+  job artifacts [job_key]   List and download artifacts for a job
   job capabilities          List available capabilities (alias: caps)
                            [--details] Show full descriptions
-  
+
+  Aliases: status=check, artifacts=files=results
+
   Examples:
     job list                 # List recent jobs
-    job capabilities         # List capabilities with brief descriptions
-    job caps --details       # List capabilities with full descriptions  
     job run                  # Interactive capability picker
-    job run windows-enum     # Run specific capability with confirmation
+    job run linux-network-nmap  # Run specific capability
+    job status               # Check last submitted job
+    job status #job#1.2.3.4#1.2.3.4#linux-network-nmap
+    job artifacts            # List artifacts for last job
+    job artifacts --save     # Download artifacts to current directory
 """
     menu.console.print(help_text)
     menu.pause()
@@ -155,9 +167,10 @@ def run_job(menu, args):
 
         target_display = f"domain {domain}"
     else:
-        target_key = f"#asset#{hostname}#{hostname}"
-        target_display = f"asset {hostname}"
-    
+        target_key, target_display = _select_target(menu)
+        if not target_key:
+            return  # User cancelled
+
     # Handle credentials for capabilities that need them
     credentials = []
     credential_display_name = None
@@ -202,12 +215,15 @@ def run_job(menu, args):
 
         # Add job using SDK with credential UUIDs (API retrieves values server-side)
         jobs = menu.sdk.jobs.add(target_key, [capability], config_json, credentials=credentials)
-        
+
         if jobs:
             job = jobs[0] if isinstance(jobs, list) else jobs
             job_key = job.get('key', '')
             status = job.get('status', 'unknown')
             job_id = job_key.split('#')[-1] if job_key else 'unknown'
+
+            # Store for quick access via 'job status' / 'job artifacts'
+            menu._last_job_key = job_key
 
             menu.console.print(f"\n[{colors['success']}]✓ Job queued successfully[/{colors['success']}]")
             menu.console.print(f"  Job ID: {job_id}")
@@ -217,14 +233,235 @@ def run_job(menu, args):
             menu.console.print(f"  Status: {status}")
             if credentials and credential_display_name:
                 menu.console.print(f"  Credential: {credential_display_name}")
+            menu.console.print(f"\n  [{colors['dim']}]Tip: use 'job status' to check progress, 'job artifacts' for results[/{colors['dim']}]")
         else:
             menu.console.print(f"\n[{colors['error']}]Error: No job returned from API[/{colors['error']}]")
-            
+
     except Exception as e:
         menu.console.print(f"\n[{colors['error']}]Job execution error: {e}[/{colors['error']}]")
-    
+
     menu.console.print()
     menu.pause()
+
+
+def _resolve_job_key(menu, args):
+    """Resolve job key from args or last submitted job.
+
+    Returns the job key string, or None if unavailable.
+    """
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
+
+    if args:
+        # Join args in case the key was split by shell quoting
+        return ' '.join(args).strip()
+
+    # Fall back to last submitted job
+    last_key = getattr(menu, '_last_job_key', None)
+    if last_key:
+        menu.console.print(f"  [{colors['dim']}]Using last job: {last_key}[/{colors['dim']}]")
+        return last_key
+
+    menu.console.print(f"\n  [{colors['error']}]No job key specified and no recent job available.[/{colors['error']}]")
+    menu.console.print(f"  [{colors['dim']}]Usage: job status <job_key>[/{colors['dim']}]")
+    menu.console.print(f"  [{colors['dim']}]Or run a job first with 'job run'[/{colors['dim']}]")
+    menu.pause()
+    return None
+
+
+def check_job_status(menu, args):
+    """Check the status of a specific job."""
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
+
+    # Strip --save or other flags from args for key resolution
+    clean_args = [a for a in args if not a.startswith('--')]
+    job_key = _resolve_job_key(menu, clean_args)
+    if not job_key:
+        return
+
+    try:
+        job = menu.sdk.jobs.get(job_key)
+
+        if not job:
+            menu.console.print(f"\n  [{colors['error']}]Job not found: {job_key}[/{colors['error']}]")
+            menu.pause()
+            return
+
+        status = job.get('status', 'unknown')
+        capabilities = job.get('capabilities', [])
+        capability = capabilities[0] if capabilities else 'unknown'
+        created = job.get('created', 0)
+        updated = job.get('updated', 0)
+        dns = job.get('dns', '')
+        config = job.get('config', {})
+
+        menu.console.print()
+        menu.console.print(f"  Job Details")
+        menu.console.print()
+
+        # Status with color
+        status_display = format_job_status(status, colors)
+        menu.console.print(f"  Status:      ", end="")
+        menu.console.print(status_display)
+        menu.console.print(f"  Raw Status:  {status}")
+        menu.console.print(f"  Capability:  {capability}")
+        menu.console.print(f"  Target:      {dns}")
+        menu.console.print(f"  Job Key:     {job_key}")
+        menu.console.print(f"  Created:     {format_timestamp(created, '%Y-%m-%d %H:%M:%S')}")
+        if updated:
+            menu.console.print(f"  Updated:     {format_timestamp(updated, '%Y-%m-%d %H:%M:%S')}")
+
+        # Show config if present (minus sensitive fields)
+        if config and isinstance(config, dict):
+            display_config = {k: v for k, v in config.items()
+                              if k.lower() not in ('password', 'secret', 'token')}
+            if display_config:
+                menu.console.print(f"\n  Configuration:")
+                for k, v in display_config.items():
+                    menu.console.print(f"    {k}: {v}")
+
+        menu.console.print()
+        menu.pause()
+
+    except Exception as e:
+        menu.console.print(f"\n  [{colors['error']}]Error checking job: {e}[/{colors['error']}]")
+        menu.pause()
+
+
+def show_job_artifacts(menu, args):
+    """List and optionally download artifacts for a job."""
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
+
+    save_mode = '--save' in args or '-s' in args
+    clean_args = [a for a in args if not a.startswith('-')]
+    job_key = _resolve_job_key(menu, clean_args)
+    if not job_key:
+        return
+
+    try:
+        # First check the job exists and get its details
+        job = menu.sdk.jobs.get(job_key)
+        if not job:
+            menu.console.print(f"\n  [{colors['error']}]Job not found: {job_key}[/{colors['error']}]")
+            menu.pause()
+            return
+
+        status = job.get('status', 'unknown')
+        status_display = format_job_status(status, colors)
+        capabilities = job.get('capabilities', [])
+        capability = capabilities[0] if capabilities else 'unknown'
+        dns = job.get('dns', '')
+
+        menu.console.print()
+        menu.console.print(f"  Job: {capability} -> {dns}  ", end="")
+        menu.console.print(status_display)
+
+        if status.upper().startswith('JQ') or status.upper().startswith('JR'):
+            menu.console.print(f"\n  [{colors['warning']}]Job is still {'queued' if status.upper().startswith('JQ') else 'running'} — artifacts may not be available yet.[/{colors['warning']}]")
+
+        # Search for files related to this job
+        # Files are typically stored with patterns based on the target/capability
+        # Try multiple search patterns
+        search_prefixes = []
+
+        # Pattern: capability name in file path
+        if capability and capability != 'unknown':
+            search_prefixes.append(capability)
+        # Pattern: target DNS
+        if dns:
+            search_prefixes.append(dns)
+
+        all_files = []
+        seen_keys = set()
+
+        for prefix in search_prefixes:
+            try:
+                files, _ = menu.sdk.files.list(prefix_filter=prefix)
+                if files:
+                    for f in files:
+                        fkey = f.get('key', '')
+                        if fkey not in seen_keys:
+                            seen_keys.add(fkey)
+                            all_files.append(f)
+            except Exception:
+                pass
+
+        # Also try listing with no filter and matching on job key components
+        if not all_files:
+            try:
+                # Try a broader search using the job key parts
+                key_parts = job_key.replace('#job#', '').split('#')
+                for part in key_parts:
+                    if part and part not in search_prefixes:
+                        files, _ = menu.sdk.files.list(prefix_filter=part)
+                        if files:
+                            for f in files:
+                                fkey = f.get('key', '')
+                                if fkey not in seen_keys:
+                                    seen_keys.add(fkey)
+                                    all_files.append(f)
+            except Exception:
+                pass
+
+        if not all_files:
+            menu.console.print(f"\n  [{colors['dim']}]No artifacts found for this job.[/{colors['dim']}]")
+            if status.upper().startswith('JQ') or status.upper().startswith('JR'):
+                menu.console.print(f"  [{colors['dim']}]The job is still in progress — check again later.[/{colors['dim']}]")
+            menu.console.print()
+            menu.pause()
+            return
+
+        # Display artifacts table
+        artifacts_table = Table(
+            show_header=True,
+            header_style=f"bold {colors['primary']}",
+            border_style=colors['dim'],
+            box=MINIMAL,
+            show_lines=False,
+            padding=(0, 2),
+            pad_edge=False
+        )
+
+        artifacts_table.add_column("#", style=f"{colors['dim']}", width=4, justify="right")
+        artifacts_table.add_column("FILE", style=f"bold {colors['accent']}", no_wrap=False)
+        artifacts_table.add_column("CREATED", style=f"{colors['dim']}", width=18, justify="right")
+
+        for i, f in enumerate(all_files, 1):
+            fkey = f.get('key', '')
+            # Strip #file# prefix for display
+            display_name = fkey.replace('#file#', '') if fkey.startswith('#file#') else fkey
+            created = f.get('created', 0)
+            created_str = format_timestamp(created, '%Y-%m-%d %H:%M')
+            artifacts_table.add_row(str(i), display_name, created_str)
+
+        menu.console.print(f"\n  Artifacts ({len(all_files)} files)")
+        menu.console.print()
+        menu.console.print(artifacts_table)
+
+        if save_mode:
+            # Download all artifacts
+            download_dir = os.path.join(os.getcwd(), f"job-artifacts-{capability}")
+            menu.console.print(f"\n  [{colors['dim']}]Downloading to {download_dir}...[/{colors['dim']}]")
+            os.makedirs(download_dir, exist_ok=True)
+
+            for f in all_files:
+                fkey = f.get('key', '')
+                filepath = fkey.replace('#file#', '') if fkey.startswith('#file#') else fkey
+                try:
+                    local_path = menu.sdk.files.save(filepath, download_dir)
+                    menu.console.print(f"  [{colors['success']}]✓ {os.path.basename(local_path)}[/{colors['success']}]")
+                except Exception as e:
+                    menu.console.print(f"  [{colors['error']}]✗ {filepath}: {e}[/{colors['error']}]")
+
+            menu.console.print(f"\n  [{colors['success']}]Downloaded to {download_dir}[/{colors['success']}]")
+        else:
+            menu.console.print(f"\n  [{colors['dim']}]Use 'job artifacts --save' to download files[/{colors['dim']}]")
+
+        menu.console.print()
+        menu.pause()
+
+    except Exception as e:
+        menu.console.print(f"\n  [{colors['error']}]Error fetching artifacts: {e}[/{colors['error']}]")
+        menu.pause()
 
 
 def list_capabilities(menu, args):
@@ -283,7 +520,7 @@ def list_capabilities(menu, args):
 
 
 def complete(menu, text, tokens):
-    sub = ['list', 'run', 'capabilities', 'caps']
+    sub = ['list', 'run', 'status', 'check', 'artifacts', 'files', 'results', 'capabilities', 'caps']
     if len(tokens) <= 2:
         return [s for s in sub if s.startswith(text)]
     # Could extend to capability names later
