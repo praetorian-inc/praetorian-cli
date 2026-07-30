@@ -42,17 +42,18 @@ class Hunts:
         return self.api.post('hunt', body)
 
     def list(self, status=None, pages=1):
-        """List hunts for the current account via graph search.
+        """List hunts for the current account.
+
+        Hunts are graph-only (Neo4j), queried via the search endpoint.
 
         :param status: Optional status filter (active, paused, completed, stopped, expired, errored)
         :param pages: Number of pages to fetch
         :return: Tuple of (list of hunts, offset)
         """
-        result = self.api.my({'key': '#hunt#'}, pages=pages)
-        data = result.get('data', [])
+        data, offset = self.api.search.by_key_prefix('#hunt#', pages=pages)
         if status:
             data = [h for h in data if h.get('status') == status]
-        return data, result.get('offset')
+        return data, offset
 
     def get(self, uuid):
         """Get a single hunt by UUID.
@@ -61,9 +62,7 @@ class Hunts:
         :return: Hunt dict or None
         """
         key = f'#hunt#{uuid}' if not uuid.startswith('#hunt#') else uuid
-        result = self.api.my({'key': key})
-        data = result.get('data', [])
-        return data[0] if data else None
+        return self.api.search.by_exact_key(key)
 
     def stop(self, uuid):
         """Stop a running hunt permanently."""
