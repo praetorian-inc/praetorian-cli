@@ -14,8 +14,8 @@ def hunt():
 @hunt.command()
 @cli_handler
 @click.option('-p', '--prompt', required=True, help='The hunt objective / central mandate')
-@click.option('-e', '--expires', type=int, default=72, show_default=True,
-              help='Hours until the hunt expires (max 72)')
+@click.option('-e', '--expires', type=click.IntRange(1, 72), default=72, show_default=True,
+              help='Hours until the hunt expires (1-72)')
 @click.option('-a', '--agent', type=click.Choice(['hannibal', 'hannibal-cloud', 'hannibal-webapp', 'hannibal-llm']),
               default='hannibal', show_default=True, help='Agent type')
 @click.option('-s', '--scope', multiple=True, help='Target asset keys to restrict the hunt (repeatable)')
