@@ -12,6 +12,7 @@ from praetorian_cli.sdk.entities.conversations import Conversations
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.files import Files
+from praetorian_cli.sdk.entities.hunts import Hunts
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
@@ -45,6 +46,7 @@ class Chariot:
         self.integrations = Integrations(self)
         self.jobs = Jobs(self)
         self.files = Files(self)
+        self.hunts = Hunts(self)
         self.definitions = Definitions(self)
         self.attributes = Attributes(self)
         self.search = Search(self)
