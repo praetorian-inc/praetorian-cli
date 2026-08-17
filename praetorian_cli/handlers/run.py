@@ -124,6 +124,37 @@ def run():
     pass
 
 
+@chariot.command('retest')
+@cli_handler
+@click.argument('risk')
+@click.option('--wait', is_flag=True, default=False, help='Wait for job completion and show results')
+def retest(sdk, risk, wait):
+    """ Queue a remediation retest for a risk
+
+    Runs the priscus remediation retesting agent against the given risk.
+    Shorthand for "guard run tool priscus <risk_key> --remote".
+
+    \b
+    RISK can be a full Guard risk key (#risk#example.com#cve-2024-1234)
+    or a friendly name that resolves to a single risk.
+
+    \b
+    Example usages:
+        guard retest "#risk#example.com#cve-2024-1234"
+        guard retest cve-2024-1234 --wait
+    """
+    risk_key, warning = resolve_target(sdk, risk, 'risk')
+    if not risk_key:
+        error(warning)
+    if warning:
+        click.echo(warning, err=True)
+    if not risk_key.startswith('#risk#'):
+        error(f'"{risk}" resolved to {risk_key}, which is not a risk. Retest requires a risk key (#risk#...).')
+
+    cap = resolve_capability(sdk, 'priscus') or TOOL_ALIASES['priscus']
+    _run_direct(sdk, cap, risk_key, '', [], wait)
+
+
 @run.command(
     'tool',
     context_settings={'ignore_unknown_options': True, 'allow_extra_args': True},
