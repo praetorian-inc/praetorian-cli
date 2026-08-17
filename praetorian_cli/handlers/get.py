@@ -264,12 +264,14 @@ def configuration(chariot, key):
 @click.option('--type', default='default', help='The type of credential (e.g., aws, gcp, azure, static, ssh_key, json)')
 @click.option('--format', default='token', help='The format of the credential response')
 @click.option('--resolution',
-              type=click.Choice(['by-target', 'from-parent'], case_sensitive=False),
+              type=click.Choice(['by-target', 'from-parent', 'tenant-integration', 'global'], case_sensitive=False),
               default='by-target',
               show_default=True,
               help='How the broker should locate the credential. '
                    'by-target: use the supplied CREDENTIAL_ID as-is. '
-                   'from-parent: walk DISCOVERED ancestors of --resource-key to find one with a matching credential.')
+                   'from-parent: walk DISCOVERED ancestors of --resource-key to find one with a matching credential. '
+                   'tenant-integration: resolve from the tenant\'s integration account for this credential type. '
+                   'global: resolve a platform-wide credential by type.')
 @click.option('--resource-key', default=None,
               help='Asset/resource key to scope the lookup. Required when --resolution=from-parent.')
 @click.option('--parameters', nargs=2, multiple=True, help='Additional parameters, as --parameters key value')
@@ -281,13 +283,15 @@ def credential(chariot, credential_id, category, type, format, resolution, resou
     \b
     Argument:
         - CREDENTIAL_ID: the ID of the credential to retrieve. Required for
-          --resolution=by-target; optional for from-parent.
+          --resolution=by-target; optional for other resolution methods.
 
     \b
     Example usages:
         - guard get credential aws-prod --category integration --type aws --format json
         - guard get credential ssh-key-1 --category cloud --type ssh_key --format pem
         - guard get credential --resolution from-parent --resource-key '#asset#example.com#1.2.3.4' --type aws
+        - guard get credential --resolution tenant-integration --type github
+        - guard get credential --resolution global --type shodan
     """
     if resolution == 'by-target' and not credential_id:
         error('CREDENTIAL_ID is required when --resolution=by-target.')
