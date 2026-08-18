@@ -5,7 +5,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import print_json, error
 
 
 # --- Technology ---
@@ -86,10 +86,16 @@ def create_monitor(chariot):
     Required fields: name, techniques [{technique_id, name}]
     Optional: filters, executed_at, expires_in (e.g. "168h")
     """
+    if sys.stdin.isatty():
+        raise click.UsageError('Monitor session JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Monitor session JSON is required via stdin')
-    print_json(chariot.misc.create_monitor(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.create_monitor(body))
 
 
 @monitor.command('update')
@@ -161,6 +167,8 @@ def parse_burp(chariot, url, filename):
     if url:
         print_json(chariot.misc.parse_burp(url=url))
     else:
+        if sys.stdin.isatty():
+            raise click.UsageError('Provide --url or pipe API definition content via stdin')
         content = sys.stdin.read().strip()
         if not content:
             raise click.UsageError('Provide --url or pipe API definition content via stdin')
@@ -174,10 +182,16 @@ def parse_burp(chariot, url, filename):
 @praetorian_only
 def notify_vulnerability(chariot):
     """Dispatch a threat notification for a vulnerability (reads JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Vulnerability JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Vulnerability JSON is required via stdin')
-    print_json(chariot.misc.notify_vulnerability(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.notify_vulnerability(body))
 
 
 # --- Integration helpers ---
@@ -193,10 +207,16 @@ def integration_setup():
 @praetorian_only
 def validate_integration(chariot):
     """Validate an integration configuration (reads JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Integration config JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Integration config JSON is required via stdin')
-    print_json(chariot.misc.validate_integration(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.validate_integration(body))
 
 
 @integration_setup.command('jira-transitions')
@@ -204,10 +224,16 @@ def validate_integration(chariot):
 @praetorian_only
 def jira_transitions(chariot):
     """Get Jira workflow transitions (reads integration config JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Integration config JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Integration config JSON is required via stdin')
-    print_json(chariot.misc.jira_transitions(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.jira_transitions(body))
 
 
 @integration_setup.command('jira-custom-fields')
@@ -215,10 +241,16 @@ def jira_transitions(chariot):
 @praetorian_only
 def jira_custom_fields(chariot):
     """Get Jira custom fields (reads integration config JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Integration config JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Integration config JSON is required via stdin')
-    print_json(chariot.misc.jira_custom_fields(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.jira_custom_fields(body))
 
 
 @integration_setup.command('jira-priorities')
@@ -226,10 +258,16 @@ def jira_custom_fields(chariot):
 @praetorian_only
 def jira_priorities(chariot):
     """Get Jira priorities (reads integration config JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Integration config JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Integration config JSON is required via stdin')
-    print_json(chariot.misc.jira_priorities(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.jira_priorities(body))
 
 
 @integration_setup.command('linear-teams')
@@ -237,10 +275,16 @@ def jira_priorities(chariot):
 @praetorian_only
 def linear_teams(chariot):
     """Get Linear teams (reads integration config JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Integration config JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Integration config JSON is required via stdin')
-    print_json(chariot.misc.linear_teams(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.linear_teams(body))
 
 
 @integration_setup.command('linear-workflow-states')
@@ -248,10 +292,16 @@ def linear_teams(chariot):
 @praetorian_only
 def linear_workflow_states(chariot):
     """Get Linear workflow states (reads integration config JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Integration config JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Integration config JSON is required via stdin')
-    print_json(chariot.misc.linear_workflow_states(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.linear_workflow_states(body))
 
 
 @integration_setup.command('linear-projects')
@@ -259,10 +309,16 @@ def linear_workflow_states(chariot):
 @praetorian_only
 def linear_projects(chariot):
     """Get Linear projects (reads integration config JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Integration config JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Integration config JSON is required via stdin')
-    print_json(chariot.misc.linear_projects(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.linear_projects(body))
 
 
 # --- Risk visited ---
@@ -305,30 +361,48 @@ def planner():
 @cli_handler
 def compact(chariot):
     """Compact a planner conversation (reads JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Compact request JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Compact request JSON is required via stdin')
-    print_json(chariot.misc.planner_compact(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.planner_compact(body))
 
 
 @planner.command('stop')
 @cli_handler
 def stop(chariot):
     """Stop a running planner conversation (reads JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Stop request JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Stop request JSON is required via stdin')
-    print_json(chariot.misc.planner_stop(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.planner_stop(body))
 
 
 @planner.command('interaction')
 @cli_handler
 def interaction(chariot):
     """Record a planner interaction (reads JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Interaction JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Interaction JSON is required via stdin')
-    print_json(chariot.misc.planner_interaction(json.loads(raw)))
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.planner_interaction(body))
 
 
 @planner.command('cost')
@@ -356,6 +430,8 @@ def delete_conversation(chariot, uuid):
 @click.argument('title')
 def set_hunt_memory(chariot, uuid, title):
     """Set hunt memory content (reads content from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Memory content is required via stdin')
     content = sys.stdin.read().strip()
     if not content:
         raise click.UsageError('Memory content is required via stdin')

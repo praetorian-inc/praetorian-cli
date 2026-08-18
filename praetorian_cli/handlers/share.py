@@ -5,7 +5,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import print_json, error
 
 
 @chariot.group()
@@ -21,11 +21,18 @@ def share():
 def create(chariot, name, query_filter):
     """Create a new share link (reads optional config JSON from stdin)"""
     body = {'name': name}
-    raw = sys.stdin.read().strip()
-    if raw:
-        body.update(json.loads(raw))
+    if not sys.stdin.isatty():
+        raw = sys.stdin.read().strip()
+        if raw:
+            try:
+                body.update(json.loads(raw))
+            except json.JSONDecodeError as e:
+                error(f'Invalid JSON input: {e}')
     if query_filter:
-        body['filter'] = json.loads(query_filter)
+        try:
+            body['filter'] = json.loads(query_filter)
+        except json.JSONDecodeError as e:
+            error(f'Invalid JSON input: {e}')
     print_json(chariot.share.create(body))
 
 

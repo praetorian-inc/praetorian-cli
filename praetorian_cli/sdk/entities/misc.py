@@ -1,3 +1,6 @@
+from urllib.parse import quote
+
+
 class Misc:
 
     def __init__(self, api):
@@ -92,16 +95,16 @@ class Misc:
         return self.api.post('planner/interaction', body)
 
     def planner_cost(self, uuid):
-        return self.api.get('planner/' + uuid + '/cost')
+        return self.api.get('planner/' + quote(str(uuid), safe='') + '/cost')
 
     def delete_planner(self, body):
         return self.api.delete('planner', body, {})
 
     def put_hunt_memory(self, uuid, title, content):
-        return self.api.put('hunt/' + uuid + '/memory/' + title, {'content': content})
+        return self.api.put('hunt/' + quote(str(uuid), safe='') + '/memory/' + quote(str(title), safe=''), {'content': content})
 
     def delete_hunt_memory(self, uuid, title):
-        return self.api.delete('hunt/' + uuid + '/memory/' + title, {}, {})
+        return self.api.delete('hunt/' + quote(str(uuid), safe='') + '/memory/' + quote(str(title), safe=''), {}, {})
 
     def hunt_cost(self, uuid):
-        return self.api.get('hunt/' + uuid + '/cost')
+        return self.api.get('hunt/' + quote(str(uuid), safe='') + '/cost')

@@ -5,7 +5,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import print_json, error
 
 
 @chariot.group()
@@ -38,8 +38,13 @@ def set_weights(chariot):
 
     Stdin JSON should be a map of weight names to numeric values.
     """
+    if sys.stdin.isatty():
+        raise click.UsageError('Weights JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Weights JSON is required via stdin')
-    weights = json.loads(raw)
+    try:
+        weights = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
     print_json(chariot.leaderboard.set_weights(weights))

@@ -5,7 +5,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import print_json, error
 
 
 @chariot.group('multipart')
@@ -42,10 +42,18 @@ def complete(chariot):
 
     Stdin JSON: {"name": "...", "uploadId": "...", "parts": [{"partNumber": 1, "etag": "..."}]}
     """
+    if sys.stdin.isatty():
+        raise click.UsageError('Completion JSON is required via stdin')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Completion JSON is required via stdin')
-    body = json.loads(raw)
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    for key in ('name', 'uploadId', 'parts'):
+        if key not in body:
+            error(f'Missing required key "{key}" in JSON input')
     print_json(chariot.multipart.complete(
         body['name'], body['uploadId'], body['parts'],
         praetorian=body.get('praetorian', False),

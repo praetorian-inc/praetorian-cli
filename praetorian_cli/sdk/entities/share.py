@@ -1,3 +1,6 @@
+from urllib.parse import quote
+
+
 class Share:
 
     def __init__(self, api):
@@ -13,4 +16,4 @@ class Share:
         return self.api.delete('share', {'id': share_id}, {})
 
     def resolve(self, token):
-        return self.api.get('share/' + token)
+        return self.api.get('share/' + quote(str(token), safe=''))
