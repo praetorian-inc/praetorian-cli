@@ -27,11 +27,14 @@ import praetorian_cli.handlers.knossos  # noqa: F401
 import praetorian_cli.handlers.run
 import praetorian_cli.handlers.schedule
 import praetorian_cli.handlers.imports
+import praetorian_cli.handlers.leaderboard
 import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
 import praetorian_cli.handlers.purge
 import praetorian_cli.handlers.onboarding
 import praetorian_cli.handlers.plextrac
+import praetorian_cli.handlers.misc
+import praetorian_cli.handlers.multipart
 import praetorian_cli.handlers.query
 import praetorian_cli.handlers.tenant
 import praetorian_cli.handlers.osint  # noqa: F401
@@ -40,6 +43,7 @@ import praetorian_cli.handlers.red_team  # noqa: F401
 import praetorian_cli.handlers.report
 import praetorian_cli.handlers.script
 import praetorian_cli.handlers.search
+import praetorian_cli.handlers.share
 import praetorian_cli.handlers.test
 import praetorian_cli.handlers.unlink
 import praetorian_cli.handlers.update
