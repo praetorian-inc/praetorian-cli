@@ -51,7 +51,7 @@ CONSOLE_COMMANDS = [
     'ad', 'bulk', 'purge', 'schedule', 'tenant',
     'aegis',
     'configure', 'login',
-    'help', 'history', 'clear', 'quit', 'exit',
+    'help', 'clear', 'quit', 'exit',
 ]
 
 
@@ -299,6 +299,7 @@ class GuardConsole(
         import praetorian_cli.handlers.bulk      # noqa: F401
         import praetorian_cli.handlers.purge     # noqa: F401
         import praetorian_cli.handlers.schedule  # noqa: F401
+        import praetorian_cli.handlers.tenant    # noqa: F401
 
         if cmd not in (chariot_cli.commands or {}):
             return False

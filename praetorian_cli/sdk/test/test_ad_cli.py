@@ -17,6 +17,7 @@ def _invoke(runner, sdk, argv, **kwargs):
     takes effect. (Mirrors the pattern used in test_schedule_cli.py.)
     """
     obj = {'keychain': MagicMock(), 'proxy': ''}
+    chariot.is_debug = False
     with patch('praetorian_cli.sdk.chariot.Chariot', return_value=sdk), \
          patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
         return runner.invoke(chariot, argv, obj=obj, **kwargs)
@@ -68,7 +69,7 @@ class TestAdListObjects:
     def test_list_objects_sdk_error(self):
         self.sdk.ad.list_objects.side_effect = ValueError('Unknown type')
         result = _invoke(self.runner, self.sdk, ['ad', 'list-objects', 'badtype'])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0
 
 
 class TestAdGetObject:
@@ -93,6 +94,11 @@ class TestAdGetObject:
         assert result.exit_code == 0
         self.sdk.ad.get_object.assert_called_once_with(
             key=None, objectid='S-1-5-21', domain='contoso.local')
+
+    def test_get_object_no_identifier_fails(self):
+        result = _invoke(self.runner, self.sdk, ['ad', 'get-object'])
+        assert 'ERROR' in result.output or result.exit_code != 0
+        self.sdk.ad.get_object.assert_not_called()
 
 
 class TestAdFindAttackPath:

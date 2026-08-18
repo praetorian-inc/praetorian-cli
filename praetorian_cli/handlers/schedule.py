@@ -12,16 +12,17 @@ DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturda
 
 def _parse_weekly_schedule(days, time_str):
     """Build a weekly schedule dict from --days and --time flags."""
-    schedule = {}
     enabled_days = {d.strip().lower() for d in days.split(',')} if days else set()
+    invalid = enabled_days - set(DAYS_OF_WEEK)
+    if invalid:
+        error(f'Invalid day(s): {", ".join(sorted(invalid))}. Valid: {", ".join(DAYS_OF_WEEK)}')
+        return {}
+    schedule = {}
     for day in DAYS_OF_WEEK:
         if day in enabled_days:
             schedule[day] = {'enabled': True, 'time': time_str}
         else:
             schedule[day] = {'enabled': False, 'time': ''}
-    invalid = enabled_days - set(DAYS_OF_WEEK)
-    if invalid:
-        error(f'Invalid day(s): {", ".join(sorted(invalid))}. Valid: {", ".join(DAYS_OF_WEEK)}')
     return schedule
 
 
@@ -99,7 +100,11 @@ def update(sdk, schedule_id, days, time_str, start_date, end_date, config_json):
     if days is not None:
         if time_str is None:
             error('--time is required when --days is specified')
+            return
         weekly = _parse_weekly_schedule(days, time_str)
+    elif time_str is not None:
+        error('--days is required when --time is specified')
+        return
 
     config = None
     if config_json:

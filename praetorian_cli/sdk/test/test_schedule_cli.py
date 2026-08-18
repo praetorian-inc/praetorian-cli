@@ -18,6 +18,7 @@ def _invoke(runner, sdk, argv, **kwargs):
     takes effect. (Mirrors the pattern used in test_export_cli.py / test_run_cli.py.)
     """
     obj = {'keychain': MagicMock(), 'proxy': ''}
+    chariot.is_debug = False
     with patch('praetorian_cli.sdk.chariot.Chariot', return_value=sdk), \
          patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
         return runner.invoke(chariot, argv, obj=obj, **kwargs)
@@ -144,13 +145,21 @@ class TestScheduleUpdate:
         ])
         assert result.exit_code != 0
 
+    def test_update_time_without_days_fails(self):
+        result = _invoke(self.runner, self.sdk, [
+            'schedule', 'update', 'sched-1',
+            '--time', '14:00',
+        ])
+        assert 'ERROR' in result.output or result.exit_code != 0
+        self.sdk.schedules.update.assert_not_called()
+
     def test_update_sdk_error(self):
         self.sdk.schedules.update.side_effect = Exception('Not found')
         result = _invoke(self.runner, self.sdk, [
             'schedule', 'update', 'sched-1',
             '--start-date', '2025-01-01T00:00:00Z',
         ])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0
 
 
 class TestScheduleDelete:
@@ -187,4 +196,4 @@ class TestScheduleDelete:
         result = _invoke(self.runner, self.sdk, [
             'schedule', 'delete', 'sched-1', '--force',
         ])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0

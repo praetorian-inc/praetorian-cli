@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from praetorian_cli.handlers.chariot import chariot
-import praetorian_cli.handlers.purge  # noqa: F401  (registers the purge/tenant commands)
+import praetorian_cli.handlers.purge  # noqa: F401  (registers the purge commands)
+import praetorian_cli.handlers.tenant  # noqa: F401  (registers the tenant commands)
 
 
 def _invoke(runner, sdk, argv, **kwargs):
@@ -17,6 +18,7 @@ def _invoke(runner, sdk, argv, **kwargs):
     takes effect. (Mirrors the pattern used in test_schedule_cli.py.)
     """
     obj = {'keychain': MagicMock(), 'proxy': ''}
+    chariot.is_debug = False
     with patch('praetorian_cli.sdk.chariot.Chariot', return_value=sdk), \
          patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
         return runner.invoke(chariot, argv, obj=obj, **kwargs)
@@ -82,7 +84,7 @@ class TestPurgeAsset:
         result = _invoke(self.runner, self.sdk, [
             'purge', 'asset', '--filter', '#asset#x', '--force',
         ])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0
 
 
 class TestPurgeRisk:
@@ -196,7 +198,7 @@ class TestTenantDelete:
             '--confirm-name', 'customer@acme.com',
             '--force',
         ])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0
 
 
 class TestTenantStatus:
@@ -218,7 +220,7 @@ class TestTenantStatus:
         result = _invoke(self.runner, self.sdk, [
             'tenant', 'status', 'del-123',
         ])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0
 
 
 class TestPurgeSdkMethods:

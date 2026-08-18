@@ -2,7 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import print_json, pagination_size
+from praetorian_cli.handlers.utils import print_json, pagination_size, error
 
 
 def _ad_page(func):
@@ -58,6 +58,9 @@ def get_object(sdk, key, objectid, domain, as_json):
         guard ad get-object --key "#aduser#contoso.local#S-1-5-21-..."
         guard ad get-object --objectid "S-1-5-21-..." --domain contoso.local
     """
+    if not key and not objectid:
+        error('Provide --key or --objectid to identify the AD object')
+        return
     results, _ = sdk.ad.get_object(key=key, objectid=objectid, domain=domain)
     _render(results, None, as_json)
 

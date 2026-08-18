@@ -22,8 +22,10 @@ def _read_records(file_path):
                 text = f.read()
         except FileNotFoundError:
             error(f'File not found: {file_path}')
+            return []
         except PermissionError:
             error(f'Permission denied: {file_path}')
+            return []
 
     text = text.strip()
     if not text:
