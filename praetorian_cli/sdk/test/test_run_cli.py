@@ -126,3 +126,64 @@ def test_remote_and_ask_conflict(runner, fake_sdk):
     assert result.exit_code != 0
     assert '--remote' in result.output
     assert '--ask' in result.output
+
+
+# --- guard retest ---
+
+RISK_KEY = '#risk#example.com#cve-2024-1234'
+
+
+def test_retest_full_risk_key_queues_priscus_job(runner, fake_sdk):
+    """A full #risk# key passes straight through to the job system, no search."""
+    result = _invoke(runner, fake_sdk, ['retest', RISK_KEY])
+    assert result.exit_code == 0
+    fake_sdk.jobs.add.assert_called_once_with(RISK_KEY, ['priscus'], None, None)
+    fake_sdk.search.fulltext.assert_not_called()
+    assert RISK_KEY in result.output
+
+
+def test_retest_friendly_name_resolves_unique_risk(runner, fake_sdk):
+    """A friendly name matching exactly one risk queues the job against its key."""
+    fake_sdk.search.fulltext.return_value = (
+        [{'key': RISK_KEY, 'name': 'cve-2024-1234'}], None)
+    result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
+    assert result.exit_code == 0
+    fake_sdk.jobs.add.assert_called_once_with(RISK_KEY, ['priscus'], None, None)
+
+
+def test_retest_ambiguous_friendly_name_errors_and_lists_keys(runner, fake_sdk):
+    """A name matching multiple risks fails instead of silently picking one."""
+    other_key = '#risk#other.example.com#cve-2024-1234'
+    fake_sdk.search.fulltext.return_value = (
+        [{'key': RISK_KEY, 'name': 'cve-2024-1234'},
+         {'key': other_key, 'name': 'cve-2024-1234'}], None)
+    result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
+    assert result.exit_code != 0
+    assert 'multiple' in result.output.lower()
+    assert RISK_KEY in result.output
+    assert other_key in result.output
+    fake_sdk.jobs.add.assert_not_called()
+
+
+def test_retest_non_risk_resolution_errors(runner, fake_sdk):
+    """Input resolving to an asset key is rejected — retest needs a risk."""
+    asset_key = '#asset#example.com#example.com'
+    fake_sdk.search.fulltext.return_value = (
+        [{'key': asset_key, 'name': 'example.com'}], None)
+    result = _invoke(runner, fake_sdk, ['retest', 'example.com'])
+    assert result.exit_code != 0
+    assert 'not a risk' in result.output
+    assert asset_key in result.output
+    fake_sdk.jobs.add.assert_not_called()
+
+
+def test_retest_unresolvable_name_errors(runner, fake_sdk):
+    """Name matching nothing anywhere (fulltext + fallbacks) fails cleanly."""
+    fake_sdk.search.fulltext.return_value = ([], None)
+    fake_sdk.search.by_key_prefix.return_value = ([], None)
+    fake_sdk.search.by_term.return_value = ([], None)
+    result = _invoke(runner, fake_sdk, ['retest', 'no-such-risk'])
+    assert result.exit_code != 0
+    assert 'Could not resolve' in result.output
+    assert 'no-such-risk' in result.output
+    fake_sdk.jobs.add.assert_not_called()

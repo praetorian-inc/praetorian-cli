@@ -67,10 +67,19 @@ def resolve_capability(sdk, name):
     return None
 
 
-def resolve_target(sdk, target_input, expected_type):
+def _ambiguity_warning(target_input, expected_type, results):
+    """Build the failure message for an input that matches multiple entities."""
+    keys = '\n'.join(r['key'] for r in results)
+    return (f'"{target_input}" matches multiple {expected_type} entities:\n{keys}\n'
+            f'Pass a full #{expected_type}#... key to disambiguate.')
+
+
+def resolve_target(sdk, target_input, expected_type, require_unique=False):
     """Resolve a friendly target (domain, IP, URL) to a Guard entity key.
 
     Uses sdk.search.fulltext() for resolution. Returns (key, warning) tuple.
+    When require_unique is True, an input matching multiple entities returns
+    (None, warning) instead of picking the first match.
     """
     if target_input.startswith('#'):
         return target_input, None
@@ -79,11 +88,13 @@ def resolve_target(sdk, target_input, expected_type):
     try:
         results, _ = sdk.search.fulltext(target_input, kind=expected_type, limit=10)
         if results:
-            # Exact match on dns/name
-            for r in results:
-                if r.get('dns', '') == target_input or r.get('name', '') == target_input:
-                    return r['key'], None
-            return results[0]['key'], None
+            # Exact match on dns/name, falling back to all results
+            exact = [r for r in results
+                     if r.get('dns', '') == target_input or r.get('name', '') == target_input]
+            candidates = exact or results
+            if require_unique and len(candidates) > 1:
+                return None, _ambiguity_warning(target_input, expected_type, candidates)
+            return candidates[0]['key'], None
     except Exception:
         pass
 
@@ -97,6 +108,8 @@ def resolve_target(sdk, target_input, expected_type):
     try:
         results, _ = sdk.search.by_key_prefix(f'#{vtype}#{target_input}', pages=1)
         if results:
+            if require_unique and len(results) > 1:
+                return None, _ambiguity_warning(target_input, expected_type, results)
             return results[0]['key'], None
     except Exception:
         pass
@@ -106,6 +119,8 @@ def resolve_target(sdk, target_input, expected_type):
         try:
             results, _ = sdk.search.by_term(f'{field}:{target_input}', expected_type, pages=1)
             if results:
+                if require_unique and len(results) > 1:
+                    return None, _ambiguity_warning(target_input, expected_type, results)
                 return results[0]['key'], None
         except Exception:
             pass
@@ -143,11 +158,9 @@ def retest(sdk, risk, wait):
         guard retest "#risk#example.com#cve-2024-1234"
         guard retest cve-2024-1234 --wait
     """
-    risk_key, warning = resolve_target(sdk, risk, 'risk')
+    risk_key, warning = resolve_target(sdk, risk, 'risk', require_unique=True)
     if not risk_key:
         error(warning)
-    if warning:
-        click.echo(warning, err=True)
     if not risk_key.startswith('#risk#'):
         error(f'"{risk}" resolved to {risk_key}, which is not a risk. Retest requires a risk key (#risk#...).')
 
