@@ -48,6 +48,7 @@ CONSOLE_COMMANDS = [
     'ask', 'marcus',
     'critfinder', 'research', 'hunt',
     'upload', 'import',
+    'ad', 'bulk', 'purge', 'schedule', 'tenant',
     'aegis',
     'configure', 'login',
     'help', 'history', 'clear', 'quit', 'exit',
@@ -278,8 +279,43 @@ class GuardConsole(
                 raise
             except Exception as e:
                 self.console.print(f'[error]{e}[/error]')
+        elif self._try_cli_passthrough(cmd, args):
+            pass
         else:
             self.console.print(f'[dim]Unknown command: {cmd}. Type "help" for available commands.[/dim]')
+
+    # -- CLI passthrough -----------------------------------------------------
+
+    def _try_cli_passthrough(self, cmd, args):
+        """Route unrecognized commands through the Click CLI automatically."""
+        from praetorian_cli.handlers.chariot import chariot as chariot_cli
+
+        import praetorian_cli.handlers.ad        # noqa: F401
+        import praetorian_cli.handlers.bulk      # noqa: F401
+        import praetorian_cli.handlers.purge     # noqa: F401
+        import praetorian_cli.handlers.schedule  # noqa: F401
+
+        if cmd not in (chariot_cli.commands or {}):
+            return False
+
+        from unittest.mock import patch as _patch, MagicMock
+        from click.testing import CliRunner
+
+        runner = CliRunner()
+        with _patch('praetorian_cli.sdk.chariot.Chariot', return_value=self.sdk):
+            result = runner.invoke(
+                chariot_cli, [cmd] + args,
+                obj={'keychain': MagicMock(), 'proxy': ''},
+            )
+
+        output = (result.output or '').strip()
+        if result.exit_code == 0:
+            if output:
+                self.console.print(output)
+        else:
+            if output:
+                self.console.print(f'[error]{output}[/error]')
+        return True
 
     # -- Aegis ---------------------------------------------------------------
 
@@ -392,6 +428,32 @@ class GuardConsole(
         help_table.add_row('import seeds <csv|json>', 'Bulk-add seeds from file')
         help_table.add_row('import assets <csv|json>', 'Bulk-add assets from file')
         help_table.add_row('import risks <csv|json>', 'Bulk-add risks from file')
+
+        help_table.add_row('', '')
+        help_table.add_row('[section]AD / BloodHound[/section]', '')
+        help_table.add_row('ad list-objects User', 'List AD objects by type')
+        help_table.add_row('ad get-object --key <key>', 'Get specific AD object')
+        help_table.add_row('ad find-attack-path --source .. --target ..', 'Find attack path')
+        help_table.add_row('ad who-can --right .. --target ..', 'Who has a right over target')
+        help_table.add_row('ad kerberoastable-users', 'Find Kerberoastable users')
+        help_table.add_row('ad domains', 'List all AD domains')
+
+        help_table.add_row('', '')
+        help_table.add_row('[section]Bulk & Schedule[/section]', '')
+        help_table.add_row('bulk add asset -f <file>', 'Bulk add assets from JSON/JSONL')
+        help_table.add_row('bulk add risk -f <file>', 'Bulk add risks from JSON/JSONL')
+        help_table.add_row('bulk add attribute -f <file>', 'Bulk add attributes from JSON/JSONL')
+        help_table.add_row('schedule create --cap .. --days ..', 'Create capability schedule')
+        help_table.add_row('schedule update --id .. --days ..', 'Update capability schedule')
+        help_table.add_row('schedule delete --id ..', 'Delete capability schedule')
+
+        help_table.add_row('', '')
+        help_table.add_row('[section]Purge & Tenant[/section]', '')
+        help_table.add_row('purge asset --filter <f> --force', 'Purge assets matching filter')
+        help_table.add_row('purge risk --filter <f> --force', 'Purge risks matching filter')
+        help_table.add_row('purge seed --filter <f> --force', 'Purge seeds matching filter')
+        help_table.add_row('tenant delete --name <n> --force', 'Delete tenant account')
+        help_table.add_row('tenant status <deletion_id>', 'Check tenant deletion status')
 
         help_table.add_row('', '')
         help_table.add_row('[section]Other[/section]', '')

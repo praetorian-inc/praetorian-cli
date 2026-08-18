@@ -2,7 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, pagination
-from praetorian_cli.handlers.utils import print_json, render_list_results, pagination_size
+from praetorian_cli.handlers.utils import print_json, render_offset, pagination_size
 
 
 @chariot.group()
@@ -307,5 +307,4 @@ def _render(results, next_offset, as_json):
                 click.echo(item.get('key', item.get('name', str(item))))
             else:
                 click.echo(str(item))
-        if next_offset:
-            click.echo(f'\nMore results available. Use --page all for complete output.')
+        render_offset(next_offset)
