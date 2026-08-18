@@ -32,6 +32,7 @@ import praetorian_cli.handlers.query
 import praetorian_cli.handlers.tenant
 import praetorian_cli.handlers.osint  # noqa: F401
 import praetorian_cli.handlers.remediation  # noqa: F401
+import praetorian_cli.handlers.red_team  # noqa: F401
 import praetorian_cli.handlers.report
 import praetorian_cli.handlers.script
 import praetorian_cli.handlers.search

@@ -1,0 +1,334 @@
+from unittest.mock import MagicMock, patch
+
+from click.testing import CliRunner
+
+import praetorian_cli.handlers.red_team  # noqa: F401
+from praetorian_cli.handlers.chariot import chariot
+
+OK = {'status': 'ok'}
+
+
+def _invoke(*args, stdin=None):
+    runner = CliRunner()
+    mock_sdk = MagicMock()
+    mock_sdk.is_praetorian_user.return_value = True
+    mock_sdk.red_team.deployment_launch.return_value = {'project_id': 'p1'}
+    mock_sdk.red_team.deployment_delete.return_value = {'message': 'deleted'}
+    mock_sdk.red_team.deployment_details.return_value = {'nodes': []}
+    mock_sdk.red_team.deployment_history.return_value = [{'action': 'launch'}]
+    mock_sdk.red_team.deployment_last_inputs.return_value = {'globals': {}}
+    mock_sdk.red_team.deployment_node_schema.return_value = {'catalog': {}}
+    mock_sdk.red_team.deployment_terraform.return_value = {'job_id': 'j1'}
+    mock_sdk.red_team.deployment_collaborators.return_value = ['a@co.com']
+    mock_sdk.red_team.campaign_create.return_value = OK
+    mock_sdk.red_team.campaign_delete.return_value = OK
+    mock_sdk.red_team.campaign_targets.return_value = [{'email': 'a@co.com'}]
+    mock_sdk.red_team.campaign_authorize.return_value = {'status': 'live'}
+    mock_sdk.red_team.campaign_funnel.return_value = {'sent': 10}
+    mock_sdk.red_team.campaign_activity.return_value = [{'event': 'click'}]
+    mock_sdk.red_team.domain_update.return_value = OK
+    mock_sdk.red_team.dns_list.return_value = {'records': []}
+    mock_sdk.red_team.dns_create.return_value = {'id': 'r1'}
+    mock_sdk.red_team.dns_delete.return_value = OK
+    mock_sdk.red_team.mailgun_domain_status.return_value = {'state': 'active'}
+    mock_sdk.red_team.mailgun_domain_provision.return_value = OK
+    mock_sdk.red_team.mailgun_user_create.return_value = {'username': 'u'}
+    mock_sdk.red_team.evilginx_phishlets.return_value = {'phishlets': []}
+    mock_sdk.red_team.evilginx_phishlet_params.return_value = {'params': []}
+    mock_sdk.red_team.evilginx_lures.return_value = {'lures': []}
+    mock_sdk.red_team.evilginx_create_lure.return_value = {'job_id': 'j2'}
+    mock_sdk.red_team.evilginx_configure.return_value = {'job_id': 'j3'}
+    mock_sdk.red_team.evilginx_status.return_value = {'status': 'ready'}
+    mock_sdk.red_team.payload_generate.return_value = {'job_id': 'j4'}
+    mock_sdk.red_team.phishkit_nodes.return_value = [{'name': 'node-1'}]
+    with patch('praetorian_cli.sdk.chariot.Chariot', return_value=mock_sdk), \
+         patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
+        result = runner.invoke(
+            chariot, list(args),
+            obj={'keychain': MagicMock(), 'proxy': ''},
+            input=stdin,
+        )
+    return result, mock_sdk
+
+
+# --- Deployment ---
+
+def test_deployment_launch():
+    result, sdk = _invoke('red-team', 'deployment', 'launch')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_launch.assert_called_once()
+
+
+def test_deployment_launch_with_id():
+    result, sdk = _invoke('red-team', 'deployment', 'launch', '--id', 'my-dep')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_launch.assert_called_once_with(desired_id='my-dep')
+
+
+def test_deployment_delete():
+    result, sdk = _invoke('red-team', 'deployment', 'delete', '--yes')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_delete.assert_called_once()
+
+
+def test_deployment_details():
+    result, sdk = _invoke('red-team', 'deployment', 'details')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_details.assert_called_once()
+
+
+def test_deployment_history():
+    result, sdk = _invoke('red-team', 'deployment', 'history')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_history.assert_called_once()
+
+
+def test_deployment_last_inputs():
+    result, sdk = _invoke('red-team', 'deployment', 'last-inputs')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_last_inputs.assert_called_once()
+
+
+def test_deployment_node_schema():
+    result, sdk = _invoke('red-team', 'deployment', 'node-schema')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_node_schema.assert_called_once_with(tag=None)
+
+
+def test_deployment_node_schema_with_tag():
+    result, sdk = _invoke('red-team', 'deployment', 'node-schema', '--tag', 'v1.0')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_node_schema.assert_called_once_with(tag='v1.0')
+
+
+def test_deployment_plan():
+    body = '{"globals":{},"nodes":[]}'
+    result, sdk = _invoke('red-team', 'deployment', 'plan', stdin=body)
+    assert result.exit_code == 0
+    sdk.red_team.deployment_terraform.assert_called_once()
+    args = sdk.red_team.deployment_terraform.call_args
+    assert args[0][0] == 'plan'
+
+
+def test_deployment_apply():
+    body = '{"globals":{},"nodes":[]}'
+    result, sdk = _invoke('red-team', 'deployment', 'apply', '--yes', stdin=body)
+    assert result.exit_code == 0
+    sdk.red_team.deployment_terraform.assert_called_once()
+    assert sdk.red_team.deployment_terraform.call_args[0][0] == 'apply'
+
+
+def test_deployment_collaborators():
+    result, sdk = _invoke(
+        'red-team', 'deployment', 'collaborators',
+        '--collaborators', 'a@co.com,b@co.com')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_collaborators.assert_called_once_with(
+        ['a@co.com', 'b@co.com'])
+
+
+# --- Campaigns ---
+
+def test_campaign_create():
+    body = '{"name":"test","channel":"email"}'
+    result, sdk = _invoke('red-team', 'campaign', 'create', stdin=body)
+    assert result.exit_code == 0
+    sdk.red_team.campaign_create.assert_called_once()
+
+
+def test_campaign_delete():
+    result, sdk = _invoke('red-team', 'campaign', 'delete', '--key', 'k1')
+    assert result.exit_code == 0
+    sdk.red_team.campaign_delete.assert_called_once_with('k1')
+
+
+def test_campaign_targets():
+    body = '{"targets":[{"email":"a@co.com","name":"A"}]}'
+    result, sdk = _invoke(
+        'red-team', 'campaign', 'targets', '--id', 'c1', stdin=body)
+    assert result.exit_code == 0
+    sdk.red_team.campaign_targets.assert_called_once()
+
+
+def test_campaign_authorize():
+    result, sdk = _invoke('red-team', 'campaign', 'authorize', '--id', 'c1')
+    assert result.exit_code == 0
+    sdk.red_team.campaign_authorize.assert_called_once_with('c1')
+
+
+def test_campaign_funnel():
+    result, sdk = _invoke('red-team', 'campaign', 'funnel', '--id', 'c1')
+    assert result.exit_code == 0
+    sdk.red_team.campaign_funnel.assert_called_once_with('c1')
+
+
+def test_campaign_activity():
+    result, sdk = _invoke('red-team', 'campaign', 'activity', '--id', 'c1')
+    assert result.exit_code == 0
+    sdk.red_team.campaign_activity.assert_called_once_with('c1', limit=None)
+
+
+def test_campaign_activity_with_limit():
+    result, sdk = _invoke(
+        'red-team', 'campaign', 'activity', '--id', 'c1', '--limit', '25')
+    assert result.exit_code == 0
+    sdk.red_team.campaign_activity.assert_called_once_with('c1', limit=25)
+
+
+# --- Domain parking ---
+
+def test_domain_update():
+    body = '{"domain":"evil.com","status":"in-use"}'
+    result, sdk = _invoke('red-team', 'domain', 'update', stdin=body)
+    assert result.exit_code == 0
+    sdk.red_team.domain_update.assert_called_once()
+
+
+def test_dns_list():
+    result, sdk = _invoke('red-team', 'domain', 'dns-list', '--domain', 'evil.com')
+    assert result.exit_code == 0
+    sdk.red_team.dns_list.assert_called_once_with('evil.com')
+
+
+def test_dns_create():
+    result, sdk = _invoke(
+        'red-team', 'domain', 'dns-create',
+        '--domain', 'evil.com', '--type', 'A',
+        '--name', 'www', '--content', '1.2.3.4')
+    assert result.exit_code == 0
+    sdk.red_team.dns_create.assert_called_once_with('evil.com', 'A', 'www', '1.2.3.4', 1)
+
+
+def test_dns_delete():
+    result, sdk = _invoke(
+        'red-team', 'domain', 'dns-delete',
+        '--domain', 'evil.com', '--record-id', 'r1')
+    assert result.exit_code == 0
+    sdk.red_team.dns_delete.assert_called_once_with('evil.com', 'r1')
+
+
+def test_mailgun_status():
+    result, sdk = _invoke(
+        'red-team', 'domain', 'mailgun-status', '--domain', 'evil.com')
+    assert result.exit_code == 0
+    sdk.red_team.mailgun_domain_status.assert_called_once_with('evil.com')
+
+
+def test_mailgun_provision():
+    result, sdk = _invoke(
+        'red-team', 'domain', 'mailgun-provision', '--domain', 'evil.com')
+    assert result.exit_code == 0
+    sdk.red_team.mailgun_domain_provision.assert_called_once_with('evil.com')
+
+
+def test_mailgun_user():
+    result, sdk = _invoke(
+        'red-team', 'domain', 'mailgun-user',
+        '--username', 'noreply', '--domain', 'evil.com')
+    assert result.exit_code == 0
+    sdk.red_team.mailgun_user_create.assert_called_once_with('noreply', 'evil.com')
+
+
+# --- Evilginx ---
+
+def test_evilginx_phishlets():
+    result, sdk = _invoke('red-team', 'evilginx', 'phishlets', '--node', 'n1')
+    assert result.exit_code == 0
+    sdk.red_team.evilginx_phishlets.assert_called_once_with('n1')
+
+
+def test_evilginx_phishlet_params():
+    result, sdk = _invoke(
+        'red-team', 'evilginx', 'phishlet-params', '--node', 'n1', '--name', 'o365')
+    assert result.exit_code == 0
+    sdk.red_team.evilginx_phishlet_params.assert_called_once_with('n1', 'o365')
+
+
+def test_evilginx_lures():
+    result, sdk = _invoke('red-team', 'evilginx', 'lures', '--node', 'n1')
+    assert result.exit_code == 0
+    sdk.red_team.evilginx_lures.assert_called_once_with('n1')
+
+
+def test_evilginx_create_lure():
+    result, sdk = _invoke(
+        'red-team', 'evilginx', 'create-lure', '--node', 'n1', '--path', '/login')
+    assert result.exit_code == 0
+    sdk.red_team.evilginx_create_lure.assert_called_once_with('n1', '/login')
+
+
+def test_evilginx_configure():
+    result, sdk = _invoke(
+        'red-team', 'evilginx', 'configure',
+        '--node', 'n1', '--domain', 'evil.com', '--phishlet', 'o365')
+    assert result.exit_code == 0
+    sdk.red_team.evilginx_configure.assert_called_once_with(
+        'n1', 'evil.com', 'o365', phishlet_params=None, unauth_url=None)
+
+
+def test_evilginx_configure_with_params():
+    result, sdk = _invoke(
+        'red-team', 'evilginx', 'configure',
+        '--node', 'n1', '--domain', 'evil.com', '--phishlet', 'o365',
+        '--params', '{"client_id":"abc"}')
+    assert result.exit_code == 0
+    sdk.red_team.evilginx_configure.assert_called_once_with(
+        'n1', 'evil.com', 'o365',
+        phishlet_params={'client_id': 'abc'}, unauth_url=None)
+
+
+def test_evilginx_status():
+    result, sdk = _invoke('red-team', 'evilginx', 'status', '--node', 'n1')
+    assert result.exit_code == 0
+    sdk.red_team.evilginx_status.assert_called_once_with('n1')
+
+
+# --- Payload & phishkit ---
+
+def test_payload_generate():
+    result, sdk = _invoke(
+        'red-team', 'payload-generate', '--shellcode', 'beacon.bin')
+    assert result.exit_code == 0
+    sdk.red_team.payload_generate.assert_called_once_with(
+        'beacon.bin', variables=None)
+
+
+def test_payload_generate_with_variables():
+    result, sdk = _invoke(
+        'red-team', 'payload-generate', '--shellcode', 'beacon.bin',
+        '--variables', '{"dll_filename":"update.dll"}')
+    assert result.exit_code == 0
+    sdk.red_team.payload_generate.assert_called_once_with(
+        'beacon.bin', variables={'dll_filename': 'update.dll'})
+
+
+def test_phishkit_nodes():
+    result, sdk = _invoke('red-team', 'phishkit-nodes')
+    assert result.exit_code == 0
+    sdk.red_team.phishkit_nodes.assert_called_once_with(status=None)
+
+
+def test_phishkit_nodes_with_status():
+    result, sdk = _invoke('red-team', 'phishkit-nodes', '--status', 'all')
+    assert result.exit_code == 0
+    sdk.red_team.phishkit_nodes.assert_called_once_with(status='all')
+
+
+# --- Missing required args ---
+
+def test_dns_create_missing_type():
+    result, _ = _invoke(
+        'red-team', 'domain', 'dns-create',
+        '--domain', 'evil.com', '--name', 'www', '--content', '1.2.3.4')
+    assert result.exit_code != 0
+
+
+def test_evilginx_configure_missing_phishlet():
+    result, _ = _invoke(
+        'red-team', 'evilginx', 'configure', '--node', 'n1', '--domain', 'evil.com')
+    assert result.exit_code != 0
+
+
+def test_payload_generate_missing_shellcode():
+    result, _ = _invoke('red-team', 'payload-generate')
+    assert result.exit_code != 0

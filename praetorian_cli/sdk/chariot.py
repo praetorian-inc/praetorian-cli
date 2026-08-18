@@ -22,6 +22,7 @@ from praetorian_cli.sdk.entities.osint import OSINT
 from praetorian_cli.sdk.entities.knossos import Knossos
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.remediation import Remediation
+from praetorian_cli.sdk.entities.red_team import RedTeam
 from praetorian_cli.sdk.entities.reports import Reports
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
@@ -45,6 +46,7 @@ class Chariot:
         self.assets = Assets(self)
         self.seeds = Seeds(self)
         self.preseeds = Preseeds(self)
+        self.red_team = RedTeam(self)
         self.reports = Reports(self)
         self.risks = Risks(self)
         self.accounts = Accounts(self)
