@@ -67,9 +67,12 @@ def resolve_capability(sdk, name):
     return None
 
 
-def _ambiguity_warning(target_input, expected_type, results):
+def _ambiguity_warning(target_input, expected_type, results, max_shown=10):
     """Build the failure message for an input that matches multiple entities."""
-    keys = '\n'.join(r['key'] for r in results)
+    shown = results[:max_shown]
+    keys = '\n'.join(r['key'] for r in shown)
+    if len(results) > len(shown):
+        keys += f'\n...and {len(results) - len(shown)} more'
     return (f'"{target_input}" matches multiple {expected_type} entities:\n{keys}\n'
             f'Pass a full #{expected_type}#... key to disambiguate.')
 

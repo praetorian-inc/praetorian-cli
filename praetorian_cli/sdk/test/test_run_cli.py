@@ -177,6 +177,33 @@ def test_retest_non_risk_resolution_errors(runner, fake_sdk):
     fake_sdk.jobs.add.assert_not_called()
 
 
+def test_retest_ambiguity_warning_truncates_long_candidate_lists(runner, fake_sdk):
+    """A large ambiguous match set shows the first 10 keys plus a count, not all of them."""
+    results = [{'key': f'#risk#host{i}.example.com#cve-2024-1234', 'name': 'cve-2024-1234'}
+               for i in range(12)]
+    fake_sdk.search.fulltext.return_value = (results, None)
+    result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
+    assert result.exit_code != 0
+    assert results[9]['key'] in result.output
+    assert results[10]['key'] not in result.output
+    assert '...and 2 more' in result.output
+    fake_sdk.jobs.add.assert_not_called()
+
+
+def test_retest_ambiguous_prefix_fallback_errors(runner, fake_sdk):
+    """The by_key_prefix fallback path also refuses ambiguous matches."""
+    other_key = '#risk#other.example.com#cve-2024-1234'
+    fake_sdk.search.fulltext.return_value = ([], None)
+    fake_sdk.search.by_key_prefix.return_value = (
+        [{'key': RISK_KEY}, {'key': other_key}], None)
+    result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
+    assert result.exit_code != 0
+    assert 'multiple' in result.output.lower()
+    assert RISK_KEY in result.output
+    assert other_key in result.output
+    fake_sdk.jobs.add.assert_not_called()
+
+
 def test_retest_unresolvable_name_errors(runner, fake_sdk):
     """Name matching nothing anywhere (fulltext + fallbacks) fails cleanly."""
     fake_sdk.search.fulltext.return_value = ([], None)
