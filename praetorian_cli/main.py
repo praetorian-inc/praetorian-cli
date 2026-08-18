@@ -21,6 +21,7 @@ import praetorian_cli.handlers.engagement
 import praetorian_cli.handlers.find
 import praetorian_cli.handlers.export
 import praetorian_cli.handlers.get
+import praetorian_cli.handlers.hackerone
 import praetorian_cli.handlers.hunt
 import praetorian_cli.handlers.knossos  # noqa: F401
 import praetorian_cli.handlers.run
@@ -29,6 +30,8 @@ import praetorian_cli.handlers.imports
 import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
 import praetorian_cli.handlers.purge
+import praetorian_cli.handlers.onboarding
+import praetorian_cli.handlers.plextrac
 import praetorian_cli.handlers.query
 import praetorian_cli.handlers.tenant
 import praetorian_cli.handlers.osint  # noqa: F401

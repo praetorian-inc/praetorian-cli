@@ -98,3 +98,72 @@ def test_new_flags_default_to_empty_when_omitted(runner, fake_sdk):
     assert kwargs['sow'] == ''
     assert kwargs['footer'] == ''
     assert kwargs['confidential_label'] == ''
+
+
+# --- Tests for new export commands (entity, loa, health) ---
+
+def _invoke_with_input(runner, fake_sdk, argv, input=None, **kwargs):
+    obj = {'keychain': MagicMock(), 'proxy': ''}
+    with patch('praetorian_cli.sdk.chariot.Chariot', return_value=fake_sdk), \
+         patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
+        return runner.invoke(chariot, argv, obj=obj, input=input, **kwargs)
+
+
+@pytest.fixture
+def export_sdk():
+    sdk = MagicMock()
+    sdk.is_praetorian_user.return_value = True
+    sdk.exports.export_entity.return_value = {'job_id': 'abc'}
+    sdk.exports.export_loa.return_value = {'url': 'https://example.com/loa.pdf'}
+    sdk.exports.health_report.return_value = {'status': 'healthy'}
+    return sdk
+
+
+def test_export_entity(runner, export_sdk):
+    stdin = '{"items": ["#asset#1", "#asset#2"]}'
+    result = _invoke_with_input(runner, export_sdk, [
+        'export', 'entity', 'assets', '--format', 'json',
+    ], input=stdin, catch_exceptions=False)
+    assert result.exit_code == 0
+    export_sdk.exports.export_entity.assert_called_once_with(
+        'assets', items=['#asset#1', '#asset#2'], query=None, format='json', columns=None,
+    )
+
+
+def test_export_entity_with_columns(runner, export_sdk):
+    stdin = '{"query": {"status": "A"}}'
+    result = _invoke_with_input(runner, export_sdk, [
+        'export', 'entity', 'risks', '--columns', 'name,severity,status',
+    ], input=stdin, catch_exceptions=False)
+    assert result.exit_code == 0
+    export_sdk.exports.export_entity.assert_called_once_with(
+        'risks', items=None, query={'status': 'A'}, format='csv',
+        columns=['name', 'severity', 'status'],
+    )
+
+
+def test_export_entity_no_stdin(runner, export_sdk):
+    result = _invoke_with_input(runner, export_sdk, [
+        'export', 'entity', 'assets',
+    ], input='', catch_exceptions=True)
+    assert result.exit_code != 0 or 'ERROR' in result.output
+
+
+def test_export_loa(runner, export_sdk):
+    stdin = '{"config": {"client_name": "Acme", "content": "test"}}'
+    result = _invoke_with_input(runner, export_sdk, ['export', 'loa'], input=stdin, catch_exceptions=False)
+    assert result.exit_code == 0
+    export_sdk.exports.export_loa.assert_called_once_with({
+        'config': {'client_name': 'Acme', 'content': 'test'},
+    })
+
+
+def test_export_loa_no_stdin(runner, export_sdk):
+    result = _invoke_with_input(runner, export_sdk, ['export', 'loa'], input='', catch_exceptions=True)
+    assert result.exit_code != 0 or 'ERROR' in result.output
+
+
+def test_health(runner, export_sdk):
+    result = _invoke_with_input(runner, export_sdk, ['export', 'health'], catch_exceptions=False)
+    assert result.exit_code == 0
+    export_sdk.exports.health_report.assert_called_once()

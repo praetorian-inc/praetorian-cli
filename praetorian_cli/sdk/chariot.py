@@ -13,13 +13,17 @@ from praetorian_cli.sdk.entities.constantine import Constantine
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.enrichment import Enrichment as EnrichmentAdmin
+from praetorian_cli.sdk.entities.exports import Exports
 from praetorian_cli.sdk.entities.files import Files
+from praetorian_cli.sdk.entities.hackerone import HackerOne
 from praetorian_cli.sdk.entities.hunts import Hunts
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.osint import OSINT
 from praetorian_cli.sdk.entities.knossos import Knossos
+from praetorian_cli.sdk.entities.onboarding import Onboarding
+from praetorian_cli.sdk.entities.plextrac import PlexTrac
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.remediation import Remediation
 from praetorian_cli.sdk.entities.red_team import RedTeam
@@ -77,6 +81,10 @@ class Chariot:
         self.webpage = Webpage(self)
         self.schema = Schema(self)
         self.schedules = Schedules(self)
+        self.exports = Exports(self)
+        self.hackerone = HackerOne(self)
+        self.onboarding = Onboarding(self)
+        self.plextrac = PlexTrac(self)
         self.proxy = proxy
 
         if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):

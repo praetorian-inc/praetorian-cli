@@ -1,9 +1,12 @@
 import os
+import sys
+import json
 
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
+from praetorian_cli.handlers.utils import print_json
 
 
 @chariot.group()
@@ -109,3 +112,53 @@ def report(chariot, title, client_name, status_filter, risk_keys,
     click.echo(f'Downloading {chariot.reports.output_path(job)}...')
     local_path = chariot.reports.download(job, output)
     click.echo(f'Saved to {local_path}')
+
+
+@export.command()
+@cli_handler
+@click.argument('entity_type')
+@click.option('--format', 'fmt', type=click.Choice(['csv', 'json', 'pdf']),
+              default='csv', help='Export format', show_default=True)
+@click.option('--columns', default=None, help='Comma-separated column names')
+def entity(chariot, entity_type, fmt, columns):
+    """Export entities of a given type (e.g. assets, risks).
+
+    Reads item keys or a query filter from stdin as JSON.
+    Stdin should be {"items": [...]} or {"query": {...}}.
+    """
+    raw = sys.stdin.read().strip()
+    if not raw:
+        raise click.UsageError('Export filter JSON is required via stdin ({"items": [...]} or {"query": {...}})')
+    body = json.loads(raw)
+    col_list = [c.strip() for c in columns.split(',')] if columns else None
+    print_json(chariot.exports.export_entity(
+        entity_type,
+        items=body.get('items'),
+        query=body.get('query'),
+        format=fmt,
+        columns=col_list,
+    ))
+
+
+@export.command()
+@cli_handler
+@praetorian_only
+def loa(chariot):
+    """Generate a Letter of Attestation (reads config JSON from stdin).
+
+    Required stdin JSON fields: config.client_name, config.content.
+    Optional: risk_keys, status_filter, config.assessment_name,
+    config.issue_date, config.undersigned_name, etc.
+    """
+    raw = sys.stdin.read().strip()
+    if not raw:
+        raise click.UsageError('LOA configuration JSON is required via stdin')
+    body = json.loads(raw)
+    print_json(chariot.exports.export_loa(body))
+
+
+@export.command()
+@cli_handler
+def health(chariot):
+    """Generate a health report"""
+    print_json(chariot.exports.health_report())
