@@ -21,7 +21,8 @@ def test_registry_is_valid_json(registry):
 
 
 def test_route_count(registry):
-    assert len(registry['routes']) == 206
+    expected = registry['_meta']['route_count']
+    assert len(registry['routes']) == expected
 
 
 def test_all_routes_have_required_fields(registry):
@@ -44,10 +45,11 @@ def test_planned_routes_have_ticket(registry):
             assert info.get('ticket'), f'{route} planned without ticket'
 
 
-def test_covered_routes_have_cli_command(registry):
+def test_covered_routes_have_cli_command_or_sdk_entity(registry):
     for route, info in registry['routes'].items():
         if info['disposition'] == 'covered':
-            assert info.get('cli_command'), f'{route} covered but no cli_command'
+            assert info.get('cli_command') or info.get('sdk_entity'), \
+                f'{route} covered but has neither cli_command nor sdk_entity'
 
 
 def test_check_passes_on_valid_registry(registry):
@@ -121,6 +123,12 @@ def test_check_passes_on_internal_route():
     gaps, summary = check_parity(registry)
     assert len(gaps) == 0
     assert summary['internal'] == 1
+
+
+def test_internal_routes_have_reason(registry):
+    for route, info in registry['routes'].items():
+        if info['disposition'] == 'internal':
+            assert info.get('reason'), f'{route} internal without reason'
 
 
 def test_valid_dispositions(registry):

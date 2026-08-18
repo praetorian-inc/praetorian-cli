@@ -29,11 +29,19 @@ def check_parity(registry):
         disposition = info.get('disposition', '')
 
         if disposition in ('excluded', 'internal'):
-            summary[disposition] += 1
+            if not info.get('reason'):
+                gaps.append({'route': route, 'reason': f'{disposition} but no reason documented'})
+                summary['gap'] += 1
+            else:
+                summary[disposition] += 1
             continue
 
         if disposition == 'covered':
-            summary['covered'] += 1
+            if not info.get('cli_command') and not info.get('sdk_entity'):
+                gaps.append({'route': route, 'reason': 'covered but no cli_command or sdk_entity'})
+                summary['gap'] += 1
+            else:
+                summary['covered'] += 1
             continue
 
         if disposition == 'planned':
