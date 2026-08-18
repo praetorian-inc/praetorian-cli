@@ -9,14 +9,18 @@ from praetorian_cli.sdk.entities.attributes import Attributes
 from praetorian_cli.sdk.entities.capabilities import Capabilities
 from praetorian_cli.sdk.entities.configurations import Configurations
 from praetorian_cli.sdk.entities.conversations import Conversations
+from praetorian_cli.sdk.entities.constantine import Constantine
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
+from praetorian_cli.sdk.entities.enrichment import Enrichment as EnrichmentAdmin
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.hunts import Hunts
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
+from praetorian_cli.sdk.entities.osint import OSINT
 from praetorian_cli.sdk.entities.preseeds import Preseeds
+from praetorian_cli.sdk.entities.remediation import Remediation
 from praetorian_cli.sdk.entities.reports import Reports
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
@@ -56,7 +60,11 @@ class Chariot:
         self.ad = AD(self)
         self.aegis = Aegis(self)
         self.agents = Agents(self)
+        self.constantine = Constantine(self)
         self.conversations = Conversations(self)
+        self.enrichment_admin = EnrichmentAdmin(self)
+        self.osint = OSINT(self)
+        self.remediation = Remediation(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
         self.keys = Keys(self)
