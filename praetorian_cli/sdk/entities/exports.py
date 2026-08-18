@@ -6,9 +6,9 @@ class Exports:
     def export_entity(self, entity_type, items=None, query=None, format='csv',
                       columns=None):
         body = {'label': entity_type, 'format': format}
-        if items:
+        if items is not None:
             body['items'] = items
-        if query:
+        if query is not None:
             body['query'] = query
         if columns:
             body['columns'] = columns

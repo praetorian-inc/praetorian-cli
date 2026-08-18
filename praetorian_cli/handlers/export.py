@@ -6,7 +6,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import error, print_json
 
 
 @chariot.group()
@@ -126,10 +126,15 @@ def entity(chariot, entity_type, fmt, columns):
     Reads item keys or a query filter from stdin as JSON.
     Stdin should be {"items": [...]} or {"query": {...}}.
     """
+    if sys.stdin.isatty():
+        error('Pipe JSON input via stdin (e.g., echo \'{"items":[]}\' | guard export ...)')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('Export filter JSON is required via stdin ({"items": [...]} or {"query": {...}})')
-    body = json.loads(raw)
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
     col_list = [c.strip() for c in columns.split(',')] if columns else None
     print_json(chariot.exports.export_entity(
         entity_type,
@@ -150,10 +155,15 @@ def loa(chariot):
     Optional: risk_keys, status_filter, config.assessment_name,
     config.issue_date, config.undersigned_name, etc.
     """
+    if sys.stdin.isatty():
+        error('Pipe JSON input via stdin (e.g., echo \'{"config":{}}\' | guard export loa)')
     raw = sys.stdin.read().strip()
     if not raw:
         raise click.UsageError('LOA configuration JSON is required via stdin')
-    body = json.loads(raw)
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
     print_json(chariot.exports.export_loa(body))
 
 
