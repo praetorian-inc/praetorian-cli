@@ -51,8 +51,8 @@ class Knossos:
             params['lureId'] = lure_id
         if event_type:
             params['eventType'] = event_type
-        if limit:
+        if limit is not None:
             params['limit'] = str(limit)
-        if offset:
+        if offset is not None:
             params['offset'] = str(offset)
         return self.api.get(f'knossos/environment/{env_id}/events', params=params)

@@ -5,14 +5,17 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import error, print_json
 
 
 def _read_json_body():
     data = sys.stdin.read().strip()
     if not data:
         raise click.UsageError('No JSON body provided on stdin')
-    return json.loads(data)
+    try:
+        return json.loads(data)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
 
 
 @chariot.group()
