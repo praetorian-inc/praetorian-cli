@@ -3,7 +3,7 @@ import json
 import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import error, print_json
 
 
 @chariot.group(invoke_without_command=True)
@@ -263,7 +263,12 @@ def create_task(sdk, capability, client_id, agent_id, parameters, async_, health
         guard aegis create-task --capability install-sysmon --client-id C.abc123
         guard aegis create-task --capability run-script --client-id C.abc123 --parameters '{"script":"test.ps1"}'
     """
-    params = json.loads(parameters) if parameters else None
+    params = None
+    if parameters:
+        try:
+            params = json.loads(parameters)
+        except json.JSONDecodeError as e:
+            error(f'Invalid JSON input: {e}')
     print_json(sdk.aegis.create_management_task(
         capability, client_id, agent_id=agent_id, parameters=params,
         async_=async_, health_check=health_check))

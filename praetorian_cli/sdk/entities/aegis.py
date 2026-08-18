@@ -623,7 +623,7 @@ class Aegis:
         }
         if agent_id:
             body['aegisAgentId'] = agent_id
-        if parameters:
+        if parameters is not None:
             body['parameters'] = parameters
         if async_:
             body['async'] = True
