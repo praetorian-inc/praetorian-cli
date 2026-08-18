@@ -130,3 +130,23 @@ class Accounts:
         :rtype: str
         """
         return self.api.keychain.username()
+
+    def delete_tenant(self, tenant_email):
+        """Request tenant account deletion.
+
+        :param tenant_email: Email of the tenant to delete
+        :type tenant_email: str
+        :return: Deletion request result
+        :rtype: dict
+        """
+        return self.api.post('account/deletion', dict(email=tenant_email))
+
+    def get_tenant_deletion(self, deletion_id):
+        """Get status of a tenant deletion request.
+
+        :param deletion_id: The deletion request ID
+        :type deletion_id: str
+        :return: Deletion status
+        :rtype: dict
+        """
+        return self.api.get(f'account/deletion/{deletion_id}')

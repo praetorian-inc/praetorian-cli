@@ -178,6 +178,16 @@ class Risks:
             payload_items.append(p)
         return self.api.post('bulk/risk', dict(action='upsert', items=payload_items))
 
+    def purge(self, filter_key):
+        """Purge risks matching a filter.
+
+        :param filter_key: Risk key prefix filter (must not be empty)
+        :type filter_key: str
+        :return: Purge result from backend
+        :rtype: dict
+        """
+        return self.api.post('risk/purge', dict(filter=filter_key))
+
     def affected_assets(self, key):
         """
         Get all assets affected by a risk.

@@ -134,6 +134,16 @@ class Seeds:
         else:
             error(f'Seed {key} not found.')
 
+    def purge(self, filter_key):
+        """Purge seeds matching a filter.
+
+        :param filter_key: Seed key prefix filter (must not be empty)
+        :type filter_key: str
+        :return: Purge result from backend
+        :rtype: dict
+        """
+        return self.api.post('seed/purge', dict(filter=filter_key))
+
     def list(self, seed_type=Kind.SEED.value, key_prefix='', pages=100000) -> tuple:
         """
         List seeds by querying assets with 'Seed' label.

@@ -24,6 +24,7 @@ import praetorian_cli.handlers.schedule
 import praetorian_cli.handlers.imports
 import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
+import praetorian_cli.handlers.purge
 import praetorian_cli.handlers.query
 import praetorian_cli.handlers.report
 import praetorian_cli.handlers.script
