@@ -18,6 +18,7 @@ import praetorian_cli.handlers.export
 import praetorian_cli.handlers.get
 import praetorian_cli.handlers.hunt
 import praetorian_cli.handlers.run
+import praetorian_cli.handlers.schedule
 import praetorian_cli.handlers.imports
 import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
