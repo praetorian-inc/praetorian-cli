@@ -1,3 +1,8 @@
+import truststore
+
+# Configure TLS before importing HTTP clients so they use the OS trust store.
+truststore.inject_into_ssl()
+
 import click
 
 import praetorian_cli.handlers.access
