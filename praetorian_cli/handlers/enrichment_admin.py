@@ -4,7 +4,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import error, print_json
 
 
 @chariot.group('enrichment')
@@ -130,7 +130,9 @@ def set_key(sdk, plugin):
         echo "sk-abc123" | guard enrichment set-key shodan
         guard enrichment set-key shodan < keyfile.txt
     """
+    if sys.stdin.isatty():
+        error('Pipe the key via stdin (e.g., echo "key" | guard enrichment set-key <plugin>)')
     key = sys.stdin.read().strip()
     if not key:
-        raise click.UsageError('No key provided on stdin. Pipe your key: echo "KEY" | guard enrichment set-key PLUGIN')
+        error('No key provided on stdin. Pipe your key: echo "KEY" | guard enrichment set-key PLUGIN')
     print_json(sdk.enrichment_admin.set_plugin_key(plugin, key))

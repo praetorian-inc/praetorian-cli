@@ -2,7 +2,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import error, print_json
 
 
 @chariot.group()
@@ -27,7 +27,7 @@ def guess_repo(sdk, cpe, technology_name):
         guard osint guess-repo --technology-name "OpenSSL"
     """
     if not cpe and not technology_name:
-        raise click.UsageError('At least one of --cpe or --technology-name is required')
+        error('At least one of --cpe or --technology-name is required')
     print_json(sdk.osint.guess_repo(cpe=cpe, technology_name=technology_name))
 
 
