@@ -1,3 +1,6 @@
+from urllib.parse import quote
+
+
 class RedTeam:
     def __init__(self, api):
         self.api = api
@@ -33,7 +36,7 @@ class RedTeam:
             params['tag'] = tag
         if sha:
             params['sha'] = sha
-        return self.api.post(f'red-team/deployment/terraform/{action}',
+        return self.api.post(f'red-team/deployment/terraform/{quote(str(action), safe="")}',
                              builder_state, params=params)
 
     def deployment_collaborators(self, collaborators):
@@ -55,17 +58,17 @@ class RedTeam:
         body = {'targets': targets}
         if segment:
             body['segment'] = segment
-        return self.api.post(f'red-team/campaigns/{campaign_id}/targets', body)
+        return self.api.post(f'red-team/campaigns/{quote(str(campaign_id), safe="")}/targets', body)
 
     def campaign_authorize(self, campaign_id):
-        return self.api.post(f'red-team/campaigns/{campaign_id}/authorize', {})
+        return self.api.post(f'red-team/campaigns/{quote(str(campaign_id), safe="")}/authorize', {})
 
     def campaign_funnel(self, campaign_id):
-        return self.api.get(f'red-team/campaigns/{campaign_id}/funnel')
+        return self.api.get(f'red-team/campaigns/{quote(str(campaign_id), safe="")}/funnel')
 
     def campaign_activity(self, campaign_id, limit=None):
         params = {'limit': str(limit)} if limit else {}
-        return self.api.get(f'red-team/campaigns/{campaign_id}/activity',
+        return self.api.get(f'red-team/campaigns/{quote(str(campaign_id), safe="")}/activity',
                             params=params)
 
     # --- Domain parking ---
@@ -74,33 +77,33 @@ class RedTeam:
         return self.api.put('red-team/domain-parking', domain_data)
 
     def dns_list(self, domain):
-        return self.api.get(f'red-team/domain-parking/dns/{domain}')
+        return self.api.get(f'red-team/domain-parking/dns/{quote(str(domain), safe="")}')
 
     def dns_create(self, domain, record_type, name, content, ttl=1):
-        return self.api.post(f'red-team/domain-parking/dns/{domain}',
+        return self.api.post(f'red-team/domain-parking/dns/{quote(str(domain), safe="")}',
                              {'type': record_type, 'name': name,
                               'content': content, 'ttl': ttl})
 
     def dns_update(self, domain, record_id, record_type, name, content, ttl=1):
-        return self.api.put(f'red-team/domain-parking/dns/{domain}/{record_id}',
+        return self.api.put(f'red-team/domain-parking/dns/{quote(str(domain), safe="")}/{quote(str(record_id), safe="")}',
                             {'type': record_type, 'name': name,
                              'content': content, 'ttl': ttl})
 
     def dns_delete(self, domain, record_id):
         return self.api.delete(
-            f'red-team/domain-parking/dns/{domain}/{record_id}', {}, {})
+            f'red-team/domain-parking/dns/{quote(str(domain), safe="")}/{quote(str(record_id), safe="")}', {}, {})
 
     def mailgun_domain_status(self, domain):
         return self.api.get(
-            f'red-team/domain-parking/mailgun/domain/{domain}')
+            f'red-team/domain-parking/mailgun/domain/{quote(str(domain), safe="")}')
 
     def mailgun_domain_provision(self, domain):
         return self.api.post(
-            f'red-team/domain-parking/mailgun/domain/{domain}', {})
+            f'red-team/domain-parking/mailgun/domain/{quote(str(domain), safe="")}', {})
 
     def mailgun_domain_delete(self, domain):
         return self.api.delete(
-            f'red-team/domain-parking/mailgun/domain/{domain}', {}, {})
+            f'red-team/domain-parking/mailgun/domain/{quote(str(domain), safe="")}', {}, {})
 
     def mailgun_user_create(self, username, domain):
         return self.api.post('red-team/domain-parking/mailgun/user',
@@ -117,7 +120,7 @@ class RedTeam:
                             params={'node': node})
 
     def evilginx_phishlet_params(self, node, name):
-        return self.api.get(f'red-team/evilginx/phishlets/{name}/params',
+        return self.api.get(f'red-team/evilginx/phishlets/{quote(str(name), safe="")}/params',
                             params={'node': node})
 
     def evilginx_lures(self, node):

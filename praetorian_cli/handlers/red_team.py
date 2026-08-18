@@ -5,14 +5,19 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import error, print_json
 
 
 def _read_json_body():
+    if sys.stdin.isatty():
+        error('Pipe JSON input via stdin (e.g., echo \'{"key":"val"}\' | guard red-team ...)')
     data = sys.stdin.read().strip()
     if not data:
         raise click.UsageError('No JSON body provided on stdin')
-    return json.loads(data)
+    try:
+        return json.loads(data)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
 
 
 @chariot.group('red-team')
@@ -466,7 +471,10 @@ def configure(sdk, node, domain, phishlet, params, unauth_url):
         guard red-team evilginx configure --node n1 --domain evil.com --phishlet o365
         guard red-team evilginx configure --node n1 --domain evil.com --phishlet o365 --params '{"client_id":"abc"}'
     """
-    phishlet_params = json.loads(params) if params else None
+    try:
+        phishlet_params = json.loads(params) if params else None
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
     print_json(sdk.red_team.evilginx_configure(
         node, domain, phishlet,
         phishlet_params=phishlet_params, unauth_url=unauth_url))
@@ -503,7 +511,10 @@ def payload_generate(sdk, shellcode, variables):
         guard red-team payload-generate --shellcode beacon.bin
         guard red-team payload-generate --shellcode beacon.bin --variables '{"dll_filename":"update.dll"}'
     """
-    vars_dict = json.loads(variables) if variables else None
+    try:
+        vars_dict = json.loads(variables) if variables else None
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
     print_json(sdk.red_team.payload_generate(shellcode, variables=vars_dict))
 
 
