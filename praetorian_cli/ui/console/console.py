@@ -287,7 +287,12 @@ class GuardConsole(
     # -- CLI passthrough -----------------------------------------------------
 
     def _try_cli_passthrough(self, cmd, args):
-        """Route unrecognized commands through the Click CLI automatically."""
+        """Route unrecognized commands through the Click CLI automatically.
+
+        Interactive prompts (e.g. purge without --force) abort under
+        CliRunner because stdin is replaced. The Aborted message is caught
+        and a hint to use --force is shown instead.
+        """
         from praetorian_cli.handlers.chariot import chariot as chariot_cli
 
         import praetorian_cli.handlers.ad        # noqa: F401
@@ -312,6 +317,9 @@ class GuardConsole(
         if result.exit_code == 0:
             if output:
                 self.console.print(output)
+        elif 'Aborted' in output:
+            self.console.print('[dim]Interactive prompts are not supported in the console. '
+                               'Use --force to skip confirmation.[/dim]')
         else:
             if output:
                 self.console.print(f'[error]{output}[/error]')
