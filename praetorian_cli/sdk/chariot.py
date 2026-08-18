@@ -15,6 +15,7 @@ from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.enrichment import Enrichment as EnrichmentAdmin
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.hunts import Hunts
+from praetorian_cli.sdk.entities.knossos import Knossos
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
@@ -51,6 +52,7 @@ class Chariot:
         self.jobs = Jobs(self)
         self.files = Files(self)
         self.hunts = Hunts(self)
+        self.knossos = Knossos(self)
         self.definitions = Definitions(self)
         self.attributes = Attributes(self)
         self.search = Search(self)

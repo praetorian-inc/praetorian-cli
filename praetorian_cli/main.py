@@ -21,6 +21,7 @@ import praetorian_cli.handlers.find
 import praetorian_cli.handlers.export
 import praetorian_cli.handlers.get
 import praetorian_cli.handlers.hunt
+import praetorian_cli.handlers.knossos  # noqa: F401
 import praetorian_cli.handlers.run
 import praetorian_cli.handlers.schedule
 import praetorian_cli.handlers.imports
