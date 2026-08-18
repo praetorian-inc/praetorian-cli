@@ -1,8 +1,14 @@
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler, pagination
-from praetorian_cli.handlers.utils import print_json, render_offset, pagination_size
+from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.handlers.utils import print_json, pagination_size
+
+
+def _ad_page(func):
+    """AD queries support page-count pagination only, not offset-based."""
+    return click.option('-p', '--page', type=click.Choice(('first', 'all')), default='first',
+                        help='Pagination mode', show_default=True)(func)
 
 
 @chariot.group()
@@ -17,8 +23,8 @@ def ad():
 @click.option('-d', '--domain', default=None, help='Filter to a specific AD domain')
 @click.option('-n', '--name', 'name_contains', default=None, help='Filter by name substring')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def list_objects(sdk, object_type, domain, name_contains, as_json, offset, page):
+@_ad_page
+def list_objects(sdk, object_type, domain, name_contains, as_json, page):
     """ List AD objects by type
 
     \b
@@ -65,9 +71,9 @@ def get_object(sdk, key, objectid, domain, as_json):
 @click.option('--source-type', default=None, help='AD type of source node')
 @click.option('--target-type', default=None, help='AD type of target node')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
+@_ad_page
 def get_relationships(sdk, source_key, target_key, relationship_type,
-                      source_type, target_type, as_json, offset, page):
+                      source_type, target_type, as_json, page):
     """ Query AD ACL relationships between objects
 
     \b
@@ -112,8 +118,8 @@ def find_attack_path(sdk, source, target, max_depth, shortest, as_json):
 @click.option('--target', required=True, help='Chariot key of the target AD object')
 @click.option('--principal-type', default=None, help='Filter principals by type (user, computer, group)')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def who_can(sdk, right, target, principal_type, as_json, offset, page):
+@_ad_page
+def who_can(sdk, right, target, principal_type, as_json, page):
     """ Find principals with a specific right over a target
 
     \b
@@ -132,8 +138,8 @@ def who_can(sdk, right, target, principal_type, as_json, offset, page):
 @click.option('--source', required=True, help='Chariot key of the source principal')
 @click.option('--target-type', default=None, help='Filter targets by AD type')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def what_can(sdk, right, source, target_type, as_json, offset, page):
+@_ad_page
+def what_can(sdk, right, source, target_type, as_json, page):
     """ Find what objects a principal has a right over
 
     \b
@@ -152,8 +158,8 @@ def what_can(sdk, right, source, target_type, as_json, offset, page):
 @click.option('-r', '--recursive', is_flag=True, default=False, help='Include nested group members')
 @click.option('--member-type', default=None, help='Filter members by type (user, computer, group)')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def group_members(sdk, group_key, recursive, member_type, as_json, offset, page):
+@_ad_page
+def group_members(sdk, group_key, recursive, member_type, as_json, page):
     """ List members of an AD group
 
     \b
@@ -172,8 +178,8 @@ def group_members(sdk, group_key, recursive, member_type, as_json, offset, page)
 @click.argument('object_key')
 @click.option('-r', '--recursive', is_flag=True, default=False, help='Include transitive memberships')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def group_memberships(sdk, object_key, recursive, as_json, offset, page):
+@_ad_page
+def group_memberships(sdk, object_key, recursive, as_json, page):
     """ List all groups an AD object belongs to
 
     \b
@@ -190,8 +196,8 @@ def group_memberships(sdk, object_key, recursive, as_json, offset, page):
 @cli_handler
 @click.option('-d', '--domain', default=None, help='Filter to a specific AD domain')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def kerberoastable_users(sdk, domain, as_json, offset, page):
+@_ad_page
+def kerberoastable_users(sdk, domain, as_json, page):
     """ Find Kerberoastable users (users with SPNs set)
 
     \b
@@ -208,8 +214,8 @@ def kerberoastable_users(sdk, domain, as_json, offset, page):
 @cli_handler
 @click.option('-d', '--domain', default=None, help='Filter to a specific AD domain')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def asreproastable_users(sdk, domain, as_json, offset, page):
+@_ad_page
+def asreproastable_users(sdk, domain, as_json, page):
     """ Find AS-REP roastable users (no Kerberos pre-authentication)
 
     \b
@@ -226,8 +232,8 @@ def asreproastable_users(sdk, domain, as_json, offset, page):
 @cli_handler
 @click.option('-d', '--domain', default=None, help='Filter to a specific AD domain')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def unconstrained_delegation(sdk, domain, as_json, offset, page):
+@_ad_page
+def unconstrained_delegation(sdk, domain, as_json, page):
     """ Find computers with unconstrained delegation enabled
 
     \b
@@ -245,8 +251,8 @@ def unconstrained_delegation(sdk, domain, as_json, offset, page):
 @click.option('--domain-key', default=None, help='Chariot key of the AD domain object')
 @click.option('-d', '--domain', default=None, help='AD domain name')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def dcsync_principals(sdk, domain_key, domain, as_json, offset, page):
+@_ad_page
+def dcsync_principals(sdk, domain_key, domain, as_json, page):
     """ Find principals that can perform DCSync
 
     \b
@@ -264,8 +270,8 @@ def dcsync_principals(sdk, domain_key, domain, as_json, offset, page):
 @cli_handler
 @click.option('-d', '--domain', default=None, help='Filter to a specific AD domain')
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def tier_zero_objects(sdk, domain, as_json, offset, page):
+@_ad_page
+def tier_zero_objects(sdk, domain, as_json, page):
     """ Find tier-zero / high-value AD objects
 
     \b
@@ -281,8 +287,8 @@ def tier_zero_objects(sdk, domain, as_json, offset, page):
 @ad.command()
 @cli_handler
 @click.option('--json', 'as_json', is_flag=True, default=False, help='Output full JSON')
-@pagination
-def domains(sdk, as_json, offset, page):
+@_ad_page
+def domains(sdk, as_json, page):
     """ List all Active Directory domains
 
     \b
@@ -307,4 +313,5 @@ def _render(results, next_offset, as_json):
                 click.echo(item.get('key', item.get('name', str(item))))
             else:
                 click.echo(str(item))
-        render_offset(next_offset)
+        if next_offset:
+            click.echo('\nMore results available. Use --page all for complete output.')
