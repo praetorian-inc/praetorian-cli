@@ -219,12 +219,14 @@ def test_blank_message_falls_back_to_the_exception_type(monkeypatch):
     [
         (Exception(SDK_API_FAILURE_MESSAGE), SDK_API_FAILURE_MESSAGE),
         (ValueError(SDK_VALIDATION_MESSAGE), SDK_VALIDATION_MESSAGE),
+        (Exception(SDK_API_FAILURE_MESSAGE + '\n'), SDK_API_FAILURE_MESSAGE),
         (Exception(), "Exception"),
         (ValueError("   "), "ValueError"),
     ],
     ids=[
         "multi-line-sdk-message",
         "single-line-sdk-message",
+        "sdk-message-with-trailing-newline",
         "no-message",
         "whitespace-only-message",
     ],
@@ -248,7 +250,10 @@ def test_debug_hint_is_appended_once_after_the_intact_message(
     both branches of a re-split `_error_message`, would append it twice.
 
     The two blank cases also pin the preserved fallback to the exception's type
-    name (`.strip()` is what makes whitespace-only count as blank).
+    name (`.strip()` is what makes whitespace-only count as blank). The
+    trailing-newline case is the other half of that same trim -- a real HTTP
+    response body can end in one -- and pins that the hint still lands on the
+    line *immediately* after the message, never after a blank one.
     """
     request = _disable_update_request(monkeypatch)
 

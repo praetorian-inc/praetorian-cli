@@ -16,9 +16,11 @@ def _debug_enabled(ctx):
     return bool(ctx.find_root().params.get("debug", False))
 
 
-# POLICY: every command routes through this boundary, which passes the
-# exception's message through unchanged -- no sanitizing, summarizing, or
-# redacting. The SDK raises bare `Exception`/`ValueError` as its normal
+# POLICY: every command routes through this boundary, which surfaces the
+# exception's own message -- no sanitizing, summarizing, or redacting. The one
+# normalization is outer whitespace: it is trimmed so the appended hint lands on
+# the line immediately after the message (and so a whitespace-only message
+# counts as blank). The SDK raises bare `Exception`/`ValueError` as its normal
 # error-reporting mechanism (`process_failure` in praetorian_cli/sdk/chariot.py,
 # praetorian_cli/sdk/entities/*.py), so that message IS the user-facing text.
 #
