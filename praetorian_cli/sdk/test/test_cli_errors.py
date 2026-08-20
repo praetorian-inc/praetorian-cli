@@ -4,11 +4,25 @@
 which printed and *returned* -- so the decorated command returned `None` normally and
 the process exited 0 on every failure. These tests pin the replacement contract:
 
-* an unexpected exception exits non-zero with a redacted, actionable message,
-* `--debug` gives the original exception (and its traceback, on stderr) back,
+* an unexpected exception exits non-zero and keeps *its own* message, because the
+  SDK raises bare `Exception`/`ValueError` as its normal error-reporting mechanism
+  (`Chariot.process_failure` raises `Exception('[404] Request failed\\nError: ...')`,
+  `assets.py` raises `ValueError('Invalid asset type: ...')`) -- replacing that text
+  destroys the only actionable detail the user gets,
+* *every* non-debug error message ends with `cli_decorators.DEBUG_HINT` on its own
+  trailing line, exactly once, with the original message left intact ahead of it --
+  so a user who gets only a one-line message still learns how to obtain the
+  traceback. A message-less exception falls back to the exception's type name and
+  carries the hint just the same,
+* no raw traceback reaches the user unless `--debug` is passed,
+* `--debug` gives the original exception (and its traceback, on stderr) back --
+  unwrapped and hint-free, since the traceback the hint advertises is already there,
 * and the deliberate control-flow exceptions -- `ClickException`, `Abort`,
   `Exit`, `CancelledError`, `SystemExit` -- keep their own status and text
-  instead of being flattened into the generic failure.
+  instead of being flattened into a generic failure.
+
+Message *redaction* is deliberately out of scope here: it needs the SDK exception
+hierarchy (ENG-6570) to classify what is safe to show, and is owned by ENG-6781.
 
 Offline only: every command raises before `upgrade_check` can reach the network,
 and each test arms `requests.get` to fail loudly if that ever stops being true.
@@ -23,6 +37,24 @@ from unittest.mock import Mock
 import click
 import pytest
 from click.testing import CliRunner
+
+# Imported, never transcribed: these tests pin that the hint is *appended*, not
+# what its wording is. A copied literal would let the source's text drift away
+# from the suite's silently -- and would turn a deliberate re-wording into a
+# spurious test failure here.
+from praetorian_cli.handlers.cli_decorators import DEBUG_HINT
+
+# The exact shape `Chariot.process_failure` raises on a failed API call
+# (praetorian_cli/sdk/chariot.py). Both halves -- the status line and the response
+# body -- have to reach the user.
+SDK_API_FAILURE_MESSAGE = '[404] Request failed\nError: {"message":"asset not found"}'
+
+# The shape the SDK entity helpers raise on bad input, e.g.
+# `raise ValueError(f'Invalid asset type: {asset_type}')` in
+# praetorian_cli/sdk/entities/assets.py.
+SDK_VALIDATION_MESSAGE = 'Invalid asset type: bogus'
+
+TRACEBACK_HEADER = "Traceback (most recent call last)"
 
 
 class SentinelBaseException(BaseException):
@@ -105,9 +137,9 @@ def _run_child(script):
     )
 
 
-def test_ordinary_exception_is_redacted_in_normal_mode_and_chained(monkeypatch):
+def test_ordinary_exception_keeps_its_message_in_normal_mode_and_chained(monkeypatch):
     request = _disable_update_request(monkeypatch)
-    cause = RuntimeError("SECRET_UNEXPECTED_SENTINEL")
+    cause = RuntimeError("UNEXPECTED_SENTINEL")
 
     result = CliRunner().invoke(
         _command_raising(cause),
@@ -118,9 +150,212 @@ def test_ordinary_exception_is_redacted_in_normal_mode_and_chained(monkeypatch):
     assert result.exit_code == 1
     assert isinstance(result.exception, click.ClickException)
     assert result.exception.__cause__ is cause
-    assert str(result.exception) == "An unexpected error occurred. Re-run with --debug for details."
-    assert "SECRET_UNEXPECTED_SENTINEL" not in str(result.exception)
+    assert str(result.exception) == f"UNEXPECTED_SENTINEL\n{DEBUG_HINT}"
     request.assert_not_called()
+
+
+# --- SDK-shaped failures: the messages the CLI exists to relay ------------------
+#
+# The SDK reports every API and validation failure by raising bare `Exception` /
+# `ValueError` with the actionable text in the message. A handler that replaces
+# that text with a generic string satisfies ENG-6641's exit-code AC while
+# destroying the only thing the user can act on -- these tests catch that.
+
+
+def test_sdk_api_failure_message_reaches_the_user(monkeypatch):
+    request = _disable_update_request(monkeypatch)
+
+    result = CliRunner().invoke(
+        _command_raising(Exception(SDK_API_FAILURE_MESSAGE)),
+        obj=object(),
+    )
+
+    assert result.exit_code == 1
+    # `result.output` is the interleaved stdout+stderr stream; `result.stdout` is
+    # empty on this path, so asserting against it would be vacuous.
+    assert "[404] Request failed" in result.output
+    assert "asset not found" in result.output
+    assert TRACEBACK_HEADER not in result.output
+    request.assert_not_called()
+
+
+def test_sdk_validation_failure_message_reaches_the_user(monkeypatch):
+    request = _disable_update_request(monkeypatch)
+
+    result = CliRunner().invoke(
+        _command_raising(ValueError(SDK_VALIDATION_MESSAGE)),
+        obj=object(),
+    )
+
+    assert result.exit_code == 1
+    assert SDK_VALIDATION_MESSAGE in result.output
+    assert TRACEBACK_HEADER not in result.output
+    request.assert_not_called()
+
+
+def test_blank_message_falls_back_to_the_exception_type(monkeypatch):
+    """A message-less exception must not render as a bare `Error:` with nothing after it."""
+    request = _disable_update_request(monkeypatch)
+
+    result = CliRunner().invoke(_command_raising(Exception()), obj=object())
+
+    assert result.exit_code == 1
+    assert "Error: Exception" in result.output
+    assert "--debug" in result.output
+    assert TRACEBACK_HEADER not in result.output
+    request.assert_not_called()
+
+
+# --- the `--debug` hint: appended to EVERY non-debug message ---------------------
+#
+# The hint used to appear only when `str(exc)` was blank, which left the common
+# case -- a real SDK message -- with no way for the user to discover `--debug`.
+# It is now appended unconditionally, so the non-blank cases below are the newly
+# introduced behaviour and the blank ones pin the half that was preserved.
+
+
+@pytest.mark.parametrize(
+    ("exception", "expected_body"),
+    [
+        (Exception(SDK_API_FAILURE_MESSAGE), SDK_API_FAILURE_MESSAGE),
+        (ValueError(SDK_VALIDATION_MESSAGE), SDK_VALIDATION_MESSAGE),
+        (Exception(), "Exception"),
+        (ValueError("   "), "ValueError"),
+    ],
+    ids=[
+        "multi-line-sdk-message",
+        "single-line-sdk-message",
+        "no-message",
+        "whitespace-only-message",
+    ],
+)
+def test_debug_hint_is_appended_once_after_the_intact_message(
+    monkeypatch,
+    exception,
+    expected_body,
+):
+    """The hint is a trailing line appended to the message, exactly once.
+
+    Exact equality is what makes this a contract rather than a smoke test: it pins
+    that the body survives *verbatim and in full* ahead of the hint. A containment
+    check would pass on a message the boundary had truncated, reordered, or spliced
+    the hint into the middle of -- the multi-line SDK case is precisely where that
+    could happen unnoticed.
+
+    The `count` assertion is not redundant with it. Equality pins today's single
+    occurrence; `count` names *double-appending* as the specific regression being
+    guarded -- a second `@handle_error` in the decorator chain, or a hint added to
+    both branches of a re-split `_error_message`, would append it twice.
+
+    The two blank cases also pin the preserved fallback to the exception's type
+    name (`.strip()` is what makes whitespace-only count as blank).
+    """
+    request = _disable_update_request(monkeypatch)
+
+    result = CliRunner().invoke(
+        _command_raising(exception),
+        obj=object(),
+        standalone_mode=False,
+    )
+
+    assert result.exit_code == 1
+    assert str(result.exception) == f"{expected_body}\n{DEBUG_HINT}"
+    assert str(result.exception).count(DEBUG_HINT) == 1
+    request.assert_not_called()
+
+
+def test_debug_mode_adds_no_hint_and_leaves_the_exception_unwrapped(monkeypatch):
+    """`--debug` is unaffected: the original exception propagates, hint-free.
+
+    The hint exists to tell a user how to reach a traceback. Under `--debug` they
+    already have one, and `_error_message` is never reached -- so the hint must not
+    appear anywhere in the traceback path, and the exception must arrive unwrapped
+    rather than as a `ClickException` carrying an annotated message.
+
+    Identity is measured in-process; the absence of the hint from the real output
+    stream has to be measured in a child process, because `CliRunner` intercepts
+    the re-raise before Python prints anything.
+    """
+    request = _disable_update_request(monkeypatch)
+    cause = RuntimeError("DEBUG_NO_HINT_SENTINEL")
+    command = _command_raising(cause)
+
+    result = CliRunner().invoke(_debug_root(command), ["--debug", command.name])
+
+    assert result.exit_code == 1
+    assert result.exception is cause
+    # Not re-wrapped, and no hint spliced into its message.
+    assert str(result.exception) == "DEBUG_NO_HINT_SENTINEL"
+    request.assert_not_called()
+
+    child = _run_child(
+        """
+import click
+from praetorian_cli.handlers.cli_decorators import cli_handler
+
+@click.group()
+@click.option("--debug", is_flag=True)
+@click.pass_context
+def root(ctx, debug):
+    ctx.obj = object()
+
+@root.command()
+@cli_handler
+def command(_sdk):
+    raise RuntimeError("DEBUG_NO_HINT_SENTINEL")
+
+root.main(["--debug", "command"])
+"""
+    )
+
+    output = child.stdout + child.stderr
+    assert child.returncode == 1
+    assert TRACEBACK_HEADER in child.stderr
+    assert "DEBUG_NO_HINT_SENTINEL" in child.stderr
+    assert DEBUG_HINT not in output
+
+
+def test_debug_mode_preserves_sdk_error_identity_and_traceback(monkeypatch):
+    """`--debug` on an SDK-shaped failure: same exception object, real traceback.
+
+    Identity is measured in-process (`CliRunner` intercepts the re-raise), while
+    the traceback has to be measured in a real child process -- `CliRunner`
+    catches the exception before Python can print one.
+    """
+    request = _disable_update_request(monkeypatch)
+    cause = Exception(SDK_API_FAILURE_MESSAGE)
+    command = _command_raising(cause)
+
+    result = CliRunner().invoke(_debug_root(command), ["--debug", command.name])
+
+    assert result.exit_code == 1
+    assert result.exception is cause
+    request.assert_not_called()
+
+    child = _run_child(
+        """
+import click
+from praetorian_cli.handlers.cli_decorators import cli_handler
+
+@click.group()
+@click.option("--debug", is_flag=True)
+@click.pass_context
+def root(ctx, debug):
+    ctx.obj = object()
+
+@root.command()
+@cli_handler
+def command(_sdk):
+    raise Exception('[404] Request failed\\nError: {"message":"asset not found"}')
+
+root.main(["--debug", "command"])
+"""
+    )
+
+    assert child.returncode == 1
+    assert TRACEBACK_HEADER in child.stderr
+    assert "[404] Request failed" in child.stderr
+    assert "asset not found" in child.stderr
 
 
 @pytest.mark.parametrize(
@@ -142,7 +377,7 @@ def test_deliberate_click_exceptions_preserve_status_and_actionable_text(
 
     assert result.exit_code == expected_status
     assert expected_text in result.output
-    assert "An unexpected error occurred" not in result.output
+    assert TRACEBACK_HEADER not in result.output
     request.assert_not_called()
 
 
@@ -159,7 +394,7 @@ def test_explicit_debug_mode_preserves_unexpected_exception_identity(monkeypatch
     request.assert_not_called()
 
 
-def test_real_process_normal_mode_hides_unexpected_traceback_and_message():
+def test_real_process_normal_mode_shows_message_without_traceback():
     result = _run_child(
         """
 import click
@@ -168,7 +403,7 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 @click.command()
 @cli_handler
 def command(_sdk):
-    raise RuntimeError("SECRET_UNEXPECTED_SENTINEL")
+    raise RuntimeError("UNEXPECTED_SENTINEL")
 
 command.main(obj=object())
 """
@@ -176,8 +411,9 @@ command.main(obj=object())
 
     output = result.stdout + result.stderr
     assert result.returncode == 1
-    assert output == "Error: An unexpected error occurred. Re-run with --debug for details.\n"
-    assert "SECRET_UNEXPECTED_SENTINEL" not in output
+    # Whole rendered stream, exactly: Click's `Error: ` prefix, the message, then
+    # the hint on its own line. Nothing else -- no traceback, no update advisory.
+    assert output == f"Error: UNEXPECTED_SENTINEL\n{DEBUG_HINT}\n"
     assert "Traceback" not in output
 
 
@@ -287,15 +523,13 @@ def test_future_cancellation_is_not_translated_or_swallowed(monkeypatch):
 
 
 def test_abort_keeps_its_own_message_and_exit_code(monkeypatch):
-    from praetorian_cli.handlers.cli_decorators import UNEXPECTED_ERROR_MESSAGE
-
     request = _disable_update_request(monkeypatch)
 
     result = CliRunner().invoke(_command_raising(click.Abort()), obj=object())
 
     assert result.exit_code == 1
     assert "Aborted!" in result.output
-    assert UNEXPECTED_ERROR_MESSAGE not in result.output
+    assert "Error:" not in result.output
     request.assert_not_called()
 
 
@@ -324,7 +558,7 @@ def test_ctx_exit_nonzero_preserves_its_status(monkeypatch):
     result = CliRunner().invoke(command, obj=object())
 
     assert result.exit_code == 3
-    assert "An unexpected error occurred" not in result.output
+    assert result.output == ""
     request.assert_not_called()
 
 
@@ -335,7 +569,7 @@ def test_sys_exit_passes_through_unchanged(monkeypatch):
     result = CliRunner().invoke(_command_calling(lambda: sys.exit(7)), obj=object())
 
     assert result.exit_code == 7
-    assert "An unexpected error occurred" not in result.output
+    assert "Error:" not in result.output
     request.assert_not_called()
 
 
@@ -343,10 +577,9 @@ def test_handled_user_facing_error_is_unchanged(monkeypatch):
     """The *handled* error path is untouched by this change.
 
     `utils.error` prints `ERROR: <message>` to stderr and exits 1. It must keep
-    its own actionable text -- not be redacted -- and must not be re-labelled
-    with Click's `Error:` prefix.
+    its own actionable text and must not be re-labelled with Click's `Error:`
+    prefix.
     """
-    from praetorian_cli.handlers.cli_decorators import UNEXPECTED_ERROR_MESSAGE
     from praetorian_cli.handlers.utils import error
 
     request = _disable_update_request(monkeypatch)
@@ -356,16 +589,5 @@ def test_handled_user_facing_error_is_unchanged(monkeypatch):
 
     assert result.exit_code == 1
     assert "ERROR: profile 'staging' is not configured" in result.stderr
-    assert UNEXPECTED_ERROR_MESSAGE not in result.output
+    assert "Error:" not in result.output
     request.assert_not_called()
-
-
-def test_unexpected_error_message_is_a_module_constant():
-    """The redacted message must keep its actionable half.
-
-    Redaction without a route to the details is a dead end for the user, so pin
-    that the constant still names the flag that recovers them.
-    """
-    from praetorian_cli.handlers.cli_decorators import UNEXPECTED_ERROR_MESSAGE
-
-    assert "--debug" in UNEXPECTED_ERROR_MESSAGE

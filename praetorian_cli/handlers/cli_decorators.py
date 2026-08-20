@@ -9,11 +9,29 @@ from packaging.version import Version
 from praetorian_cli.handlers.utils import error
 
 
-UNEXPECTED_ERROR_MESSAGE = "An unexpected error occurred. Re-run with --debug for details."
+DEBUG_HINT = "(re-run with --debug for the full traceback)"
 
 
 def _debug_enabled(ctx):
     return bool(ctx.find_root().params.get("debug", False))
+
+
+# POLICY: every command routes through this boundary, which passes the
+# exception's message through unchanged -- no sanitizing, summarizing, or
+# redacting. The SDK raises bare `Exception`/`ValueError` as its normal
+# error-reporting mechanism (`process_failure` in praetorian_cli/sdk/chariot.py,
+# praetorian_cli/sdk/entities/*.py), so that message IS the user-facing text.
+#
+# WHERE TO CHANGE: classification is ENG-6570, redaction is ENG-6781 -- neither
+# here. Nor is this the only egress path: praetorian_cli/sdk/mcp_server.py
+# returns `str(e)` to its caller, and the SDK is a public library surface.
+def _error_message(exc):
+    """Surface the exception's own message, plus the `--debug` hint.
+
+    Falls back to the exception's type name when its message is blank.
+    """
+    message = str(exc).strip() or type(exc).__name__
+    return f"{message}\n{DEBUG_HINT}"
 
 
 def handle_error(func):
@@ -33,7 +51,7 @@ def handle_error(func):
         except Exception as exc:
             if _debug_enabled(ctx):
                 raise
-            raise click.ClickException(UNEXPECTED_ERROR_MESSAGE) from exc
+            raise click.ClickException(_error_message(exc)) from exc
 
     return wrapper
 
