@@ -22,6 +22,14 @@ class MCPServer:
         if fnmatch.fnmatch(tool_name, "*accounts*"):
             return False
 
+        # Destructive purge operations (e.g. assets_purge, risks_purge,
+        # seeds_purge) have no confirmation or dry-run gate when invoked via
+        # MCP, unlike the CLI which prompts for confirmation. Block them
+        # entirely from auto-discovery so MCP clients cannot trigger
+        # irreversible deletes without a human in the loop.
+        if fnmatch.fnmatch(tool_name, "*purge*"):
+            return False
+
         if not self.allowable_tools:
             return True
         

@@ -262,6 +262,8 @@ class GuardConsole(
                 raise
             except Exception as e:
                 self.console.print(f'[error]Error: {e}[/error]')
+        elif self._try_cli_passthrough(cmd, args):
+            pass
         elif self.context.active_tool:
             # When a tool is selected, treat unknown input as "set target + execute"
             target_input = user_input.strip()
@@ -281,8 +283,6 @@ class GuardConsole(
                 raise
             except Exception as e:
                 self.console.print(f'[error]{e}[/error]')
-        elif self._try_cli_passthrough(cmd, args):
-            pass
         else:
             self.console.print(f'[dim]Unknown command: {cmd}. Type "help" for available commands.[/dim]')
 

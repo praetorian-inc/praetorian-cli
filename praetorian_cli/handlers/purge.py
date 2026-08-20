@@ -13,6 +13,17 @@ def _purge_command(sdk, entity_name, list_fn, purge_fn, filter_key, dry_run, for
 
     if dry_run:
         click.echo(f'DRY RUN: {entity_name}s matching filter "{filter_key}":')
+        # NOTE: list_fn is the entity's `list()` method, which for risks
+        # filters by "contains" (search) semantics rather than prefix
+        # semantics -- unlike assets/seeds, and unlike the actual purge_fn
+        # backend call, which matches by key PREFIX. We re-filter locally
+        # with startswith() below to approximate prefix semantics for the
+        # preview, but this is still not fully equivalent to the backend:
+        # if there are more than `pages=100` pages of "contains" matches,
+        # true prefix matches beyond that page limit could be fetched-but-
+        # truncated before the startswith() filter ever sees them, so the
+        # dry-run preview could under-report what the real purge removes.
+        # Known limitation -- see PR #265 review discussion.
         results, _ = list_fn(filter_key, pages=100)
         results = [r for r in results if r['key'].startswith(filter_key)]
         if not results:
