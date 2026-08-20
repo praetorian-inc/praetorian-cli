@@ -33,7 +33,30 @@ from praetorian_cli.handlers.configure import configure
 from praetorian_cli.sdk.keychain import Keychain
 
 
-@click.group()
+class InvocationPathGroup(click.Group):
+    """Record the Click-resolved public command path before root setup runs."""
+
+    def resolve_command(self, ctx, args):
+        command_name, command, remaining = super().resolve_command(ctx, args)
+        nested_name = remaining[0] if remaining else None
+        ctx.meta["praetorian_invocation_path"] = (command_name, nested_name)
+        return command_name, command, remaining
+
+
+def _is_test_invocation(click_context):
+    path = click_context.meta.get("praetorian_invocation_path", ())
+    return click_context.invoked_subcommand == "test" or path == ("chariot", "test")
+
+
+def _test_target(profile, account, proxy):
+    return praetorian_cli.handlers.test.TestTarget(
+        profile=profile,
+        account=account,
+        proxy=proxy,
+    )
+
+
+@click.group(cls=InvocationPathGroup)
 @click.option('--profile', default='United States', help='The profile to use in the keychain file', show_default=True)
 @click.option('--account', default=None, help='Assume role into this account')
 @click.option('--debug', is_flag=True, default=False, help='Run the CLI in debug mode')
@@ -44,6 +67,9 @@ def main(click_context, profile, account, debug, proxy):
     if debug:
         click.echo('Running in debug mode.')
     chariot.is_debug = debug
+    if _is_test_invocation(click_context):
+        click_context.obj = _test_target(profile, account, proxy)
+        return
     click_context.obj = {'keychain': Keychain(profile, account), 'proxy': proxy}
     praetorian_cli.handlers.script.load_dynamic_commands()
 
@@ -61,10 +87,15 @@ main.add_command(configure)
 @click.version_option()
 def guard_main(click_context, profile, account, debug, proxy):
     """Guard CLI - Praetorian's offensive security platform."""
-    from praetorian_cli.sdk.chariot import Chariot
     if debug:
         click.echo('Running in debug mode.')
     chariot.is_debug = debug
+
+    if _is_test_invocation(click_context):
+        click_context.obj = _test_target(profile, account, proxy)
+        return
+
+    from praetorian_cli.sdk.chariot import Chariot
     click_context.obj = Chariot(Keychain(profile, account), proxy=proxy)
     praetorian_cli.handlers.script.load_dynamic_commands()
 

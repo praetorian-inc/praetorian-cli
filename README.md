@@ -28,6 +28,7 @@
 - [Developers](#developers)
     - [SDK](#sdk)
     - [Developing external scripts](#developing-external-scripts)
+    - [Running the test suite](#running-the-test-suite)
     - [Contributing](#contributing)
     - [Support](#support)
     - [License](#license)
@@ -344,6 +345,49 @@ guard --account guard+example@praetorian.com script --help
 
 For developing scripts, you can refer to
 this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/script-development.md).
+
+
+## Running the test suite
+
+`guard test` runs the integration suites that ship with the package. **Some of
+those suites create, modify and delete real entities in whatever account the
+selected profile points at**, so the command is gated.
+
+Suites are selected with `-s`/`--suite`:
+
+| Suite | What it runs | Touches a live account? |
+| --- | --- | --- |
+| `safe` *(default)* | Local, offline unit tests | No |
+| `coherence` | End-to-end entity lifecycle tests | **Yes — creates and deletes assets, risks, settings, configurations** |
+| `cli` | CLI-level integration tests | **Yes — mutating** |
+| `tui` | Terminal UI tests | No |
+
+A bare `guard test` runs the `safe` suite only. It executes with a temporary
+`HOME` and with credential environment variables stripped, so it cannot reach
+your real credentials.
+
+The mutating suites additionally require:
+
+1. **An explicit profile and account.** Both must be given and non-empty —
+   `guard --profile <profile> --account <account> test --suite coherence`.
+   There is no fallback: an unset or blank value is an error, so the suite can
+   never quietly run against a default profile.
+2. **Interactive confirmation.** The command prints the suite, profile, account,
+   and whether the suite is live and mutating, then asks you to confirm.
+   Declining — or a non-interactive invocation, which cannot confirm — exits
+   non-zero without running any test.
+
+```zsh
+# Safe by default — no account is touched.
+guard test
+
+# Mutating suite: target must be explicit, and you must confirm.
+guard --profile "United States" --account guard+scratch@praetorian.com \
+    test --suite coherence
+```
+
+Never point a mutating suite at a production account. Use a dedicated scratch
+account whose contents you are willing to lose.
 
 
 ## Contributing
