@@ -127,18 +127,24 @@ def _successful_command():
 def _force_update_request(monkeypatch, tmp_path, side_effect):
     """The inverse of `_disable_update_request`: let the advisory reach the network.
 
-    Two forces are needed and both are load-bearing. `CliRunner` replaces stderr
-    with a non-tty buffer, so `_stderr_is_interactive()` returns False inside any
-    `invoke` and the advisory returns at its very first gate -- a test that did
-    not patch it would assert against a check that never ran. `XDG_CACHE_HOME` is
-    redirected at `tmp_path` so nothing reads or writes the real user cache, and
-    an empty cache is what guarantees the network branch is the one taken.
+    Two forces are needed and both are load-bearing. `_session_is_interactive()`
+    requires BOTH `sys.stdout.isatty()` and `sys.stderr.isatty()`, and `CliRunner`
+    replaces both with non-tty buffers, so the gate is closed inside any `invoke`
+    and the advisory returns before it does anything -- a test that did not force
+    it would assert against a check that never ran, and would keep passing if the
+    advisory stopped running altogether. Forcing the whole predicate rather than
+    one stream is what keeps that hole shut. `XDG_CACHE_HOME` is redirected at
+    `tmp_path` so nothing reads or writes the real user cache, and an empty cache
+    is what guarantees the network branch is the one taken.
+
+    The predicate's own behaviour is pinned in test_update_check.py, which drives
+    the real `_session_is_interactive` instead of replacing it.
     """
     import praetorian_cli.handlers.cli_decorators as decorators
 
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     monkeypatch.delenv("PRAETORIAN_CLI_DISABLE_UPDATE_CHECK", raising=False)
-    monkeypatch.setattr(decorators, "_stderr_is_interactive", lambda: True)
+    monkeypatch.setattr(decorators, "_session_is_interactive", lambda: True)
     request = Mock(side_effect=side_effect)
     monkeypatch.setattr(decorators.requests, "get", request)
     return request
