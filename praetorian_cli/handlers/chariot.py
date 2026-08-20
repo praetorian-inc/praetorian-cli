@@ -4,6 +4,11 @@ import click
 @click.group()
 @click.pass_context
 def chariot(click_context):
+    from praetorian_cli.handlers.test import TestTarget
+
+    if isinstance(click_context.obj, TestTarget):
+        return
+
     # import done here to avoid circular import errors in praetorian_cli/handlers/cli_decorators.py
     from praetorian_cli.sdk.chariot import Chariot
 

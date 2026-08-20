@@ -1,14 +1,15 @@
 import pytest
 
 from praetorian_cli.sdk.mcp_server import MCPServer
-from praetorian_cli.sdk.test.utils import setup_chariot, make_test_values, clean_test_entities
+from praetorian_cli.sdk.test.utils import selected_test_target, setup_chariot, make_test_values, clean_test_entities
 
 
 @pytest.mark.coherence
 class TestMCP:
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        profile, account = selected_test_target()
+        self.sdk = setup_chariot(profile, account)
         make_test_values(self)
 
     def test_mcp_default(self):
