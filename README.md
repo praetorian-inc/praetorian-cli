@@ -155,7 +155,7 @@ guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ## Update checks
 
 After a command finishes, the CLI may check PyPI for a newer release of
-`praetorian-cli` and print a one-line upgrade advisory to stderr. The check is
+`praetorian-cli` and print a three-line upgrade advisory to stderr. The check is
 deliberately quiet and infrequent:
 
 - **At most once every 24 hours.** Every attempt is recorded at
@@ -163,9 +163,19 @@ deliberately quiet and infrequent:
   request is made, so a refresh that fails — offline, DNS, timeout, a malformed
   response — is rate-limited exactly like one that succeeds, and keeps
   advertising the last version it did learn. Between refreshes the check reads
-  that file and makes no network request at all. If the file cannot be written
-  at all (a read-only home, a cache directory owned by another user), the check
-  does not run: a probe whose rate we cannot limit is one we do not send.
+  that file and makes no network request at all. Commands that start at the same
+  instant are excluded by a marker file created beside that record, so eight
+  concurrent invocations perform one refresh rather than eight — including when
+  the request fails instantly, since the attempt is recorded before it is made.
+  A process killed mid-refresh leaves the marker behind, which defers the next
+  refresh that is actually due by up to a minute rather than permitting an extra
+  one. A relative `XDG_CACHE_HOME` is
+  ignored in favour of `~/.cache`, as the base-directory spec requires —
+  honouring it would put a separate cache in every working directory and so
+  defeat the limit outright. If the record cannot be written at all (a read-only
+  home, a cache directory owned by another user, or one reached through a
+  symlink), the check does not run: a probe whose rate we cannot limit is one we
+  do not send.
 - **Only when a human is watching.** It is skipped unless **both** stdout and
   stderr are a terminal, and skipped when `CI` or `GITHUB_ACTIONS` is set or
   `TERM=dumb`. Piping either stream — `guard list assets | jq` — turns it off.
@@ -197,8 +207,10 @@ A refresh is an unauthenticated `GET` to `https://pypi.org/pypi/praetorian-cli/j
 It sends no account, profile, command, or argument — only what any HTTPS request
 inherently reveals to the server: your IP address and the fact that some
 `praetorian-cli` install asked for the package index at that moment. Because
-every attempt is recorded before it is made, that happens at most once per day
-per machine, so your per-command usage cadence is not exposed. If contacting
+every attempt is recorded before it is made and concurrent attempts are
+excluded, that happens at most once per day per user account on the machine —
+several users each get their own cache — so your per-command usage cadence is
+not exposed. If contacting
 pypi.org at all is unacceptable in your environment, set the variable above.
 
 # Operators

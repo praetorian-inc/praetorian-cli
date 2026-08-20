@@ -28,7 +28,10 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from praetorian_cli.handlers.cli_decorators import UPDATE_CHECK_CACHE_TTL_SECONDS
+from praetorian_cli.handlers.cli_decorators import (
+    UPDATE_CHECK_CACHE_TTL_SECONDS,
+    UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS,
+)
 
 
 UPDATE_URL = "https://pypi.org/pypi/praetorian-cli/json"
@@ -53,9 +56,60 @@ posix_modes_only = pytest.mark.skipif(
     os.name != "posix", reason="POSIX mode bits are not enforced on this platform"
 )
 
+# Creating a *directory* symlink needs a privilege or developer mode off POSIX, so
+# the symlink cases are skipped there rather than deleted -- the rejection they
+# pin is what keeps a hostile pre-created cache directory from being written to.
+symlinks_only = pytest.mark.skipif(
+    os.name != "posix", reason="creating a directory symlink is not unprivileged off POSIX"
+)
+
+# `/dev/fd` is how this process's open descriptors are counted. Linux and macOS
+# both have it; elsewhere there is nothing to count, so the leak test is skipped.
+fd_counting_only = pytest.mark.skipif(
+    not os.path.isdir("/dev/fd"), reason="descriptor counting needs /dev/fd"
+)
+
 
 def _cache_path(cache_root: Path) -> Path:
     return cache_root / "praetorian-cli" / "update-check.json"
+
+
+def _refresh_marker_path(cache_root: Path) -> Path:
+    """The exclusive-create marker that serialises concurrent refreshes.
+
+    Derived here the same way the module derives it -- a sibling of the cache
+    record -- so a test can pre-create it (another invocation holds the claim) or
+    assert its absence (the claim was released).
+    """
+    cache_path = _cache_path(cache_root)
+    return cache_path.with_name(cache_path.name + ".refresh")
+
+
+def _write_cache_record(cache_path: Path, checked_at, latest_version) -> None:
+    """Leave the cache record a previous invocation -- or a peer -- would have left."""
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(
+        json.dumps({"checked_at": checked_at, "latest_version": latest_version}),
+        encoding="utf-8",
+    )
+
+
+def _symlinked_leaf_cache(tmp_path: Path):
+    """A cache root whose `praetorian-cli` leaf is a pre-created symlink.
+
+    Returns `(cache_root, victim)`. The target is a directory this user owns and
+    can write, so nothing but the leaf-symlink rejection stands between the
+    refresh and writing into it -- and it is world-readable and non-empty, so both
+    its mode and its contents are observable afterwards.
+    """
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    victim.chmod(0o755)
+    (victim / "keepme").write_bytes(b"not ours")
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    _cache_path(cache_root).parent.symlink_to(victim, target_is_directory=True)
+    return cache_root, victim
 
 
 def _response(latest: str = "1.1.0", releases=None) -> Mock:
@@ -1102,3 +1156,518 @@ def test_update_check_advisory_is_silent_when_local_version_is_current(
     assert result.output == ""
     for fragment in ADVISORY_FRAGMENTS:
         assert fragment not in result.output
+
+
+# --------------------------------------------------------------------------- #
+# Concurrent refresh exclusion.
+#
+# One exclusive-create marker beside the cache record elects one refresher out of
+# N simultaneous invocations. Real concurrency cannot be scheduled deterministically
+# in one process, so these tests drive the two halves of the race separately: the
+# LOSER's half by pre-creating the marker, and the WINNER-that-arrived-late half by
+# letting a peer land its record between the claim and the re-read.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "marker_age",
+    [0, UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS],
+    ids=["just-claimed", "at-the-staleness-boundary"],
+)
+def test_update_check_lost_refresh_claim_makes_no_request(
+    monkeypatch, tmp_path, marker_age
+):
+    """Whoever loses the claim does not fetch: N invocations, one probe.
+
+    Both ages are held by another invocation. The boundary case is the one an
+    off-by-one reclaim would get wrong: a marker exactly at the staleness constant
+    is *not* yet stale, so treating the comparison as `<` instead of `<=` would let
+    a second invocation reclaim it and probe concurrently with the holder.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    # Stale, so the refresh branch is the one taken and the claim is attempted.
+    _write_cache_record(cache_path, 0, "1.2.0")
+    marker = _refresh_marker_path(tmp_path)
+    marker.write_bytes(b"")
+    os.utime(marker, (CHECKED_AT - marker_age, CHECKED_AT - marker_age))
+    request = Mock(side_effect=AssertionError("a lost refresh claim must not probe"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    request.assert_not_called()
+
+
+def test_update_check_lost_refresh_claim_still_advises(monkeypatch, tmp_path):
+    """Losing the claim skips the REFRESH, not the whole check.
+
+    The cached version is still compared against the local one and still printed.
+    An implementation that returned early on a lost claim would silence the
+    advisory for every invocation that happens to collide with a refresh -- and
+    under a shell that runs several `guard` commands at once, that is most of them.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
+    marker = _refresh_marker_path(tmp_path)
+    marker.write_bytes(b"")
+    os.utime(marker, (CHECKED_AT, CHECKED_AT))
+    request = Mock(side_effect=AssertionError("a lost refresh claim must not probe"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert "A new version of praetorian-cli is available: 1.2.0" in result.output
+    assert result.exit_code == 0
+    request.assert_not_called()
+
+
+def test_update_check_lost_refresh_claim_leaves_the_holders_marker(monkeypatch, tmp_path):
+    """The loser does not release a marker it never claimed.
+
+    This is the whole exclusion: a loser that unlinked the holder's marker in its
+    own `finally` would hand the claim straight back to the next arrival, and N
+    invocations would probe N times again -- with the added hazard that the holder
+    is still mid-fetch and will release a marker that by then belongs to someone
+    else.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
+    marker = _refresh_marker_path(tmp_path)
+    marker.write_bytes(b"held")
+    os.utime(marker, (CHECKED_AT, CHECKED_AT))
+    request = Mock(side_effect=AssertionError("a lost refresh claim must not probe"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert marker.exists()
+    assert marker.read_bytes() == b"held"
+    assert result.exit_code == 0
+    request.assert_not_called()
+
+
+def test_update_check_stale_refresh_marker_is_reclaimed(monkeypatch, tmp_path):
+    """A marker left behind by a killed invocation cannot wedge refreshes forever.
+
+    One second past the staleness constant is enough: the marker is only an
+    election, so the recovery window is deliberately short compared to the cache
+    TTL. Without the reclaim, a single `SIGKILL` during a fetch would suppress
+    every future refresh for the lifetime of the cache directory.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
+    marker = _refresh_marker_path(tmp_path)
+    marker.write_bytes(b"")
+    abandoned_at = CHECKED_AT - (UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS + 1)
+    os.utime(marker, (abandoned_at, abandoned_at))
+    assert UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS < UPDATE_CHECK_CACHE_TTL_SECONDS
+    request = Mock(return_value=_response("1.8.0"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    assert result.exit_code == 0
+    assert "A new version of praetorian-cli is available: 1.8.0" in result.output
+
+
+def test_update_check_refresh_marker_is_released_when_the_fetch_raises(
+    monkeypatch, tmp_path
+):
+    """The claim is released on the failure paths too, not only on success.
+
+    The release lives in a `finally`, which is what this asserts: a marker left
+    behind by a raising fetch would suppress refreshes until it aged out of the
+    staleness window, turning one unreachable index into a stall on every
+    invocation in that window.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    _write_cache_record(_cache_path(tmp_path), 0, None)
+    marker = _refresh_marker_path(tmp_path)
+    request = Mock(side_effect=OSError("name or service not known"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert not marker.exists()
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert request.call_count == 1
+
+
+def test_update_check_released_marker_lets_the_next_stale_invocation_refresh(
+    monkeypatch, tmp_path
+):
+    """The consequence of the release: the next stale invocation can still refresh.
+
+    The TTL throttle is deliberately stepped over between the two invocations, so
+    the only thing that could stop the second refresh is a marker the first one
+    failed to release -- and under the frozen clock any leftover marker is inside
+    the staleness window, so the claim would be lost and the request count would
+    stay at one.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    _write_cache_record(cache_path, 0, None)
+    request = Mock(side_effect=OSError("name or service not known"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    first = CliRunner().invoke(_successful_command(), obj=object())
+    assert first.exit_code == 0
+    assert request.call_count == 1
+
+    # Age the throttle record back out of the TTL window, so the second
+    # invocation reaches the claim at all.
+    _write_cache_record(cache_path, 0, None)
+    request.side_effect = None
+    request.return_value = _response("1.9.0")
+
+    second = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert request.call_count == 2
+    assert second.exit_code == 0
+    assert "A new version of praetorian-cli is available: 1.9.0" in second.output
+
+
+def _claim_then_let_a_peer_refresh(decorators, monkeypatch, cache_path, peer_at, peer_version):
+    """Win the claim, then let a peer land `peer_version` before the re-read.
+
+    This is the late-arrival half of the race: two invocations read the same stale
+    record, one wins the claim and fetches, and the other wins it *afterwards* --
+    by which point the answer it needs is already on disk. Patching the claim is
+    the only deterministic seam for it, because the peer's write has to land
+    strictly between this invocation's claim and its re-read.
+    """
+    real_claim = decorators._claim_update_refresh_marker
+
+    def claim_then_peer_refreshes(path):
+        claimed = real_claim(path)
+        _write_cache_record(cache_path, peer_at, peer_version)
+        return claimed
+
+    monkeypatch.setattr(
+        decorators, "_claim_update_refresh_marker", claim_then_peer_refreshes
+    )
+
+
+def test_update_check_claim_winner_stands_down_for_a_peers_fresh_record(
+    monkeypatch, tmp_path
+):
+    """A claim won *after* a peer refreshed makes ZERO requests.
+
+    Without the re-read inside the claim, the exclusion only narrows the race
+    window instead of closing it: every invocation that queues up behind the
+    holder claims the marker in turn the moment it is released, and each one
+    fetches on the strength of the stale record it read before it ever waited.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    _write_cache_record(cache_path, 0, "1.2.0")
+    request = Mock(side_effect=AssertionError("a peer's fresh record must not be re-fetched"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+    _claim_then_let_a_peer_refresh(decorators, monkeypatch, cache_path, CHECKED_AT, "1.5.0")
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    request.assert_not_called()
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert not _refresh_marker_path(tmp_path).exists()
+
+
+def test_update_check_claim_winner_advises_the_peers_version(monkeypatch, tmp_path):
+    """Standing down still advises -- with the PEER's version, not the stale one.
+
+    The invocation read 1.2.0 at entry and the peer replaced it with 1.5.0 while
+    the claim was being taken. Serving the entry-time value would advertise a
+    version the process already knows to be superseded, and would keep doing so
+    for as long as invocations kept colliding.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    _write_cache_record(cache_path, 0, "1.2.0")
+    request = Mock(side_effect=AssertionError("a peer's fresh record must not be re-fetched"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+    _claim_then_let_a_peer_refresh(decorators, monkeypatch, cache_path, CHECKED_AT, "1.5.0")
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert "A new version of praetorian-cli is available: 1.5.0" in result.output
+    assert "1.2.0" not in result.output
+    assert result.exit_code == 0
+    request.assert_not_called()
+
+
+def test_update_check_peer_record_freshness_is_judged_by_the_clock_read_after_the_claim(
+    monkeypatch, tmp_path
+):
+    """The re-read samples the clock AGAIN; it must not reuse the pre-claim `now`.
+
+    Time passes while an invocation waits for the claim, so the peer's record can
+    carry a timestamp *later* than the `now` this invocation captured on entry.
+    Judged against that stale `now`, the age is negative, the future-timestamp rule
+    scores the peer's record as stale, and the invocation refetches -- which is the
+    exact stampede the re-read exists to prevent, restored in the one case where
+    contention is highest. Judged against a fresh reading, the age is positive and
+    the invocation stands down.
+
+    The clock is keyed on whether the peer has written rather than on call order,
+    so the discrimination does not depend on how many times `time.time()` happens
+    to be consulted.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    _write_cache_record(cache_path, 0, "1.2.0")
+    request = Mock(side_effect=AssertionError("a peer's fresh record must not be re-fetched"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    peer_written = []
+    monkeypatch.setattr(
+        decorators.time, "time", lambda: CHECKED_AT + 10 if peer_written else CHECKED_AT
+    )
+
+    real_claim = decorators._claim_update_refresh_marker
+
+    def claim_then_peer_refreshes(path):
+        claimed = real_claim(path)
+        # Written 5s after this invocation's entry -- ahead of the pre-claim `now`,
+        # behind the clock as it reads once the claim has been taken.
+        _write_cache_record(cache_path, CHECKED_AT + 5, "1.5.0")
+        peer_written.append(True)
+        return claimed
+
+    monkeypatch.setattr(
+        decorators, "_claim_update_refresh_marker", claim_then_peer_refreshes
+    )
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    request.assert_not_called()
+    assert "A new version of praetorian-cli is available: 1.5.0" in result.output
+    assert result.exit_code == 0
+    # The peer's record is left exactly as the peer wrote it: standing down writes
+    # nothing, so the peer's timestamp is not walked backwards to this
+    # invocation's older `now`.
+    assert json.loads(cache_path.read_text(encoding="utf-8")) == {
+        "checked_at": CHECKED_AT + 5,
+        "latest_version": "1.5.0",
+    }
+
+
+# --------------------------------------------------------------------------- #
+# `XDG_CACHE_HOME` that is not an absolute path.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "cache_home",
+    ["relative-cache", "./relative-cache", ""],
+    ids=["relative", "dot-relative", "empty"],
+)
+def test_update_check_non_absolute_xdg_cache_home_falls_back_to_the_home_cache(
+    monkeypatch, tmp_path, cache_home
+):
+    """A non-absolute `XDG_CACHE_HOME` is ignored, per the XDG base-directory spec.
+
+    Honouring it would resolve the cache against the *current working directory*,
+    so `guard` would scatter a cache directory into whatever tree the user happened
+    to be standing in -- and, worse, would read a throttle record written by
+    whoever else can write there. The empty value is the case that was already
+    correct and is easy to break, since it is falsey rather than non-absolute.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    working_dir = tmp_path / "cwd"
+    working_dir.mkdir()
+    monkeypatch.chdir(working_dir)
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("XDG_CACHE_HOME", cache_home)
+    request = Mock(return_value=_response("2.0.0"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    resolved = decorators._update_check_cache_path()
+
+    assert resolved.is_absolute()
+    assert resolved == fake_home / ".cache" / "praetorian-cli" / "update-check.json"
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == 0
+    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    assert "A new version of praetorian-cli is available: 2.0.0" in result.output
+    assert json.loads(resolved.read_text(encoding="utf-8"))["latest_version"] == "2.0.0"
+    # Nothing was resolved against the working directory.
+    assert list(working_dir.iterdir()) == []
+
+
+# --------------------------------------------------------------------------- #
+# A cache directory that is a symlink.
+# --------------------------------------------------------------------------- #
+
+
+@symlinks_only
+def test_update_check_symlinked_cache_directory_stays_off_the_network(
+    monkeypatch, tmp_path
+):
+    """A cache directory that is a symlink is refused, so ZERO requests are made.
+
+    This is the consequence that actually matters: the write is the throttle, so a
+    cache directory that cannot be written is an environment whose probe rate
+    cannot be limited -- and it must not be probed at all, not once per invocation.
+    Three invocations, because a rejection that failed to stop the fetch would show
+    up as a request every time rather than only on the first.
+    """
+    cache_root, _victim = _symlinked_leaf_cache(tmp_path)
+    decorators = _configure_update_check(monkeypatch, cache_root)
+    request = Mock(side_effect=AssertionError("a symlinked cache directory must not probe"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    for _ in range(3):
+        result = CliRunner().invoke(_successful_command(), obj=object())
+        assert result.exit_code == 0
+        assert result.exception is None
+        assert ADVISORY_LEAD not in result.output
+
+    request.assert_not_called()
+
+
+@symlinks_only
+def test_update_check_symlinked_cache_directory_writes_nothing_into_the_target(
+    monkeypatch, tmp_path
+):
+    """Nothing is created inside the symlink target -- not the record, not a temp file.
+
+    A pre-created symlink is how an attacker who can write the cache path but not
+    the target aims a privileged write somewhere else; `mkstemp` plus `os.replace`
+    would follow the link and land both files in the target directory.
+    """
+    cache_root, victim = _symlinked_leaf_cache(tmp_path)
+    decorators = _configure_update_check(monkeypatch, cache_root)
+    request = Mock(side_effect=AssertionError("a symlinked cache directory must not probe"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert sorted(p.name for p in victim.iterdir()) == ["keepme"]
+    assert (victim / "keepme").read_bytes() == b"not ours"
+    assert result.exit_code == 0
+    request.assert_not_called()
+
+
+@symlinks_only
+@posix_modes_only
+def test_update_check_symlinked_cache_directory_keeps_the_targets_mode(
+    monkeypatch, tmp_path
+):
+    """The target's mode is unchanged: the 0700 repair does not follow the link.
+
+    The directory preparation deliberately *repairs* a too-permissive mode, which
+    is exactly why the symlink case has to be refused before it runs -- otherwise
+    the repair reaches through the link and re-modes a directory that is none of
+    its business.
+    """
+    cache_root, victim = _symlinked_leaf_cache(tmp_path)
+    decorators = _configure_update_check(monkeypatch, cache_root)
+    request = Mock(return_value=_response("2.2.0"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert stat.S_IMODE(victim.stat().st_mode) == 0o755
+    assert result.exit_code == 0
+
+
+@symlinks_only
+def test_update_check_write_to_a_symlinked_cache_directory_reports_failure(
+    monkeypatch, tmp_path
+):
+    """`_write_update_check_cache` reports the refusal, rather than claiming success.
+
+    The return value is what the caller reads to decide whether to fetch, so a
+    refusal reported as success would restore the unthrottled probe -- the network
+    assertion above is downstream of this one.
+    """
+    cache_root, _victim = _symlinked_leaf_cache(tmp_path)
+    decorators = _configure_update_check(monkeypatch, cache_root)
+
+    assert not decorators._write_update_check_cache(
+        _cache_path(cache_root), CHECKED_AT, "1.2.0"
+    )
+
+
+@symlinks_only
+def test_update_check_symlinked_cache_ancestor_still_works(monkeypatch, tmp_path):
+    """The rejection is scoped to the leaf: a symlinked ANCESTOR still works.
+
+    A symlinked `~/.cache` is a normal dotfile-manager or shared-cache-volume
+    setup, and rejecting it would silently disable the advisory for those users.
+    The leaf is the component the module creates itself, so it is the only one it
+    can hold to having not been pre-created by somebody else.
+    """
+    real_cache = tmp_path / "real-cache"
+    real_cache.mkdir()
+    linked_cache = tmp_path / "linked-cache"
+    linked_cache.symlink_to(real_cache, target_is_directory=True)
+    decorators = _configure_update_check(monkeypatch, linked_cache)
+    request = Mock(return_value=_response("2.1.0"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    assert result.exit_code == 0
+    assert "A new version of praetorian-cli is available: 2.1.0" in result.output
+    assert json.loads(
+        _cache_path(real_cache).read_text(encoding="utf-8")
+    )["latest_version"] == "2.1.0"
+
+
+# --------------------------------------------------------------------------- #
+# Descriptor accounting on the cache-write failure path.
+# --------------------------------------------------------------------------- #
+
+
+@fd_counting_only
+def test_update_check_leaks_no_descriptor_when_fdopen_raises(monkeypatch, tmp_path):
+    """`mkstemp` hands back a raw descriptor, and a failed `os.fdopen` must not orphan it.
+
+    Only `os.fdopen` succeeding transfers ownership of that descriptor to a file
+    object the `with` block can close; if it raises, nothing else will ever close
+    it. The count is taken across 200 induced failures because one leak is
+    invisible -- and a long-lived process on a `guard` install that hits this path
+    every invocation is exactly where it stops being invisible.
+
+    The path-only assertion is the one that missed this bug: the old code removed
+    the temp file and leaked its descriptor, so `iterdir()` looked spotless while
+    the process bled descriptors. Both are asserted here for that reason.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    request = Mock(side_effect=AssertionError("a cache that cannot be written must not probe"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    def refuse_to_wrap(*_args, **_kwargs):
+        raise OSError("too many open files")
+
+    monkeypatch.setattr(decorators.os, "fdopen", refuse_to_wrap)
+
+    # One failing invocation before the baseline, so any one-time allocation on
+    # this path is counted as setup rather than as a leak.
+    warm_up = CliRunner().invoke(_successful_command(), obj=object())
+    assert warm_up.exit_code == 0
+    baseline = len(os.listdir("/dev/fd"))
+
+    for _ in range(200):
+        result = CliRunner().invoke(_successful_command(), obj=object())
+        assert result.exit_code == 0
+        assert result.exception is None
+
+    assert len(os.listdir("/dev/fd")) == baseline
+    request.assert_not_called()
+    # No `mkstemp` leftover, and no cache record: the write never completed.
+    assert list(cache_path.parent.iterdir()) == []
