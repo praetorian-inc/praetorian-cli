@@ -5,7 +5,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import print_json
+from praetorian_cli.handlers.utils import error, print_json
 
 
 def _read_json_body():
@@ -143,19 +143,22 @@ def plan(sdk, tag, sha):
 @praetorian_only
 @click.option('--tag', default=None, help='Infrastructure version tag')
 @click.option('--sha', default=None, help='Git commit SHA')
-@click.confirmation_option(prompt='Apply the Terraform deployment?')
-def apply(sdk, tag, sha):
+@click.option('--yes', '-y', is_flag=True, default=False, help='Skip confirmation prompt')
+def apply(sdk, tag, sha, yes):
     """ Run terraform apply from a builder state JSON on stdin
 
     \b
-    Prompts for confirmation.
+    Prompts for confirmation (unless stdin is piped or --yes is given).
 
     \b
     Example usages:
         cat builder.json | guard red-team deployment apply
     """
+    body = _read_json_body()
+    if not yes and sys.stdin.isatty():
+        click.confirm('Apply the Terraform deployment?', abort=True)
     print_json(sdk.red_team.deployment_terraform(
-        'apply', _read_json_body(), tag=tag, sha=sha))
+        'apply', body, tag=tag, sha=sha))
 
 
 @deployment.command()
@@ -238,7 +241,14 @@ def targets(sdk, campaign_id, segment):
         cat targets.json | guard red-team campaign targets --id camp-1
     """
     body = _read_json_body()
-    target_list = body.get('targets', body) if isinstance(body, dict) else body
+    if isinstance(body, dict):
+        target_list = body.get('targets')
+        if target_list is None:
+            error("Expected JSON with 'targets' key or a JSON array of targets")
+    elif isinstance(body, list):
+        target_list = body
+    else:
+        error('Expected JSON array or object with \'targets\' key')
     print_json(sdk.red_team.campaign_targets(
         campaign_id, target_list, segment=segment))
 

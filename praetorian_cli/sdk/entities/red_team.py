@@ -134,7 +134,7 @@ class RedTeam:
     def evilginx_configure(self, node_ref, domain, phishlet,
                            phishlet_params=None, unauth_url=None):
         body = {'node_ref': node_ref, 'domain': domain, 'phishlet': phishlet}
-        if phishlet_params:
+        if phishlet_params is not None:
             body['phishlet_params'] = phishlet_params
         if unauth_url:
             body['unauth_url'] = unauth_url
@@ -148,7 +148,7 @@ class RedTeam:
 
     def payload_generate(self, shellcode_filename, variables=None):
         body = {'shellcode_s3_filename': shellcode_filename}
-        if variables:
+        if variables is not None:
             body['variables'] = variables
         return self.api.post('red-team/payload/generate', body)
 
