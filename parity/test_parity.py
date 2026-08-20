@@ -1,12 +1,10 @@
 """Tests for the parity check system."""
 
-import copy
 import json
-import os
 
 import pytest
 
-from parity.check_parity import check_parity, load_registry, REGISTRY_PATH
+from parity.check_parity import check_parity, load_registry
 
 
 @pytest.fixture

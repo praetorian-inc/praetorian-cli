@@ -74,7 +74,7 @@ Add the import to `praetorian_cli/main.py`:
 import praetorian_cli.handlers.example  # noqa: F401
 ```
 
-This is all that's needed — the TUI console automatically discovers new CLI commands via the passthrough bridge.
+This is not automatically picked up by the TUI console. If the command should also be available there, manually wire it into the TUI console's handlers dict and add it to the `CONSOLE_COMMANDS` list.
 
 ## 4. Update the parity registry
 
@@ -105,7 +105,8 @@ from praetorian_cli.handlers.chariot import chariot
 def _invoke(*args):
     """Invoke a CLI command with a mocked Chariot SDK."""
     runner = CliRunner()
-    with patch('praetorian_cli.sdk.chariot.Chariot') as MockChariot:
+    with patch('praetorian_cli.sdk.chariot.Chariot') as MockChariot, \
+         patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
         mock_sdk = MagicMock()
         MockChariot.return_value = mock_sdk
         result = runner.invoke(
