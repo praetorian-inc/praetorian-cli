@@ -230,6 +230,20 @@ class MarcusCommands:
             pass
         return ''
 
+    def _snapshot_last_key(self, conversation_id: Optional[str]) -> str:
+        """Return the highest existing message key for a conversation, or '' if none/unknown."""
+        if not conversation_id:
+            return ''
+        try:
+            existing, _ = self.sdk.search.by_key_prefix(
+                f'#message#{conversation_id}#', user=True
+            )
+            if existing:
+                return max(m.get('key', '') for m in existing)
+        except Exception:
+            pass
+        return ''
+
     def _send_to_marcus(self, message: str) -> Optional[str]:
         """Send message to Marcus and poll for response with live tool output."""
         # Snapshot existing messages BEFORE the POST so we only process NEW ones
