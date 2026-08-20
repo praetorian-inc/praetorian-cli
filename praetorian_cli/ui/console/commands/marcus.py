@@ -163,22 +163,28 @@ class MarcusCommands:
             raise MarcusError(
                 f'Unexpected non-JSON response ({response.status_code}): {response.text[:200]}')
 
+    def _snapshot_last_key(self, conversation_id: Optional[str]) -> str:
+        """Return the highest existing message key for a conversation, or '' if none/unknown."""
+        if not conversation_id:
+            return ''
+        try:
+            existing, _ = self.sdk.search.by_key_prefix(
+                f'#message#{conversation_id}#', user=True
+            )
+            if existing:
+                return max(m.get('key', '') for m in existing)
+        except Exception:
+            pass
+        return ''
+
     def _send_to_marcus(self, message: str) -> Optional[str]:
         """Send message to Marcus and poll for response with live tool output."""
         # Snapshot existing messages BEFORE the POST so we only process NEW ones
         # from this request — capturing it after the POST risks missing messages
         # when the response comes back fast. New conversations have no prior
         # messages to snapshot, so they start from after_key=''.
-        last_key = ''
-        if self.context.conversation_id:
-            try:
-                existing, _ = self.sdk.search.by_key_prefix(
-                    f'#message#{self.context.conversation_id}#', user=True
-                )
-                if existing:
-                    last_key = max(m.get('key', '') for m in existing)
-            except Exception:
-                pass
+        pre_conversation_id = self.context.conversation_id
+        last_key = self._snapshot_last_key(pre_conversation_id)
 
         try:
             result = self._post_to_planner(message)
@@ -191,6 +197,14 @@ class MarcusCommands:
 
         if isinstance(result, dict) and not self.context.conversation_id and 'conversation' in result:
             self.context.conversation_id = result['conversation'].get('uuid')
+
+        # A 403 retry inside _post_to_planner may have cleared conversation_id and
+        # started a brand-new conversation on the reroute. In that case the
+        # pre-POST snapshot above belongs to the OLD conversation's key namespace
+        # and must not be reused as after_key for the new one — re-snapshot
+        # against the finalized conversation_id.
+        if pre_conversation_id and self.context.conversation_id != pre_conversation_id:
+            last_key = self._snapshot_last_key(self.context.conversation_id)
 
         acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
         self.console.print(f'[dim]Thinking...[/dim]{acct_label}')
