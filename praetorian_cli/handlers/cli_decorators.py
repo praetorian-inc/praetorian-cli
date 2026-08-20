@@ -1,4 +1,4 @@
-import traceback
+from concurrent.futures import CancelledError
 from functools import wraps
 from importlib.metadata import version
 
@@ -6,8 +6,14 @@ import click
 import requests
 from packaging.version import Version
 
-from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.utils import error
+
+
+UNEXPECTED_ERROR_MESSAGE = "An unexpected error occurred. Re-run with --debug for details."
+
+
+def _debug_enabled(ctx):
+    return bool(ctx.find_root().params.get("debug", False))
 
 
 def handle_error(func):
@@ -16,10 +22,18 @@ def handle_error(func):
     def wrapper(ctx, *args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except Exception as e:
-            error(str(e), quit=False)
-            if chariot.is_debug:
-                click.echo(traceback.format_exc())
+        except click.ClickException:
+            raise
+        except click.Abort:
+            raise
+        except click.exceptions.Exit:
+            raise
+        except CancelledError:
+            raise
+        except Exception as exc:
+            if _debug_enabled(ctx):
+                raise
+            raise click.ClickException(UNEXPECTED_ERROR_MESSAGE) from exc
 
     return wrapper
 
