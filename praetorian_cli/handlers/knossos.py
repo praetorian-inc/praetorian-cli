@@ -9,6 +9,8 @@ from praetorian_cli.handlers.utils import error, print_json
 
 
 def _read_json_body():
+    if sys.stdin.isatty():
+        raise click.UsageError('No JSON body provided on stdin')
     data = sys.stdin.read().strip()
     if not data:
         raise click.UsageError('No JSON body provided on stdin')
@@ -226,14 +228,16 @@ def status(sdk, env_id):
 @click.option('--lure-id', default=None, help='Filter by lure ID')
 @click.option('--event-type', default=None, help='Filter by event type')
 @click.option('--limit', type=int, default=None, help='Max results')
-def events(sdk, env_id, since, until_ts, lure_id, event_type, limit):
+@click.option('--offset', type=int, default=None, help='Pagination offset')
+def events(sdk, env_id, since, until_ts, lure_id, event_type, limit, offset):
     """ List interaction events for a decoy environment
 
     \b
     Example usages:
         guard knossos env events --id abc123
         guard knossos env events --id abc123 --event-type api_call --limit 100
+        guard knossos env events --id abc123 --limit 100 --offset 100
     """
     print_json(sdk.knossos.events(
         env_id, since=since, until=until_ts, lure_id=lure_id,
-        event_type=event_type, limit=limit))
+        event_type=event_type, limit=limit, offset=offset))
