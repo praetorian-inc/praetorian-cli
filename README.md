@@ -163,19 +163,24 @@ deliberately quiet and infrequent:
   request is made, so a refresh that fails — offline, DNS, timeout, a malformed
   response — is rate-limited exactly like one that succeeds, and keeps
   advertising the last version it did learn. Between refreshes the check reads
-  that file and makes no network request at all. Commands that start at the same
-  instant are excluded by a marker file created beside that record, so eight
+  that file and makes no network request at all — as long as the record is a
+  plain file that belongs to you and is no larger than 64 KiB. Anything else at
+  that path is ignored as though it were absent, so the next invocation refreshes
+  and replaces it rather than trusting what it found. Commands that start at the
+  same instant are excluded by a marker file created beside that record, so eight
   concurrent invocations perform one refresh rather than eight — including when
   the request fails instantly, since the attempt is recorded before it is made.
   A process killed mid-refresh leaves the marker behind, which defers the next
-  refresh that is actually due by up to a minute rather than permitting an extra
-  one. A relative `XDG_CACHE_HOME` is
+  refresh that is actually due rather than permitting an extra one — by up to a
+  minute, or up to two if the clock steps backwards in between, since a marker
+  counts as held while its age is within a minute in *either* direction. A
+  relative `XDG_CACHE_HOME` is
   ignored in favour of `~/.cache`, as the base-directory spec requires —
   honouring it would put a separate cache in every working directory and so
-  defeat the limit outright. If the record cannot be written at all (a read-only
-  home, a cache directory owned by another user, or one reached through a
-  symlink), the check does not run: a probe whose rate we cannot limit is one we
-  do not send.
+  defeat the limit outright. If the cache directory cannot be written at all (a
+  read-only home, one owned by another user, or one reached through a symlink),
+  the check does not run: a probe whose rate we cannot limit is one we do not
+  send.
 - **Only when a human is watching.** It is skipped unless **both** stdout and
   stderr are a terminal, and skipped when `CI` or `GITHUB_ACTIONS` is set or
   `TERM=dumb`. Piping either stream — `guard list assets | jq` — turns it off.

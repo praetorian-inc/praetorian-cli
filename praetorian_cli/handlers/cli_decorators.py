@@ -1,5 +1,7 @@
+import errno
 import json
 import os
+import stat
 import sys
 import tempfile
 import time
@@ -72,8 +74,10 @@ def handle_error(func):
 # private where the platform enforces POSIX modes: 0700 directory, 0600 file,
 # atomic same-directory replace.
 #
-# WHERE TO CHANGE: cadence, opt-out, endpoint, and timeout are the constants
-# below; the advisory itself is `_check_for_update`.
+# WHERE TO CHANGE: cadence, opt-out, endpoint, timeout, and the size a record may
+# reach before it is refused are the constants below; the advisory itself is
+# `_check_for_update`.
+UPDATE_CHECK_CACHE_MAX_BYTES = 64 * 1024
 UPDATE_CHECK_CACHE_TTL_SECONDS = 24 * 60 * 60
 UPDATE_CHECK_DISABLE_ENV = "PRAETORIAN_CLI_DISABLE_UPDATE_CHECK"
 UPDATE_CHECK_DISABLE_VALUES = frozenset({"1", "true", "yes", "on"})
@@ -164,19 +168,25 @@ def _claim_update_refresh_marker(cache_path):
     record cannot deliver that on its own -- all N read the stale cache before
     any of them writes -- so the claim is an exclusive create. `O_EXCL` is
     atomic on POSIX and Windows alike, which is why it is the mechanism here
-    instead of `fcntl`/`flock`. Losing the claim skips the REFRESH only.
+    instead of `fcntl`/`flock`. Losing the claim skips the REFRESH only. A
+    marker counts as held only while its age is inside
+    +/-`UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS`, which tolerates clock skew in
+    both directions: a marker stamped in the future ages out instead of wedging
+    refreshes for good, and a filesystem clock running seconds ahead of ours does
+    not reclaim a live holder's marker.
 
     WHERE TO CHANGE: the stale window is
-    `UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS`. A marker older than that is
-    unlinked and the claim re-attempted exactly once, so a process killed while
-    holding one cannot wedge refreshes for good. Any `OSError` anywhere here
-    means "did not win".
+    `UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS`. A marker whose age falls outside
+    that window in either direction is unlinked and the claim re-attempted
+    exactly once, so a process killed while holding one cannot wedge refreshes
+    for good. Any `OSError` anywhere here means "did not win".
     """
     marker_path = cache_path.with_name(cache_path.name + ".refresh")
     if _create_update_refresh_marker(marker_path):
         return marker_path
     try:
-        if time.time() - os.stat(marker_path).st_mtime <= UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS:
+        if -UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS <= time.time() - os.stat(marker_path).st_mtime \
+                <= UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS:
             return None
         os.unlink(marker_path)
     except OSError:
@@ -214,9 +224,42 @@ def _read_update_check_cache(cache_path):
     """`(checked_at, latest_version_or_None)`, or None when there is no usable record.
 
     A record with a null or unparseable version is still returned: it throttles.
+
+    POLICY: the record is opened by DESCRIPTOR and validated before a byte of it
+    is read. Nothing has vetted this path yet -- on a cold cache this is the
+    first thing in the module to touch it -- and a plain `open` here trusts
+    whatever is sitting at the path: it blocks in the kernel forever on a planted
+    FIFO, raising no `OSError` for either fail-open arm to catch, and hands
+    `json.load` an unbounded read of a device or an oversized file. `O_NONBLOCK`
+    refuses the FIFO, `O_NOFOLLOW` the symlink, `S_ISREG` a device reached any
+    other way, the size cap the oversized regular file, and the uid check a
+    record planted by another user. Every refusal is raised as an `OSError`, so
+    the arm below already reads it as "no usable record".
+
+    WHERE TO CHANGE: the ceiling is `UPDATE_CHECK_CACHE_MAX_BYTES`. On Windows
+    both flags degrade to 0 and the descriptor is text-mode (`O_BINARY` unset),
+    which is symmetric with the writer's `os.fdopen(fd, "w", encoding="utf-8")`
+    and JSON-insensitive; the type, size, and ownership checks still hold there.
     """
     try:
-        with open(cache_path, encoding="utf-8") as cache_file:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        fd = os.open(cache_path, flags)
+        # `os.fdopen` owns the descriptor only once it returns; until then this is
+        # the only reference to it, so every exit but success closes it here.
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode):
+                raise OSError(errno.EINVAL, "cache record is not a regular file")
+            if info.st_size > UPDATE_CHECK_CACHE_MAX_BYTES:
+                raise OSError(errno.EFBIG, "cache record is too large")
+            geteuid = getattr(os, "geteuid", None)
+            if geteuid is not None and info.st_uid != geteuid():
+                raise OSError(errno.EPERM, "cache record is not owned by us")
+            cache_file = os.fdopen(fd, encoding="utf-8")
+        except BaseException:
+            os.close(fd)
+            raise
+        with cache_file:
             cache = json.load(cache_file)
         checked_at = cache["checked_at"]
         if isinstance(checked_at, bool) or not isinstance(checked_at, (int, float)):
@@ -235,6 +278,61 @@ def _update_check_cache_is_fresh(cached, now):
     return cached is not None and 0 <= now - cached[0] < UPDATE_CHECK_CACHE_TTL_SECONDS
 
 
+def _cache_dir_descriptor_supported():
+    """True when the leaf directory can be validated and re-moded through one descriptor.
+
+    POLICY: `O_NOFOLLOW` and `os.fchmod` are POSIX-only, and an unguarded
+    POSIX-only call has taken this advisory down once already, so their absence
+    selects the path-based arm instead of raising. `O_DIRECTORY` is POSIX-only
+    too but needs no guard of its own: the explicit `S_ISDIR` check is what the
+    decision rests on, on every platform.
+    """
+    return hasattr(os, "O_NOFOLLOW") and hasattr(os, "fchmod")
+
+
+def _open_update_check_cache_dir(cache_path):
+    """An open descriptor on the leaf cache directory, locked to 0700, or None.
+
+    POLICY: validate and re-mode ONE inode -- the one this descriptor addresses.
+    A path-based `is_symlink()` check followed by a path-based `chmod` resolves
+    the leaf twice, and swapping it for a symlink in between aims the 0700 repair
+    at a directory that is none of our business; `os.fstat` and `os.fchmod` cannot
+    be redirected that way. `O_NOFOLLOW` covers the FINAL component only, which is
+    exactly the leaf-only scope this module holds to: a symlinked `~/.cache`
+    ANCESTOR is a legitimate, common dotfile setup and keeps working. A directory
+    we do not own is refused rather than repaired.
+
+    WHERE TO CHANGE: the descriptor is the caller's to close, and a caller that
+    goes on to write inside the directory addresses its files with `dir_fd=`
+    rather than resolving the path a second time. Any `OSError` means None.
+    """
+    parent = cache_path.parent
+    try:
+        try:
+            parent.mkdir(parents=True, mode=0o700)
+        except FileExistsError:
+            pass
+        fd = os.open(parent, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_DIRECTORY", 0))
+    except OSError:
+        return None
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISDIR(info.st_mode):
+            raise OSError(errno.ENOTDIR, "cache directory is not a directory")
+        geteuid = getattr(os, "geteuid", None)
+        if geteuid is not None and info.st_uid != geteuid():
+            raise OSError(errno.EPERM, "cache directory is not owned by us")
+        # mkdir's mode is masked by umask; the fchmod is what guarantees the mode.
+        os.fchmod(fd, 0o700)
+    except OSError:
+        os.close(fd)
+        return None
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
 def _prepare_update_check_cache_dir(cache_path):
     """Create the cache directory and lock it to 0700. True only when writing there is safe.
 
@@ -248,9 +346,17 @@ def _prepare_update_check_cache_dir(cache_path):
     WHERE TO CHANGE: this runs before the refresh marker is claimed (the marker
     needs a directory to be created in) and again inside
     `_write_update_check_cache`, which validates on its own terms rather than
-    trusting its caller.
+    trusting its caller -- and which keeps the descriptor this discards. The
+    path-based arm below is the fallback for platforms that cannot close the
+    two-resolution window at all.
     """
     try:
+        if _cache_dir_descriptor_supported():
+            dir_fd = _open_update_check_cache_dir(cache_path)
+            if dir_fd is None:
+                return False
+            os.close(dir_fd)
+            return True
         parent = cache_path.parent
         if parent.is_symlink():
             return False
@@ -270,17 +376,86 @@ def _prepare_update_check_cache_dir(cache_path):
         return False
 
 
+def _write_update_check_record_at(dir_fd, name, payload):
+    """Atomically write `payload` to `name` inside the directory `dir_fd` addresses.
+
+    POLICY: every step names the validated directory by descriptor, never by
+    path, so the destination cannot be swapped between the check and the write.
+    `os.rename` and not `os.replace`: measured, `os.replace` is absent from
+    `os.supports_dir_fd` on platforms where `os.open` and `os.rename` are
+    present, and a same-directory rename overwrites atomically either way.
+    `tempfile.mkstemp` has no `dir_fd`, so the temporary is created here --
+    `O_EXCL` against a random name, 0600 from the start as `mkstemp` does it,
+    and `os.fchmod` to hold that mode under any umask.
+    """
+    temp_name = f"{name}.{os.urandom(8).hex()}.tmp"
+    fd = os.open(temp_name, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600, dir_fd=dir_fd)
+    try:
+        # `os.fdopen` takes ownership of the descriptor only once it returns, so a
+        # failure inside it leaves the descriptor with no owner at all; the
+        # `finally` below reclaims the temporary's PATH, never a DESCRIPTOR.
+        # `BaseException`, because a KeyboardInterrupt landing here leaks
+        # identically.
+        try:
+            temp_file = os.fdopen(fd, "w", encoding="utf-8")
+        except BaseException:
+            os.close(fd)
+            raise
+        with temp_file:
+            os.fchmod(temp_file.fileno(), 0o600)
+            json.dump(payload, temp_file)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        os.rename(temp_name, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+    finally:
+        try:
+            os.unlink(temp_name, dir_fd=dir_fd)
+        except FileNotFoundError:
+            pass
+
+
+def _write_update_check_record_by_path(cache_path, payload):
+    """Atomically write `payload` to `cache_path`, resolving it by path.
+
+    The fallback for platforms with no directory descriptor. `mkstemp` creates
+    the file 0600 regardless of umask (measured at `umask 0000`), which is why no
+    `os.fchmod` follows it: `os.fchmod` is POSIX-only, and on Windows its
+    AttributeError was swallowed by the fail-open arm -- taking the whole
+    advisory down with it, every run.
+    """
+    # Same directory as the destination, so `os.replace` is an atomic rename.
+    fd, temp_name = tempfile.mkstemp(dir=cache_path.parent)
+    temp_path = Path(temp_name)
+    try:
+        # As above: `os.fdopen` owns the descriptor only once it returns, and the
+        # `finally` reclaims the path rather than the descriptor.
+        try:
+            temp_file = os.fdopen(fd, "w", encoding="utf-8")
+        except BaseException:
+            os.close(fd)
+            raise
+        with temp_file:
+            json.dump(payload, temp_file)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        os.replace(temp_path, cache_path)
+        cache_path.chmod(0o600)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 def _write_update_check_cache(cache_path, checked_at, latest_version):
     """Record an attempt. True on success, False when this environment cannot.
 
     The contract, spelled out because this one write is load-bearing for three
     unrelated properties:
 
-    * It VALIDATES THE DESTINATION before touching it, through
-      `_prepare_update_check_cache_dir`, whatever its caller already did.
-    * It lets NOTHING ESCAPE. No descriptor and no `mkstemp` leftover survives
-      any failure path, including a failure raised between `mkstemp` and
-      `os.fdopen`.
+    * It VALIDATES THE DESTINATION before touching it, whatever its caller
+      already did -- and on the descriptor arm it writes THROUGH the descriptor
+      it validated, so the directory it vetted is the directory it writes in.
+    * It lets NOTHING ESCAPE. No descriptor and no temporary file survives any
+      failure path, including a failure raised between the temporary's creation
+      and the `os.fdopen` that takes ownership of its descriptor.
     * It is NO PART of the exclusion between concurrent refreshes. That is
       `_claim_update_refresh_marker`, and `_check_for_update` claims it BEFORE
       calling this -- so reaching this function at all already means this
@@ -290,41 +465,22 @@ def _write_update_check_cache(cache_path, checked_at, latest_version):
       control-flow signal (stay off the network), not as an error to swallow.
     """
     try:
-        parent = cache_path.parent
+        payload = {
+            "checked_at": checked_at,
+            "latest_version": None if latest_version is None else str(latest_version),
+        }
+        if _cache_dir_descriptor_supported():
+            dir_fd = _open_update_check_cache_dir(cache_path)
+            if dir_fd is None:
+                return False
+            try:
+                _write_update_check_record_at(dir_fd, cache_path.name, payload)
+            finally:
+                os.close(dir_fd)
+            return True
         if not _prepare_update_check_cache_dir(cache_path):
             return False
-        # Same directory as the destination, so `os.replace` is an atomic rename.
-        # `mkstemp` creates the file 0600 regardless of umask (measured at
-        # `umask 0000`), which is why no `os.fchmod` follows it: `os.fchmod` is
-        # POSIX-only, and on Windows its AttributeError was swallowed by the
-        # fail-open arm -- taking the whole advisory down with it, every run.
-        fd, temp_name = tempfile.mkstemp(dir=parent)
-        temp_path = Path(temp_name)
-        try:
-            # `os.fdopen` takes ownership of the descriptor only once it returns,
-            # so a failure inside it leaves the descriptor with no owner at all;
-            # the `finally` below reclaims the path, never the descriptor.
-            # `BaseException`, because a KeyboardInterrupt landing here leaks
-            # identically.
-            try:
-                temp_file = os.fdopen(fd, "w", encoding="utf-8")
-            except BaseException:
-                os.close(fd)
-                raise
-            with temp_file:
-                json.dump(
-                    {
-                        "checked_at": checked_at,
-                        "latest_version": None if latest_version is None else str(latest_version),
-                    },
-                    temp_file,
-                )
-                temp_file.flush()
-                os.fsync(temp_file.fileno())
-            os.replace(temp_path, cache_path)
-            cache_path.chmod(0o600)
-        finally:
-            temp_path.unlink(missing_ok=True)
+        _write_update_check_record_by_path(cache_path, payload)
         return True
     except CancelledError:
         raise

@@ -19,6 +19,8 @@ defect that reached a release:
 import json
 import os
 import stat
+import threading
+from collections import namedtuple
 from concurrent.futures import CancelledError
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
@@ -29,6 +31,7 @@ import pytest
 from click.testing import CliRunner
 
 from praetorian_cli.handlers.cli_decorators import (
+    UPDATE_CHECK_CACHE_MAX_BYTES,
     UPDATE_CHECK_CACHE_TTL_SECONDS,
     UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS,
 )
@@ -69,6 +72,40 @@ fd_counting_only = pytest.mark.skipif(
     not os.path.isdir("/dev/fd"), reason="descriptor counting needs /dev/fd"
 )
 
+# The cache write has two arms, chosen by `_cache_dir_descriptor_supported()`: a
+# directory-descriptor arm, and a path fallback for the platforms without the
+# descriptor primitives. The fallback is always reachable -- deleting `os.fchmod`
+# simulates it -- but the descriptor arm cannot be simulated where the primitives
+# do not exist, so cases specific to it are skipped there.
+descriptor_writes_only = pytest.mark.skipif(
+    not (hasattr(os, "O_NOFOLLOW") and hasattr(os, "fchmod")),
+    reason="the directory-descriptor arm needs os.O_NOFOLLOW and os.fchmod",
+)
+
+# A planted FIFO at the cache path is the availability vector that has no
+# exception to catch: it parks `open()` in the kernel until a writer arrives.
+fifos_only = pytest.mark.skipif(
+    not hasattr(os, "mkfifo"), reason="planting a FIFO needs os.mkfifo"
+)
+
+# `os.mknod` is not available unprivileged, so the device vector is reached with a
+# symlink to a device that already exists. `/dev/zero` is the worst case on
+# purpose: an unbounded read of it returns bytes forever.
+DEVICE_PATH = "/dev/zero"
+
+
+def _is_character_device(path: str) -> bool:
+    try:
+        return stat.S_ISCHR(os.stat(path).st_mode)
+    except OSError:
+        return False
+
+
+character_devices_only = pytest.mark.skipif(
+    not _is_character_device(DEVICE_PATH),
+    reason=f"{DEVICE_PATH} is not a character device on this platform",
+)
+
 
 def _cache_path(cache_root: Path) -> Path:
     return cache_root / "praetorian-cli" / "update-check.json"
@@ -94,6 +131,23 @@ def _write_cache_record(cache_path: Path, checked_at, latest_version) -> None:
     )
 
 
+def _victim_directory(tmp_path: Path) -> Path:
+    """A directory this user owns, world-readable and non-empty.
+
+    Owned and writable ON PURPOSE: nothing but the module's own refusal stands
+    between a refresh and writing in here, so a missing refusal shows up as a
+    changed mode or a changed file rather than as an `OSError` the fail-open arm
+    would have swallowed. The mode is set explicitly, not left to umask, because
+    it is asserted afterwards.
+    """
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    (victim / "keepme").write_bytes(b"not ours")
+    (victim / "keepme").chmod(0o644)
+    victim.chmod(0o755)
+    return victim
+
+
 def _symlinked_leaf_cache(tmp_path: Path):
     """A cache root whose `praetorian-cli` leaf is a pre-created symlink.
 
@@ -102,10 +156,7 @@ def _symlinked_leaf_cache(tmp_path: Path):
     refresh and writing into it -- and it is world-readable and non-empty, so both
     its mode and its contents are observable afterwards.
     """
-    victim = tmp_path / "victim"
-    victim.mkdir()
-    victim.chmod(0o755)
-    (victim / "keepme").write_bytes(b"not ours")
+    victim = _victim_directory(tmp_path)
     cache_root = tmp_path / "cache"
     cache_root.mkdir()
     _cache_path(cache_root).parent.symlink_to(victim, target_is_directory=True)
@@ -472,39 +523,132 @@ def test_update_check_privacy_request_excludes_command_context(monkeypatch, tmp_
     assert all(sentinel not in request_repr for sentinel in sentinels)
 
 
-def test_update_check_cached_payload_is_atomically_replaced_twice(monkeypatch, tmp_path):
+_Replacement = namedtuple(
+    "_Replacement",
+    "mechanism raw_source raw_destination source_name destination_name "
+    "source_directory destination_directory",
+)
+
+
+def _directory_identity(entry) -> tuple:
+    """`(device, inode)` for a path or an open descriptor, or None for neither."""
+    if entry is None:
+        return None
+    info = os.stat(entry)
+    return (info.st_dev, info.st_ino)
+
+
+def _record_atomic_cache_replacements(monkeypatch):
+    """Record every atomic replacement a cache write performs, on either arm.
+
+    The two arms replace the record by different primitives -- `os.rename`
+    against a directory descriptor, and `os.replace` against full paths -- so
+    both are patched and each call is normalised to one shape. `source_directory`
+    and `destination_directory` are `(device, inode)` identities rather than path
+    strings, because "the same directory, so the rename is atomic" is a statement
+    about the directory the entry name is resolved against, which on the
+    descriptor arm is a descriptor and has no path at all.
+
+    The primitive actually used is recorded too, so a test can pin which arm ran
+    rather than merely that *something* replaced the file.
+    """
+    replacements = []
+    real_rename = os.rename
+    real_replace = os.replace
+
+    def record_rename(source, destination, *, src_dir_fd=None, dst_dir_fd=None):
+        replacements.append(
+            _Replacement(
+                "os.rename",
+                str(source),
+                str(destination),
+                Path(source).name,
+                Path(destination).name,
+                _directory_identity(src_dir_fd),
+                _directory_identity(dst_dir_fd),
+            )
+        )
+        real_rename(source, destination, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+
+    def record_replace(source, destination):
+        replacements.append(
+            _Replacement(
+                "os.replace",
+                str(source),
+                str(destination),
+                Path(source).name,
+                Path(destination).name,
+                _directory_identity(Path(source).parent),
+                _directory_identity(Path(destination).parent),
+            )
+        )
+        real_replace(source, destination)
+
+    monkeypatch.setattr(os, "rename", record_rename)
+    monkeypatch.setattr(os, "replace", record_replace)
+    return replacements
+
+
+@pytest.mark.parametrize(
+    "descriptor_support",
+    [
+        pytest.param(True, marks=descriptor_writes_only, id="directory-descriptor"),
+        pytest.param(False, id="path-fallback"),
+    ],
+)
+def test_update_check_cached_payload_is_atomically_replaced_twice(
+    monkeypatch, tmp_path, descriptor_support
+):
     """A refresh replaces the cache file TWICE, and every replace is atomic.
 
     Two by design, not by accident: the first records the attempt *before* the
     request goes out (which is what throttles a failing refresh), the second
-    records its result. Both go through `mkstemp` in the destination directory
-    plus `os.replace`, so a reader never sees a partially written file, and
-    neither leaves the temp entry behind.
+    records its result. Each one writes a temporary entry beside the destination
+    and then renames it over the destination in a single same-directory
+    operation, so a reader never sees a partially written file and neither leaves
+    the temp entry behind.
+
+    Both write arms are exercised, because the property is the atomicity and not
+    the call. Where the directory-descriptor primitives exist, the temporary is
+    created and renamed *relative to an open descriptor on the cache directory*
+    (`os.rename` with `src_dir_fd`/`dst_dir_fd`, which takes bare entry names and
+    never resolves the path a second time -- that second resolution is the TOCTOU
+    window). Where they do not -- Windows -- the fallback keeps `tempfile.mkstemp`
+    plus `os.replace` on full paths. Windows is simulated rather than skipped, for
+    the reason spelled out in
+    `test_update_check_survives_a_platform_without_os_fchmod`.
     """
     decorators = _configure_update_check(monkeypatch, tmp_path)
+    if not descriptor_support:
+        monkeypatch.delattr(os, "fchmod", raising=False)
+    assert decorators._cache_dir_descriptor_supported() == descriptor_support
     cache_path = _cache_path(tmp_path)
     cache_path.parent.mkdir()
     cache_path.write_text("malformed", encoding="utf-8")
+    cache_directory = _directory_identity(cache_path.parent)
     request = Mock(return_value=_response("1.4.0"))
     monkeypatch.setattr(decorators.requests, "get", request)
-    real_replace = os.replace
-    replacements = []
-
-    def record_replace(source, destination):
-        replacements.append((Path(source), Path(destination)))
-        real_replace(source, destination)
-
-    monkeypatch.setattr(os, "replace", record_replace)
+    replacements = _record_atomic_cache_replacements(monkeypatch)
 
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == 0
     assert len(replacements) == 2
-    for temporary_path, destination in replacements:
-        assert destination == cache_path
-        assert temporary_path.parent == cache_path.parent
-        assert temporary_path != cache_path
-        assert not temporary_path.exists()
+    for replacement in replacements:
+        assert replacement.mechanism == ("os.rename" if descriptor_support else "os.replace")
+        assert replacement.destination_name == cache_path.name
+        assert replacement.source_name != replacement.destination_name
+        assert replacement.source_directory == cache_directory
+        assert replacement.destination_directory == cache_directory
+        assert not (cache_path.parent / replacement.source_name).exists()
+        if descriptor_support:
+            # A descriptor-relative rename takes BARE entry names; a full path
+            # here would be resolved against the process cwd, not the descriptor.
+            assert replacement.raw_source == replacement.source_name
+            assert replacement.raw_destination == cache_path.name
+        else:
+            assert Path(replacement.raw_destination) == cache_path
+            assert Path(replacement.raw_source).parent == cache_path.parent
     # No debris of any kind left beside the destination.
     assert sorted(p.name for p in cache_path.parent.iterdir()) == [cache_path.name]
     payload = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -1274,6 +1418,72 @@ def test_update_check_stale_refresh_marker_is_reclaimed(monkeypatch, tmp_path):
     assert "A new version of praetorian-cli is available: 1.8.0" in result.output
 
 
+def test_update_check_future_dated_refresh_marker_is_reclaimed(monkeypatch, tmp_path):
+    """A marker stamped in the FUTURE ages out too, instead of wedging refreshes.
+
+    A negative age is what a filesystem clock running ahead of ours, a restored
+    backup, or a copied home directory leaves behind, and it is unbounded in a way
+    a positive age is not: a marker a day in the future suppresses every refresh
+    for that whole day plus the staleness window if the bound only looks at the
+    positive side. The assertion is on the fetch count rather than on the claim's
+    return value, because the fetch is the behaviour the user loses.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
+    marker = _refresh_marker_path(tmp_path)
+    marker.write_bytes(b"stamped ahead")
+    a_day_ahead = CHECKED_AT + 24 * 60 * 60
+    os.utime(marker, (a_day_ahead, a_day_ahead))
+    request = Mock(return_value=_response("1.9.0"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    assert result.exit_code == 0
+    assert "A new version of praetorian-cli is available: 1.9.0" in result.output
+    # Reclaimed, used, and released -- not merely reclaimed.
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize(
+    "skew_seconds",
+    [5, 30, UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS],
+    ids=["five-seconds-ahead", "thirty-seconds-ahead", "at-the-negative-boundary"],
+)
+def test_update_check_refresh_marker_stamped_by_a_fast_clock_still_holds(
+    monkeypatch, tmp_path, skew_seconds
+):
+    """A LIVE holder's marker is not reclaimed merely for reading as future-dated.
+
+    The tolerance is symmetric by policy, not by accident. A network filesystem
+    whose clock runs a few seconds ahead of this host stamps every marker in our
+    future, and a bound that tolerated only the positive side (`0 <= age <= S`)
+    would reclaim all of them the moment they were created -- the exclusion
+    failing open, N invocations probing together, which is the one thing the
+    marker exists to prevent. Modest skew is therefore *held*, and the negative
+    edge is inclusive, so a skew of exactly the staleness constant still holds.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    # Stale, so the refresh branch is the one taken and the claim is attempted.
+    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
+    marker = _refresh_marker_path(tmp_path)
+    marker.write_bytes(b"held")
+    stamped_ahead = CHECKED_AT + skew_seconds
+    os.utime(marker, (stamped_ahead, stamped_ahead))
+    request = Mock(side_effect=AssertionError("a live holder's marker must not be reclaimed"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    request.assert_not_called()
+    # The holder's marker is left exactly as it was, mtime included.
+    assert marker.read_bytes() == b"held"
+    assert marker.stat().st_mtime == stamped_ahead
+
+
 def test_update_check_refresh_marker_is_released_when_the_fetch_raises(
     monkeypatch, tmp_path
 ):
@@ -1628,6 +1838,294 @@ def test_update_check_symlinked_cache_ancestor_still_works(monkeypatch, tmp_path
 
 
 # --------------------------------------------------------------------------- #
+# The leaf directory swapped for a symlink MID-FLIGHT.
+#
+# The section above plants the symlink before the run starts, which a check
+# ordered before the first write already catches. These two plant it in the
+# window the module opens itself: between creating the leaf and using it. Anything
+# that names the leaf BY PATH after that point resolves the attacker's link, so
+# what is asserted here is the VICTIM -- its mode and its bytes -- and not merely
+# the returned False, which one of the two windows already returned before the fix.
+# --------------------------------------------------------------------------- #
+
+
+def _swap_the_leaf_for_a_symlink_after_mkdir(monkeypatch, leaf: Path, victim: Path):
+    """Hand the race to the attacker: swap `leaf` for a symlink as its `mkdir` returns.
+
+    `Path.mkdir` is the moment the leaf comes into existence and the last moment
+    before anything looks at it, so it is the window a racing attacker actually
+    gets. Returns the (single-element) record of the swap, so a test can prove the
+    race was RUN -- a swap that never fired would leave every assertion below
+    passing over an ordinary directory.
+
+    Fires once, deliberately: the module tolerates `FileExistsError` and retries
+    against whatever now sits at the path, and that second look must refuse it too.
+    """
+    real_mkdir = Path.mkdir
+    swapped = []
+
+    def mkdir(self, *args, **kwargs):
+        real_mkdir(self, *args, **kwargs)
+        if not swapped and self == leaf:
+            self.rmdir()
+            self.symlink_to(victim, target_is_directory=True)
+            swapped.append(str(self))
+
+    monkeypatch.setattr(Path, "mkdir", mkdir)
+    return swapped
+
+
+@symlinks_only
+@posix_modes_only
+@descriptor_writes_only
+def test_update_check_leaf_swapped_after_mkdir_leaves_the_targets_mode(
+    monkeypatch, tmp_path
+):
+    """Losing the race at `mkdir` refuses -- and does NOT re-mode the target.
+
+    The 0700 repair is the payload here. Validating the leaf by PATH and then
+    re-moding it by PATH resolves it twice, and the swap lands between the two: the
+    repair reaches through the link and locks a directory that is none of our
+    business down to 0700 (measured on the pre-fix code: 0o755 -> 0o700). Holding a
+    DESCRIPTOR across both steps is what closes it -- `os.fstat` and `os.fchmod`
+    address the inode that was vetted, and cannot be redirected by a later swap.
+
+    The mode is the assertion, not the return value: the return was already False
+    in this window before the fix, while the victim had already been re-moded.
+
+    Scoped to the descriptor arm because that is the only arm that CAN close this
+    window -- measured, forcing `_cache_dir_descriptor_supported()` false fails
+    both of these -- and every platform with POSIX mode bits has the primitives.
+    """
+    victim = _victim_directory(tmp_path)
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    decorators = _configure_update_check(monkeypatch, cache_root)
+    cache_path = _cache_path(cache_root)
+    swapped = _swap_the_leaf_for_a_symlink_after_mkdir(monkeypatch, cache_path.parent, victim)
+
+    prepared = decorators._prepare_update_check_cache_dir(cache_path)
+
+    assert swapped, "the race never ran: the leaf mkdir was not reached"
+    assert stat.S_IMODE(victim.stat().st_mode) == 0o755
+    assert sorted(p.name for p in victim.iterdir()) == ["keepme"]
+    assert not prepared
+
+
+@symlinks_only
+@posix_modes_only
+@descriptor_writes_only
+def test_update_check_leaf_swapped_after_mkdir_leaves_the_targets_file(
+    monkeypatch, tmp_path
+):
+    """The same swap through the WRITE: the target's own file survives it untouched.
+
+    A cache record the attacker has aimed elsewhere is not only a write in the
+    wrong directory -- it OVERWRITES whatever already answers to that name there,
+    with our bytes and our 0600 (measured on the pre-fix code: `b"not ours"` at
+    0o644 became our JSON at 0o600, destroying a file and closing it to its own
+    group). The write therefore re-validates on its own terms rather than trusting
+    its caller, and addresses the record by `dir_fd` so the directory it vetted is
+    the directory it writes in.
+    """
+    victim = _victim_directory(tmp_path)
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    decorators = _configure_update_check(monkeypatch, cache_root)
+    cache_path = _cache_path(cache_root)
+    # Same NAME the record would be written under, so an unvalidated write
+    # clobbers it rather than landing beside it.
+    planted = victim / cache_path.name
+    planted.write_bytes(b"not ours")
+    planted.chmod(0o644)
+    swapped = _swap_the_leaf_for_a_symlink_after_mkdir(monkeypatch, cache_path.parent, victim)
+
+    written = decorators._write_update_check_cache(cache_path, CHECKED_AT, "1.2.0")
+
+    assert swapped, "the race never ran: the leaf mkdir was not reached"
+    assert planted.read_bytes() == b"not ours"
+    assert stat.S_IMODE(planted.stat().st_mode) == 0o644
+    assert stat.S_IMODE(victim.stat().st_mode) == 0o755
+    # No temporary left behind in the target either, which is where `mkstemp`
+    # would have put it.
+    assert sorted(p.name for p in victim.iterdir()) == sorted(["keepme", cache_path.name])
+    assert not written
+
+
+# --------------------------------------------------------------------------- #
+# A hostile cache RECORD.
+#
+# The cache path is a predictable name under `$XDG_CACHE_HOME`, so anything that
+# can create one entry there chooses what `_read_update_check_cache` opens. Three
+# distinct consequences, and they are not interchangeable: two are availability
+# (the read never returns) and one is integrity (the read returns an attacker's
+# answer). Every case below therefore asserts on the *return*, bounded by a
+# deadline -- not on which guard rejected it.
+# --------------------------------------------------------------------------- #
+
+
+def _read_cache_within(decorators, cache_path: Path, seconds: float = 5.0):
+    """`_read_update_check_cache(cache_path)`, on a thread, under a deadline.
+
+    The availability vectors here fail by BLOCKING rather than by raising: a
+    planted FIFO parks `open()` in the kernel with nothing raised, so neither the
+    read's own `except (KeyError, OSError, TypeError, ValueError)` nor the
+    advisory's outer fail-open arm can turn it into a skipped check. An
+    unhardened implementation must therefore fail this call rather than hang the
+    suite, which is what the deadline is for -- and the thread is a daemon so a
+    hung mutant cannot keep the interpreter alive at exit either.
+    """
+    outcome = []
+
+    def call():
+        try:
+            outcome.append(("returned", decorators._read_update_check_cache(cache_path)))
+        except BaseException as error:  # reported below, never swallowed
+            outcome.append(("raised", error))
+
+    worker = threading.Thread(target=call, daemon=True)
+    worker.start()
+    worker.join(seconds)
+    assert not worker.is_alive(), f"the cache read did not return within {seconds}s"
+    kind, value = outcome[0]
+    assert kind == "returned", f"the cache read raised {value!r}"
+    return value
+
+
+@fifos_only
+def test_update_check_cache_record_that_is_a_fifo_is_refused_promptly(monkeypatch, tmp_path):
+    """A FIFO at the cache path returns None instead of blocking the CLI forever.
+
+    This is the one vector with no exception to catch: with a FIFO and no writer,
+    a blocking `open()` never returns and never raises, so `guard <anything>`
+    simply stops before running the user's command. The failure mode this pins is
+    a HANG, not a raise -- which is why the read is bounded by a deadline here
+    rather than merely asserted to be None.
+    """
+    decorators = _configure_inputs(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    cache_path.parent.mkdir(parents=True)
+    os.mkfifo(cache_path)
+
+    assert _read_cache_within(decorators, cache_path) is None
+
+
+@symlinks_only
+@character_devices_only
+def test_update_check_cache_record_symlinked_to_a_device_is_refused(monkeypatch, tmp_path):
+    """A cache path linked at a device returns None without reading the device.
+
+    `/dev/zero` yields bytes for as long as anything asks, so a reader that treats
+    whatever it opened as a small JSON file resolves the link and then allocates
+    until the process dies. The deadline is the assertion that matters: it fails
+    on an implementation that reads to completion, where a plain `is None` would
+    wait for the OOM killer.
+    """
+    decorators = _configure_inputs(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    cache_path.parent.mkdir(parents=True)
+    cache_path.symlink_to(DEVICE_PATH)
+
+    assert _read_cache_within(decorators, cache_path) is None
+
+
+@symlinks_only
+def test_update_check_cache_record_symlinked_to_a_valid_record_is_refused(
+    monkeypatch, tmp_path
+):
+    """A symlinked record is refused even when the target parses -- the INTEGRITY vector.
+
+    Distinct from the availability cases above, and the reason the refusal cannot
+    be softened for targets that look harmless. An attacker who can create the
+    cache path but not write our directory plants a link to a record of their own,
+    stamped now and naming the installed version as the latest: the advisory is
+    then pinned off and the user is never told about a security release. The
+    consequence is asserted twice -- the record is not read, and the check
+    therefore is not fresh, so the refresh goes ahead and reaches the real index.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    cache_path.parent.mkdir(parents=True)
+    planted = tmp_path / "planted-record.json"
+    _write_cache_record(planted, CHECKED_AT, LOCAL_VERSION)
+    cache_path.symlink_to(planted)
+    request = Mock(return_value=_response("1.9.0"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    assert _read_cache_within(decorators, cache_path) is None
+    assert not decorators._update_check_cache_is_fresh(
+        decorators._read_update_check_cache(cache_path), CHECKED_AT
+    )
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == 0
+    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    assert "A new version of praetorian-cli is available: 1.9.0" in result.output
+    # The record was replaced, not written *through* the link.
+    assert json.loads(planted.read_text(encoding="utf-8"))["latest_version"] == LOCAL_VERSION
+
+
+@pytest.mark.parametrize(
+    "padded_to, accepted",
+    [
+        pytest.param(None, True, id="an-ordinary-record"),
+        pytest.param(UPDATE_CHECK_CACHE_MAX_BYTES, True, id="exactly-at-the-size-cap"),
+        pytest.param(
+            UPDATE_CHECK_CACHE_MAX_BYTES + 1, False, id="one-byte-over-the-size-cap"
+        ),
+    ],
+)
+def test_update_check_cache_record_is_read_only_up_to_the_size_cap(
+    monkeypatch, tmp_path, padded_to, accepted
+):
+    """The cap is pinned from BOTH sides: at the cap parses, one byte over does not.
+
+    A cap asserted only from above is satisfied by refusing everything, which
+    would disable the cache and restore the unthrottled probe -- so the accepted
+    cases are as load-bearing as the refused one. Trailing whitespace is valid
+    JSON, so between the two boundary cases the only thing that differs is the
+    byte count.
+    """
+    decorators = _configure_inputs(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    cache_path.parent.mkdir(parents=True)
+    record = json.dumps({"checked_at": CHECKED_AT, "latest_version": "1.2.0"}).encode()
+    if padded_to is not None:
+        record += b" " * (padded_to - len(record))
+        assert len(record) == padded_to
+    cache_path.write_bytes(record)
+
+    cached = _read_cache_within(decorators, cache_path)
+
+    if accepted:
+        assert cached == (CHECKED_AT, decorators._parse_version("1.2.0"))
+    else:
+        assert cached is None
+
+
+@posix_modes_only
+def test_update_check_cache_record_owned_by_another_user_is_refused(monkeypatch, tmp_path):
+    """A record this user does not own is refused, rather than parsed.
+
+    Only root can actually chown a file to somebody else, so the *other* half of
+    the comparison is moved instead: the effective uid the read checks against is
+    replaced, which is indistinguishable from the record's point of view and needs
+    no privilege. A shared or pre-seeded `$XDG_CACHE_HOME` -- a container image
+    layer, a multi-user build agent -- is where a foreign-owned record comes from,
+    and it is the same integrity problem as the symlink above without the symlink.
+    """
+    decorators = _configure_inputs(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+    cache_path.parent.mkdir(parents=True)
+    _write_cache_record(cache_path, CHECKED_AT, "1.2.0")
+    owner = os.stat(cache_path).st_uid
+    monkeypatch.setattr(decorators.os, "geteuid", lambda: owner + 1)
+
+    assert _read_cache_within(decorators, cache_path) is None
+
+
+# --------------------------------------------------------------------------- #
 # Descriptor accounting on the cache-write failure path.
 # --------------------------------------------------------------------------- #
 
@@ -1671,3 +2169,57 @@ def test_update_check_leaks_no_descriptor_when_fdopen_raises(monkeypatch, tmp_pa
     request.assert_not_called()
     # No `mkstemp` leftover, and no cache record: the write never completed.
     assert list(cache_path.parent.iterdir()) == []
+
+
+@fd_counting_only
+@descriptor_writes_only
+@pytest.mark.parametrize(
+    "operation",
+    ["prepare", "write", "failed-write"],
+    ids=["preparing-the-directory", "writing-the-record", "a-write-that-raises"],
+)
+def test_update_check_reclaims_the_cache_directory_descriptor(
+    monkeypatch, tmp_path, operation
+):
+    """The DIRECTORY descriptor is reclaimed too -- on success and on failure.
+
+    Validating the directory by descriptor rather than by path means there is now
+    a second long-lived descriptor per invocation, opened before the record is
+    written and useless afterwards. On a long-lived `guard` process this path runs
+    once per invocation, so a directory descriptor held one iteration too long is
+    a slow file-descriptor exhaustion that ends with the CLI unable to open
+    anything -- the advisory taking the whole tool down, which is the failure mode
+    this module exists to avoid.
+
+    All three arms count, because they close at three different places: the
+    preparation opens one only to answer a question and must drop it immediately,
+    the write must drop it after a successful record, and a write that RAISES must
+    drop it on the way out -- the arm a `try`/`finally` is there for.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    cache_path = _cache_path(tmp_path)
+
+    if operation == "prepare":
+        def once():
+            assert decorators._prepare_update_check_cache_dir(cache_path)
+    elif operation == "write":
+        def once():
+            assert decorators._write_update_check_cache(cache_path, CHECKED_AT, "1.2.0")
+    else:
+        def refuse_to_wrap(*_args, **_kwargs):
+            raise OSError("too many open files")
+
+        monkeypatch.setattr(decorators.os, "fdopen", refuse_to_wrap)
+
+        def once():
+            assert not decorators._write_update_check_cache(cache_path, CHECKED_AT, "1.2.0")
+
+    # One call before the baseline, so a one-time allocation on this path is
+    # counted as setup rather than as a leak.
+    once()
+    baseline = len(os.listdir("/dev/fd"))
+
+    for _ in range(200):
+        once()
+
+    assert len(os.listdir("/dev/fd")) == baseline
