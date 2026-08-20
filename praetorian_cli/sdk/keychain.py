@@ -5,10 +5,9 @@ from pathlib import Path
 from time import time
 
 import boto3
-import click
 import requests
 
-from praetorian_cli.handlers.utils import error
+from praetorian_cli.sdk.exceptions import AuthenticationError, ConfigurationError
 from praetorian_cli.sdk.model.globals import DEFAULT_HTTP_TIMEOUT
 
 DEFAULT_API = 'https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot'
@@ -29,6 +28,7 @@ class Keychain:
         self.data = data
         self.filepath = filepath
         self.config = None
+        self._loaded = False
         self.token_cache = None
         self.token_expiry = 0
 
@@ -42,7 +42,12 @@ class Keychain:
 
     def load(self):
         """ Loads backend and authentication data from the keychain file into this instance. """
-        if self.config:
+        # Gate on a load that finished, not on `self.config`: the parser is
+        # assigned below before any validation, and an empty ConfigParser is
+        # truthy (len 1 -- the DEFAULT section always counts, even with no
+        # sections), so testing it would cache a half-validated parser forever
+        # and never reread a keychain file the operator has since repaired.
+        if self._loaded:
             return self
 
         self.config = ConfigParser()
@@ -59,11 +64,12 @@ class Keychain:
                 self.config.read(self.filepath)
 
         if not self.config.sections():
-            error(
+            raise ConfigurationError(
                 f'Keychain file is corrupted. Run "praetorian configure" to configure your profile and credentials. Or, delete the corrupted keychain file at {self.filepath}')
 
         if self.profile not in self.config:
-            error(f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
+            raise ConfigurationError(
+                f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
 
         profile = self.config[self.profile]
         
@@ -75,11 +81,13 @@ class Keychain:
         self.load_env('client_id', 'PRAETORIAN_CLI_CLIENT_ID', required=False)
         
         if 'api' not in profile or 'client_id' not in profile:
-            error(f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
+            raise ConfigurationError(
+                f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
 
         if self.account is None:
             self.account = self.config.get(self.profile, 'account', fallback=None)
 
+        self._loaded = True
         return self
 
     def load_env(self, config_name, env_name, required=True):
@@ -87,7 +95,10 @@ class Keychain:
             # environment variable takes precedence
             self.config.set(self.profile, config_name, environ[env_name])
         elif required and not self.config.get(self.profile, config_name, fallback=None):
-            error(
+            # The message below instructs a repair, so this instance must be able
+            # to see one: invalidate the cached load instead of answering from it.
+            self._loaded = False
+            raise ConfigurationError(
                 f'{config_name} not in keychain file or the {env_name} environment variable. Run "praetorian configure" to fix. Or set the environment variable.')
 
     def token(self):
@@ -103,7 +114,7 @@ class Keychain:
                     timeout=DEFAULT_HTTP_TIMEOUT,
                 )
                 if response.status_code != 200:
-                    error(f"API key authentication failed: {response.text}")
+                    raise AuthenticationError(f"API key authentication failed: {response.text}")
                 
                 token_data = response.json()
                 self.token_expiry = time() + 3600
@@ -196,5 +207,3 @@ class Keychain:
         Path(split(Path(DEFAULT_KEYCHAIN_FILEPATH))[0]).mkdir(exist_ok=True, parents=True)
         with open(DEFAULT_KEYCHAIN_FILEPATH, 'w') as f:
             config.write(f)
-
-        click.echo(f'\nKeychain data written to {DEFAULT_KEYCHAIN_FILEPATH}')
