@@ -135,6 +135,8 @@ def entity(chariot, entity_type, fmt, columns):
         body = json.loads(raw)
     except json.JSONDecodeError as e:
         error(f'Invalid JSON input: {e}', quit=True)
+    if not isinstance(body, dict):
+        error("Expected JSON object with 'items' or 'query' key", quit=True)
     col_list = [c.strip() for c in columns.split(',')] if columns else None
     print_json(chariot.exports.export_entity(
         entity_type,

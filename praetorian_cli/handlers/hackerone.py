@@ -6,8 +6,7 @@ from praetorian_cli.handlers.utils import print_json
 
 
 @chariot.group()
-@cli_handler
-def hackerone(sdk):
+def hackerone():
     """HackerOne integration management"""
     pass
 
@@ -15,35 +14,35 @@ def hackerone(sdk):
 @hackerone.command('sync-scope')
 @cli_handler
 @praetorian_only
-def sync_scope(sdk):
+def sync_scope(chariot):
     """Synchronize HackerOne program scopes"""
-    print_json(sdk.hackerone.sync_scope())
+    print_json(chariot.hackerone.sync_scope())
 
 
 @hackerone.command('programs')
 @cli_handler
 @praetorian_only
-def programs(sdk):
+def programs(chariot):
     """List HackerOne programs"""
-    print_json(sdk.hackerone.programs())
+    print_json(chariot.hackerone.programs())
 
 
 @hackerone.command('scopes')
 @cli_handler
 @praetorian_only
 @click.argument('handle')
-def scopes(sdk, handle):
+def scopes(chariot, handle):
     """List scopes for a HackerOne program"""
-    print_json(sdk.hackerone.program_scopes(handle))
+    print_json(chariot.hackerone.program_scopes(handle))
 
 
 @hackerone.command('weaknesses')
 @cli_handler
 @praetorian_only
 @click.argument('handle')
-def weaknesses(sdk, handle):
+def weaknesses(chariot, handle):
     """List weaknesses for a HackerOne program"""
-    print_json(sdk.hackerone.program_weaknesses(handle))
+    print_json(chariot.hackerone.program_weaknesses(handle))
 
 
 @hackerone.command('comment')
@@ -54,9 +53,9 @@ def weaknesses(sdk, handle):
 @click.option('--internal', is_flag=True, default=False, help='Mark as internal comment')
 @click.option('--source', default='hacker-api', type=click.Choice(['hacker-api', 'org-api']),
               help='API source', show_default=True)
-def comment(sdk, report_id, message, internal, source):
+def comment(chariot, report_id, message, internal, source):
     """Add a comment to a HackerOne report"""
-    print_json(sdk.hackerone.comment(report_id, message, internal=internal, source=source))
+    print_json(chariot.hackerone.comment(report_id, message, internal=internal, source=source))
 
 
 @hackerone.command('activities')
@@ -65,9 +64,9 @@ def comment(sdk, report_id, message, internal, source):
 @click.argument('report_id')
 @click.option('--source', default='hacker-api', type=click.Choice(['hacker-api', 'org-api']),
               help='API source', show_default=True)
-def activities(sdk, report_id, source):
+def activities(chariot, report_id, source):
     """List activities on a HackerOne report"""
-    print_json(sdk.hackerone.activities(report_id, source=source))
+    print_json(chariot.hackerone.activities(report_id, source=source))
 
 
 @hackerone.command('severity')
@@ -75,14 +74,14 @@ def activities(sdk, report_id, source):
 @praetorian_only
 @click.argument('report_id')
 @click.argument('rating', type=click.Choice(['none', 'low', 'medium', 'high', 'critical']))
-def set_severity(sdk, report_id, rating):
+def set_severity(chariot, report_id, rating):
     """Set severity on a HackerOne report"""
-    print_json(sdk.hackerone.severity(report_id, rating))
+    print_json(chariot.hackerone.severity(report_id, rating))
 
 
 @hackerone.command('bounty-catalog')
 @cli_handler
 @praetorian_only
-def bounty_catalog(sdk):
+def bounty_catalog(chariot):
     """Get the bounty catalog"""
-    print_json(sdk.hackerone.bounty_catalog())
+    print_json(chariot.hackerone.bounty_catalog())

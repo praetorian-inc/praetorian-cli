@@ -5,8 +5,8 @@ class PlexTrac:
 
     def create_finding(self, risk_key, report_id):
         return self.api.post('plextrac/reporting', {
-            'riskKey': risk_key,
-            'reportID': report_id,
+            'risk_key': risk_key,
+            'report_id': report_id,
         })
 
     def get_reports(self, published=False):

@@ -9,8 +9,7 @@ from praetorian_cli.handlers.utils import error, print_json
 
 
 @chariot.group()
-@cli_handler
-def onboarding(sdk):
+def onboarding():
     """Cloud onboarding and tenant configuration"""
     pass
 
@@ -23,7 +22,7 @@ def onboarding(sdk):
 @click.option('--deployment-type', required=True,
               type=click.Choice(['cloudformation', 'terraform', 'manual']),
               help='Deployment method')
-def cloud_init(sdk, provider, deployment_type):
+def cloud_init(chariot, provider, deployment_type):
     """Initialize cloud integration (reads provider config JSON from stdin)
 
     Stdin JSON should contain provider-specific fields:
@@ -40,21 +39,21 @@ def cloud_init(sdk, provider, deployment_type):
         error(f'Invalid JSON input: {e}', quit=True)
     config['provider'] = provider
     config['deployment_type'] = deployment_type
-    print_json(sdk.onboarding.cloud_initialize(config))
+    print_json(chariot.onboarding.cloud_initialize(config))
 
 
 @onboarding.command('get-domains')
 @cli_handler
 @praetorian_only
-def get_domains(sdk):
+def get_domains(chariot):
     """Get allowed customer domains"""
-    print_json(sdk.onboarding.get_customer_domains())
+    print_json(chariot.onboarding.get_customer_domains())
 
 
 @onboarding.command('set-domains')
 @cli_handler
 @praetorian_only
-def set_domains(sdk):
+def set_domains(chariot):
     """Set allowed customer domains (reads JSON array from stdin)"""
     if sys.stdin.isatty():
         error('Pipe JSON input via stdin (e.g., echo \'["example.com"]\' | guard onboarding set-domains)')
@@ -65,13 +64,13 @@ def set_domains(sdk):
         domains = json.loads(raw)
     except json.JSONDecodeError as e:
         error(f'Invalid JSON input: {e}', quit=True)
-    print_json(sdk.onboarding.set_customer_domains(domains))
+    print_json(chariot.onboarding.set_customer_domains(domains))
 
 
 @onboarding.command('verify-host-overrides')
 @cli_handler
 @praetorian_only
-def verify_host_overrides(sdk):
+def verify_host_overrides(chariot):
     """Verify host override settings (reads JSON map of host->IP from stdin)"""
     if sys.stdin.isatty():
         error('Pipe JSON input via stdin (e.g., echo \'{"host":"1.2.3.4"}\' | guard onboarding verify-host-overrides)')
@@ -82,21 +81,21 @@ def verify_host_overrides(sdk):
         overrides = json.loads(raw)
     except json.JSONDecodeError as e:
         error(f'Invalid JSON input: {e}', quit=True)
-    print_json(sdk.onboarding.verify_host_overrides(overrides))
+    print_json(chariot.onboarding.verify_host_overrides(overrides))
 
 
 @onboarding.command('get-scim-settings')
 @cli_handler
 @praetorian_only
-def get_scim_settings(sdk):
+def get_scim_settings(chariot):
     """Get SCIM tenant settings"""
-    print_json(sdk.onboarding.get_scim_settings())
+    print_json(chariot.onboarding.get_scim_settings())
 
 
 @onboarding.command('set-scim-settings')
 @cli_handler
 @praetorian_only
-def set_scim_settings(sdk):
+def set_scim_settings(chariot):
     """Update SCIM tenant settings (reads JSON from stdin)
 
     JSON fields: scim_managed (bool), default_scim_role (readonly|analyst|admin),
@@ -111,4 +110,4 @@ def set_scim_settings(sdk):
         settings = json.loads(raw)
     except json.JSONDecodeError as e:
         error(f'Invalid JSON input: {e}', quit=True)
-    print_json(sdk.onboarding.set_scim_settings(settings))
+    print_json(chariot.onboarding.set_scim_settings(settings))
