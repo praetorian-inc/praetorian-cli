@@ -1,4 +1,3 @@
-from praetorian_cli.handlers.utils import error
 from praetorian_cli.sdk.model.globals import Asset, Kind
 from praetorian_cli.sdk.model.query import Relationship, Node, Query, Filter, KIND_TO_LABEL, asset_of_key, RISK_NODE, ATTRIBUTE_NODE
 
