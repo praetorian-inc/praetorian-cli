@@ -52,10 +52,10 @@ def complete(chariot):
     except json.JSONDecodeError as e:
         error(f'Invalid JSON input: {e}')
     for key in ('name', 'uploadId', 'parts'):
-        if key not in body:
-            error(f'Missing required key "{key}" in JSON input')
+        if body.get(key) is None:
+            raise click.UsageError(f'Missing required key "{key}" in JSON input')
     print_json(chariot.multipart.complete(
-        body['name'], body['uploadId'], body['parts'],
+        body.get('name'), body.get('uploadId'), body.get('parts'),
         praetorian=body.get('praetorian', False),
     ))
 

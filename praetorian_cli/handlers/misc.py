@@ -253,6 +253,23 @@ def jira_custom_fields(chariot):
     print_json(chariot.misc.jira_custom_fields(body))
 
 
+@integration_setup.command('jira-optional-custom-fields')
+@cli_handler
+@praetorian_only
+def jira_optional_custom_fields(chariot):
+    """Get Jira optional custom fields (reads integration config JSON from stdin)"""
+    if sys.stdin.isatty():
+        raise click.UsageError('Integration config JSON is required via stdin')
+    raw = sys.stdin.read().strip()
+    if not raw:
+        raise click.UsageError('Integration config JSON is required via stdin')
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f'Invalid JSON input: {e}')
+    print_json(chariot.misc.jira_optional_custom_fields(body))
+
+
 @integration_setup.command('jira-priorities')
 @cli_handler
 @praetorian_only

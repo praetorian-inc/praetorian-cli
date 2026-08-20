@@ -28,6 +28,9 @@ def create(chariot, name, query_filter):
                 body.update(json.loads(raw))
             except json.JSONDecodeError as e:
                 error(f'Invalid JSON input: {e}')
+            if name:
+                # CLI flag takes precedence over piped JSON
+                body['name'] = name
     if query_filter:
         try:
             body['filter'] = json.loads(query_filter)
