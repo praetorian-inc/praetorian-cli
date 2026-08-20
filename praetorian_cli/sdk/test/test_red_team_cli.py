@@ -20,6 +20,7 @@ def _invoke(*args, stdin=None):
     mock_sdk.red_team.deployment_node_schema.return_value = {'catalog': {}}
     mock_sdk.red_team.deployment_terraform.return_value = {'job_id': 'j1'}
     mock_sdk.red_team.deployment_collaborators.return_value = ['a@co.com']
+    mock_sdk.red_team.deployment_tags.return_value = ['v1.0', 'v1.1']
     mock_sdk.red_team.campaign_create.return_value = OK
     mock_sdk.red_team.campaign_delete.return_value = OK
     mock_sdk.red_team.campaign_targets.return_value = [{'email': 'a@co.com'}]
@@ -30,9 +31,12 @@ def _invoke(*args, stdin=None):
     mock_sdk.red_team.dns_list.return_value = {'records': []}
     mock_sdk.red_team.dns_create.return_value = {'id': 'r1'}
     mock_sdk.red_team.dns_delete.return_value = OK
+    mock_sdk.red_team.dns_update.return_value = OK
     mock_sdk.red_team.mailgun_domain_status.return_value = {'state': 'active'}
     mock_sdk.red_team.mailgun_domain_provision.return_value = OK
+    mock_sdk.red_team.mailgun_domain_delete.return_value = OK
     mock_sdk.red_team.mailgun_user_create.return_value = {'username': 'u'}
+    mock_sdk.red_team.mailgun_user_delete.return_value = OK
     mock_sdk.red_team.evilginx_phishlets.return_value = {'phishlets': []}
     mock_sdk.red_team.evilginx_phishlet_params.return_value = {'params': []}
     mock_sdk.red_team.evilginx_lures.return_value = {'lures': []}
@@ -68,7 +72,7 @@ def test_deployment_launch_with_id():
 def test_deployment_delete():
     result, sdk = _invoke('red-team', 'deployment', 'delete', '--yes')
     assert result.exit_code == 0
-    sdk.red_team.deployment_delete.assert_called_once()
+    sdk.red_team.deployment_delete.assert_called_once_with(force=False)
 
 
 def test_deployment_details():
@@ -125,6 +129,12 @@ def test_deployment_collaborators():
     assert result.exit_code == 0
     sdk.red_team.deployment_collaborators.assert_called_once_with(
         ['a@co.com', 'b@co.com'])
+
+
+def test_deployment_tags():
+    result, sdk = _invoke('red-team', 'deployment', 'tags')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_tags.assert_called_once_with()
 
 
 # --- Campaigns ---
@@ -199,6 +209,16 @@ def test_dns_create():
     sdk.red_team.dns_create.assert_called_once_with('evil.com', 'A', 'www', '1.2.3.4', 1)
 
 
+def test_dns_update():
+    result, sdk = _invoke(
+        'red-team', 'domain', 'dns-update',
+        '--domain', 'evil.com', '--record-id', 'r1', '--type', 'A',
+        '--name', 'www', '--content', '1.2.3.4')
+    assert result.exit_code == 0
+    sdk.red_team.dns_update.assert_called_once_with(
+        'evil.com', 'r1', 'A', 'www', '1.2.3.4', 1)
+
+
 def test_dns_delete():
     result, sdk = _invoke(
         'red-team', 'domain', 'dns-delete',
@@ -221,12 +241,27 @@ def test_mailgun_provision():
     sdk.red_team.mailgun_domain_provision.assert_called_once_with('evil.com')
 
 
+def test_mailgun_domain_delete():
+    result, sdk = _invoke(
+        'red-team', 'domain', 'mailgun-domain-delete', '--domain', 'evil.com', '--yes')
+    assert result.exit_code == 0
+    sdk.red_team.mailgun_domain_delete.assert_called_once_with('evil.com')
+
+
 def test_mailgun_user():
     result, sdk = _invoke(
         'red-team', 'domain', 'mailgun-user',
         '--username', 'noreply', '--domain', 'evil.com')
     assert result.exit_code == 0
     sdk.red_team.mailgun_user_create.assert_called_once_with('noreply', 'evil.com')
+
+
+def test_mailgun_user_delete():
+    result, sdk = _invoke(
+        'red-team', 'domain', 'mailgun-user-delete',
+        '--username', 'noreply', '--domain', 'evil.com', '--yes')
+    assert result.exit_code == 0
+    sdk.red_team.mailgun_user_delete.assert_called_once_with('noreply', 'evil.com')
 
 
 # --- Evilginx ---
@@ -332,3 +367,46 @@ def test_evilginx_configure_missing_phishlet():
 def test_payload_generate_missing_shellcode():
     result, _ = _invoke('red-team', 'payload-generate')
     assert result.exit_code != 0
+
+
+# --- stdin / JSON error handling ---
+
+def test_read_json_body_tty_guard():
+    import click
+
+    from praetorian_cli.handlers.red_team import _read_json_body
+
+    fake_stdin = MagicMock()
+    fake_stdin.isatty.return_value = True
+    with patch('praetorian_cli.handlers.red_team.sys.stdin', fake_stdin):
+        try:
+            _read_json_body()
+            assert False, 'expected click.UsageError'
+        except click.UsageError as e:
+            assert 'Pipe JSON input via stdin' in str(e)
+
+
+def test_read_json_body_invalid_json():
+    result, sdk = _invoke('red-team', 'campaign', 'create', stdin='not valid json')
+    assert result.exit_code != 0
+    assert 'Invalid JSON input' in result.output
+    sdk.red_team.campaign_create.assert_not_called()
+
+
+def test_evilginx_configure_invalid_params_json():
+    result, sdk = _invoke(
+        'red-team', 'evilginx', 'configure',
+        '--node', 'n1', '--domain', 'evil.com', '--phishlet', 'o365',
+        '--params', 'not valid json')
+    assert result.exit_code != 0
+    assert 'Invalid JSON input' in result.output
+    sdk.red_team.evilginx_configure.assert_not_called()
+
+
+def test_payload_generate_invalid_variables_json():
+    result, sdk = _invoke(
+        'red-team', 'payload-generate', '--shellcode', 'beacon.bin',
+        '--variables', 'not valid json')
+    assert result.exit_code != 0
+    assert 'Invalid JSON input' in result.output
+    sdk.red_team.payload_generate.assert_not_called()

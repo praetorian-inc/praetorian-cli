@@ -5,19 +5,19 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import error, print_json
+from praetorian_cli.handlers.utils import print_json
 
 
 def _read_json_body():
     if sys.stdin.isatty():
-        error('Pipe JSON input via stdin (e.g., echo \'{"key":"val"}\' | guard red-team ...)')
+        raise click.UsageError('Pipe JSON input via stdin')
     data = sys.stdin.read().strip()
     if not data:
         raise click.UsageError('No JSON body provided on stdin')
     try:
         return json.loads(data)
-    except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+    except json.JSONDecodeError:
+        raise click.UsageError('Invalid JSON input')
 
 
 @chariot.group('red-team')
@@ -172,6 +172,19 @@ def collaborators(sdk, collaborators):
     """
     collabs = [c.strip() for c in collaborators.split(',')]
     print_json(sdk.red_team.deployment_collaborators(collabs))
+
+
+@deployment.command('tags')
+@cli_handler
+@praetorian_only
+def deployment_tags(sdk):
+    """ List available infrastructure version tags
+
+    \b
+    Example usages:
+        guard red-team deployment tags
+    """
+    print_json(sdk.red_team.deployment_tags())
 
 
 # ===================== Campaigns =====================
@@ -329,6 +342,27 @@ def dns_create(sdk, domain, record_type, name, content, ttl):
     print_json(sdk.red_team.dns_create(domain, record_type, name, content, ttl))
 
 
+@domain.command('dns-update')
+@cli_handler
+@praetorian_only
+@click.option('--domain', required=True, help='Domain name')
+@click.option('--record-id', required=True, help='DNS record ID')
+@click.option('--type', 'record_type', required=True,
+              type=click.Choice(['A', 'CNAME', 'MX', 'TXT']),
+              help='Record type')
+@click.option('--name', required=True, help='Record name')
+@click.option('--content', required=True, help='Record value')
+@click.option('--ttl', type=int, default=1, help='TTL in seconds (1=auto)')
+def dns_update(sdk, domain, record_id, record_type, name, content, ttl):
+    """ Update a DNS record for a parked domain
+
+    \b
+    Example usages:
+        guard red-team domain dns-update --domain evil.com --record-id abc123 --type A --name www --content 1.2.3.4
+    """
+    print_json(sdk.red_team.dns_update(domain, record_id, record_type, name, content, ttl))
+
+
 @domain.command('dns-delete')
 @cli_handler
 @praetorian_only
@@ -372,6 +406,24 @@ def mailgun_provision(sdk, domain):
     print_json(sdk.red_team.mailgun_domain_provision(domain))
 
 
+@domain.command('mailgun-domain-delete')
+@cli_handler
+@praetorian_only
+@click.option('--domain', required=True, help='Domain name')
+@click.confirmation_option(prompt='Delete the Mailgun domain?')
+def mailgun_domain_delete(sdk, domain):
+    """ Delete a Mailgun domain
+
+    \b
+    Prompts for confirmation.
+
+    \b
+    Example usages:
+        guard red-team domain mailgun-domain-delete --domain evil.com
+    """
+    print_json(sdk.red_team.mailgun_domain_delete(domain))
+
+
 @domain.command('mailgun-user')
 @cli_handler
 @praetorian_only
@@ -385,6 +437,25 @@ def mailgun_user(sdk, username, domain):
         guard red-team domain mailgun-user --username noreply --domain evil.com
     """
     print_json(sdk.red_team.mailgun_user_create(username, domain))
+
+
+@domain.command('mailgun-user-delete')
+@cli_handler
+@praetorian_only
+@click.option('--username', required=True, help='SMTP username')
+@click.option('--domain', required=True, help='Domain name')
+@click.confirmation_option(prompt='Delete the Mailgun SMTP user?')
+def mailgun_user_delete(sdk, username, domain):
+    """ Delete a Mailgun SMTP user
+
+    \b
+    Prompts for confirmation.
+
+    \b
+    Example usages:
+        guard red-team domain mailgun-user-delete --username noreply --domain evil.com
+    """
+    print_json(sdk.red_team.mailgun_user_delete(username, domain))
 
 
 # ===================== Evilginx =====================
@@ -473,8 +544,8 @@ def configure(sdk, node, domain, phishlet, params, unauth_url):
     """
     try:
         phishlet_params = json.loads(params) if params else None
-    except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+    except json.JSONDecodeError:
+        raise click.UsageError('Invalid JSON input')
     print_json(sdk.red_team.evilginx_configure(
         node, domain, phishlet,
         phishlet_params=phishlet_params, unauth_url=unauth_url))
@@ -513,8 +584,8 @@ def payload_generate(sdk, shellcode, variables):
     """
     try:
         vars_dict = json.loads(variables) if variables else None
-    except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+    except json.JSONDecodeError:
+        raise click.UsageError('Invalid JSON input')
     print_json(sdk.red_team.payload_generate(shellcode, variables=vars_dict))
 
 
