@@ -230,6 +230,41 @@ def test_corrupted_keychain_file_raises_configuration_error(tmp_path):
     assert str(path) in str(raised.value)
 
 
+def test_failed_load_is_not_cached_so_a_repaired_keychain_is_reread(tmp_path):
+    """keychain.py `load()` -- a raise must not poison the instance for good.
+
+    This is the half of the raising contract that only exists *because* the host
+    now survives. While these sites called `exit(1)` no process lived long
+    enough to hold stale state; now one does, and `load()`'s early return has to
+    key on a load that finished rather than on `self.config` being set. Measured:
+    `bool(ConfigParser())` is `True` and `len()` is 1 -- the DEFAULT section
+    always counts, even with `sections() == []` -- so the parser assigned before
+    validation is already truthy when the raise happens.
+
+    The sequence is the operator's: a long-lived SDK or MCP host hits a corrupt
+    keychain, catches `ConfigurationError`, the operator repairs the file, and
+    the next call has to see the repair. Measured on the unfixed code the second
+    `load()` returned the stale sectionless parser and every `get_option` read
+    `None` -- `ConfigParser.get`'s `fallback=` swallows the missing section as
+    well as a missing option, so the host went on silently seeing an unconfigured
+    profile, with no second error, until it was restarted.
+    """
+    path = tmp_path / "keychain.ini"
+    path.write_text("# no profile sections\n")
+
+    keychain = Keychain(filepath=str(path))
+
+    with pytest.raises(ConfigurationError):
+        keychain.load()
+
+    # The operator fixes the file the message pointed them at, in place.
+    path.write_text(VALID_KEYCHAIN)
+
+    assert keychain.load() is keychain
+    assert keychain.get_option("api") == "https://api.invalid"
+    assert keychain.get_option("client_id") == "test-client-id"
+
+
 def test_missing_profile_raises_configuration_error(tmp_path):
     """keychain.py `load()` -- the requested profile is not in the file."""
     path = tmp_path / "keychain.ini"

@@ -28,6 +28,7 @@ class Keychain:
         self.data = data
         self.filepath = filepath
         self.config = None
+        self._loaded = False
         self.token_cache = None
         self.token_expiry = 0
 
@@ -41,7 +42,12 @@ class Keychain:
 
     def load(self):
         """ Loads backend and authentication data from the keychain file into this instance. """
-        if self.config:
+        # Gate on a load that finished, not on `self.config`: the parser is
+        # assigned below before any validation, and an empty ConfigParser is
+        # truthy (len 1 -- the DEFAULT section always counts, even with no
+        # sections), so testing it would cache a half-validated parser forever
+        # and never reread a keychain file the operator has since repaired.
+        if self._loaded:
             return self
 
         self.config = ConfigParser()
@@ -81,6 +87,7 @@ class Keychain:
         if self.account is None:
             self.account = self.config.get(self.profile, 'account', fallback=None)
 
+        self._loaded = True
         return self
 
     def load_env(self, config_name, env_name, required=True):
