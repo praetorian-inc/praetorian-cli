@@ -184,7 +184,7 @@ def info(ctx, sdk, client_id):
               help='Installer package format')
 @click.option('--proxy', default=None, help='Proxy URL to embed in installer config')
 def installer(sdk, flavor, proxy):
-    """ Download an Aegis installer package
+    """ Get Aegis installer metadata
 
     \b
     Example usages:
@@ -329,6 +329,7 @@ def tunnel_remove(sdk, client_id, force):
 
 @aegis.command('reachability-agent')
 @cli_handler
+@praetorian_only
 @click.option('--client-id', required=True, help='Agent client ID')
 @click.option('--limit', type=int, default=None, help='Max results')
 @click.option('--offset', type=int, default=None, help='Pagination offset')
@@ -346,6 +347,7 @@ def reach_agent(sdk, client_id, limit, offset):
 
 @aegis.command('reachability-asset')
 @cli_handler
+@praetorian_only
 @click.option('--key', required=True, help='Asset key')
 def reach_asset(sdk, key):
     """ Show agents that can reach a specific asset

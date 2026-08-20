@@ -15,11 +15,11 @@ from praetorian_cli.sdk.entities.definitions import Definitions
 from praetorian_cli.sdk.entities.enrichment import Enrichment as EnrichmentAdmin
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.hunts import Hunts
-from praetorian_cli.sdk.entities.knossos import Knossos
 from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.osint import OSINT
+from praetorian_cli.sdk.entities.knossos import Knossos
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.remediation import Remediation
 from praetorian_cli.sdk.entities.reports import Reports

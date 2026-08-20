@@ -16,6 +16,8 @@ def handle_error(func):
     def wrapper(ctx, *args, **kwargs):
         try:
             return func(*args, **kwargs)
+        except click.Abort:
+            raise
         except Exception as e:
             error(str(e), quit=False)
             if chariot.is_debug:
