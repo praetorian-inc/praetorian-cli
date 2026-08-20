@@ -130,6 +130,7 @@ class HuntApp(App):
         self._start_scope = start_scope or []
         self._prev_iteration_count = -1
         self._prev_findings_count = -1
+        self._invalid_uuid_logged = False
         self._poll_interval = 5
 
         try:
@@ -221,7 +222,6 @@ class HuntApp(App):
 
     @work(thread=True)
     def _launch_hunt(self) -> None:
-        log = self.query_one("#activity-log", RichLog)
         try:
             from datetime import timedelta
             hours = _parse_duration_int(self._start_duration)
@@ -231,18 +231,32 @@ class HuntApp(App):
                 body['scope'] = self._start_scope
 
             result = self.sdk.post('hunt', body)
+        except Exception as e:
+            def _fail():
+                log = self.query_one("#activity-log", RichLog)
+                log.write(f"[bold red]Failed to launch hunt:[/bold red] {e}")
+            self.call_from_thread(_fail)
+            return
+
+        def _apply():
             self.hunt_uuid = result.get('uuid', '')
             self.hunt_status = result.get('status', 'active')
+            # Reset per-hunt counters so /start after a previous hunt doesn't
+            # carry over stale iteration/finding deltas.
+            self._prev_iteration_count = -1
+            self._prev_findings_count = -1
+            self._invalid_uuid_logged = False
             self._update_context_bar()
 
-            log.write(f"[bold green]Hunt launched![/bold green]")
+            log = self.query_one("#activity-log", RichLog)
+            log.write("[bold green]Hunt launched![/bold green]")
             log.write(f"  [dim]UUID:[/dim]    {self.hunt_uuid}")
             log.write(f"  [dim]Mandate:[/dim] {self._start_prompt}")
             log.write(f"  [dim]Expires:[/dim] {expires_at}")
             log.write("")
             self._update_status_bar(result)
-        except Exception as e:
-            log.write(f"[bold red]Failed to launch hunt:[/bold red] {e}")
+
+        self.call_from_thread(_apply)
 
     @work(thread=True)
     def _poll_hunt(self) -> None:
@@ -251,17 +265,38 @@ class HuntApp(App):
         try:
             resp = self.sdk.my({'key': f'#hunt#{self.hunt_uuid}'})
             hunts = _extract_hunts(resp)
-            if not hunts:
+        except Exception as e:
+            def _log_error():
+                log = self.query_one("#activity-log", RichLog)
+                log.write(f"[red]Polling error: {e}[/red]")
+            self.call_from_thread(_log_error)
+            return
+
+        if not hunts:
+            def _not_found():
+                # Only log "not found" once until the hunt resolves, so a
+                # bad/expired UUID doesn't spam the log every poll interval.
+                if self._invalid_uuid_logged:
+                    return
+                self._invalid_uuid_logged = True
                 log = self.query_one("#activity-log", RichLog)
                 log.write(f"[red]Hunt {self.hunt_uuid} not found.[/red]")
-                return
-            h = hunts[0]
+            self.call_from_thread(_not_found)
+            return
+
+        h = hunts[0]
+
+        def _apply():
+            self._invalid_uuid_logged = False
+            # Emit change notifications before updating hunt_status, since
+            # _emit_changes compares the incoming status against the
+            # previous self.hunt_status to detect status transitions.
+            self._emit_changes(h)
             self.hunt_status = h.get('status', '')
             self._update_context_bar()
             self._update_status_bar(h)
-            self._emit_changes(h)
-        except Exception:
-            pass
+
+        self.call_from_thread(_apply)
 
     def _emit_changes(self, h: dict) -> None:
         log = self.query_one("#activity-log", RichLog)
@@ -322,6 +357,7 @@ class HuntApp(App):
                 self.hunt_uuid = args.strip()
                 self._prev_iteration_count = -1
                 self._prev_findings_count = -1
+                self._invalid_uuid_logged = False
                 log.write(f"[dim]Connecting to {self.hunt_uuid}...[/dim]")
                 self._poll_hunt()
             elif cmd == 'list':
@@ -385,10 +421,18 @@ class HuntApp(App):
 
     @work(thread=True)
     def _list_hunts(self) -> None:
-        log = self.query_one("#activity-log", RichLog)
         try:
-            resp = self.sdk.my({'key': '#hunt'})
+            resp = self.sdk.my({'key': '#hunt'}, pages=100)
             hunts = _extract_hunts(resp)
+        except Exception as e:
+            def _err():
+                log = self.query_one("#activity-log", RichLog)
+                log.write(f"[red]Error listing hunts: {e}[/red]")
+            self.call_from_thread(_err)
+            return
+
+        def _apply():
+            log = self.query_one("#activity-log", RichLog)
             if not hunts:
                 log.write("[dim]No hunts found.[/dim]")
                 return
@@ -401,33 +445,55 @@ class HuntApp(App):
                 iters = h.get('iterationCount', 0)
                 finds = h.get('findingsCount', 0)
                 log.write(f"  {uuid[:12]}...  {style}  i={iters} f={finds}  {prompt}")
-        except Exception as e:
-            log.write(f"[red]Error listing hunts: {e}[/red]")
+
+        self.call_from_thread(_apply)
 
     @work(thread=True)
     def _set_status(self, new_status: str) -> None:
-        log = self.query_one("#activity-log", RichLog)
         if not self.hunt_uuid:
-            log.write("[red]No hunt connected. Use /connect <uuid> or /start <prompt>[/red]")
+            def _no_hunt():
+                log = self.query_one("#activity-log", RichLog)
+                log.write("[red]No hunt connected. Use /connect <uuid> or /start <prompt>[/red]")
+            self.call_from_thread(_no_hunt)
             return
         try:
             result = self.sdk.put(f'hunt/{self.hunt_uuid}', {'status': new_status})
+        except Exception as e:
+            def _err():
+                log = self.query_one("#activity-log", RichLog)
+                log.write(f"[red]Failed to {new_status} hunt: {e}[/red]")
+            self.call_from_thread(_err)
+            return
+
+        def _apply():
             self.hunt_status = result.get('status', new_status)
             self._update_context_bar()
             ts = time.strftime('%H:%M:%S')
+            log = self.query_one("#activity-log", RichLog)
             log.write(f"[dim]{ts}[/dim]  Hunt {STATUS_STYLE.get(new_status, new_status)}")
             self._update_status_bar(result)
-        except Exception as e:
-            log.write(f"[red]Failed to {new_status} hunt: {e}[/red]")
+
+        self.call_from_thread(_apply)
 
     @work(thread=True)
     def _show_cost(self) -> None:
-        log = self.query_one("#activity-log", RichLog)
         if not self.hunt_uuid:
-            log.write("[red]No hunt connected.[/red]")
+            def _no_hunt():
+                log = self.query_one("#activity-log", RichLog)
+                log.write("[red]No hunt connected.[/red]")
+            self.call_from_thread(_no_hunt)
             return
         try:
             result = self.sdk.get(f'hunt/{self.hunt_uuid}/cost')
+        except Exception as e:
+            def _err():
+                log = self.query_one("#activity-log", RichLog)
+                log.write(f"[red]Failed to get cost: {e}[/red]")
+            self.call_from_thread(_err)
+            return
+
+        def _apply():
+            log = self.query_one("#activity-log", RichLog)
             total = result.get('total', {})
             cost = total.get('cost', 0)
             calls = total.get('call_count', 0)
@@ -441,28 +507,44 @@ class HuntApp(App):
 
             by_model = result.get('by_model') or []
             if by_model:
-                log.write(f"  [dim]By model:[/dim]")
+                log.write("  [dim]By model:[/dim]")
                 for m in by_model:
                     log.write(f"    {m.get('model', '?')}: ${m.get('cost', 0):.4f} ({m.get('call_count', 0)} calls)")
             log.write("")
-        except Exception as e:
-            log.write(f"[red]Failed to get cost: {e}[/red]")
+
+        self.call_from_thread(_apply)
 
     @work(thread=True)
     def _show_details(self) -> None:
-        log = self.query_one("#activity-log", RichLog)
         if not self.hunt_uuid:
-            log.write("[red]No hunt connected.[/red]")
+            def _no_hunt():
+                log = self.query_one("#activity-log", RichLog)
+                log.write("[red]No hunt connected.[/red]")
+            self.call_from_thread(_no_hunt)
             return
         try:
             resp = self.sdk.my({'key': f'#hunt#{self.hunt_uuid}'})
             hunts = _extract_hunts(resp)
-            if not hunts:
+        except Exception as e:
+            def _err():
+                log = self.query_one("#activity-log", RichLog)
+                log.write(f"[red]Error: {e}[/red]")
+            self.call_from_thread(_err)
+            return
+
+        if not hunts:
+            def _not_found():
+                log = self.query_one("#activity-log", RichLog)
                 log.write(f"[red]Hunt {self.hunt_uuid} not found.[/red]")
-                return
-            h = hunts[0]
+            self.call_from_thread(_not_found)
+            return
+
+        h = hunts[0]
+
+        def _apply():
+            log = self.query_one("#activity-log", RichLog)
             log.write("")
-            log.write(f"[bold]Hunt Details[/bold]")
+            log.write("[bold]Hunt Details[/bold]")
             log.write(f"  UUID:        {h.get('uuid', '?')}")
             log.write(f"  Status:      {STATUS_STYLE.get(h.get('status', ''), '?')}")
             log.write(f"  Created:     {h.get('created', '?')}")
@@ -484,17 +566,30 @@ class HuntApp(App):
             if last_error:
                 log.write(f"  Last Error:  [red]{last_error}[/red]")
             log.write("")
-        except Exception as e:
-            log.write(f"[red]Error: {e}[/red]")
+
+        self.call_from_thread(_apply)
 
     @work(thread=True)
     def _ask_marcus(self, question: str) -> None:
         """Send a question to Marcus and display the response."""
-        log = self.query_one("#activity-log", RichLog)
-        log.write(f"[dim]You:[/dim] {question}")
-        log.write("[dim]Marcus is thinking...[/dim]")
+        def _echo_question():
+            log = self.query_one("#activity-log", RichLog)
+            log.write(f"[dim]You:[/dim] {question}")
+            log.write("[dim]Marcus is thinking...[/dim]")
+
+        self.call_from_thread(_echo_question)
+
         try:
             result = self.sdk.agents.ask(question, mode='agent')
+        except Exception as e:
+            def _err():
+                log = self.query_one("#activity-log", RichLog)
+                log.write(f"[red]Marcus error: {e}[/red]")
+            self.call_from_thread(_err)
+            return
+
+        def _apply():
+            log = self.query_one("#activity-log", RichLog)
             response = result.get('response', '')
             if response:
                 log.write("")
@@ -504,8 +599,8 @@ class HuntApp(App):
                 log.write("")
             else:
                 log.write("[yellow]No response from Marcus.[/yellow]")
-        except Exception as e:
-            log.write(f"[red]Marcus error: {e}[/red]")
+
+        self.call_from_thread(_apply)
 
     def action_pause_resume(self) -> None:
         if self.hunt_status == 'active':

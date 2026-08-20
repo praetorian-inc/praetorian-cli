@@ -102,6 +102,8 @@ def start(sdk, prompt, duration, scope, finish_criteria, agent, allowed_tools, j
     from datetime import datetime, timezone, timedelta
 
     hours = _parse_duration(duration)
+    if hours <= 0:
+        error('Duration must be positive', quit=True)
     if hours > 72:
         error('Maximum hunt duration is 72 hours.')
     expires_at = (datetime.now(timezone.utc) + timedelta(hours=hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -155,7 +157,7 @@ def list_hunts(sdk, filter_status, json_out):
         guard hunt list --status active
         guard hunt list --json-output
     """
-    resp = sdk.my({'key': '#hunt'})
+    resp = sdk.my({'key': '#hunt'}, pages=100)
     hunts = resp.get('hunts', resp.get('data', []))
 
     if not isinstance(hunts, list):
@@ -235,13 +237,13 @@ def show(sdk, uuid, json_out):
 
     prompt = h.get('prompt', '')
     if prompt:
-        click.echo(f'  Mandate:')
+        click.echo('  Mandate:')
         for line in prompt.split('\n'):
             click.echo(f'    {line}')
 
     scope = h.get('scope', [])
     if scope:
-        click.echo(f'  Scope:')
+        click.echo('  Scope:')
         for s in scope:
             click.echo(f'    {s}')
 
@@ -337,7 +339,7 @@ def active(sdk):
     Examples:
         guard hunt active
     """
-    resp = sdk.my({'key': '#hunt'})
+    resp = sdk.my({'key': '#hunt'}, pages=100)
     hunts = resp.get('hunts', resp.get('data', []))
     if not isinstance(hunts, list):
         for key in resp:
@@ -369,8 +371,8 @@ def active(sdk):
             f"{prompt}"
         )
     click.echo()
-    click.echo(click.style('Reconnect:', dim=True) + f' guard hunt interactive <uuid>')
-    click.echo(click.style('Watch:', dim=True) + f'     guard hunt watch <uuid>')
+    click.echo(click.style('Reconnect:', dim=True) + ' guard hunt interactive <uuid>')
+    click.echo(click.style('Watch:', dim=True) + '     guard hunt watch <uuid>')
 
 
 @hunt.command('interactive')
@@ -423,11 +425,15 @@ def watch(sdk, uuid, interval):
         guard hunt watch 550e8400-e29b-41d4-a716-446655440000
         guard hunt watch 550e8400-e29b-41d4-a716-446655440000 --interval 30
     """
-    click.echo(click.style(f'Watching hunt {uuid}', bold=True) + f'  (Ctrl+C to stop watching)')
+    if interval <= 0:
+        error('Interval must be positive', quit=True)
+
+    click.echo(click.style(f'Watching hunt {uuid}', bold=True) + '  (Ctrl+C to stop watching)')
     click.echo(click.style('─' * 60, dim=True))
 
     prev_iterations = -1
     prev_findings = -1
+    prev_status = None
 
     try:
         while True:
@@ -452,7 +458,7 @@ def watch(sdk, uuid, interval):
             iterations = h.get('iterationCount', 0)
             findings = h.get('findingsCount', 0)
 
-            if iterations != prev_iterations or findings != prev_findings:
+            if iterations != prev_iterations or findings != prev_findings or status != prev_status:
                 ts = time.strftime('%H:%M:%S')
                 click.echo(
                     f'[{ts}]  '
@@ -461,6 +467,7 @@ def watch(sdk, uuid, interval):
                 )
                 prev_iterations = iterations
                 prev_findings = findings
+                prev_status = status
 
             if status in ('completed', 'stopped', 'expired', 'errored'):
                 click.echo()

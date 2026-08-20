@@ -699,20 +699,66 @@ class MarcusCommands:
             if not rest:
                 self.console.print('[error]Usage: hunt start "<prompt>" [--duration 24h] [--scope #asset#...][/error]')
                 return
-            prompt = ' '.join(rest)
+
+            # Pull --duration/--scope flags out of rest before treating the
+            # remainder as the hunt mandate (prompt) text.
+            prompt_parts = []
+            duration = '24h'
+            scope = []
+            i = 0
+            while i < len(rest):
+                token = rest[i]
+                if token == '--duration' and i + 1 < len(rest):
+                    duration = rest[i + 1]
+                    i += 2
+                elif token == '--scope' and i + 1 < len(rest):
+                    scope.append(rest[i + 1])
+                    i += 2
+                else:
+                    prompt_parts.append(token)
+                    i += 1
+
+            prompt = ' '.join(prompt_parts)
+            if not prompt:
+                self.console.print('[error]Usage: hunt start "<prompt>" [--duration 24h] [--scope #asset#...][/error]')
+                return
+
             from datetime import datetime, timezone, timedelta
-            expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            duration_str = duration.strip().lower()
+            try:
+                if duration_str.endswith('h'):
+                    hours = int(duration_str[:-1])
+                elif duration_str.endswith('d'):
+                    hours = int(duration_str[:-1]) * 24
+                else:
+                    hours = int(duration_str)
+            except ValueError:
+                self.console.print(f'[error]Invalid duration: {duration}[/error]')
+                return
+
+            if hours <= 0:
+                self.console.print('[error]Duration must be positive[/error]')
+                return
+            if hours > 72:
+                self.console.print('[error]Maximum hunt duration is 72 hours.[/error]')
+                return
+
+            expires_at = (datetime.now(timezone.utc) + timedelta(hours=hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            body = {'prompt': prompt, 'expiresAt': expires_at}
+            if scope:
+                body['scope'] = scope
+
             with self.console.status('Launching hunt...', spinner='dots', spinner_style=self.colors['primary']):
-                result = self.sdk.post('hunt', {'prompt': prompt, 'expiresAt': expires_at})
+                result = self.sdk.post('hunt', body)
             uuid = result.get('uuid', '?')
             status = result.get('status', '?')
-            self.console.print(f'[bold red]Hannibal is at the gates![/bold red]')
+            self.console.print('[bold red]Hannibal is at the gates![/bold red]')
             self.console.print(f'  Hunt:   {uuid}')
             self.console.print(f'  Status: [green]{status}[/green]')
             self.console.print(f'  Track:  hunt show {uuid}')
         elif subcmd == 'list':
             with self.console.status('Loading hunts...', spinner='dots', spinner_style=self.colors['primary']):
-                resp = self.sdk.my({'key': '#hunt'})
+                resp = self.sdk.my({'key': '#hunt'}, pages=100)
             hunts = self._extract_console_hunts(resp)
             if not hunts:
                 self.console.print('[dim]No hunts found.[/dim]')
