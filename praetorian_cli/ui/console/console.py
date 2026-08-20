@@ -5,6 +5,8 @@ import os
 import shlex
 from typing import Optional
 
+import click
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.formatted_text import HTML
@@ -287,11 +289,25 @@ class GuardConsole(
     # -- CLI passthrough -----------------------------------------------------
 
     def _try_cli_passthrough(self, cmd, args):
-        """Route unrecognized commands through the Click CLI automatically.
+        """Route unrecognized commands through the Click CLI in-process.
 
-        Interactive prompts (e.g. purge without --force) abort under
-        CliRunner because stdin is replaced. The Aborted message is caught
-        and a hint to use --force is shown instead.
+        Commands are invoked directly via chariot_cli.main(...,
+        standalone_mode=False) rather than click.testing.CliRunner.
+        CliRunner replaces sys.stdin/sys.stdout with captured streams, which
+        means interactive confirmation prompts (e.g. `purge` without
+        --force, `tenant delete`, `schedule delete` without --force) can
+        never read a real answer and always auto-abort. Invoking the group
+        directly leaves stdin/stdout untouched, so click.confirm() and
+        click.prompt() work against the console's real terminal, and the
+        user can actually answer the prompt.
+
+        With standalone_mode=False, click re-raises click.exceptions.Abort
+        (user declined / EOF on a confirmation) and click.ClickException
+        (usage errors) instead of calling sys.exit(), so we catch those
+        here. Some handler code still calls the legacy error() helper
+        (sys.exit(1)) directly for validation failures; SystemExit is also
+        caught below so a stray hard-exit cannot kill the whole console
+        session.
         """
         from praetorian_cli.handlers.chariot import chariot as chariot_cli
 
@@ -305,25 +321,36 @@ class GuardConsole(
             return False
 
         from unittest.mock import patch as _patch, MagicMock
-        from click.testing import CliRunner
 
-        runner = CliRunner()
-        with _patch('praetorian_cli.sdk.chariot.Chariot', return_value=self.sdk):
-            result = runner.invoke(
-                chariot_cli, [cmd] + args,
-                obj={'keychain': MagicMock(), 'proxy': ''},
-            )
+        # praetorian_cli/main.py normally sets this global debug flag on the
+        # `chariot` group before any command runs. The console bypasses
+        # main.py, so without this the first generic (non-Click) exception
+        # raised by a handler would itself blow up on `chariot.is_debug`
+        # inside handle_error's except-Exception branch.
+        if not hasattr(chariot_cli, 'is_debug'):
+            chariot_cli.is_debug = False
 
-        output = (result.output or '').strip()
-        if result.exit_code == 0:
-            if output:
-                self.console.print(output)
-        elif 'Aborted' in output:
-            self.console.print('[dim]Interactive prompts are not supported in the console. '
-                               'Use --force to skip confirmation.[/dim]')
-        else:
-            if output:
-                self.console.print(f'[error]{output}[/error]')
+        try:
+            with _patch('praetorian_cli.sdk.chariot.Chariot', return_value=self.sdk):
+                chariot_cli.main(
+                    args=[cmd] + args,
+                    prog_name='guard',
+                    obj={'keychain': MagicMock(), 'proxy': ''},
+                    standalone_mode=False,
+                )
+        except click.exceptions.Abort:
+            self.console.print('[dim]Aborted.[/dim]')
+        except click.exceptions.ClickException as e:
+            self.console.print(f'[error]{e.format_message()}[/error]')
+        except SystemExit:
+            # Legacy validation paths that still call sys.exit() directly;
+            # the error message has already been printed to stderr by the
+            # time this is raised, so just avoid tearing down the console.
+            pass
+        except (EOFError, KeyboardInterrupt):
+            raise
+        except Exception as e:
+            self.console.print(f'[error]{e}[/error]')
         return True
 
     # -- Aegis ---------------------------------------------------------------

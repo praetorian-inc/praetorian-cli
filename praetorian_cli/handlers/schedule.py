@@ -98,10 +98,15 @@ def update(sdk, schedule_id, days, time_str, start_date, end_date, config_json):
     """
     weekly = None
     if days is not None:
-        if time_str is None:
+        if days == '':
+            # Explicit empty --days means "disable all days" -- --time is
+            # not meaningful in that case, so don't require it.
+            weekly = _parse_weekly_schedule(days, time_str or '')
+        elif time_str is None:
             error('--time is required when --days is specified')
             return
-        weekly = _parse_weekly_schedule(days, time_str)
+        else:
+            weekly = _parse_weekly_schedule(days, time_str)
     elif time_str is not None:
         error('--days is required when --time is specified')
         return

@@ -1,4 +1,5 @@
 import json
+import click
 import pytest
 from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
@@ -43,17 +44,17 @@ class TestReadRecords:
     def test_empty_file_errors(self, tmp_path):
         f = tmp_path / 'empty.json'
         f.write_text('')
-        with pytest.raises(SystemExit):
+        with pytest.raises(click.ClickException):
             _read_records(str(f))
 
     def test_invalid_json_errors(self, tmp_path):
         f = tmp_path / 'bad.json'
         f.write_text('not json at all')
-        with pytest.raises(SystemExit):
+        with pytest.raises(click.ClickException):
             _read_records(str(f))
 
     def test_file_not_found_errors(self):
-        with pytest.raises(SystemExit):
+        with pytest.raises(click.ClickException):
             _read_records('/nonexistent/path/file.json')
 
     def test_stdin(self, monkeypatch):
@@ -77,7 +78,7 @@ class TestValidateRequiredKeys:
 
     def test_missing_key_errors(self):
         records = [{'group': 'a'}]
-        with pytest.raises(SystemExit):
+        with pytest.raises(click.ClickException):
             _validate_required_keys(records, ['group', 'identifier'], 'Asset')
 
 
@@ -114,7 +115,7 @@ class TestBulkAddAssetCli:
         result = _invoke(self.runner, self.sdk, [
             'bulk', 'add', 'asset', '--file', str(f),
         ])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0
         self.sdk.assets.bulk_add.assert_not_called()
 
     def test_bulk_add_asset_invalid_json(self, tmp_path):
@@ -123,7 +124,7 @@ class TestBulkAddAssetCli:
         result = _invoke(self.runner, self.sdk, [
             'bulk', 'add', 'asset', '--file', str(f),
         ])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0
         self.sdk.assets.bulk_add.assert_not_called()
 
 
@@ -151,7 +152,8 @@ class TestBulkAddRiskCli:
         result = _invoke(self.runner, self.sdk, [
             'bulk', 'add', 'risk', '--file', str(f),
         ])
-        assert result.exit_code != 0
+        assert 'ERROR' in result.output or result.exit_code != 0
+        self.sdk.risks.bulk_add.assert_not_called()
 
 
 class TestBulkAddAttributeCli:

@@ -5,14 +5,17 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import print_json, error
+from praetorian_cli.handlers.utils import print_json
 
 
 def _read_records(file_path):
     """Read JSON records from a file path or stdin.
 
     Accepts either a JSON array or newline-delimited JSON objects.
-    Returns a list of dicts. Calls error() on malformed input.
+    Returns a list of dicts. Raises click.ClickException on malformed
+    input so @cli_handler can report the error without hard-exiting the
+    process (sys.exit would bypass exception handling in library/console
+    callers such as the interactive console passthrough).
     """
     if file_path == '-':
         text = sys.stdin.read()
@@ -21,26 +24,24 @@ def _read_records(file_path):
             with open(file_path, 'r') as f:
                 text = f.read()
         except FileNotFoundError:
-            error(f'File not found: {file_path}')
-            return []
+            raise click.ClickException(f'File not found: {file_path}')
         except PermissionError:
-            error(f'Permission denied: {file_path}')
-            return []
+            raise click.ClickException(f'Permission denied: {file_path}')
 
     text = text.strip()
     if not text:
-        error('Input is empty')
+        raise click.ClickException('Input is empty')
 
     if text.startswith('['):
         try:
             records = json.loads(text)
         except json.JSONDecodeError as e:
-            error(f'Invalid JSON array: {e}')
+            raise click.ClickException(f'Invalid JSON array: {e}')
         if not isinstance(records, list):
-            error('Expected a JSON array of objects')
+            raise click.ClickException('Expected a JSON array of objects')
         for i, r in enumerate(records):
             if not isinstance(r, dict):
-                error(f'Record {i} is not a JSON object')
+                raise click.ClickException(f'Record {i} is not a JSON object')
         return records
 
     records = []
@@ -51,13 +52,13 @@ def _read_records(file_path):
         try:
             obj = json.loads(line)
         except json.JSONDecodeError as e:
-            error(f'Line {lineno}: invalid JSON: {e}')
+            raise click.ClickException(f'Line {lineno}: invalid JSON: {e}')
         if not isinstance(obj, dict):
-            error(f'Line {lineno}: expected a JSON object, got {type(obj).__name__}')
+            raise click.ClickException(f'Line {lineno}: expected a JSON object, got {type(obj).__name__}')
         records.append(obj)
 
     if not records:
-        error('No records found in input')
+        raise click.ClickException('No records found in input')
     return records
 
 
@@ -66,7 +67,8 @@ def _validate_required_keys(records, required_keys, entity_name):
     for i, record in enumerate(records):
         missing = [k for k in required_keys if k not in record]
         if missing:
-            error(f'{entity_name} record {i}: missing required field(s): {", ".join(missing)}')
+            raise click.ClickException(
+                f'{entity_name} record {i}: missing required field(s): {", ".join(missing)}')
 
 
 @chariot.group()

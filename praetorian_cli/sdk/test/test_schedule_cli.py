@@ -138,6 +138,16 @@ class TestScheduleUpdate:
         assert call_kwargs['end_date'] == '2025-06-30T23:59:59Z'
         assert call_kwargs['weekly_schedule'] is None
 
+    def test_update_empty_days_disables_all_without_time(self):
+        result = _invoke(self.runner, self.sdk, [
+            'schedule', 'update', 'sched-1',
+            '--days', '',
+        ])
+        assert result.exit_code == 0
+        call_kwargs = self.sdk.schedules.update.call_args[1]
+        weekly = call_kwargs['weekly_schedule']
+        assert all(not day['enabled'] for day in weekly.values())
+
     def test_update_days_without_time_fails(self):
         result = _invoke(self.runner, self.sdk, [
             'schedule', 'update', 'sched-1',
