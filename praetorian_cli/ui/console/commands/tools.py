@@ -22,7 +22,7 @@ class ToolCommands:
         capabilities = args[1:] if len(args) > 1 else []
         try:
             result = self.sdk.jobs.add(asset_key, capabilities=capabilities)
-            self.console.print(f'[success]Job queued[/success]')
+            self.console.print('[success]Job queued[/success]')
             self.console.print_json(json.dumps(result, indent=2))
         except Exception as e:
             self.console.print(f'[error]{e}[/error]')
@@ -161,7 +161,7 @@ class ToolCommands:
                 table2.add_row(name, info['target_type'], info['description'])
             self.console.print(table2)
 
-        self.console.print(f'\n[dim]Usage: use <name> or <name> <target_key>[/dim]')
+        self.console.print('\n[dim]Usage: use <name> or <name> <target_key>[/dim]')
 
     def _print_tool_help(self, tool_name):
         """Run `<tool> --help` locally and stream its output to the console."""
@@ -290,7 +290,7 @@ class ToolCommands:
         self.context._last_job_key = job_key
         self.console.print(f'[success]Job queued: {capability} -> {target_key}[/success]')
         self.console.print(f'[dim]Job key: {job_key}[/dim]')
-        self.console.print(f'[dim]Use "status" to check progress, or "run --wait" to wait for results.[/dim]')
+        self.console.print('[dim]Use "status" to check progress, or "run --wait" to wait for results.[/dim]')
         return result
 
     def _wait_for_job(self, target_key, capability):
@@ -311,7 +311,7 @@ class ToolCommands:
                             self._render_job_results(latest, capability)
                             return
                         elif st.startswith('JF'):
-                            self.console.print(f'\n[error]Job failed.[/error]')
+                            self.console.print('\n[error]Job failed.[/error]')
                             self._render_job_results(latest, capability)
                             return
                         else:
@@ -360,7 +360,7 @@ class ToolCommands:
             status_text = Text()
             status_text.append(f'{cap}', style=f'bold {self.colors["primary"]}')
             status_text.append(f' -> {dns}\n', style='white')
-            status_text.append(f'Status: ', style=self.colors['dim'])
+            status_text.append('Status: ', style=self.colors['dim'])
             status_text.append(f'{status_label}\n', style=f'bold {color}')
             status_text.append(f'Created:  {created}\n', style=self.colors['dim'])
             status_text.append(f'Started:  {started}\n', style=self.colors['dim'])
@@ -500,9 +500,9 @@ class ToolCommands:
         table.add_column('Path', style=self.colors['dim'])
         for name in sorted(INSTALLABLE_TOOLS):
             if name in inst:
-                table.add_row(name, f'[success]installed[/success]', inst[name])
+                table.add_row(name, '[success]installed[/success]', inst[name])
             else:
-                table.add_row(name, f'[dim]---[/dim]', '')
+                table.add_row(name, '[dim]---[/dim]', '')
         self.console.print(table)
 
     def _cmd_capabilities(self, args):
@@ -539,7 +539,7 @@ class ToolCommands:
                         table.add_row(str(i), name, str(target), executor, desc)
                         self._capability_list.append(name)
                 self.console.print(table)
-                self.console.print(f'\n[dim]Use "use <#>" or "use <name>" to select a capability.[/dim]')
+                self.console.print('\n[dim]Use "use <#>" or "use <name>" to select a capability.[/dim]')
             else:
                 self.console.print('[dim]No capabilities found.[/dim]')
         except Exception as e:
@@ -615,7 +615,7 @@ class ToolCommands:
             self._module_list.append(name)
 
         self.console.print(table)
-        self.console.print(f'\n[dim]Use "info <name>" for details or "install <name>" to install.[/dim]')
+        self.console.print('\n[dim]Use "info <name>" for details or "install <name>" to install.[/dim]')
 
     def _cmd_module_info(self, args):
         """Show full details for a module (by name or prior-search result number)."""
@@ -656,27 +656,27 @@ class ToolCommands:
         target_str = ', '.join(cap.target) if cap.target else ''
 
         info_text = Text()
-        info_text.append(f'Name:        ', style=self.colors['dim'])
+        info_text.append('Name:        ', style=self.colors['dim'])
         info_text.append(f'{cap.name}\n', style=f'bold {self.colors["primary"]}')
-        info_text.append(f'Title:       ', style=self.colors['dim'])
+        info_text.append('Title:       ', style=self.colors['dim'])
         info_text.append(f'{cap.title}\n')
-        info_text.append(f'Category:    ', style=self.colors['dim'])
+        info_text.append('Category:    ', style=self.colors['dim'])
         info_text.append(f'{category_str}\n', style=self.colors['accent'])
-        info_text.append(f'Surface:     ', style=self.colors['dim'])
+        info_text.append('Surface:     ', style=self.colors['dim'])
         info_text.append(f'{cap.surface}\n')
-        info_text.append(f'Target:      ', style=self.colors['dim'])
+        info_text.append('Target:      ', style=self.colors['dim'])
         info_text.append(f'{target_str}\n')
-        info_text.append(f'Version:     ', style=self.colors['dim'])
+        info_text.append('Version:     ', style=self.colors['dim'])
         info_text.append(f'{cap.version}\n')
-        info_text.append(f'Executor:    ', style=self.colors['dim'])
+        info_text.append('Executor:    ', style=self.colors['dim'])
         info_text.append(f'{cap.executor}\n')
-        info_text.append(f'Installed:   ', style=self.colors['dim'])
+        info_text.append('Installed:   ', style=self.colors['dim'])
         info_text.append(f'{installed_str}\n')
-        info_text.append(f'Description: ', style=self.colors['dim'])
+        info_text.append('Description: ', style=self.colors['dim'])
         info_text.append(f'{cap.description}\n')
 
         if reg.is_local_only(name):
-            info_text.append(f'[local-only] This capability runs exclusively as a local binary.\n',
+            info_text.append('[local-only] This capability runs exclusively as a local binary.\n',
                              style=self.colors['dim'])
 
         self.console.print(Panel(info_text, title=f'Module: {cap.name}', border_style=self.colors['primary']))
@@ -700,6 +700,7 @@ class ToolCommands:
 
     def _cmd_module_update(self, args):
         """Update installed modules to latest release."""
+        import shutil
         import subprocess
         from praetorian_cli.registry import get_registry
         from praetorian_cli.runners.local import install_tool, is_installed, INSTALLABLE_TOOLS
@@ -711,6 +712,11 @@ class ToolCommands:
                 '[success]Registry refreshed.[/success]' if refreshed
                 else '[warning]Registry refresh failed (using cached).[/warning]'
             )
+            return
+
+        gh_path = shutil.which('gh')
+        if not gh_path:
+            self.console.print('[warning]gh CLI not found. Install GitHub CLI: https://cli.github.com/[/warning]')
             return
 
         reg = get_registry()
@@ -733,7 +739,7 @@ class ToolCommands:
 
             try:
                 ver_result = subprocess.run(
-                    ['gh', 'release', 'view', '--repo', mod['repo'],
+                    [gh_path, 'release', 'view', '--repo', mod['repo'],
                      '--json', 'tagName', '-q', '.tagName'],
                     capture_output=True, text=True, timeout=15,
                 )

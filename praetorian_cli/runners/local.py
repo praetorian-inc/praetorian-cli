@@ -233,9 +233,10 @@ def install_tool(tool_name: str, force=False) -> str:
             ['gh', 'release', 'view', '--repo', repo, '--json', 'tagName', '-q', '.tagName'],
             capture_output=True, text=True, timeout=15,
         )
-        version_tag = ver_result.stdout.strip() if ver_result.returncode == 0 else 'unknown'
-        get_registry().record_version(tool_name, version_tag, binary_path)
-    except Exception:
+        version_tag = ver_result.stdout.strip() if ver_result.returncode == 0 else ''
+        if ver_result.returncode == 0 and version_tag:
+            get_registry().record_version(tool_name, version_tag, binary_path)
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         pass
 
     # Cleanup

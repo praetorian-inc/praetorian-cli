@@ -328,7 +328,14 @@ def uninstall(sdk, name, as_json):
     Example: guard module uninstall brutus
     """
     from praetorian_cli.runners.local import uninstall_tool
-    removed = uninstall_tool(name.lower())
+    try:
+        removed = uninstall_tool(name.lower())
+    except OSError as e:
+        if as_json:
+            print_json({"name": name.lower(), "removed": False, "error": str(e)})
+        else:
+            error(f"Failed to remove {name}: {e}")
+        return
     if as_json:
         print_json({"name": name.lower(), "removed": removed})
     else:

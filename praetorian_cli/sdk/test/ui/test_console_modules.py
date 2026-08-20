@@ -139,6 +139,7 @@ class TestConsoleSearch:
             h._cmd_module_search(["credential"])
         output = "\n".join(h.console.lines)
         assert "brutus" in output
+        assert "nuclei" not in output
 
 
 class TestConsoleInfo:

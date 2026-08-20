@@ -120,9 +120,10 @@ class ModuleRegistry:
         modules = self.get_modules()
         results = []
         q = query.lower()
+        cat = category.lower()
 
         for name, mod in modules.items():
-            if category and mod.get("category", "") != category:
+            if cat and mod.get("category", "").lower() != cat:
                 continue
             if q:
                 searchable = " ".join([
@@ -170,7 +171,7 @@ class ModuleRegistry:
     def record_version(self, name: str, version: str, path: str):
         with _versions_lock:
             versions = self._load_versions()
-            versions[name] = {
+            versions[name.lower()] = {
                 "version": version,
                 "path": path,
                 "installed_at": datetime.now(timezone.utc).isoformat(),
@@ -178,7 +179,7 @@ class ModuleRegistry:
             self._save_versions(versions)
 
     def get_version(self, name: str) -> Optional[Dict]:
-        return self._load_versions().get(name)
+        return self._load_versions().get(name.lower())
 
     def get_all_versions(self) -> Dict:
         return self._load_versions()
@@ -186,7 +187,7 @@ class ModuleRegistry:
     def remove_version(self, name: str):
         with _versions_lock:
             versions = self._load_versions()
-            versions.pop(name, None)
+            versions.pop(name.lower(), None)
             self._save_versions(versions)
 
     # -- Backward-compat dict interfaces --
