@@ -20,6 +20,7 @@
     - [Signing up](#signing-up)
     - [Authentication](#authentication)
 - [Using the CLI](#using-the-cli)
+    - [Update checks](#update-checks)
 - [Operators](#operators)
     - [Interactive Console](#interactive-console)
     - [Install local security tools (optional)](#install-local-security-tools-optional)
@@ -150,6 +151,41 @@ To get detailed information about a specific asset, run:
 ```zsh
 guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
+
+## Update checks
+
+After a command succeeds, the CLI may check PyPI for a newer release of
+`praetorian-cli` and print a one-line upgrade advisory to stderr. The check is
+deliberately quiet and infrequent:
+
+- **At most once every 24 hours.** The result is cached at
+  `${XDG_CACHE_HOME:-~/.cache}/praetorian-cli/update-check.json`. Between
+  refreshes the check reads that file and makes no network request at all, so it
+  adds no latency to the commands you run day to day.
+- **Only when a human is watching.** It is skipped when stderr is not a
+  terminal, so it never runs from CI, scripts, or a pipeline.
+- **Never after a failure.** A command that exits non-zero skips the check.
+- **Never blocking for long.** The one refresh per day is capped at 2 seconds,
+  and any failure — offline, DNS, timeout, throttling, a malformed cache — is
+  swallowed. An update check can never change your command's exit code.
+
+### Disabling it
+
+```zsh
+export PRAETORIAN_CLI_DISABLE_UPDATE_CHECK=1
+```
+
+Set to exactly `1`. Nothing is read or written — no request, no cache file.
+
+### Privacy
+
+A refresh is an unauthenticated `GET` to `https://pypi.org/pypi/praetorian-cli/json`.
+It sends no account, profile, command, or argument — only what any HTTPS request
+inherently reveals to the server: your IP address and the fact that some
+`praetorian-cli` install asked for the package index at that moment. Because the
+request happens at most once per day per machine and never from a non-interactive
+shell, it does not expose your usage cadence. If contacting pypi.org at all is
+unacceptable in your environment, set the variable above.
 
 # Operators
 

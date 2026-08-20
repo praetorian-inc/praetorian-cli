@@ -24,8 +24,11 @@ the process exited 0 on every failure. These tests pin the replacement contract:
 Message *redaction* is deliberately out of scope here: it needs the SDK exception
 hierarchy (ENG-6570) to classify what is safe to show, and is owned by ENG-6781.
 
-Offline only: every command raises before `upgrade_check` can reach the network,
-and each test arms `requests.get` to fail loudly if that ever stops being true.
+Offline only. Most tests here raise before `upgrade_check` can reach the network
+and arm `requests.get` to fail loudly if that ever stops being true; the final
+group deliberately lets the advisory run, with `requests.get` replaced and
+`XDG_CACHE_HOME` redirected at `tmp_path`, to pin that its failures cannot change
+a command's outcome.
 """
 
 import asyncio
@@ -109,6 +112,38 @@ def _debug_root(command):
     return root
 
 
+def _successful_command():
+    """A `@cli_handler` command that succeeds, so `upgrade_check` actually runs."""
+    from praetorian_cli.handlers.cli_decorators import cli_handler
+
+    @click.command()
+    @cli_handler
+    def command(_sdk):
+        return "done"
+
+    return command
+
+
+def _force_update_request(monkeypatch, tmp_path, side_effect):
+    """The inverse of `_disable_update_request`: let the advisory reach the network.
+
+    Two forces are needed and both are load-bearing. `CliRunner` replaces stderr
+    with a non-tty buffer, so `_stderr_is_interactive()` returns False inside any
+    `invoke` and the advisory returns at its very first gate -- a test that did
+    not patch it would assert against a check that never ran. `XDG_CACHE_HOME` is
+    redirected at `tmp_path` so nothing reads or writes the real user cache, and
+    an empty cache is what guarantees the network branch is the one taken.
+    """
+    import praetorian_cli.handlers.cli_decorators as decorators
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    monkeypatch.delenv("PRAETORIAN_CLI_DISABLE_UPDATE_CHECK", raising=False)
+    monkeypatch.setattr(decorators, "_stderr_is_interactive", lambda: True)
+    request = Mock(side_effect=side_effect)
+    monkeypatch.setattr(decorators.requests, "get", request)
+    return request
+
+
 def _disable_update_request(monkeypatch):
     import praetorian_cli.handlers.cli_decorators as decorators
 
@@ -117,9 +152,10 @@ def _disable_update_request(monkeypatch):
     return request
 
 
-# `upgrade_check`'s bare `except:` swallows anything raisable, so an in-process
-# guard cannot make a stray network call visible in a child process. `os._exit`
-# cannot be caught: if the advisory ever runs, the child's status is 97 and the
+# `_check_for_update`'s `except Exception: pass` arm swallows every ordinary
+# exception -- an in-process `AssertionError` included -- so an in-process guard
+# cannot make a stray network call visible in a child process. `os._exit` cannot
+# be caught: if the advisory ever runs, the child's status is 97 and the
 # return-code assertion fails instead of the request silently going out.
 _NETWORK_TRIPWIRE = """
 import os
@@ -596,3 +632,65 @@ def test_handled_user_facing_error_is_unchanged(monkeypatch):
     assert "ERROR: profile 'staging' is not configured" in result.stderr
     assert "Error:" not in result.output
     request.assert_not_called()
+
+
+# --- the update advisory on a SUCCESSFUL command --------------------------------
+#
+# The cases above all raise, so `upgrade_check` never reaches `_check_for_update`.
+# These pin the other half: when the command succeeds the advisory does run, and
+# its own failures must not be able to change the outcome the user already earned
+# -- except for the process-control exceptions, which are the deliberate
+# exceptions to that rule and must keep propagating.
+
+
+def test_ordinary_update_advisory_failure_remains_fail_open(monkeypatch, tmp_path):
+    """An ordinary advisory failure is swallowed; the command still succeeds."""
+    request = _force_update_request(monkeypatch, tmp_path, RuntimeError("advisory unavailable"))
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert "advisory unavailable" not in result.output
+    request.assert_called_once()
+
+
+def test_update_keyboard_interrupt_keeps_click_abort_semantics(monkeypatch, tmp_path):
+    """Ctrl-C during the advisory still aborts, rather than being swallowed.
+
+    `KeyboardInterrupt` derives from `BaseException`, so `except Exception: pass`
+    leaves it alone and Click's standalone mode renders it as `Aborted!`. A bare
+    `except:` in `_check_for_update` would swallow it and report success.
+    """
+    request = _force_update_request(monkeypatch, tmp_path, KeyboardInterrupt())
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == 1
+    assert "Aborted!" in result.output
+    assert "Error:" not in result.output
+    request.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("exception", "exit_code"),
+    [(SystemExit(73), 73), (FutureCancelledError("cancelled"), 1)],
+    ids=["system-exit", "future-cancelled"],
+)
+def test_update_process_control_exceptions_propagate(monkeypatch, tmp_path, exception, exit_code):
+    """Process-control exceptions raised by the advisory are not swallowed.
+
+    `SystemExit` is a `BaseException` and so passes through `except Exception`
+    untouched, keeping its own status. `concurrent.futures.CancelledError` is
+    `Exception`-derived on this runtime, so it would be swallowed on the fail-open
+    path -- the dedicated `except CancelledError: raise` arm is what makes it
+    propagate instead.
+    """
+    assert issubclass(FutureCancelledError, Exception)
+    request = _force_update_request(monkeypatch, tmp_path, exception)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == exit_code
+    assert result.exception is exception
+    request.assert_called_once()

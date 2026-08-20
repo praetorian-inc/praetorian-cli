@@ -1,6 +1,12 @@
+import json
+import os
+import sys
+import tempfile
+import time
 from concurrent.futures import CancelledError
 from functools import wraps
 from importlib.metadata import version
+from pathlib import Path
 
 import click
 import requests
@@ -58,22 +64,105 @@ def handle_error(func):
     return wrapper
 
 
+# POLICY: the update advisory is best-effort. It is skipped when stderr is not a
+# TTY and when the opt-out env var is set, reaches pypi.org at most once per TTL,
+# carries no command context (no argv, profile, account, or custom headers), and
+# fails open -- no command outcome depends on it. The cache is private by
+# construction: 0700 directory, 0600 file, atomic same-directory replace.
+#
+# WHERE TO CHANGE: cadence, opt-out, endpoint, and timeout are the constants
+# below; the advisory itself is `_check_for_update`.
+UPDATE_CHECK_CACHE_TTL_SECONDS = 24 * 60 * 60
+UPDATE_CHECK_DISABLE_ENV = "PRAETORIAN_CLI_DISABLE_UPDATE_CHECK"
+UPDATE_CHECK_TIMEOUT_SECONDS = 2
+UPDATE_CHECK_URL = "https://pypi.org/pypi/praetorian-cli/json"
+
+
+def _stderr_is_interactive():
+    try:
+        return bool(sys.stderr.isatty())
+    except Exception:
+        return False
+
+
+def _update_check_disabled():
+    return os.environ.get(UPDATE_CHECK_DISABLE_ENV) == "1"
+
+
+def _update_check_cache_path():
+    cache_home = os.environ.get("XDG_CACHE_HOME")
+    base = Path(cache_home) if cache_home else Path.home() / ".cache"
+    return base / "praetorian-cli" / "update-check.json"
+
+
+def _fresh_cached_version(cache_path, now):
+    try:
+        with open(cache_path, encoding="utf-8") as cache_file:
+            cache = json.load(cache_file)
+        age = now - cache["checked_at"]
+        # A `checked_at` in the future is stale, not fresh, so a bad clock cannot
+        # pin a stale answer forever.
+        if 0 <= age < UPDATE_CHECK_CACHE_TTL_SECONDS:
+            return cache["latest_version"]
+    except (KeyError, OSError, TypeError, ValueError):
+        return None
+    return None
+
+
+def _write_update_check_cache(cache_path, checked_at, latest_version):
+    parent = cache_path.parent
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # mkdir's mode is masked by umask; the chmod is what guarantees the mode.
+    parent.chmod(0o700)
+    # Same directory as the destination, so `os.replace` is an atomic rename.
+    # `mkstemp` already creates the file 0600; the `fchmod` reinforces that.
+    fd, temp_name = tempfile.mkstemp(dir=parent)
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as temp_file:
+            os.fchmod(temp_file.fileno(), 0o600)
+            json.dump({"checked_at": checked_at, "latest_version": latest_version}, temp_file)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        os.replace(temp_path, cache_path)
+        cache_path.chmod(0o600)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def _check_for_update():
+    try:
+        if not _stderr_is_interactive():
+            return
+        if _update_check_disabled():
+            return
+        now = time.time()
+        cache_path = _update_check_cache_path()
+        latest_version = _fresh_cached_version(cache_path, now)
+        if latest_version is None:
+            response = requests.get(UPDATE_CHECK_URL, timeout=UPDATE_CHECK_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            latest_version = str(max(Version(r) for r in response.json()['releases']))
+            _write_update_check_cache(cache_path, now, latest_version)
+        pypi = Version(latest_version)
+        local = Version(version('praetorian-cli'))
+        if pypi > local:
+            click.echo(f'A new version of praetorian-cli is available: {pypi}', err=True)
+            click.echo(f'You are currently running {local}.', err=True)
+            click.echo('To upgrade, run "pip install --upgrade praetorian-cli".', err=True)
+    except CancelledError:
+        raise
+    # `Exception`, not a bare `except`: KeyboardInterrupt and SystemExit derive
+    # from BaseException, so they keep propagating instead of being swallowed.
+    except Exception:
+        pass
+
+
 def upgrade_check(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
-        try:
-            response = requests.get('https://pypi.org/pypi/praetorian-cli/json', timeout=3)
-            pypi = sorted([Version(v) for v in list(response.json()['releases'].keys())])[-1]
-            local = Version(version('praetorian-cli'))
-            if pypi > local:
-                click.echo(f'A new version of praetorian-cli is available: {pypi}', err=True)
-                click.echo(f'You are currently running {local}.', err=True)
-                click.echo('To upgrade, run "pip install --upgrade praetorian-cli".', err=True)
-        except:
-            # Silently fail if we can't check for updates
-            # This preserves the main functionality even if update checks fail
-            pass
+        _check_for_update()
         return result
 
     return wrapper
