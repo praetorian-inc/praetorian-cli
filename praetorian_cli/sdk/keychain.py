@@ -95,6 +95,9 @@ class Keychain:
             # environment variable takes precedence
             self.config.set(self.profile, config_name, environ[env_name])
         elif required and not self.config.get(self.profile, config_name, fallback=None):
+            # The message below instructs a repair, so this instance must be able
+            # to see one: invalidate the cached load instead of answering from it.
+            self._loaded = False
             raise ConfigurationError(
                 f'{config_name} not in keychain file or the {env_name} environment variable. Run "praetorian configure" to fix. Or set the environment variable.')
 

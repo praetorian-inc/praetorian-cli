@@ -265,6 +265,48 @@ def test_failed_load_is_not_cached_so_a_repaired_keychain_is_reread(tmp_path):
     assert keychain.get_option("client_id") == "test-client-id"
 
 
+def test_rejected_required_option_is_not_cached_so_a_repaired_keychain_is_reread(
+    tmp_path, monkeypatch
+):
+    """keychain.py `load_env()` -- its raise must invalidate the cached load too.
+
+    The message at this site tells the operator to run `praetorian configure` or
+    export the variable, so the instance has to be able to *see* that repair.
+    Measured on the unfixed code, against a keychain that loads cleanly but
+    carries no `username`: `load()` succeeded and set the cached-load flag, the
+    direct `load_env('username', ...)` raised `ConfigurationError` while the flag
+    stayed `True`, and after the operator added the line the second `load()`
+    returned early without rereading -- `get_option('username')` read `None`
+    indefinitely, while a fresh instance read `'fixed@example.com'`.
+
+    Not a regression from the cached-load flag: the pre-existing `if self.config:`
+    guard returned early here for exactly the same reason. The flag only made a
+    long-standing memoization gap visible, so this test pins the raise path that
+    the earlier one does not cover -- `load_env`'s, reached only by a direct call.
+    """
+    path = tmp_path / "keychain.ini"
+    # Valid, and deliberately without `username` -- that is what VALID_KEYCHAIN
+    # is: `api` and `client_id` only.
+    path.write_text(VALID_KEYCHAIN)
+
+    keychain = Keychain(filepath=str(path))
+    assert keychain.load() is keychain
+
+    # Before the call, not after: the environment branch takes precedence over
+    # the file and would satisfy the option without ever reaching the raise.
+    monkeypatch.delenv("PRAETORIAN_CLI_USERNAME", raising=False)
+
+    with pytest.raises(ConfigurationError):
+        keychain.load_env("username", "PRAETORIAN_CLI_USERNAME")
+
+    # The operator does what the message said, in the profile the load used.
+    with path.open("a") as keychain_file:
+        keychain_file.write("username = fixed@example.com\n")
+
+    assert keychain.load() is keychain
+    assert keychain.get_option("username") == "fixed@example.com"
+
+
 def test_missing_profile_raises_configuration_error(tmp_path):
     """keychain.py `load()` -- the requested profile is not in the file."""
     path = tmp_path / "keychain.ini"
