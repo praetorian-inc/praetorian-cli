@@ -69,7 +69,7 @@ def test_capabilities():
     result, sdk = _invoke('aegis', 'capabilities')
     assert result.exit_code == 0
     sdk.aegis.management_capabilities.assert_called_once_with(
-        name=None, target=None, executor=None, runs_on=None)
+        name=None, target=None, executor=None, runs_on=None, integration=None)
 
 
 def test_capabilities_with_filters():
@@ -77,7 +77,21 @@ def test_capabilities_with_filters():
                           '--target', 'agent')
     assert result.exit_code == 0
     sdk.aegis.management_capabilities.assert_called_once_with(
-        name=None, target='agent', executor=None, runs_on='windows')
+        name=None, target='agent', executor=None, runs_on='windows', integration=None)
+
+
+def test_capabilities_with_integration():
+    result, sdk = _invoke('aegis', 'capabilities', '--integration')
+    assert result.exit_code == 0
+    sdk.aegis.management_capabilities.assert_called_once_with(
+        name=None, target=None, executor=None, runs_on=None, integration=True)
+
+
+def test_capabilities_with_no_integration():
+    result, sdk = _invoke('aegis', 'capabilities', '--no-integration')
+    assert result.exit_code == 0
+    sdk.aegis.management_capabilities.assert_called_once_with(
+        name=None, target=None, executor=None, runs_on=None, integration=False)
 
 
 # --- Management tasks ---
@@ -161,14 +175,21 @@ def test_tunnel_remove_aborted():
 def test_reachability_agent():
     result, sdk = _invoke('aegis', 'reachability-agent', '--client-id', 'C.abc123')
     assert result.exit_code == 0
-    sdk.aegis.reachability_agent.assert_called_once_with('C.abc123', limit=None)
+    sdk.aegis.reachability_agent.assert_called_once_with('C.abc123', limit=None, offset=None)
 
 
 def test_reachability_agent_with_limit():
     result, sdk = _invoke('aegis', 'reachability-agent', '--client-id', 'C.abc123',
                           '--limit', '50')
     assert result.exit_code == 0
-    sdk.aegis.reachability_agent.assert_called_once_with('C.abc123', limit=50)
+    sdk.aegis.reachability_agent.assert_called_once_with('C.abc123', limit=50, offset=None)
+
+
+def test_reachability_agent_with_limit_and_offset():
+    result, sdk = _invoke('aegis', 'reachability-agent', '--client-id', 'C.abc123',
+                          '--limit', '50', '--offset', '100')
+    assert result.exit_code == 0
+    sdk.aegis.reachability_agent.assert_called_once_with('C.abc123', limit=50, offset=100)
 
 
 def test_reachability_asset():

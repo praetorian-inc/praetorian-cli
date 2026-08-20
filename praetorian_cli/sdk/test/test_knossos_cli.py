@@ -154,7 +154,7 @@ def test_env_events():
     assert result.exit_code == 0
     sdk.knossos.events.assert_called_once_with(
         'env-1', since=None, until=None, lure_id=None,
-        event_type=None, limit=None)
+        event_type=None, limit=None, offset=None)
 
 
 def test_env_events_with_filters():
@@ -164,4 +164,14 @@ def test_env_events_with_filters():
     assert result.exit_code == 0
     sdk.knossos.events.assert_called_once_with(
         'env-1', since=None, until=None, lure_id=None,
-        event_type='api_call', limit=50)
+        event_type='api_call', limit=50, offset=None)
+
+
+def test_env_events_with_offset():
+    result, sdk = _invoke(
+        'knossos', 'env', 'events', '--id', 'env-1',
+        '--limit', '50', '--offset', '100')
+    assert result.exit_code == 0
+    sdk.knossos.events.assert_called_once_with(
+        'env-1', since=None, until=None, lure_id=None,
+        event_type=None, limit=50, offset=100)

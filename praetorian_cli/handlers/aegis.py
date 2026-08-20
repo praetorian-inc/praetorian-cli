@@ -217,7 +217,9 @@ def provision(sdk, tenant):
 @click.option('--runs-on', default=None,
               type=click.Choice(['windows', 'linux', 'macos', 'any']),
               help='Filter by platform')
-def mgmt_capabilities(sdk, name, target, executor, runs_on):
+@click.option('--integration/--no-integration', default=None,
+              help='Filter by integration capabilities')
+def mgmt_capabilities(sdk, name, target, executor, runs_on, integration):
     """ List Aegis management capabilities
 
     \b
@@ -225,9 +227,11 @@ def mgmt_capabilities(sdk, name, target, executor, runs_on):
         guard aegis capabilities
         guard aegis capabilities --runs-on windows
         guard aegis capabilities --target agent
+        guard aegis capabilities --integration
     """
     print_json(sdk.aegis.management_capabilities(
-        name=name, target=target, executor=executor, runs_on=runs_on))
+        name=name, target=target, executor=executor, runs_on=runs_on,
+        integration=integration))
 
 
 @aegis.command('tasks')
@@ -327,15 +331,17 @@ def tunnel_remove(sdk, client_id, force):
 @cli_handler
 @click.option('--client-id', required=True, help='Agent client ID')
 @click.option('--limit', type=int, default=None, help='Max results')
-def reach_agent(sdk, client_id, limit):
+@click.option('--offset', type=int, default=None, help='Pagination offset')
+def reach_agent(sdk, client_id, limit, offset):
     """ Show assets reachable from an Aegis agent
 
     \b
     Example usages:
         guard aegis reachability-agent --client-id C.abc123
         guard aegis reachability-agent --client-id C.abc123 --limit 100
+        guard aegis reachability-agent --client-id C.abc123 --limit 100 --offset 100
     """
-    print_json(sdk.aegis.reachability_agent(client_id, limit=limit))
+    print_json(sdk.aegis.reachability_agent(client_id, limit=limit, offset=offset))
 
 
 @aegis.command('reachability-asset')
