@@ -9,7 +9,9 @@ def chariot(click_context):
     if isinstance(click_context.obj, TestTarget):
         return
 
-    # import done here to avoid circular import errors in praetorian_cli/handlers/cli_decorators.py
+    # Deferred import: keeps the cost of importing the whole SDK off the
+    # module-import path, so `guard --help` and unrelated commands do not pay
+    # for it. ENG-6585 owns making this lazy loading systematic.
     from praetorian_cli.sdk.chariot import Chariot
 
     """ Command group for interacting with the Guard product """

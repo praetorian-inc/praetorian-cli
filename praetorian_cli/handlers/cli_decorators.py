@@ -1,4 +1,4 @@
-import traceback
+from concurrent.futures import CancelledError
 from functools import wraps
 from importlib.metadata import version
 
@@ -6,8 +6,34 @@ import click
 import requests
 from packaging.version import Version
 
-from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.utils import error
+
+
+DEBUG_HINT = "(re-run with --debug for the full traceback)"
+
+
+def _debug_enabled(ctx):
+    return bool(ctx.find_root().params.get("debug", False))
+
+
+# POLICY: every command routes through this boundary, which surfaces the
+# exception's own message -- no sanitizing, summarizing, or redacting. The one
+# normalization is outer whitespace: it is trimmed so the appended hint lands on
+# the line immediately after the message (and so a whitespace-only message
+# counts as blank). The SDK raises bare `Exception`/`ValueError` as its normal
+# error-reporting mechanism (`process_failure` in praetorian_cli/sdk/chariot.py,
+# praetorian_cli/sdk/entities/*.py), so that message IS the user-facing text.
+#
+# WHERE TO CHANGE: classification is ENG-6570, redaction is ENG-6781 -- neither
+# here. Nor is this the only egress path: praetorian_cli/sdk/mcp_server.py
+# returns `str(e)` to its caller, and the SDK is a public library surface.
+def _error_message(exc):
+    """Surface the exception's own message, plus the `--debug` hint.
+
+    Falls back to the exception's type name when its message is blank.
+    """
+    message = str(exc).strip() or type(exc).__name__
+    return f"{message}\n{DEBUG_HINT}"
 
 
 def handle_error(func):
@@ -22,6 +48,12 @@ def handle_error(func):
             error(str(e), quit=False)
             if chariot.is_debug:
                 click.echo(traceback.format_exc())
+        except click.ClickException:
+        except click.exceptions.Exit:
+        except CancelledError:
+        except Exception as exc:
+            if _debug_enabled(ctx):
+            raise click.ClickException(_error_message(exc)) from exc
 
     return wrapper
 
