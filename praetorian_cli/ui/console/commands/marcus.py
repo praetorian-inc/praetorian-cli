@@ -242,6 +242,16 @@ class MarcusCommands:
         acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
         self.console.print(f'[dim]Thinking...[/dim]{acct_label}')
         tool_log = []
+        last_key = ''
+        if self.context.conversation_id:
+            try:
+                existing, _ = self.sdk.search.by_key_prefix(
+                    f'#message#{self.context.conversation_id}#', user=True
+                )
+                if existing:
+                    last_key = max(m.get('key', '') for m in existing)
+            except Exception:
+                pass
         try:
             result = self._post_to_planner(message)
         except KeyboardInterrupt:
