@@ -130,8 +130,8 @@ if not praetorian_cli.__file__.startswith(os.environ["PRAETORIAN_TEST_PACKAGE_RO
     os._exit(98)
 """
 
-# `upgrade_check`'s bare `except:` swallows anything raisable, so only an
-# uncatchable exit makes a stray advisory request visible. Same device as
+# `_check_for_update`'s `except Exception: pass` arm swallows every ordinary
+# exception, so only an uncatchable exit makes a stray advisory request visible. Same device as
 # `test_cli_errors.py`'s `_NETWORK_TRIPWIRE`, kept local so this module stands
 # alone.
 _CLI_NETWORK_TRIPWIRE = """
@@ -462,10 +462,37 @@ from praetorian_cli.main import {entry}
 
 
 def _cli_child(entry, argv, home):
+    """Spawn a console-script child under the fake `$HOME`, deps still importable.
+
+    The `HOME` override is load-bearing -- `DEFAULT_KEYCHAIN_FILEPATH` derives
+    from it -- but it also relocates the *user* site-packages, whose location is
+    `$HOME`-relative. That is where `pip install --user` puts this package's own
+    dependencies, so overriding `HOME` alone takes them with it: measured on a
+    stock developer machine, the child died on `ModuleNotFoundError: No module
+    named 'click'` inside `cli_decorators` before reaching any behaviour under
+    test, and both tests below failed for that reason rather than on their own
+    assertions. The suite only passed where the deps happened to live outside
+    `$HOME`, i.e. in a virtualenv -- an unstated assumption about how the package
+    was installed.
+
+    Exporting the parent's own `sys.path` fixes it without weakening the
+    isolation (`Path.home()` in the child still resolves to the fake home), and
+    is correct under a venv too, where hardcoding the user-site path would not
+    be. `cwd` is `REPO_ROOT` and `-c` puts the cwd ahead of `PYTHONPATH`, so this
+    cannot shift which `praetorian_cli` the child imports -- `_PACKAGE_GUARD`
+    keeps measuring that.
+
+    The `if p` filter is load-bearing: `sys.path` carries an empty entry meaning
+    "the current directory", and an empty `PYTHONPATH` component would put the
+    child's cwd on its import path implicitly rather than by the `cwd` argument.
+    """
     return _run_child(
         _CLI_SCRIPT.format(entry=entry, argv=argv),
         tripwire=_CLI_NETWORK_TRIPWIRE,
-        env={"HOME": str(home)},
+        env={
+            "HOME": str(home),
+            "PYTHONPATH": os.pathsep.join(p for p in sys.path if p),
+        },
     )
 
 
