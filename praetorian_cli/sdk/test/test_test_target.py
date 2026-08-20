@@ -3,8 +3,11 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+from click.core import ParameterSource
+from click.testing import CliRunner
 
 import praetorian_cli.handlers.test as test_handler
+import praetorian_cli.main as cli_main
 from praetorian_cli.sdk.test import utils
 
 
@@ -229,3 +232,138 @@ def test_safe_suite_uses_an_explicit_keyless_selector():
     assert suite.pytest_selector == ("-m", "not coherence and not cli and not tui")
     assert suite.local_safe is True
     assert suite.requires_target is False
+
+
+# The Click layer is where the --profile default is injected, so the explicit-target
+# gate can only be exercised through the public entry points. `guard` is the shipped
+# console script (setup.cfg: guard = praetorian_cli.main:guard_main); under the legacy
+# `praetorian` entry point the same command sits under the `chariot` group.
+ENTRY_POINTS = [(cli_main.guard_main, []), (cli_main.main, ['chariot'])]
+ENTRY_POINT_IDS = ['guard_main', 'main']
+
+
+@pytest.fixture
+def runner():
+    return CliRunner()
+
+
+def _coherence_argv(command_path, *root_options):
+    return [*root_options, *command_path, 'test', '--suite', 'coherence']
+
+
+def _invoke_gated(runner, entry_point, argv):
+    """Drive the public CLI with the live-suite launcher armed to fail loudly.
+
+    `--suite coherence` creates, mutates and deletes real entities in a real Guard
+    account. Nothing here may reach subprocess.run, and the confirmation prompt --
+    if the gate ever lets execution get that far -- is answered with a refusal.
+    """
+    with patch.object(
+        test_handler.subprocess,
+        'run',
+        side_effect=AssertionError('a live, mutating suite was launched'),
+    ) as run:
+        result = runner.invoke(entry_point, argv, input='n\n')
+    return result, run
+
+
+@pytest.mark.parametrize(('entry_point', 'command_path'), ENTRY_POINTS, ids=ENTRY_POINT_IDS)
+def test_coherence_suite_rejects_defaulted_profile(runner, entry_point, command_path):
+    result, run = _invoke_gated(
+        runner,
+        entry_point,
+        _coherence_argv(command_path, '--account', 'someone@example.com'),
+    )
+
+    assert result.exit_code == 2
+    assert 'an explicit, unambiguous profile is required' in result.output
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize(('entry_point', 'command_path'), ENTRY_POINTS, ids=ENTRY_POINT_IDS)
+def test_coherence_suite_accepts_explicitly_passed_default_profile(runner, entry_point, command_path):
+    result, run = _invoke_gated(
+        runner,
+        entry_point,
+        _coherence_argv(
+            command_path,
+            '--profile',
+            'United States',
+            '--account',
+            'someone@example.com',
+        ),
+    )
+
+    assert 'Suite: coherence' in result.output
+    assert 'Profile: United States' in result.output
+    assert 'MUTATING' in result.output
+    assert result.exit_code == 1
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize(('entry_point', 'command_path'), ENTRY_POINTS, ids=ENTRY_POINT_IDS)
+def test_coherence_suite_rejects_missing_target_entirely(runner, entry_point, command_path):
+    result, run = _invoke_gated(runner, entry_point, _coherence_argv(command_path))
+
+    assert result.exit_code == 2
+    assert 'an explicit, unambiguous profile is required' in result.output
+    assert 'unambiguous account' not in result.output
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize(('entry_point', 'command_path'), ENTRY_POINTS, ids=ENTRY_POINT_IDS)
+def test_coherence_suite_rejects_defaulted_account(runner, entry_point, command_path):
+    result, run = _invoke_gated(
+        runner,
+        entry_point,
+        _coherence_argv(command_path, '--profile', 'Canada'),
+    )
+
+    assert result.exit_code == 2
+    assert 'an explicit, unambiguous account is required' in result.output
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ('profile', 'account', 'label'),
+    [
+        ('', 'a@b.c', 'profile'),
+        (' United States ', 'a@b.c', 'profile'),
+        ('United States', '', 'account'),
+    ],
+    ids=['empty-profile', 'untrimmed-profile', 'empty-account'],
+)
+def test_coherence_suite_rejects_blank_or_untrimmed_explicit_values(runner, profile, account, label):
+    result, run = _invoke_gated(
+        runner,
+        cli_main.guard_main,
+        _coherence_argv([], '--profile', profile, '--account', account),
+    )
+
+    assert result.exit_code == 2
+    assert f'an explicit, unambiguous {label} is required' in result.output
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    'argv',
+    [['test'], ['test', '--suite', 'safe']],
+    ids=['implicit-default', 'explicit-safe'],
+)
+def test_safe_suite_needs_no_explicit_target(runner, argv):
+    with patch.object(test_handler.subprocess, 'run', return_value=Mock(returncode=0)) as run:
+        result = runner.invoke(cli_main.guard_main, argv, input='n\n')
+
+    assert result.exit_code == 0
+    run.assert_called_once()
+    assert 'explicit, unambiguous' not in result.output
+
+
+def test_supplied_only_honours_commandline_and_environment_sources():
+    assert cli_main.SUPPLIED_PARAMETER_SOURCES == (
+        ParameterSource.COMMANDLINE,
+        ParameterSource.ENVIRONMENT,
+    )
+    assert ParameterSource.DEFAULT not in cli_main.SUPPLIED_PARAMETER_SOURCES
+    assert ParameterSource.DEFAULT_MAP not in cli_main.SUPPLIED_PARAMETER_SOURCES
+    assert ParameterSource.PROMPT not in cli_main.SUPPLIED_PARAMETER_SOURCES

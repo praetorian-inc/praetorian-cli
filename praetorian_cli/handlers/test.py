@@ -135,11 +135,18 @@ def _test_environment(suite):
 def _test_target(chariot):
     if isinstance(chariot, TestTarget):
         return chariot
-    return TestTarget(
-        profile=chariot.keychain.profile,
-        account=chariot.keychain.account,
-        proxy=chariot.proxy,
+    # A TestTarget is the only carrier of an explicit target, and main.py's _supplied()
+    # is the only thing that fills one -- from COMMANDLINE/ENVIRONMENT values alone.
+    # Anything else arriving here is a context-wiring regression, not a target, so drop
+    # its profile and account: absent values are what _explicit_target rejects. Never
+    # read the keychain instead -- its profile carries the declared --profile default,
+    # which the user may never have chosen. Change the policy in main.py, not here.
+    click.echo(
+        'Warning: this invocation carries no explicit test target; '
+        'suites that require one will be refused.',
+        err=True,
     )
+    return TestTarget(profile=None, account=None, proxy=getattr(chariot, 'proxy', ''))
 
 
 def _configure_live_target(suite, target, environment):

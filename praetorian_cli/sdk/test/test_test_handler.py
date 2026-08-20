@@ -14,6 +14,20 @@ from praetorian_cli.sdk.keychain import Keychain as SdkKeychain
 
 PROFILE = "United States"
 ACCOUNT = "account-123"
+
+# handlers.test._test_target() emits this (err=True) when a non-TestTarget context
+# reaches it, and _explicit_target() emits REFUSAL the same way.
+#
+# Stream note, measured on click 8.3.0 (the version pinned here) -- do not "fix" the
+# assertions below to .stdout. click 8.2 removed mix_stderr; Result.output became its
+# OWN stream interleaving stdout and stderr in write order, so err=True text lands in
+# .output as well as .stderr, while .stdout holds only real stdout. Asserting stderr
+# text against .stdout would therefore pass unconditionally. .output is used here
+# because it is the union of both streams: the strongest home for a "never appears"
+# assertion.
+FALLBACK_WARNING = "no explicit test target"
+REFUSAL = "an explicit, unambiguous profile is required"
+
 CREDENTIAL_ENV = (
     "PRAETORIAN_CLI_USERNAME",
     "PRAETORIAN_CLI_PASSWORD",
@@ -93,20 +107,36 @@ def guard_preconsent_sentinels():
         )
 
 
-def _chariot(profile=PROFILE, account=ACCOUNT):
+def _target(profile=PROFILE, account=ACCOUNT):
+    """The context an explicit target actually arrives as.
+
+    A TestTarget is the only carrier of an explicit target, and main.py's _supplied()
+    is the only thing that fills one. Any other shape reaching the handler is a
+    context-wiring regression -- see _sdk_context() for that case.
+    """
+    return test_handler.TestTarget(profile=profile, account=account, proxy="http://localhost:8080")
+
+
+def _sdk_context(profile=PROFILE, account=ACCOUNT):
+    """An SDK-shaped context: what the non-test routes put on click_context.obj.
+
+    Deliberately NOT a TestTarget, so it drives handlers.test._test_target()'s
+    refusal branch. Its keychain carries the declared --profile default, which is
+    exactly the value that must never be inferred as a target.
+    """
     return SimpleNamespace(
         keychain=SimpleNamespace(profile=profile, account=account),
         proxy="http://localhost:8080",
     )
 
 
-def _invoke(runner, argv, *, chariot=None, input=None, returncode=0, env=None):
+def _invoke(runner, argv, *, target=None, input=None, returncode=0, env=None):
     completed = SimpleNamespace(returncode=returncode)
     with patch.object(test_handler.subprocess, "run", return_value=completed) as run:
         result = runner.invoke(
             test_handler.test,
             argv,
-            obj=chariot or _chariot(),
+            obj=target or _target(),
             input=input,
             env=env,
         )
@@ -312,7 +342,7 @@ def test_missing_target_fails_before_subprocess(runner, profile, account):
     result, run = _invoke(
         runner,
         ["--suite", "coherence"],
-        chariot=_chariot(profile=profile, account=account),
+        target=_target(profile=profile, account=account),
         input="y\n",
     )
 
@@ -395,7 +425,7 @@ def test_non_live_suite_isolates_default_credential_stores(runner, tmp_path, sui
         result = runner.invoke(
             test_handler.test,
             ["--suite", suite],
-            obj=_chariot(),
+            obj=_target(),
             env={"HOME": str(ambient_home), "USERPROFILE": str(ambient_home)},
         )
 
@@ -446,3 +476,85 @@ def test_pytest_exit_status_is_propagated(runner):
 
     assert result.exit_code == 5
     run.assert_called_once()
+
+
+@pytest.mark.parametrize("suite", ["coherence", "cli"])
+def test_sdk_context_refuses_live_suite_without_inferring_a_target(runner, suite):
+    # run.assert_not_called() below is the guard. The side_effect is only a perturbation:
+    # cli_decorators.handle_error catches Exception and then touches chariot.is_debug,
+    # which is unset when the command is invoked directly, so this AssertionError would
+    # surface as exit 1 rather than propagating. Do not trust it as a tripwire.
+    with patch.object(
+        test_handler.subprocess,
+        "run",
+        side_effect=AssertionError("subprocess started without an explicit target"),
+    ) as run:
+        result = runner.invoke(
+            test_handler.test,
+            ["--suite", suite],
+            obj=_sdk_context(),
+            input="y\n",
+        )
+
+    # "y" is supplied so a refusal here can only be the gate, never an operator declining.
+    assert result.exit_code == 2
+    assert FALLBACK_WARNING in result.output
+    assert REFUSAL in result.output
+    # click.confirm is deliberately left UNPATCHED: the prompt's own marker is the
+    # witness that consent was never reached, and leaving it real is what makes the
+    # two disclosure assertions below able to fail -- a keychain-inferring regression
+    # prints "Profile: <profile>" here, which a confirm mock would have swallowed.
+    assert "[y/N]" not in result.output
+    assert PROFILE not in result.output
+    assert ACCOUNT not in result.output
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("suite", ["safe", "tui"])
+def test_sdk_context_runs_non_live_suite_without_exporting_a_target(runner, suite):
+    completed = SimpleNamespace(returncode=0)
+    with (
+        patch.object(test_handler.subprocess, "run", return_value=completed) as run,
+        patch.object(
+            test_handler.click,
+            "confirm",
+            side_effect=AssertionError("unexpected prompt"),
+        ) as confirm,
+    ):
+        result = runner.invoke(test_handler.test, ["--suite", suite], obj=_sdk_context())
+
+    assert result.exit_code == 0
+    # Proves the refusal branch was taken -- without this the launch below could be
+    # passing because the context was accepted as a target.
+    assert FALLBACK_WARNING in result.output
+    assert REFUSAL not in result.output
+    run.assert_called_once()
+    confirm.assert_not_called()
+    environment = run.call_args.kwargs["env"]
+    assert "CHARIOT_TEST_PROFILE" not in environment
+    assert "CHARIOT_TEST_ACCOUNT" not in environment
+
+
+@pytest.mark.parametrize(
+    "entry_point", [cli_main.guard_main, cli_main.main], ids=["guard_main", "main"]
+)
+# Non-live only, deliberately. A live suite cannot exercise the assertion this test
+# exists for: any regression that emits FALLBACK_WARNING also refuses the live suite, so
+# exit_code fails first and the sentinel line is never reached -- measured, and it merely
+# duplicated test_every_public_live_path_propagates_confirmed_target_and_status. Do not
+# add "coherence" back.
+@pytest.mark.parametrize("suite", ["safe"])
+def test_public_routes_never_reach_the_target_inference_fallback(runner, entry_point, suite):
+    completed = SimpleNamespace(returncode=0)
+    with patch.object(test_handler.subprocess, "run", return_value=completed) as run:
+        result = runner.invoke(
+            entry_point,
+            _public_test_args(entry_point, suite),
+            input="y\n",
+        )
+
+    # Reaching the launch is what makes the absence below load-bearing: the route ran
+    # end to end rather than dying before _test_target() could have warned.
+    assert result.exit_code == 0
+    run.assert_called_once()
+    assert FALLBACK_WARNING not in result.output

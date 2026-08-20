@@ -4,6 +4,7 @@ import truststore
 truststore.inject_into_ssl()
 
 import click
+from click.core import ParameterSource
 
 import praetorian_cli.handlers.access
 import praetorian_cli.handlers.add
@@ -48,10 +49,23 @@ def _is_test_invocation(click_context):
     return click_context.invoked_subcommand == "test" or path == ("chariot", "test")
 
 
-def _test_target(profile, account, proxy):
+# A test target may only be built from values the user actually supplied. Anything
+# else -- notably the declared --profile default -- must reach the explicit-target
+# check as a value it rejects, so a destructive suite can never run against a
+# default the user never chose.
+SUPPLIED_PARAMETER_SOURCES = (ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT)
+
+
+def _supplied(click_context, name, value):
+    if click_context.get_parameter_source(name) in SUPPLIED_PARAMETER_SOURCES:
+        return value
+    return None
+
+
+def _test_target(click_context, profile, account, proxy):
     return praetorian_cli.handlers.test.TestTarget(
-        profile=profile,
-        account=account,
+        profile=_supplied(click_context, 'profile', profile),
+        account=_supplied(click_context, 'account', account),
         proxy=proxy,
     )
 
@@ -68,7 +82,7 @@ def main(click_context, profile, account, debug, proxy):
         click.echo('Running in debug mode.')
     chariot.is_debug = debug
     if _is_test_invocation(click_context):
-        click_context.obj = _test_target(profile, account, proxy)
+        click_context.obj = _test_target(click_context, profile, account, proxy)
         return
     click_context.obj = {'keychain': Keychain(profile, account), 'proxy': proxy}
     praetorian_cli.handlers.script.load_dynamic_commands()
@@ -92,7 +106,7 @@ def guard_main(click_context, profile, account, debug, proxy):
     chariot.is_debug = debug
 
     if _is_test_invocation(click_context):
-        click_context.obj = _test_target(profile, account, proxy)
+        click_context.obj = _test_target(click_context, profile, account, proxy)
         return
 
     from praetorian_cli.sdk.chariot import Chariot
