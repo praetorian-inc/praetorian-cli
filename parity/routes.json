@@ -27,10 +27,11 @@
       "ticket": "ST-16"
     },
     "/account/deletion": {
-      "cli_command": "tenant delete",
-      "sdk_entity": "accounts.delete_tenant",
+      "cli_command": null,
+      "sdk_entity": null,
       "gui": true,
-      "disposition": "covered"
+      "disposition": "planned",
+      "ticket": "ST-22"
     },
     "/account/deletion/denylist": {
       "cli_command": null,
@@ -40,10 +41,11 @@
       "reason": "SuperAdmin-only Layer-2 denylist — not a client-facing operation"
     },
     "/account/deletion/{id}": {
-      "cli_command": "tenant status",
-      "sdk_entity": "accounts.get_tenant_deletion",
+      "cli_command": null,
+      "sdk_entity": null,
       "gui": true,
-      "disposition": "covered"
+      "disposition": "planned",
+      "ticket": "ST-22"
     },
     "/account/cost": {
       "cli_command": null,
@@ -353,22 +355,25 @@
       "disposition": "covered"
     },
     "/asset/purge": {
-      "cli_command": "purge asset",
-      "sdk_entity": "assets.purge",
+      "cli_command": null,
+      "sdk_entity": null,
       "gui": true,
-      "disposition": "covered"
+      "disposition": "planned",
+      "ticket": "ST-23"
     },
     "/risk/purge": {
-      "cli_command": "purge risk",
-      "sdk_entity": "risks.purge",
+      "cli_command": null,
+      "sdk_entity": null,
       "gui": true,
-      "disposition": "covered"
+      "disposition": "planned",
+      "ticket": "ST-23"
     },
     "/seed/purge": {
-      "cli_command": "purge seed",
-      "sdk_entity": "seeds.purge",
+      "cli_command": null,
+      "sdk_entity": null,
       "gui": true,
-      "disposition": "covered"
+      "disposition": "planned",
+      "ticket": "ST-23"
     },
     "/association": {
       "cli_command": null,
