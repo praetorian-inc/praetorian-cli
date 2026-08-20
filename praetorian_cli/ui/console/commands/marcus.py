@@ -165,6 +165,21 @@ class MarcusCommands:
 
     def _send_to_marcus(self, message: str) -> Optional[str]:
         """Send message to Marcus and poll for response with live tool output."""
+        # Snapshot existing messages BEFORE the POST so we only process NEW ones
+        # from this request — capturing it after the POST risks missing messages
+        # when the response comes back fast. New conversations have no prior
+        # messages to snapshot, so they start from after_key=''.
+        last_key = ''
+        if self.context.conversation_id:
+            try:
+                existing, _ = self.sdk.search.by_key_prefix(
+                    f'#message#{self.context.conversation_id}#', user=True
+                )
+                if existing:
+                    last_key = max(m.get('key', '') for m in existing)
+            except Exception:
+                pass
+
         try:
             result = self._post_to_planner(message)
         except KeyboardInterrupt:
@@ -176,17 +191,6 @@ class MarcusCommands:
 
         if isinstance(result, dict) and not self.context.conversation_id and 'conversation' in result:
             self.context.conversation_id = result['conversation'].get('uuid')
-
-        # Snapshot existing messages so we only process NEW ones from this request
-        last_key = ''
-        try:
-            existing, _ = self.sdk.search.by_key_prefix(
-                f'#message#{self.context.conversation_id}#', user=True
-            )
-            if existing:
-                last_key = max(m.get('key', '') for m in existing)
-        except Exception:
-            pass
 
         acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
         self.console.print(f'[dim]Thinking...[/dim]{acct_label}')
@@ -290,6 +294,7 @@ class MarcusCommands:
             raise _WSUnavailable(str(e))
         last_key = after_key
         start = time.time()
+        yielded = False
         try:
             while time.time() - start < max_wait:
                 try:
@@ -300,12 +305,22 @@ class MarcusCommands:
                 except Exception as e:
                     # str(e) does not contain the URL/token — safe to forward as-is.
                     raise _WSUnavailable(str(e))
-                messages, _ = self.sdk.search.by_key_prefix(
-                    f'#message#{conversation_id}#', user=True)
+                try:
+                    messages, _ = self.sdk.search.by_key_prefix(
+                        f'#message#{conversation_id}#', user=True)
+                except Exception as e:
+                    # Fetching message bodies after a WS signal can fail too. If we've
+                    # already yielded messages this stream, surface it as a MarcusError
+                    # (caller must not silently replay via polling); otherwise treat it
+                    # like a connect/subscribe failure so the caller can fall back.
+                    if yielded:
+                        raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
+                    raise _WSUnavailable(str(e))
                 new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
                              key=lambda x: x.get('key', ''))
                 for msg in new:
                     last_key = msg.get('key', '')
+                    yielded = True
                     yield msg
                     if msg.get('role', '') == 'chariot':
                         return
