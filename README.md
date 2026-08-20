@@ -154,20 +154,33 @@ guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 
 ## Update checks
 
-After a command succeeds, the CLI may check PyPI for a newer release of
+After a command finishes, the CLI may check PyPI for a newer release of
 `praetorian-cli` and print a one-line upgrade advisory to stderr. The check is
 deliberately quiet and infrequent:
 
-- **At most once every 24 hours.** The result is cached at
-  `${XDG_CACHE_HOME:-~/.cache}/praetorian-cli/update-check.json`. Between
-  refreshes the check reads that file and makes no network request at all, so it
-  adds no latency to the commands you run day to day.
-- **Only when a human is watching.** It is skipped when stderr is not a
-  terminal, so it never runs from CI, scripts, or a pipeline.
-- **Never after a failure.** A command that exits non-zero skips the check.
-- **Never blocking for long.** The one refresh per day is capped at 2 seconds,
-  and any failure — offline, DNS, timeout, throttling, a malformed cache — is
-  swallowed. An update check can never change your command's exit code.
+- **At most once every 24 hours.** Every attempt is recorded at
+  `${XDG_CACHE_HOME:-~/.cache}/praetorian-cli/update-check.json` *before* the
+  request is made, so a refresh that fails — offline, DNS, timeout, a malformed
+  response — is rate-limited exactly like one that succeeds, and keeps
+  advertising the last version it did learn. Between refreshes the check reads
+  that file and makes no network request at all. If the file cannot be written
+  at all (a read-only home, a cache directory owned by another user), the check
+  does not run: a probe whose rate we cannot limit is one we do not send.
+- **Only when a human is watching.** It is skipped unless **both** stdout and
+  stderr are a terminal, and skipped when `CI` or `GITHUB_ACTIONS` is set or
+  `TERM=dumb`. Piping either stream — `guard list assets | jq` — turns it off.
+  A script you launch by hand from your own terminal inherits your terminal, so
+  treat the opt-out below, not this gate, as the way to guarantee silence.
+- **Never in place of your command's work.** A command that raises skips the
+  check, and a group that is only delegating to a subcommand leaves the check to
+  the subcommand that does the work. A command that reports an error but still
+  exits `0` is the one case where an advisory can follow a visible error.
+- **Not on the path you run day to day.** The daily refresh passes a 2-second
+  timeout to `requests`, which bounds how long the server may go without
+  sending data — not total wall-clock, so DNS, TLS, redirects and a slow trickle
+  are outside it. Ordinary failures are swallowed and cannot change your exit
+  code; `Ctrl-C` and process-control exceptions raised during the check still
+  propagate, by design, so that interrupting the CLI always works.
 
 ### Disabling it
 
@@ -175,17 +188,18 @@ deliberately quiet and infrequent:
 export PRAETORIAN_CLI_DISABLE_UPDATE_CHECK=1
 ```
 
-Set to exactly `1`. Nothing is read or written — no request, no cache file.
+`1`, `true`, `yes` or `on` (any case). Nothing is read or written — no request,
+no cache file.
 
 ### Privacy
 
 A refresh is an unauthenticated `GET` to `https://pypi.org/pypi/praetorian-cli/json`.
 It sends no account, profile, command, or argument — only what any HTTPS request
 inherently reveals to the server: your IP address and the fact that some
-`praetorian-cli` install asked for the package index at that moment. Because the
-request happens at most once per day per machine and never from a non-interactive
-shell, it does not expose your usage cadence. If contacting pypi.org at all is
-unacceptable in your environment, set the variable above.
+`praetorian-cli` install asked for the package index at that moment. Because
+every attempt is recorded before it is made, that happens at most once per day
+per machine, so your per-command usage cadence is not exposed. If contacting
+pypi.org at all is unacceptable in your environment, set the variable above.
 
 # Operators
 
