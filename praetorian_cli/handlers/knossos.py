@@ -10,10 +10,10 @@ from praetorian_cli.handlers.utils import error, print_json
 
 def _read_json_body():
     if sys.stdin.isatty():
-        raise click.UsageError('No JSON body provided on stdin')
+        error('No JSON body provided on stdin')
     data = sys.stdin.read().strip()
     if not data:
-        raise click.UsageError('No JSON body provided on stdin')
+        error('No JSON body provided on stdin')
     try:
         return json.loads(data)
     except json.JSONDecodeError as e:
