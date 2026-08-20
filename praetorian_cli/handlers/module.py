@@ -330,7 +330,7 @@ def uninstall(sdk, name, as_json):
     from praetorian_cli.runners.local import uninstall_tool
     try:
         removed = uninstall_tool(name.lower())
-    except OSError as e:
+    except (OSError, ValueError) as e:
         if as_json:
             print_json({"name": name.lower(), "removed": False, "error": str(e)})
         else:

@@ -139,7 +139,14 @@ def verify_sha256(path: str, expected: str) -> bool:
 def uninstall_tool(tool_name: str) -> bool:
     """Remove an installed binary from INSTALL_DIR and its version record."""
     from praetorian_cli.registry import get_registry
-    path = os.path.join(INSTALL_DIR, tool_name)
+
+    if tool_name not in INSTALLABLE_TOOLS:
+        raise ValueError(f'Unknown tool: {tool_name}')
+
+    path = os.path.join(INSTALL_DIR, os.path.basename(tool_name))
+    if not os.path.realpath(path).startswith(os.path.realpath(INSTALL_DIR) + os.sep):
+        raise ValueError(f'Invalid tool name: {tool_name}')
+
     existed = os.path.isfile(path)
     if existed:
         os.remove(path)

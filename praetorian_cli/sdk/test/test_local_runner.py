@@ -236,10 +236,12 @@ from praetorian_cli.runners import local
 
 def test_uninstall_removes_binary_and_version(tmp_path, monkeypatch):
     monkeypatch.setattr(local, 'INSTALL_DIR', str(tmp_path))
+    monkeypatch.setattr(local.INSTALLABLE_TOOLS, '_loaded', None)
     binp = tmp_path / 'titus'
     binp.write_text('#!/bin/sh\n'); os.chmod(binp, 0o755)
     removed = {}
     class _Reg:
+        def get_installable_tools(self): return {'titus': {'repo': '', 'description': ''}}
         def remove_version(self, n): removed['n'] = n
     monkeypatch.setattr('praetorian_cli.registry.get_registry', lambda: _Reg())
     assert local.uninstall_tool('titus') is True
@@ -248,11 +250,53 @@ def test_uninstall_removes_binary_and_version(tmp_path, monkeypatch):
 
 
 def test_uninstall_missing_returns_false(tmp_path, monkeypatch):
+    # A registered tool that was never installed is a safe no-op.
     monkeypatch.setattr(local, 'INSTALL_DIR', str(tmp_path))
+    monkeypatch.setattr(local.INSTALLABLE_TOOLS, '_loaded', None)
+    class _Reg:
+        def get_installable_tools(self): return {'nuclei': {'repo': '', 'description': ''}}
+        def remove_version(self, n): pass
+    monkeypatch.setattr('praetorian_cli.registry.get_registry', lambda: _Reg())
+    assert local.uninstall_tool('nuclei') is False
+
+
+def test_uninstall_unknown_tool_raises(tmp_path, monkeypatch):
+    # Unregistered tool names are rejected outright (ENG security review finding).
+    monkeypatch.setattr(local, 'INSTALL_DIR', str(tmp_path))
+    monkeypatch.setattr(local.INSTALLABLE_TOOLS, '_loaded', None)
+    with pytest.raises(ValueError):
+        local.uninstall_tool('ghost')
+
+
+def test_uninstall_rejects_unregistered_traversal_name(tmp_path, monkeypatch):
+    # A traversal-y name is not a registered tool, so it's rejected outright.
+    monkeypatch.setattr(local, 'INSTALL_DIR', str(tmp_path))
+    monkeypatch.setattr(local.INSTALLABLE_TOOLS, '_loaded', None)
+    outside_target = tmp_path.parent / 'passwd'
+    outside_target.write_text('canary')
+    with pytest.raises(ValueError):
+        local.uninstall_tool('../../../../etc/passwd')
+    assert outside_target.exists()
+
+
+@pytest.mark.parametrize('malicious_name', [
+    '../../../../etc/passwd',
+    '/etc/passwd',
+    '../evil',
+])
+def test_uninstall_never_escapes_install_dir(tmp_path, malicious_name, monkeypatch):
+    # Defense in depth: even if a traversal-y name were ever considered
+    # "known" (e.g. via a future registry bug), removal must stay confined
+    # to INSTALL_DIR and never touch a path outside it.
+    monkeypatch.setattr(local, 'INSTALL_DIR', str(tmp_path))
+    monkeypatch.setattr(local, 'INSTALLABLE_TOOLS', {malicious_name: {}})
     class _Reg:
         def remove_version(self, n): pass
     monkeypatch.setattr('praetorian_cli.registry.get_registry', lambda: _Reg())
-    assert local.uninstall_tool('ghost') is False
+    outside_target = tmp_path.parent / 'passwd'
+    outside_target.write_text('canary')
+    local.uninstall_tool(malicious_name)
+    assert outside_target.read_text() == 'canary'
 
 
 def test_verify_sha256_matches(tmp_path):
