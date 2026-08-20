@@ -37,7 +37,7 @@ def cloud_init(sdk, provider, deployment_type):
     try:
         config = json.loads(raw) if raw else {}
     except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+        error(f'Invalid JSON input: {e}', quit=True)
     config['provider'] = provider
     config['deployment_type'] = deployment_type
     print_json(sdk.onboarding.cloud_initialize(config))
@@ -60,11 +60,11 @@ def set_domains(sdk):
         error('Pipe JSON input via stdin (e.g., echo \'["example.com"]\' | guard onboarding set-domains)')
     raw = sys.stdin.read().strip()
     if not raw:
-        raise click.UsageError('Domains JSON array is required via stdin')
+        error('Domains JSON array is required via stdin', quit=True)
     try:
         domains = json.loads(raw)
     except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+        error(f'Invalid JSON input: {e}', quit=True)
     print_json(sdk.onboarding.set_customer_domains(domains))
 
 
@@ -77,11 +77,11 @@ def verify_host_overrides(sdk):
         error('Pipe JSON input via stdin (e.g., echo \'{"host":"1.2.3.4"}\' | guard onboarding verify-host-overrides)')
     raw = sys.stdin.read().strip()
     if not raw:
-        raise click.UsageError('Host overrides JSON map is required via stdin')
+        error('Host overrides JSON map is required via stdin', quit=True)
     try:
         overrides = json.loads(raw)
     except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+        error(f'Invalid JSON input: {e}', quit=True)
     print_json(sdk.onboarding.verify_host_overrides(overrides))
 
 
@@ -106,9 +106,9 @@ def set_scim_settings(sdk):
         error('Pipe JSON input via stdin (e.g., echo \'{"scim_managed":true}\' | guard onboarding set-scim-settings)')
     raw = sys.stdin.read().strip()
     if not raw:
-        raise click.UsageError('SCIM settings JSON is required via stdin')
+        error('SCIM settings JSON is required via stdin', quit=True)
     try:
         settings = json.loads(raw)
     except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+        error(f'Invalid JSON input: {e}', quit=True)
     print_json(sdk.onboarding.set_scim_settings(settings))

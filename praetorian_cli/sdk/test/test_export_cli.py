@@ -146,7 +146,7 @@ def test_export_entity_no_stdin(runner, export_sdk):
     result = _invoke_with_input(runner, export_sdk, [
         'export', 'entity', 'assets',
     ], input='', catch_exceptions=True)
-    assert result.exit_code != 0 or 'ERROR' in result.output
+    assert result.exit_code != 0
 
 
 def test_export_loa(runner, export_sdk):
@@ -160,7 +160,7 @@ def test_export_loa(runner, export_sdk):
 
 def test_export_loa_no_stdin(runner, export_sdk):
     result = _invoke_with_input(runner, export_sdk, ['export', 'loa'], input='', catch_exceptions=True)
-    assert result.exit_code != 0 or 'ERROR' in result.output
+    assert result.exit_code != 0
 
 
 def test_health(runner, export_sdk):

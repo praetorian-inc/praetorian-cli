@@ -130,11 +130,11 @@ def entity(chariot, entity_type, fmt, columns):
         error('Pipe JSON input via stdin (e.g., echo \'{"items":[]}\' | guard export ...)')
     raw = sys.stdin.read().strip()
     if not raw:
-        raise click.UsageError('Export filter JSON is required via stdin ({"items": [...]} or {"query": {...}})')
+        error('Export filter JSON is required via stdin ({"items": [...]} or {"query": {...}})', quit=True)
     try:
         body = json.loads(raw)
     except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+        error(f'Invalid JSON input: {e}', quit=True)
     col_list = [c.strip() for c in columns.split(',')] if columns else None
     print_json(chariot.exports.export_entity(
         entity_type,
@@ -159,11 +159,11 @@ def loa(chariot):
         error('Pipe JSON input via stdin (e.g., echo \'{"config":{}}\' | guard export loa)')
     raw = sys.stdin.read().strip()
     if not raw:
-        raise click.UsageError('LOA configuration JSON is required via stdin')
+        error('LOA configuration JSON is required via stdin', quit=True)
     try:
         body = json.loads(raw)
     except json.JSONDecodeError as e:
-        error(f'Invalid JSON input: {e}')
+        error(f'Invalid JSON input: {e}', quit=True)
     print_json(chariot.exports.export_loa(body))
 
 
