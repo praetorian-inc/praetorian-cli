@@ -29,9 +29,11 @@ def _format_hunt_line(h):
         prompt += '...'
     iterations = h.get('iterationCount', 0)
     findings = h.get('findingsCount', 0)
+    status_padded = f"{status:>20s}"
+    styled_status = click.style(status_padded, fg=color, bold=True)
     return (
         f"{uuid}  "
-        f"{click.style(status, fg=color, bold=True):>20s}  "
+        f"{styled_status}  "
         f"iterations={iterations}  findings={findings}  "
         f"{prompt}"
     )

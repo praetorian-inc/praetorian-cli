@@ -771,34 +771,46 @@ class MarcusCommands:
                 iters = h.get('iterationCount', 0)
                 finds = h.get('findingsCount', 0)
                 self.console.print(f'  {uuid[:12]}...  [{self._hunt_color(status)}]{status}[/]  i={iters} f={finds}  {prompt}')
-        elif subcmd == 'show' and rest:
-            uuid = rest[0]
-            with self.console.status('Loading...', spinner='dots', spinner_style=self.colors['primary']):
-                resp = self.sdk.my({'key': f'#hunt#{uuid}'})
-            hunts = self._extract_console_hunts(resp)
-            if not hunts:
-                self.console.print(f'[error]Hunt {uuid} not found.[/error]')
-                return
-            h = hunts[0]
-            self.console.print(f'[bold]Hunt {h.get("uuid", "?")}[/bold]')
-            self.console.print(f'  Status:     [{self._hunt_color(h.get("status", ""))}]{h.get("status", "?")}[/]')
-            self.console.print(f'  Created:    {h.get("created", "?")}')
-            self.console.print(f'  Expires:    {h.get("expiresAt", "?")}')
-            self.console.print(f'  Iterations: {h.get("iterationCount", 0)}')
-            self.console.print(f'  Findings:   {h.get("findingsCount", 0)}')
-            self.console.print(f'  Mandate:    {h.get("prompt", "")}')
-        elif subcmd == 'pause' and rest:
-            with self.console.status('Pausing...', spinner='dots', spinner_style=self.colors['primary']):
-                result = self.sdk.put(f'hunt/{rest[0]}', {'status': 'paused'})
-            self.console.print(f'Hunt {rest[0]}: [yellow]paused[/yellow]')
-        elif subcmd == 'resume' and rest:
-            with self.console.status('Resuming...', spinner='dots', spinner_style=self.colors['primary']):
-                result = self.sdk.put(f'hunt/{rest[0]}', {'status': 'active'})
-            self.console.print(f'Hunt {rest[0]}: [green]active[/green]')
-        elif subcmd == 'stop' and rest:
-            with self.console.status('Stopping...', spinner='dots', spinner_style=self.colors['primary']):
-                result = self.sdk.put(f'hunt/{rest[0]}', {'status': 'stopped'})
-            self.console.print(f'Hunt {rest[0]}: [red]stopped[/red]')
+        elif subcmd == 'show':
+            if not rest:
+                self.console.print('Usage: hunt show <uuid>')
+            else:
+                uuid = rest[0]
+                with self.console.status('Loading...', spinner='dots', spinner_style=self.colors['primary']):
+                    resp = self.sdk.my({'key': f'#hunt#{uuid}'})
+                hunts = self._extract_console_hunts(resp)
+                if not hunts:
+                    self.console.print(f'[error]Hunt {uuid} not found.[/error]')
+                    return
+                h = hunts[0]
+                self.console.print(f'[bold]Hunt {h.get("uuid", "?")}[/bold]')
+                self.console.print(f'  Status:     [{self._hunt_color(h.get("status", ""))}]{h.get("status", "?")}[/]')
+                self.console.print(f'  Created:    {h.get("created", "?")}')
+                self.console.print(f'  Expires:    {h.get("expiresAt", "?")}')
+                self.console.print(f'  Iterations: {h.get("iterationCount", 0)}')
+                self.console.print(f'  Findings:   {h.get("findingsCount", 0)}')
+                self.console.print(f'  Mandate:    {h.get("prompt", "")}')
+        elif subcmd == 'pause':
+            if not rest:
+                self.console.print('Usage: hunt pause <uuid>')
+            else:
+                with self.console.status('Pausing...', spinner='dots', spinner_style=self.colors['primary']):
+                    result = self.sdk.put(f'hunt/{rest[0]}', {'status': 'paused'})
+                self.console.print(f'Hunt {rest[0]}: [yellow]paused[/yellow]')
+        elif subcmd == 'resume':
+            if not rest:
+                self.console.print('Usage: hunt resume <uuid>')
+            else:
+                with self.console.status('Resuming...', spinner='dots', spinner_style=self.colors['primary']):
+                    result = self.sdk.put(f'hunt/{rest[0]}', {'status': 'active'})
+                self.console.print(f'Hunt {rest[0]}: [green]active[/green]')
+        elif subcmd == 'stop':
+            if not rest:
+                self.console.print('Usage: hunt stop <uuid>')
+            else:
+                with self.console.status('Stopping...', spinner='dots', spinner_style=self.colors['primary']):
+                    result = self.sdk.put(f'hunt/{rest[0]}', {'status': 'stopped'})
+                self.console.print(f'Hunt {rest[0]}: [red]stopped[/red]')
         elif subcmd == 'interactive':
             from praetorian_cli.ui.hunt.app import run_hunt_tui
             uuid = rest[0] if rest else None

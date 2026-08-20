@@ -225,6 +225,18 @@ class HuntApp(App):
         try:
             from datetime import timedelta
             hours = _parse_duration_int(self._start_duration)
+            if hours <= 0:
+                def _invalid_duration():
+                    log = self.query_one("#activity-log", RichLog)
+                    log.write("[bold red]Duration must be positive[/bold red]")
+                self.call_from_thread(_invalid_duration)
+                return
+            if hours > 72:
+                def _invalid_duration():
+                    log = self.query_one("#activity-log", RichLog)
+                    log.write("[bold red]Duration cannot exceed 72 hours[/bold red]")
+                self.call_from_thread(_invalid_duration)
+                return
             expires_at = (datetime.now(timezone.utc) + timedelta(hours=hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
             body = {'prompt': self._start_prompt, 'expiresAt': expires_at}
             if self._start_scope:
@@ -404,7 +416,6 @@ class HuntApp(App):
         log.write("  [cyan]/resume[/cyan]           Resume a paused hunt")
         log.write("  [cyan]/stop[/cyan]             Stop the hunt permanently")
         log.write("")
-        log.write("[bold]General[/bold]")
         log.write("[bold]Marcus AI[/bold]")
         log.write("  [cyan]/ask[/cyan]    <question>  Ask Marcus a question")
         log.write("  [cyan]/marcus[/cyan] <question>  Same as /ask")
