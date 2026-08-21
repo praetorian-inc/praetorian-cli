@@ -1,8 +1,11 @@
+import os
 from configparser import ConfigParser
+from ipaddress import ip_address
 from os import environ
 from os.path import join, split
 from pathlib import Path
 from time import time
+from urllib.parse import urlsplit
 
 import boto3
 import requests
@@ -17,7 +20,61 @@ DEFAULT_KEYCHAIN_FILEPATH = join(Path.home(), '.praetorian', 'keychain.ini')
 
 API_KEY_ID = 'api_key_id'
 API_KEY_SECRET = 'api_key_secret'
-    
+
+HTTP_LOOPBACK_OPT_IN_ENV = 'PRAETORIAN_CLI_ALLOW_HTTP_LOOPBACK'
+
+
+def _is_loopback_host(hostname):
+    """ True for localhost or a loopback IP address (127.0.0.0/8, ::1). """
+    if not hostname:
+        return False
+    if hostname.lower() == 'localhost':
+        return True
+    # DNS names other than localhost (e.g. localhost.example.com) resolve to
+    # arbitrary addresses, so only a literal loopback IP counts.
+    try:
+        return ip_address(hostname).is_loopback
+    except ValueError:
+        return False
+
+
+def _validated_backend_url(api):
+    """ Return `api` unchanged when it is safe to send credentials to; raise otherwise.
+        HTTPS only, except plaintext HTTP to a loopback endpoint (the local dev
+        emulator) under the explicit opt-in. """
+    try:
+        parsed = urlsplit(api or '')
+        # urlsplit defers port parsing; touching .port is what raises on a URL
+        # like https://host:not-a-port/x.
+        parsed.port
+    except ValueError:
+        raise ConfigurationError(
+            f'Invalid backend URL "{api}". Credentials are only sent over HTTPS; use an https:// URL.')
+
+    if parsed.scheme == 'https' and parsed.hostname:
+        return api
+
+    if parsed.scheme == 'http' and _is_loopback_host(parsed.hostname):
+        if environ.get(HTTP_LOOPBACK_OPT_IN_ENV) == '1':
+            return api
+        raise ConfigurationError(
+            f'Refusing to send credentials to the plaintext HTTP backend "{api}". Credentials are only '
+            f'sent over HTTPS. For local development against a loopback endpoint, set {HTTP_LOOPBACK_OPT_IN_ENV}=1.')
+
+    raise ConfigurationError(
+        f'Invalid backend URL "{api}". Credentials are only sent over HTTPS; use an https:// URL.')
+
+
+def _tighten_to_owner_only(path):
+    """ Repair a keychain file written group- or world-accessible by an older CLI. """
+    # Best-effort: the file is being read, not written, and configure() remains
+    # the authoritative enforcement point, so a keychain on a filesystem that
+    # refuses chmod must not brick every CLI command.
+    try:
+        if os.stat(path).st_mode & 0o077:
+            os.chmod(path, 0o600)
+    except OSError:
+        pass
 
 
 class Keychain:
@@ -61,6 +118,7 @@ class Keychain:
                 self.config.set(DEFAULT_PROFILE, 'api', DEFAULT_API)
                 self.config.set(DEFAULT_PROFILE, 'client_id', DEFAULT_CLIENT_ID)
             else:
+                _tighten_to_owner_only(self.filepath)
                 self.config.read(self.filepath)
 
         if not self.config.sections():
@@ -136,7 +194,7 @@ class Keychain:
 
     def base_url(self):
         """ Get the base URL for the backend. It is the "api" field in the keychain file. """
-        return self.get_option('api')
+        return _validated_backend_url(self.get_option('api'))
 
     def username(self):
         """ Get the username field from the keychain profile """
@@ -178,6 +236,9 @@ class Keychain:
                   account=None, api_key_id=None, api_key_secret=None):
         """ Update or insert a new profile to the keychain file at the default location.
             If the keychain file does not exist, create it. """
+        # Reject a plaintext backend before the keychain file is created or modified.
+        _validated_backend_url(api)
+
         new_profile = {
             'name': 'chariot',
             'client_id': client_id,
@@ -204,6 +265,23 @@ class Keychain:
 
         config[profile] = new_profile
 
-        Path(split(Path(DEFAULT_KEYCHAIN_FILEPATH))[0]).mkdir(exist_ok=True, parents=True)
-        with open(DEFAULT_KEYCHAIN_FILEPATH, 'w') as f:
+        # mkdir's mode leaves a pre-existing directory alone; a new one is created
+        # owner-only to match the file it holds.
+        Path(split(Path(DEFAULT_KEYCHAIN_FILEPATH))[0]).mkdir(mode=0o700, exist_ok=True, parents=True)
+        # O_CREAT's 0o600 applies to new files only; the fchmod is what tightens a
+        # pre-existing looser file. Secrets are about to be written, so an fchmod
+        # failure propagates rather than writing them into a world-readable file.
+        fd = os.open(DEFAULT_KEYCHAIN_FILEPATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            if hasattr(os, 'fchmod'):
+                os.fchmod(fd, 0o600)
+            f = os.fdopen(fd, 'w')
+        except BaseException:
+            os.close(fd)
+            raise
+        with f:
             config.write(f)
+        if not hasattr(os, 'fchmod'):
+            # os.fchmod is POSIX-only; on Windows chmod is close to a no-op but
+            # keeps the code path defined.
+            os.chmod(DEFAULT_KEYCHAIN_FILEPATH, 0o600)
