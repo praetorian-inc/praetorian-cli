@@ -67,9 +67,11 @@ class MarcusCommands:
         if args and args[0] == '--query':
             self.context.mode = 'query'
 
-        self.console.print(f'[primary]Entering conversation mode[/primary] [dim](type "/back" to return)[/dim]')
-        self.console.print(f'[dim]Commands: /back, /new, /query, /agent, or just chat[/dim]')
+        self.console.print('[primary]Entering conversation mode[/primary] [dim](type "/back" to return)[/dim]')
+        self.console.print(f'[dim]Commands: /back, /new, /query, /agent, /skill <path>, /skills, /unskill <name>, or just chat[/dim]')
         self.console.print(f'[dim]Context: {self.context.summary()}[/dim]')
+        if self.context.skills:
+            self.console.print(f'[dim]Skills: {", ".join(os.path.basename(s) for s in self.context.skills)}[/dim]')
         if not self.context.account:
             self.console.print(f'[warning]No account set -- Marcus will query your personal account. Use "set account <email>" first.[/warning]')
         self.console.print()
@@ -100,8 +102,37 @@ class MarcusCommands:
                     self.context.mode = slash_cmd
                     self.console.print(f'[success]Switched to {slash_cmd} mode[/success]')
                     continue
+                elif slash_cmd == 'skill':
+                    parts = user_input[1:].split(None, 1)
+                    if len(parts) < 2:
+                        self.console.print('[dim]Usage: /skill <path-to-skill-file>[/dim]')
+                        continue
+                    try:
+                        name = self.context.load_skill(parts[1].strip())
+                        self.console.print(f'[success]Loaded skill: {name}[/success]')
+                    except (FileNotFoundError, ValueError) as e:
+                        self.console.print(f'[error]{e}[/error]')
+                    continue
+                elif slash_cmd == 'skills':
+                    if self.context.skills:
+                        self.console.print('[primary]Active skills:[/primary]')
+                        for s in self.context.skills:
+                            self.console.print(f'  [accent]{os.path.basename(s)}[/accent] [dim]({s})[/dim]')
+                    else:
+                        self.console.print('[dim]No skills loaded. Use /skill <path> to load one.[/dim]')
+                    continue
+                elif slash_cmd == 'unskill':
+                    parts = user_input[1:].split(None, 1)
+                    if len(parts) < 2:
+                        self.console.print('[dim]Usage: /unskill <name-or-path>[/dim]')
+                        continue
+                    if self.context.unload_skill(parts[1].strip()):
+                        self.console.print(f'[success]Unloaded skill: {parts[1].strip()}[/success]')
+                    else:
+                        self.console.print(f'[warning]Skill not found: {parts[1].strip()}[/warning]')
+                    continue
                 else:
-                    self.console.print(f'[dim]Unknown command: /{slash_cmd}. Use /back, /new, /query, /agent[/dim]')
+                    self.console.print(f'[dim]Unknown command: /{slash_cmd}. Use /back, /new, /query, /agent, /skill, /skills, /unskill[/dim]')
                     continue
 
             # Everything else is sent to Marcus as a message
@@ -119,6 +150,7 @@ class MarcusCommands:
         Returns the parsed JSON dict. Raises on network/HTTP error; the keychain
         account is always restored.
         """
+        message = self.context.apply_skills_to_message(message)
         url = self.sdk.url('/planner')
         payload = {'message': message, 'mode': self.context.mode}
         if self.context.conversation_id:
@@ -547,14 +579,29 @@ class MarcusCommands:
     def _marcus_do(self, args):
         """Give Marcus a direct instruction to execute."""
         if not args:
-            self.console.print('[dim]Usage: marcus do "<instruction>"[/dim]')
+            self.console.print('[dim]Usage: marcus do "<instruction>" [--skill <path>][/dim]')
             self.console.print('[dim]  Examples:[/dim]')
             self.console.print('[dim]    marcus do "add example.com as a seed and start discovery"[/dim]')
-            self.console.print('[dim]    marcus do "run nuclei on all assets with port 443"[/dim]')
-            self.console.print('[dim]    marcus do "generate an executive summary"[/dim]')
+            self.console.print('[dim]    marcus do "find SQLi" --skill ./skills/sqli.md[/dim]')
             return
 
-        instruction = ' '.join(args)
+        # Parse --skill flags from args
+        remaining = []
+        i = 0
+        while i < len(args):
+            if args[i] == '--skill' and i + 1 < len(args):
+                try:
+                    name = self.context.load_skill(args[i + 1])
+                    self.console.print(f'[dim]Loaded skill: {name}[/dim]')
+                except (FileNotFoundError, ValueError) as e:
+                    self.console.print(f'[error]{e}[/error]')
+                    return
+                i += 2
+            else:
+                remaining.append(args[i])
+                i += 1
+
+        instruction = ' '.join(remaining)
         message = self.context.apply_scope_to_message(instruction)
         response = self._send_to_marcus(message)
         if response:
