@@ -297,9 +297,12 @@ class Chariot:
         """ Start MCP server exposing SDK methods as tools
         
         Arguments:
-        allowable_tools: list
-            Optional list of tool names to expose. If None, all tools are exposed.
-            Tool names should be in format 'entity.method' (e.g., 'assets.add', 'risks.list')
+        allowable_tools: list or tuple of str
+            Optional list of tool names to expose. Tool names are in format
+            'entity_method' (e.g., 'assets_add', 'risks_list'). If None, all
+            non-sensitive tools are exposed; sensitive tools (see
+            praetorian_cli.sdk.mcp_server.SENSITIVE_TOOL_PATTERNS) require an
+            exact-name allow entry and never match wildcard patterns.
         """
         from praetorian_cli.sdk.mcp_server import MCPServer
         import anyio
