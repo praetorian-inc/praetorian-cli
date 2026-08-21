@@ -24,7 +24,6 @@ INSTALLABLE_TOOLS = {
     'vespasian':   {'repo': 'praetorian-inc/vespasian',   'description': 'API discovery from traffic'},
     'nuclei':      {'repo': 'praetorian-inc/nuclei',      'description': 'Vulnerability scanner templates'},
     'gato':        {'repo': 'praetorian-inc/gato',        'description': 'GitHub Actions pipeline scanner'},
-    'constantine': {'repo': 'praetorian-inc/constantine', 'description': 'Repository security analysis'},
     'aurelian':    {'repo': 'praetorian-inc/aurelian',    'description': 'Cloud security reconnaissance'},
     'pius':        {'repo': 'praetorian-inc/pius',        'description': 'Organizational asset discovery'},
     'florian':     {'repo': 'praetorian-inc/florian',     'description': 'Authentication flow testing'},
@@ -354,7 +353,7 @@ class ScanTargetPlugin(ToolPlugin):
 # - brutus:      verified against brutus --help (ENG-3042)
 # - nuclei:      -u is the documented URL flag — OK
 # - julius/nerva/nero: use -t <target>; unverified against each binary's --help
-# - titus/trajan/vespasian/constantine/caligula: `scan <target>` — unverified
+# - titus/trajan/vespasian/caligula: `scan <target>` — unverified
 # - augustus/gato: `scan -t <target>` / `enumerate -t <target>` — unverified
 # - cato/florian/hadrian: `scan -u <target>` — unverified
 # Users can always override via `guard run tool <tool> <target> -- <raw args>`.
@@ -369,7 +368,6 @@ TOOL_PLUGINS = {
     'gato':        GatoPlugin(),
     'cato':        UrlTargetPlugin(),
     'vespasian':   ScanTargetPlugin(),
-    'constantine': ScanTargetPlugin(),
     'florian':     UrlTargetPlugin(),
     'caligula':    ScanTargetPlugin(),
     'hadrian':     UrlTargetPlugin(),
