@@ -20,7 +20,6 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.knossos import Knossos
-from praetorian_cli.sdk.entities.leaderboard import Leaderboard
 from praetorian_cli.sdk.entities.misc import Misc
 from praetorian_cli.sdk.entities.multipart import Multipart
 from praetorian_cli.sdk.entities.onboarding import Onboarding
@@ -85,7 +84,6 @@ class Chariot:
         self.hackerone = HackerOne(self)
         self.onboarding = Onboarding(self)
         self.plextrac = PlexTrac(self)
-        self.leaderboard = Leaderboard(self)
         self.misc = Misc(self)
         self.multipart = Multipart(self)
         self.share = Share(self)
