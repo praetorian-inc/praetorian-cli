@@ -144,12 +144,21 @@ def uninstall_tool(tool_name: str) -> bool:
         raise ValueError(f'Unknown tool: {tool_name}')
 
     path = os.path.join(INSTALL_DIR, os.path.basename(tool_name))
-    if not os.path.realpath(path).startswith(os.path.realpath(INSTALL_DIR) + os.sep):
+    real_path = os.path.realpath(path)
+    real_install = os.path.realpath(INSTALL_DIR)
+    try:
+        common = os.path.commonpath([real_path, real_install])
+    except ValueError:
+        raise ValueError(f'Invalid tool name: {tool_name}')
+    if common != real_install or real_path == real_install:
         raise ValueError(f'Invalid tool name: {tool_name}')
 
     existed = os.path.isfile(path)
     if existed:
-        os.remove(path)
+        try:
+            os.remove(path)
+        except OSError as e:
+            raise OSError(f'Failed to remove {path}: {e}') from e
     get_registry().remove_version(tool_name)
     return existed
 
@@ -233,7 +242,7 @@ def install_tool(tool_name: str, force=False) -> str:
     # Make executable
     os.chmod(binary_path, 0o755)
 
-    # Record version
+    # Record version — only persist a real tag, never a placeholder like "unknown"
     try:
         from praetorian_cli.registry import get_registry
         ver_result = subprocess.run(
@@ -241,10 +250,15 @@ def install_tool(tool_name: str, force=False) -> str:
             capture_output=True, text=True, timeout=15,
         )
         version_tag = ver_result.stdout.strip() if ver_result.returncode == 0 else ''
-        if ver_result.returncode == 0 and version_tag:
+        if version_tag:
             get_registry().record_version(tool_name, version_tag, binary_path)
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        pass
+    except FileNotFoundError:
+        pass  # gh CLI not available — version tracking is optional
+    except subprocess.TimeoutExpired:
+        pass  # version query timed out — skip recording
+    except Exception as e:
+        import sys
+        print(f'Warning: failed to record version for {tool_name}: {e}', file=sys.stderr)
 
     # Cleanup
     try:

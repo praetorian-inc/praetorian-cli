@@ -56,7 +56,13 @@ def _search_rows(sdk, query="", *, category="", surface="", target="", tag="", i
 
     cat = _catalog(sdk)
     reg = get_registry()
-    results = cat.search(query, category=category, surface=surface, target=target, tag=tag)
+    results = cat.search(
+        query,
+        category=category.lower() if category else category,
+        surface=surface.lower() if surface else surface,
+        target=target.lower() if target else target,
+        tag=tag.lower() if tag else tag,
+    )
     inst = list_installed()
     rows = []
     for c in results:
@@ -210,14 +216,14 @@ def info(sdk, name, as_json):
     click.echo(f"  Executor:    {c.executor}")
     click.echo(f"  Installed:   {installed_str}")
     if reg.is_local_only(c.name):
-        click.echo(f"  Local-only:  yes")
+        click.echo("  Local-only:  yes")
     click.echo(f"  Description: {c.description}")
 
     if c.parameters:
-        click.echo(f"\n  Options:")
+        click.echo("\n  Options:")
         _render_params(c.parameters)
 
-    click.echo(f"\n  Usage:")
+    click.echo("\n  Usage:")
     click.echo(f"    guard run tool {c.name} <target>")
     click.echo()
 
@@ -370,9 +376,12 @@ def update(sdk, name, update_registry, as_json):
         guard module update brutus
         guard module update --registry
     """
+    import re
     import subprocess
     from praetorian_cli.registry import get_registry
     from praetorian_cli.runners.local import install_tool, is_installed, INSTALLABLE_TOOLS
+
+    _repo_re = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
 
     reg = get_registry()
 
@@ -397,12 +406,16 @@ def update(sdk, name, update_registry, as_json):
         if not mod:
             continue
 
+        repo = mod.get("repo", "")
+        if not _repo_re.match(repo):
+            continue
+
         current = reg.get_version(tool_name)
         current_ver = current["version"] if current else "unknown"
 
         try:
             ver_result = subprocess.run(
-                ["gh", "release", "view", "--repo", mod["repo"], "--json", "tagName", "-q", ".tagName"],
+                ["gh", "release", "view", "--repo", repo, "--json", "tagName", "-q", ".tagName"],
                 capture_output=True, text=True, timeout=15,
             )
             latest_ver = ver_result.stdout.strip() if ver_result.returncode == 0 else None

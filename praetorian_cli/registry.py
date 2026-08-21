@@ -182,7 +182,8 @@ class ModuleRegistry:
         return self._load_versions().get(name.lower())
 
     def get_all_versions(self) -> Dict:
-        return self._load_versions()
+        raw = self._load_versions()
+        return {k.lower(): v for k, v in raw.items()}
 
     def remove_version(self, name: str):
         with _versions_lock:

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import time
 
 from rich.markdown import Markdown
@@ -9,6 +10,8 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+
+_REPO_RE = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
 
 
 class ToolCommands:
@@ -579,7 +582,13 @@ class ToolCommands:
                 i += 1
 
         cat = CapabilityCatalog(self.sdk)
-        results = cat.search(query, category=category, surface=surface, target=target, tag=tag)
+        results = cat.search(
+            query,
+            category=category.lower() if category else category,
+            surface=surface.lower() if surface else surface,
+            target=target.lower() if target else target,
+            tag=tag.lower() if tag else tag,
+        )
         installed = list_installed()
         reg = get_registry()
 
@@ -734,12 +743,17 @@ class ToolCommands:
             if not mod:
                 continue
 
+            repo = mod.get('repo', '')
+            if not _REPO_RE.match(repo):
+                self.console.print(f'[warning]{tool_name}: invalid repo format in registry[/warning]')
+                continue
+
             current = reg.get_version(tool_name)
             current_ver = current['version'] if current else 'unknown'
 
             try:
                 ver_result = subprocess.run(
-                    [gh_path, 'release', 'view', '--repo', mod['repo'],
+                    [gh_path, 'release', 'view', '--repo', repo,
                      '--json', 'tagName', '-q', '.tagName'],
                     capture_output=True, text=True, timeout=15,
                 )

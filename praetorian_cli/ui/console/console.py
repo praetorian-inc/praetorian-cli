@@ -469,10 +469,11 @@ class GuardConsole(
         help_table.add_row('capabilities [name]', 'List all backend capabilities')
         help_table.add_row('install <tool|all>', 'Install binary from GitHub')
         help_table.add_row('installed', 'List locally installed binaries')
-        help_table.add_row('update [module|all]', 'Update installed modules to latest')
+        help_table.add_row('update [<name>|all]', 'Update installed module(s) to latest')
         help_table.add_row('module search [query]', 'Search module registry (name, category, tag)')
         help_table.add_row('module info <name>', 'Show module details (options, version, author)')
-        help_table.add_row('module update [name|all]', 'Update installed modules to latest')
+        help_table.add_row('module options <name>', 'Show configurable parameters for a module')
+        help_table.add_row('module update [<name>|all]', 'Update installed module(s) to latest')
 
         help_table.add_row('', '')
         help_table.add_row('[section]Evidence & Reports[/section]', '')
@@ -621,7 +622,11 @@ class GuardConsole(
             self.console.print('[dim]Usage: module uninstall <name>[/dim]')
             return
         name = args[0].lower()
-        removed = uninstall_tool(name)
+        try:
+            removed = uninstall_tool(name)
+        except (OSError, ValueError) as e:
+            self.console.print(f'[error]Failed to remove {name}: {e}[/error]')
+            return
         if removed:
             self.console.print(f'[success]{name}: removed[/success]')
         else:

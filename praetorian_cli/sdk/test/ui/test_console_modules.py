@@ -139,7 +139,21 @@ class TestConsoleSearch:
             h._cmd_module_search(["credential"])
         output = "\n".join(h.console.lines)
         assert "brutus" in output
+        # nuclei is category=scanner, must NOT appear when filtering for "credential"
         assert "nuclei" not in output
+
+    def test_search_scanner_excludes_credential(self):
+        """Searching 'scanner' must include nuclei but exclude brutus."""
+        h = _Harness()
+        with patch("praetorian_cli.catalog.CapabilityCatalog.all", return_value=SAMPLE_CAPABILITIES), \
+             patch("praetorian_cli.runners.local.list_installed", return_value={}), \
+             patch("praetorian_cli.registry.ModuleRegistry.get_version", return_value=None), \
+             patch("praetorian_cli.registry.ModuleRegistry.is_local_only", return_value=False):
+            h._cmd_module_search(["scanner"])
+        output = "\n".join(h.console.lines)
+        assert "nuclei" in output
+        # brutus is category=credential, must NOT appear when filtering for "scanner"
+        assert "brutus" not in output
 
 
 class TestConsoleInfo:
