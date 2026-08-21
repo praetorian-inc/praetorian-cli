@@ -1,5 +1,9 @@
+import contextlib
+import io
+import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 import praetorian_cli.handlers.red_team  # noqa: F401
@@ -8,8 +12,7 @@ from praetorian_cli.handlers.chariot import chariot
 OK = {'status': 'ok'}
 
 
-def _invoke(*args, stdin=None):
-    runner = CliRunner()
+def _mock_sdk():
     mock_sdk = MagicMock()
     mock_sdk.is_praetorian_user.return_value = True
     mock_sdk.red_team.deployment_launch.return_value = {'project_id': 'p1'}
@@ -45,6 +48,12 @@ def _invoke(*args, stdin=None):
     mock_sdk.red_team.evilginx_status.return_value = {'status': 'ready'}
     mock_sdk.red_team.payload_generate.return_value = {'job_id': 'j4'}
     mock_sdk.red_team.phishkit_nodes.return_value = [{'name': 'node-1'}]
+    return mock_sdk
+
+
+def _invoke(*args, stdin=None):
+    runner = CliRunner()
+    mock_sdk = _mock_sdk()
     with patch('praetorian_cli.sdk.chariot.Chariot', return_value=mock_sdk), \
          patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
         result = runner.invoke(
@@ -547,6 +556,43 @@ def test_apply_prompts_and_aborts_without_yes():
     sdk.red_team.deployment_terraform.assert_not_called()
 
 
+def test_apply_with_a_bare_piped_body_fails_closed():
+    result, sdk = _invoke('red-team', 'deployment', 'apply', stdin='{"a": 1}')
+    assert result.exit_code == 1
+    assert 'Apply the Terraform deployment?' in result.output
+    sdk.red_team.deployment_terraform.assert_not_called()
+
+
+# Security: a payload cannot answer its own confirmation prompt. The prompt is an
+# eager Click parameter callback, so it consumes the body's first line before the
+# body is ever read, and Click accepts only y/yes/n/no -- a truthy-looking token
+# is rejected and the command aborts. No JSON document can begin with a line that
+# is exactly `y` or `yes`, so no real payload can self-confirm.
+@pytest.mark.parametrize('body', [
+    'true\n{"a": 1}',
+    '1\n{"a": 1}',
+    'on\n{"a": 1}',
+])
+def test_apply_payload_cannot_self_confirm_the_prompt(body):
+    result, sdk = _invoke('red-team', 'deployment', 'apply', stdin=body)
+    assert result.exit_code == 1
+    sdk.red_team.deployment_terraform.assert_not_called()
+
+
+def test_apply_accepts_an_explicit_y_line_before_the_piped_body():
+    result, sdk = _invoke('red-team', 'deployment', 'apply', stdin='y\n{"a": 1}')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_terraform.assert_called_once()
+    assert sdk.red_team.deployment_terraform.call_args[0][1] == {'a': 1}
+
+
+def test_apply_accepts_a_spelled_out_yes_line_before_the_piped_body():
+    result, sdk = _invoke('red-team', 'deployment', 'apply', stdin='yes\n{"a": 1}')
+    assert result.exit_code == 0
+    sdk.red_team.deployment_terraform.assert_called_once()
+    assert sdk.red_team.deployment_terraform.call_args[0][1] == {'a': 1}
+
+
 def test_campaign_delete_aborts_without_yes():
     result, sdk = _invoke('red-team', 'campaign', 'delete', '--key', 'k1',
                           stdin='n\n')
@@ -671,3 +717,115 @@ def test_targets_missing_key_is_a_usage_error():
     assert result.exit_code == 2
     assert "Expected JSON with 'targets' key" in result.output
     sdk.red_team.campaign_targets.assert_not_called()
+
+
+# --- Piped stdin is decoded as UTF-8 before anything reads it ---
+
+# Real locale decoding is unreachable from a test: CliRunner's stdin is a BytesIO
+# wrapper it decodes itself, and the process locale is fixed at interpreter start.
+# What IS testable is the mechanism -- that the reconfigure happens at all, that a
+# tty is left alone, and that it lands before the first read of the stream.
+class _StdinStub:
+    """A stdin that records reconfigure() and read calls, in order."""
+
+    def __init__(self, payload='', tty=False, reconfigure_error=None):
+        self._buffer = io.StringIO(payload)
+        self._tty = tty
+        self._reconfigure_error = reconfigure_error
+        self.events = []
+        self.reconfigure_calls = []
+
+    def isatty(self):
+        return self._tty
+
+    def reconfigure(self, **kwargs):
+        self.events.append('reconfigure')
+        self.reconfigure_calls.append(kwargs)
+        if self._reconfigure_error is not None:
+            raise self._reconfigure_error
+
+    def readline(self, *args):
+        self.events.append('readline')
+        return self._buffer.readline(*args)
+
+    def read(self, *args):
+        self.events.append('read')
+        return self._buffer.read(*args)
+
+
+def _invoke_with_stdin(stub, *args):
+    """Drive the real CLI with `stub` installed as sys.stdin.
+
+    CliRunner cannot carry a stub: isolation() overwrites sys.stdin with its own
+    BytesIO wrapper, and hands the confirmation prompt that wrapper directly
+    rather than going through sys.stdin -- so neither the reconfigure nor the
+    prompt's read would land on the stub. main() leaves sys.stdin alone, and
+    click's real prompt reads it through the builtin input().
+    """
+    mock_sdk = _mock_sdk()
+    output = io.StringIO()
+    with patch('praetorian_cli.sdk.chariot.Chariot', return_value=mock_sdk), \
+         patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f), \
+         patch.object(sys, 'stdin', stub), \
+         contextlib.redirect_stdout(output), \
+         contextlib.redirect_stderr(output):
+        try:
+            chariot.main(list(args), obj={'keychain': MagicMock(), 'proxy': ''},
+                         standalone_mode=True)
+            exit_code = 0
+        except SystemExit as e:
+            exit_code = e.code if e.code is not None else 0
+    return exit_code, output.getvalue(), mock_sdk
+
+
+def test_piped_stdin_is_reconfigured_to_utf8():
+    # `details` takes no JSON body, so the group callback is the only thing that
+    # can reconfigure here -- _load_json_body's own attempt never runs.
+    stub = _StdinStub()
+    exit_code, _, sdk = _invoke_with_stdin(stub, 'red-team', 'deployment', 'details')
+    assert exit_code == 0
+    assert stub.reconfigure_calls == [{'encoding': 'utf-8'}]
+    sdk.red_team.deployment_details.assert_called_once()
+
+
+def test_tty_stdin_is_not_reconfigured():
+    # A tty never carries a JSON body, and its encoding is the terminal's.
+    stub = _StdinStub(tty=True)
+    exit_code, _, sdk = _invoke_with_stdin(stub, 'red-team', 'deployment', 'details')
+    assert exit_code == 0
+    assert stub.reconfigure_calls == [], stub.events
+    sdk.red_team.deployment_details.assert_called_once()
+
+
+def test_reconfigure_precedes_the_eager_confirmation_prompts_read():
+    # The ordering IS the fix. reconfigure() is refused after the stream's first
+    # read, and @click.confirmation_option is eager -- its prompt reads a line
+    # before the command body runs. Anything that moves the call into a command
+    # body arrives after this read and silently restores the locale decoder.
+    stub = _StdinStub('y\n{"a": 1}')
+    exit_code, output, sdk = _invoke_with_stdin(
+        stub, 'red-team', 'deployment', 'apply')
+    assert exit_code == 0
+    assert 'Apply the Terraform deployment?' in output
+    assert stub.events[0] == 'reconfigure', stub.events
+    assert 'readline' in stub.events, stub.events
+    assert sdk.red_team.deployment_terraform.call_args[0][1] == {'a': 1}
+
+
+def test_a_stdin_without_reconfigure_is_tolerated():
+    # sys.stdin is not always a TextIOWrapper; the helper must not raise.
+    exit_code, _, sdk = _invoke_with_stdin(
+        io.StringIO('{"name":"t"}'), 'red-team', 'campaign', 'create')
+    assert exit_code == 0
+    sdk.red_team.campaign_create.assert_called_once_with({'name': 't'})
+
+
+def test_an_already_read_stdin_is_tolerated():
+    # reconfigure() is refused once the stream has been read. The stream's own
+    # decoder then stands and the command still runs.
+    stub = _StdinStub('{"name":"t"}',
+                      reconfigure_error=io.UnsupportedOperation('already read'))
+    exit_code, _, sdk = _invoke_with_stdin(stub, 'red-team', 'campaign', 'create')
+    assert exit_code == 0
+    assert stub.reconfigure_calls, stub.events
+    sdk.red_team.campaign_create.assert_called_once_with({'name': 't'})

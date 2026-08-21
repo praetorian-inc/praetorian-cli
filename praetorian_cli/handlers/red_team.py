@@ -17,18 +17,39 @@ JSON_FILE_HELP = 'Read the JSON body from PATH ("-" reads stdin)'
 
 def _load_json_body(path=None):
     """Load a JSON request body from `path`, or from stdin when `path` is None or '-'."""
+    # JSON is UTF-8 by specification (RFC 8259 s.8.1), so both channels decode as
+    # UTF-8 rather than the platform's locale encoding -- otherwise a body with
+    # non-ASCII content (target names, accented lure text, smart quotes) silently
+    # mojibakes, or fails outright, wherever the locale is not UTF-8.
     if path in (None, '-'):
         if sys.stdin.isatty():
             raise click.UsageError('Pipe JSON input via stdin, or pass --file PATH')
-        data = sys.stdin.read().strip()
         source = 'stdin'
-    else:
+        # Re-decode the existing stdin wrapper in place. Reading sys.stdin.buffer
+        # instead would lose the body whenever a @click.confirmation_option has
+        # already consumed a line, because the text layer buffers the remainder
+        # past the newline and the raw layer is then empty. reconfigure() is
+        # refused once the stream has been read, and is absent on a stdin that is
+        # not a TextIOWrapper; in both cases the stream's own decoder stands.
+        # _decode_piped_stdin_as_utf8() normally gets there first -- this call is
+        # what covers a caller that reaches here without the red-team group.
         try:
-            with open(path) as f:
+            sys.stdin.reconfigure(encoding='utf-8')
+        except (AttributeError, OSError, ValueError):
+            pass
+        try:
+            data = sys.stdin.read().strip()
+        except UnicodeDecodeError:
+            raise click.UsageError(f'JSON body on {source} is not valid UTF-8')
+    else:
+        source = path
+        try:
+            with open(path, encoding='utf-8') as f:
                 data = f.read().strip()
         except OSError as e:
             raise click.UsageError(f'Cannot read JSON body from {path}: {e.strerror}')
-        source = path
+        except UnicodeDecodeError:
+            raise click.UsageError(f'JSON body on {source} is not valid UTF-8')
 
     if not data:
         raise click.UsageError(f'No JSON body provided on {source}')
@@ -58,10 +79,28 @@ def _json_option(inline_value, inline_flag, file_path, file_flag):
         raise click.UsageError('Invalid JSON input')
 
 
+def _decode_piped_stdin_as_utf8():
+    """Re-decode a piped stdin as UTF-8, before anything has read it."""
+    # reconfigure() is refused after the stream's first read, and
+    # @click.confirmation_option is an EAGER Click parameter -- its prompt
+    # consumes a line before any command body runs. The in-body call in
+    # _load_json_body therefore arrives too late on every confirmed command, and
+    # the locale decoder either mojibakes the body or raises inside Click's
+    # prompt, out of reach of any handler here. A group callback runs before a
+    # leaf command's eager parameters (measured), so this is the last point that
+    # still precedes that first read. A tty is left alone: it never carries a
+    # JSON body (see _load_json_body), and its encoding is the terminal's.
+    try:
+        if not sys.stdin.isatty():
+            sys.stdin.reconfigure(encoding='utf-8')
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
 @chariot.group('red-team')
 def red_team():
     """ Red Team operations """
-    pass
+    _decode_piped_stdin_as_utf8()
 
 
 # ===================== Deployment =====================

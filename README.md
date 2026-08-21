@@ -379,8 +379,11 @@ guard engagement create-vault --client acme --sow SOW-1234 --sku WAPT --github-u
 The `red-team` family drives Praetorian's phishing and red-team infrastructure: the deployment lifecycle,
 phishing campaigns, parked domains and their DNS, Mailgun mail delivery, Evilginx phishing proxies, and
 payload generation. Like `engagement` and `configuration`, these commands are limited to Praetorian
-engineers — the check is enforced in the SDK as well as the CLI, so the same restriction applies to
-scripts and to the MCP server.
+engineers. The check now runs at the SDK layer as well as the CLI, so the same restriction applies to
+scripts and to the MCP server rather than to interactive use alone. Note what that check is: it
+compares the email address in the local keychain against a Praetorian suffix, so it is a client-side
+operator guardrail against reaching for the wrong tool — not a trust boundary. Anyone able to edit
+their own keychain can pass it. Authorization for these operations has to be enforced server-side.
 
 Every `red_team_*` MCP tool is classified sensitive, so none of them is exposed to an MCP client unless
 an allow entry names it exactly (see [SDK](#sdk)).
@@ -434,11 +437,14 @@ guard red-team phishkit-nodes --status all
 
 Two conventions run through the family:
 
-- **JSON bodies come from a file or stdin.** Commands that take a JSON document accept `-f/--file PATH`.
-  When `--file` is omitted, stdin is read automatically (matching the SDK test patterns). `--file -`
-  makes the stdin source explicit. Prefer the file form on `deployment apply`: stdin is also the
-  confirmation channel, so a piped payload leaves the prompt with nothing to read and the command
-  aborts unless `--yes` is given.
+- **JSON bodies come from stdin or a file.** Commands that take a JSON document read stdin when
+  `--file` is omitted; `-f/--file PATH` reads a file instead, and `--file -` names stdin explicitly.
+  `deployment apply` is the one body-reading command that also prompts, so there stdin carries both
+  the confirmation answer and the payload: either pass `--file` and answer the prompt interactively,
+  pass `--yes` to skip it, or prefix the piped payload with `y` on its own line. A bare piped JSON
+  body aborts — the prompt consumes the body's first line, rejects it as invalid input, and hits
+  end-of-input. That is a safe default rather than a bypass: no valid JSON document can begin with a
+  line that is exactly `y` or `yes`, so a payload can never answer its own prompt.
 - **Secrets stay off the command line.** Evilginx phishlet parameters (OAuth client IDs and secrets,
   session tokens) and payload template variables can be passed inline with `--params` / `--variables`,
   but an inline value is visible in process listings and shell history. Use `--params-file` /

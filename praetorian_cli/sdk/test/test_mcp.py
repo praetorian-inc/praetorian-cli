@@ -224,6 +224,15 @@ class TestMCPSensitiveTools:
         assert 'credentials_list' not in tools
         assert 'keys_get' not in tools
 
+    def test_exact_name_exposes_a_red_team_tool(self):
+        # Deny-by-default must not silently become deny-always: 'red_team_*' is a
+        # sensitive family, but an exact-name allow entry is still the documented
+        # way to opt one member in. red_team_dns_list is the regression case --
+        # it lost its '*_list' wildcard exposure, not its exact-name exposure.
+        tools = _discovered(['red_team_dns_list'])
+        assert 'red_team_dns_list' in tools
+        assert 'red_team_campaign_authorize' not in tools
+
     def test_exact_name_composes_with_default_profile(self):
         tools = _discovered(list(DEFAULT_MCP_TOOLS) + ['credentials_list'])
         assert 'credentials_list' in tools
