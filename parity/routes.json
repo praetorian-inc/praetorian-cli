@@ -85,22 +85,22 @@
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-9"
+      "disposition": "excluded",
+      "reason": "Internal Praetorian management, not customer-facing"
     },
     "/aegis/reachability/agent": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-9"
+      "disposition": "excluded",
+      "reason": "Internal Praetorian management, not customer-facing"
     },
     "/aegis/reachability/asset": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-9"
+      "disposition": "excluded",
+      "reason": "Internal Praetorian management, not customer-facing"
     },
     "/capability/schedule": {
       "cli_command": "list schedules / get schedule / schedule create",
@@ -125,36 +125,36 @@
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-9"
+      "disposition": "excluded",
+      "reason": "Internal Praetorian management, not customer-facing"
     },
     "/aegis/management/tasks": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-9"
+      "disposition": "excluded",
+      "reason": "Internal Praetorian management, not customer-facing"
     },
     "/aegis/management/cloudflare/tunnel/create": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-9"
+      "disposition": "excluded",
+      "reason": "Internal Praetorian management, not customer-facing"
     },
     "/aegis/management/cloudflare/tunnel/remove": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-9"
+      "disposition": "excluded",
+      "reason": "Internal Praetorian management, not customer-facing"
     },
     "/aegis/provision": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-9"
+      "disposition": "excluded",
+      "reason": "Internal Praetorian management, not customer-facing"
     },
     "/endpoint/enroll": {
       "cli_command": null,
