@@ -5,17 +5,55 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
-from praetorian_cli.handlers.utils import error, print_json
+from praetorian_cli.handlers.utils import print_json
+
+# POLICY: stdin cannot be both the JSON payload channel and Click's confirmation
+# channel. Every command that takes a JSON body therefore accepts `-f/--file`,
+# and `-f -` selects the original stdin behavior explicitly. A destructive
+# command reads its payload from a file so that @click.confirmation_option can
+# still reach the controlling terminal to prompt.
+JSON_FILE_HELP = 'Read the JSON body from PATH ("-" reads stdin)'
 
 
-def _read_json_body():
-    if sys.stdin.isatty():
-        raise click.UsageError('Pipe JSON input via stdin')
-    data = sys.stdin.read().strip()
+def _load_json_body(path=None):
+    """Load a JSON request body from `path`, or from stdin when `path` is None or '-'."""
+    if path in (None, '-'):
+        if sys.stdin.isatty():
+            raise click.UsageError('Pipe JSON input via stdin, or pass --file PATH')
+        data = sys.stdin.read().strip()
+        source = 'stdin'
+    else:
+        try:
+            with open(path) as f:
+                data = f.read().strip()
+        except OSError as e:
+            raise click.UsageError(f'Cannot read JSON body from {path}: {e.strerror}')
+        source = path
+
     if not data:
-        raise click.UsageError('No JSON body provided on stdin')
+        raise click.UsageError(f'No JSON body provided on {source}')
     try:
         return json.loads(data)
+    except json.JSONDecodeError:
+        raise click.UsageError('Invalid JSON input')
+
+
+def _json_option(inline_value, inline_flag, file_path, file_flag):
+    """Resolve a JSON value supplied either inline on argv or from a file.
+
+    The two forms are mutually exclusive: an inline string is visible in process
+    listings and shell history, so a caller who has moved a value into a file is
+    not silently given the argv one back.
+    """
+    if inline_value and file_path:
+        raise click.UsageError(
+            f'{inline_flag} and {file_flag} are mutually exclusive; pass only one')
+    if file_path:
+        return _load_json_body(file_path)
+    if not inline_value:
+        return None
+    try:
+        return json.loads(inline_value)
     except json.JSONDecodeError:
         raise click.UsageError('Invalid JSON input')
 
@@ -127,15 +165,21 @@ def node_schema(sdk, tag):
 @praetorian_only
 @click.option('--tag', default=None, help='Infrastructure version tag')
 @click.option('--sha', default=None, help='Git commit SHA')
-def plan(sdk, tag, sha):
-    """ Run terraform plan from a builder state JSON on stdin
+@click.option('--file', '-f', 'body_file', default=None, help=JSON_FILE_HELP)
+def plan(sdk, tag, sha, body_file):
+    """ Run terraform plan from a builder state JSON
+
+    \b
+    The builder state is read from --file, or from stdin when --file is omitted
+    or given as "-".
 
     \b
     Example usages:
         cat builder.json | guard red-team deployment plan
+        guard red-team deployment plan --file builder.json
     """
     print_json(sdk.red_team.deployment_terraform(
-        'plan', _read_json_body(), tag=tag, sha=sha))
+        'plan', _load_json_body(body_file), tag=tag, sha=sha))
 
 
 @deployment.command()
@@ -143,22 +187,25 @@ def plan(sdk, tag, sha):
 @praetorian_only
 @click.option('--tag', default=None, help='Infrastructure version tag')
 @click.option('--sha', default=None, help='Git commit SHA')
-@click.option('--yes', '-y', is_flag=True, default=False, help='Skip confirmation prompt')
-def apply(sdk, tag, sha, yes):
-    """ Run terraform apply from a builder state JSON on stdin
+@click.option('--file', '-f', 'body_file', default=None, help=JSON_FILE_HELP)
+@click.confirmation_option(prompt='Apply the Terraform deployment?')
+def apply(sdk, tag, sha, body_file):
+    """ Run terraform apply from a builder state JSON
 
     \b
-    Prompts for confirmation (unless stdin is piped or --yes is given).
+    Prompts for confirmation; --yes skips the prompt. The builder state is read
+    from --file, or from stdin when --file is omitted or given as "-". Pass the
+    builder state with --file to leave stdin free for the confirmation prompt --
+    when the payload is piped in instead, the prompt has no input to read and
+    the command aborts unless --yes is given.
 
     \b
     Example usages:
-        cat builder.json | guard red-team deployment apply
+        guard red-team deployment apply --file builder.json
+        cat builder.json | guard red-team deployment apply --yes
     """
-    body = _read_json_body()
-    if not yes and sys.stdin.isatty():
-        click.confirm('Apply the Terraform deployment?', abort=True)
     print_json(sdk.red_team.deployment_terraform(
-        'apply', body, tag=tag, sha=sha))
+        'apply', _load_json_body(body_file), tag=tag, sha=sha))
 
 
 @deployment.command()
@@ -201,22 +248,32 @@ def campaign():
 @campaign.command()
 @cli_handler
 @praetorian_only
-def create(sdk):
-    """ Create or update a campaign from JSON on stdin
+@click.option('--file', '-f', 'body_file', default=None, help=JSON_FILE_HELP)
+def create(sdk, body_file):
+    """ Create or update a campaign from JSON
+
+    \b
+    The campaign document is read from --file, or from stdin when --file is
+    omitted or given as "-".
 
     \b
     Example usages:
         cat campaign.json | guard red-team campaign create
+        guard red-team campaign create --file campaign.json
     """
-    print_json(sdk.red_team.campaign_create(_read_json_body()))
+    print_json(sdk.red_team.campaign_create(_load_json_body(body_file)))
 
 
 @campaign.command('delete')
 @cli_handler
 @praetorian_only
 @click.option('--key', required=True, help='Campaign key')
+@click.confirmation_option(prompt='Delete this campaign?')
 def campaign_delete(sdk, key):
     """ Delete a campaign
+
+    \b
+    Prompts for confirmation.
 
     \b
     Example usages:
@@ -230,25 +287,30 @@ def campaign_delete(sdk, key):
 @praetorian_only
 @click.option('--id', 'campaign_id', required=True, help='Campaign ID')
 @click.option('--segment', default=None, help='Target segment name')
-def targets(sdk, campaign_id, segment):
-    """ Set campaign targets from JSON on stdin
+@click.option('--file', '-f', 'body_file', default=None, help=JSON_FILE_HELP)
+def targets(sdk, campaign_id, segment, body_file):
+    """ Set campaign targets from JSON
 
     \b
-    Replaces the full target roster.
+    Replaces the full target roster. The roster is read from --file, or from
+    stdin when --file is omitted or given as "-".
 
     \b
     Example usages:
         cat targets.json | guard red-team campaign targets --id camp-1
+        guard red-team campaign targets --id camp-1 --file targets.json
     """
-    body = _read_json_body()
+    body = _load_json_body(body_file)
     if isinstance(body, dict):
         target_list = body.get('targets')
         if target_list is None:
-            error("Expected JSON with 'targets' key or a JSON array of targets")
+            raise click.UsageError(
+                "Expected JSON with 'targets' key or a JSON array of targets")
     elif isinstance(body, list):
         target_list = body
     else:
-        error('Expected JSON array or object with \'targets\' key')
+        raise click.UsageError(
+            'Expected JSON array or object with \'targets\' key')
     print_json(sdk.red_team.campaign_targets(
         campaign_id, target_list, segment=segment))
 
@@ -257,8 +319,15 @@ def targets(sdk, campaign_id, segment):
 @cli_handler
 @praetorian_only
 @click.option('--id', 'campaign_id', required=True, help='Campaign ID')
+@click.confirmation_option(
+    prompt='Authorize this campaign to go live? '
+           'This sends live phishing email to real recipients.')
 def authorize(sdk, campaign_id):
     """ Authorize a campaign to go live
+
+    \b
+    Prompts for confirmation. Once authorized, the campaign sends live phishing
+    email to every recipient on its target roster.
 
     \b
     Example usages:
@@ -285,7 +354,8 @@ def funnel(sdk, campaign_id):
 @cli_handler
 @praetorian_only
 @click.option('--id', 'campaign_id', required=True, help='Campaign ID')
-@click.option('--limit', type=int, default=None, help='Max events (default 50)')
+@click.option('--limit', type=int, default=None,
+              help='Maximum number of events to return')
 def activity(sdk, campaign_id, limit):
     """ Get campaign activity events
 
@@ -308,14 +378,20 @@ def domain():
 @domain.command()
 @cli_handler
 @praetorian_only
-def update(sdk):
-    """ Update a parked domain from JSON on stdin
+@click.option('--file', '-f', 'body_file', default=None, help=JSON_FILE_HELP)
+def update(sdk, body_file):
+    """ Update a parked domain from JSON
+
+    \b
+    The domain document is read from --file, or from stdin when --file is
+    omitted or given as "-".
 
     \b
     Example usages:
         echo '{"domain":"evil.com","status":"in-use"}' | guard red-team domain update
+        guard red-team domain update --file domain.json
     """
-    print_json(sdk.red_team.domain_update(_read_json_body()))
+    print_json(sdk.red_team.domain_update(_load_json_body(body_file)))
 
 
 @domain.command('dns-list')
@@ -378,8 +454,12 @@ def dns_update(sdk, domain, record_id, record_type, name, content, ttl):
 @praetorian_only
 @click.option('--domain', required=True, help='Domain name')
 @click.option('--record-id', required=True, help='DNS record ID')
+@click.confirmation_option(prompt='Delete this DNS record?')
 def dns_delete(sdk, domain, record_id):
     """ Delete a DNS record
+
+    \b
+    Prompts for confirmation.
 
     \b
     Example usages:
@@ -541,21 +621,30 @@ def create_lure(sdk, node, path):
 @click.option('--domain', required=True, help='Domain to configure')
 @click.option('--phishlet', required=True, help='Phishlet name')
 @click.option('--params', default=None,
-              help='JSON string of phishlet parameters')
+              help='JSON string of phishlet parameters. Values passed inline are '
+                   'visible in process listings and shell history; use '
+                   '--params-file for anything sensitive')
+@click.option('--params-file', default=None,
+              help='Read the phishlet parameters JSON from PATH ("-" reads stdin). '
+                   'Use this for OAuth client IDs/secrets, session tokens, and '
+                   'other sensitive values')
 @click.option('--unauth-url', default=None,
               help='URL for unauthenticated visitors')
-def configure(sdk, node, domain, phishlet, params, unauth_url):
+def configure(sdk, node, domain, phishlet, params, params_file, unauth_url):
     """ Configure Evilginx on a phishkit node
+
+    \b
+    Phishlet parameters carry secret material (OAuth client IDs and secrets,
+    session tokens). Pass them with --params-file: a value given inline with
+    --params is visible in process listings and shell history.
 
     \b
     Example usages:
         guard red-team evilginx configure --node n1 --domain evil.com --phishlet o365
-        guard red-team evilginx configure --node n1 --domain evil.com --phishlet o365 --params '{"client_id":"abc"}'
+        guard red-team evilginx configure --node n1 --domain evil.com --phishlet o365 --params '{"landing_path":"/login"}'
+        guard red-team evilginx configure --node n1 --domain evil.com --phishlet o365 --params-file phishlet-params.json
     """
-    try:
-        phishlet_params = json.loads(params) if params else None
-    except json.JSONDecodeError:
-        raise click.UsageError('Invalid JSON input')
+    phishlet_params = _json_option(params, '--params', params_file, '--params-file')
     print_json(sdk.red_team.evilginx_configure(
         node, domain, phishlet,
         phishlet_params=phishlet_params, unauth_url=unauth_url))
@@ -583,19 +672,27 @@ def status(sdk, node):
 @click.option('--shellcode', required=True,
               help='S3 filename of shellcode to embed')
 @click.option('--variables', default=None,
-              help='JSON string of template variables')
-def payload_generate(sdk, shellcode, variables):
+              help='JSON string of template variables. Values passed inline are '
+                   'visible in process listings and shell history; use '
+                   '--variables-file for anything sensitive')
+@click.option('--variables-file', default=None,
+              help='Read the template variables JSON from PATH ("-" reads stdin). '
+                   'Use this for keys, tokens, and other sensitive values')
+def payload_generate(sdk, shellcode, variables, variables_file):
     """ Generate a payload from shellcode
+
+    \b
+    Pass template variables with --variables-file when any of them is sensitive:
+    a value given inline with --variables is visible in process listings and
+    shell history.
 
     \b
     Example usages:
         guard red-team payload-generate --shellcode beacon.bin
         guard red-team payload-generate --shellcode beacon.bin --variables '{"dll_filename":"update.dll"}'
+        guard red-team payload-generate --shellcode beacon.bin --variables-file payload-vars.json
     """
-    try:
-        vars_dict = json.loads(variables) if variables else None
-    except json.JSONDecodeError:
-        raise click.UsageError('Invalid JSON input')
+    vars_dict = _json_option(variables, '--variables', variables_file, '--variables-file')
     print_json(sdk.red_team.payload_generate(shellcode, variables=vars_dict))
 
 

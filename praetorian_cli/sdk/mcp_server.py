@@ -21,6 +21,13 @@ SENSITIVE_TOOL_PATTERNS = (
     'credentials_*',
     'integrations_*',
     'keys_*',
+    # The Red Team family manages Mailgun sending credentials, Evilginx phishing
+    # configuration (OAuth client IDs/secrets, session tokens), and live campaign
+    # authorization. Classifying the whole family removes the default exposure the
+    # read-only members used to get from a wildcard allow entry -- `red_team_dns_list`
+    # rode the common `*_list` pattern -- which is intended: no red_team tool is
+    # reachable now without an allow entry naming it exactly.
+    'red_team_*',
     'webhook_*',
 )
 

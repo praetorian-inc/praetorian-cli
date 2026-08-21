@@ -6,7 +6,8 @@ from praetorian_cli.sdk.test.utils import selected_test_target, setup_chariot, m
 
 # Sensitive tool names that MCPServer discovery would build from the fake
 # chariot below. Every one of these returns or embeds secret material
-# (broker credentials, API keys, webhook auth PINs, account assumption).
+# (broker credentials, API keys, webhook auth PINs, account assumption,
+# red team phishing infrastructure and live campaign authorization).
 SENSITIVE_SAMPLES = (
     'credentials_get',
     'credentials_list',
@@ -20,6 +21,10 @@ SENSITIVE_SAMPLES = (
     'webhook_upsert',
     'accounts_list',
     'accounts_assume_role',
+    # red_team_dns_list is the regression case: it used to be exposed by
+    # default because it rode the '*_list' allow pattern.
+    'red_team_dns_list',
+    'red_team_campaign_authorize',
 )
 
 
@@ -131,6 +136,19 @@ class _FakeAccounts:
         return None
 
 
+class _FakeRedTeam:
+    def __init__(self):
+        self.api = object()
+
+    def dns_list(self, domain, offset=None):
+        """List DNS records for a red team domain."""
+        return []
+
+    def campaign_authorize(self, campaign_id):
+        """Authorize a campaign to send live phishing email."""
+        return {}
+
+
 class _FakeChariot:
     """Offline stand-in for the Chariot SDK object MCP discovery walks."""
 
@@ -143,6 +161,7 @@ class _FakeChariot:
         self.integrations = _FakeIntegrations()
         self.webhook = _FakeWebhook()
         self.accounts = _FakeAccounts()
+        self.red_team = _FakeRedTeam()
 
 
 def _discovered(allowed):
@@ -156,7 +175,7 @@ class TestMCPSensitiveTools:
     Contract under test:
     - mcp_server.SENSITIVE_TOOL_PATTERNS names the sensitive families
       ('accounts_*', 'credentials_*', 'integrations_*', 'keys_*',
-      'webhook_*').
+      'red_team_*', 'webhook_*').
     - A tool matching a sensitive pattern is NEVER exposed by wildcard
       allow patterns, and NEVER exposed when allowable_tools is
       None/empty; it is exposed ONLY when an allow entry equals the tool

@@ -26,6 +26,7 @@
     - [Install local security tools (optional)](#install-local-security-tools-optional)
     - [Marcus Aurelius AI](#marcus-aurelius-ai)
     - [Security Tools](#security-tools)
+    - [Red Team](#red-team)
 - [Developers](#developers)
     - [SDK](#sdk)
     - [Developing external scripts](#developing-external-scripts)
@@ -372,6 +373,79 @@ guard engagement list
 guard engagement create-customer --email ops@acme.com --name "ACME Corp"
 guard engagement create-vault --client acme --sow SOW-1234 --sku WAPT --github-user jdoe
 ```
+
+## Red Team
+
+The `red-team` family drives Praetorian's phishing and red-team infrastructure: the deployment lifecycle,
+phishing campaigns, parked domains and their DNS, Mailgun mail delivery, Evilginx phishing proxies, and
+payload generation. Like `engagement` and `configuration`, these commands are limited to Praetorian
+engineers — the check is enforced in the SDK as well as the CLI, so the same restriction applies to
+scripts and to the MCP server.
+
+Every `red_team_*` MCP tool is classified sensitive, so none of them is exposed to an MCP client unless
+an allow entry names it exactly (see [SDK](#sdk)).
+
+```zsh
+# Deployment lifecycle
+guard red-team deployment launch
+guard red-team deployment details
+guard red-team deployment history
+guard red-team deployment last-inputs
+guard red-team deployment node-schema --tag v1.2.3
+guard red-team deployment tags
+guard red-team deployment collaborators --collaborators user1@co.com,user2@co.com
+guard red-team deployment plan --file builder.json
+guard red-team deployment apply --file builder.json          # prompts; --yes skips
+guard red-team deployment delete --force                     # prompts; --yes skips
+
+# Campaigns
+guard red-team campaign create --file campaign.json
+guard red-team campaign targets --id camp-1 --file targets.json
+guard red-team campaign authorize --id camp-1                # prompts: sends live phishing email
+guard red-team campaign funnel --id camp-1
+guard red-team campaign activity --id camp-1 --limit 100
+guard red-team campaign delete --key "#campaign#camp-1"      # prompts; --yes skips
+
+# Domain parking, DNS, and Mailgun
+guard red-team domain update --file domain.json
+guard red-team domain dns-list --domain evil.com
+guard red-team domain dns-create --domain evil.com --type A --name www --content 1.2.3.4
+guard red-team domain dns-update --domain evil.com --record-id abc123 --type A --name www --content 1.2.3.4
+guard red-team domain dns-delete --domain evil.com --record-id abc123   # prompts; --yes skips
+guard red-team domain mailgun-status --domain evil.com
+guard red-team domain mailgun-provision --domain evil.com
+guard red-team domain mailgun-domain-delete --domain evil.com          # prompts; --yes skips
+guard red-team domain mailgun-user --username noreply --domain evil.com
+guard red-team domain mailgun-user-delete --username noreply --domain evil.com  # prompts; --yes skips
+
+# Evilginx
+guard red-team evilginx phishlets --node node-ref-1
+guard red-team evilginx phishlet-params --node node-ref-1 --name o365
+guard red-team evilginx configure --node node-ref-1 --domain evil.com --phishlet o365 \
+    --params-file phishlet-params.json
+guard red-team evilginx lures --node node-ref-1
+guard red-team evilginx create-lure --node node-ref-1 --path /login
+guard red-team evilginx status --node node-ref-1
+
+# Payloads and phishkit nodes
+guard red-team payload-generate --shellcode beacon.bin --variables-file payload-vars.json
+guard red-team phishkit-nodes --status all
+```
+
+Two conventions run through the family:
+
+- **JSON bodies come from a file.** Commands that take a JSON document accept `-f/--file PATH`, and
+  `--file -` reads stdin as before. Prefer the file form on `deployment apply`: stdin is also the
+  confirmation channel, so a piped payload leaves the prompt with nothing to read and the command
+  aborts unless `--yes` is given.
+- **Secrets stay off the command line.** Evilginx phishlet parameters (OAuth client IDs and secrets,
+  session tokens) and payload template variables can be passed inline with `--params` / `--variables`,
+  but an inline value is visible in process listings and shell history. Use `--params-file` /
+  `--variables-file` for anything sensitive; supplying both forms of the same value is an error.
+
+Every destructive command — deployment delete, terraform apply, campaign delete, DNS record delete,
+Mailgun domain and user delete — prompts for confirmation, and `campaign authorize` prompts because it
+starts delivering live phishing email to real recipients. Pass `--yes` to skip a prompt in automation.
 
 # Developers
 

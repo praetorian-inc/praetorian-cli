@@ -147,7 +147,7 @@ def test_campaign_create():
 
 
 def test_campaign_delete():
-    result, sdk = _invoke('red-team', 'campaign', 'delete', '--key', 'k1')
+    result, sdk = _invoke('red-team', 'campaign', 'delete', '--key', 'k1', '--yes')
     assert result.exit_code == 0
     sdk.red_team.campaign_delete.assert_called_once_with('k1')
 
@@ -161,7 +161,7 @@ def test_campaign_targets():
 
 
 def test_campaign_authorize():
-    result, sdk = _invoke('red-team', 'campaign', 'authorize', '--id', 'c1')
+    result, sdk = _invoke('red-team', 'campaign', 'authorize', '--id', 'c1', '--yes')
     assert result.exit_code == 0
     sdk.red_team.campaign_authorize.assert_called_once_with('c1')
 
@@ -222,7 +222,7 @@ def test_dns_update():
 def test_dns_delete():
     result, sdk = _invoke(
         'red-team', 'domain', 'dns-delete',
-        '--domain', 'evil.com', '--record-id', 'r1')
+        '--domain', 'evil.com', '--record-id', 'r1', '--yes')
     assert result.exit_code == 0
     sdk.red_team.dns_delete.assert_called_once_with('evil.com', 'r1')
 
@@ -371,16 +371,16 @@ def test_payload_generate_missing_shellcode():
 
 # --- stdin / JSON error handling ---
 
-def test_read_json_body_tty_guard():
+def test_load_json_body_tty_guard():
     import click
 
-    from praetorian_cli.handlers.red_team import _read_json_body
+    from praetorian_cli.handlers.red_team import _load_json_body
 
     fake_stdin = MagicMock()
     fake_stdin.isatty.return_value = True
     with patch('praetorian_cli.handlers.red_team.sys.stdin', fake_stdin):
         try:
-            _read_json_body()
+            _load_json_body()
             assert False, 'expected click.UsageError'
         except click.UsageError as e:
             assert 'Pipe JSON input via stdin' in str(e)
@@ -410,3 +410,264 @@ def test_payload_generate_invalid_variables_json():
     assert result.exit_code != 0
     assert 'Invalid JSON input' in result.output
     sdk.red_team.payload_generate.assert_not_called()
+
+
+# --- Path segment validation (entity layer) ---
+
+def test_segment_rejects_dot_segments():
+    import pytest
+
+    from praetorian_cli.sdk.entities.red_team import _segment
+
+    for bad in ('..', '.', ''):
+        with pytest.raises(ValueError, match='invalid URL path segment'):
+            _segment(bad)
+
+
+def test_segment_encodes_normal_values():
+    from praetorian_cli.sdk.entities.red_team import _segment
+
+    assert _segment('evil.com') == 'evil.com'
+    assert _segment('a/b') == 'a%2Fb'
+    assert _segment(7) == '7'
+
+
+def _entity(is_praetorian=True):
+    from praetorian_cli.sdk.entities.red_team import RedTeam
+
+    api = MagicMock()
+    api.is_praetorian_user.return_value = is_praetorian
+    return RedTeam(api), api
+
+
+def test_dns_delete_rejects_dot_segments_before_transmitting():
+    import pytest
+
+    rt, api = _entity()
+    with pytest.raises(ValueError, match='invalid URL path segment'):
+        rt.dns_delete('..', '..')
+    api.delete.assert_not_called()
+
+
+def test_campaign_activity_rejects_dot_segment():
+    import pytest
+
+    rt, api = _entity()
+    with pytest.raises(ValueError, match='invalid URL path segment'):
+        rt.campaign_activity('..')
+    api.get.assert_not_called()
+
+
+# --- SDK-layer Praetorian gating ---
+
+def _required_arity(cls, name):
+    import inspect
+
+    sig = inspect.signature(getattr(cls, name))
+    return len([p for p in sig.parameters.values()
+                if p.name != 'self' and p.default is inspect.Parameter.empty])
+
+
+def test_entity_methods_are_gated_for_non_praetorian_users():
+    import pytest
+
+    from praetorian_cli.sdk.entities.red_team import RedTeam
+
+    rt, api = _entity(is_praetorian=False)
+    public = [n for n in dir(RedTeam)
+              if not n.startswith('_') and callable(getattr(RedTeam, n))]
+    assert len(public) == 33
+    for name in public:
+        with pytest.raises(RuntimeError, match='limited to Praetorian engineers'):
+            getattr(rt, name)(*(['x'] * _required_arity(RedTeam, name)))
+    api.get.assert_not_called()
+    api.post.assert_not_called()
+    api.put.assert_not_called()
+    api.delete.assert_not_called()
+
+
+def test_red_team_is_a_sensitive_mcp_family():
+    from praetorian_cli.sdk.mcp_server import (SENSITIVE_TOOL_PATTERNS,
+                                               is_sensitive_tool)
+
+    assert 'red_team_*' in SENSITIVE_TOOL_PATTERNS
+    # Including the read-only members: they no longer ride a wildcard allow entry.
+    assert is_sensitive_tool('red_team_dns_list')
+    assert is_sensitive_tool('red_team_campaign_authorize')
+
+
+# --- Terraform action constraint ---
+
+def test_deployment_terraform_rejects_backend_only_actions():
+    import pytest
+
+    rt, api = _entity()
+    for action in ('generate', 'outputs', 'tag'):
+        with pytest.raises(ValueError, match='invalid terraform action'):
+            rt.deployment_terraform(action, {})
+    api.post.assert_not_called()
+
+
+def test_deployment_terraform_allows_plan_and_apply():
+    rt, api = _entity()
+    rt.deployment_terraform('plan', {'nodes': []})
+    rt.deployment_terraform('apply', {'nodes': []})
+    assert [c[0][0] for c in api.post.call_args_list] == [
+        'red-team/deployment/terraform/plan',
+        'red-team/deployment/terraform/apply',
+    ]
+
+
+# --- MCP schema source (docstrings) ---
+
+def test_every_entity_method_has_a_docstring():
+    from praetorian_cli.sdk.entities.red_team import RedTeam
+
+    for name in dir(RedTeam):
+        if name.startswith('_'):
+            continue
+        method = getattr(RedTeam, name)
+        if callable(method):
+            assert (method.__doc__ or '').strip(), f'{name} has no docstring'
+
+
+def test_builder_state_is_advertised_as_a_dict():
+    from praetorian_cli.sdk.entities.red_team import RedTeam
+
+    assert ':type builder_state: dict' in RedTeam.deployment_terraform.__doc__
+
+
+# --- Confirmation on destructive commands ---
+
+def test_apply_prompts_and_aborts_without_yes():
+    result, sdk = _invoke('red-team', 'deployment', 'apply',
+                          '--file', 'unused.json', stdin='n\n')
+    assert result.exit_code != 0
+    assert 'Apply the Terraform deployment?' in result.output
+    sdk.red_team.deployment_terraform.assert_not_called()
+
+
+def test_campaign_delete_aborts_without_yes():
+    result, sdk = _invoke('red-team', 'campaign', 'delete', '--key', 'k1',
+                          stdin='n\n')
+    assert result.exit_code != 0
+    assert 'Delete this campaign?' in result.output
+    sdk.red_team.campaign_delete.assert_not_called()
+
+
+def test_authorize_aborts_without_yes():
+    result, sdk = _invoke('red-team', 'campaign', 'authorize', '--id', 'c1',
+                          stdin='n\n')
+    assert result.exit_code != 0
+    assert 'sends live phishing email to real recipients' in result.output
+    sdk.red_team.campaign_authorize.assert_not_called()
+
+
+def test_dns_delete_aborts_without_yes():
+    result, sdk = _invoke('red-team', 'domain', 'dns-delete',
+                          '--domain', 'evil.com', '--record-id', 'r1',
+                          stdin='n\n')
+    assert result.exit_code != 0
+    assert 'Delete this DNS record?' in result.output
+    sdk.red_team.dns_delete.assert_not_called()
+
+
+# --- JSON body from a file ---
+
+def test_plan_reads_body_from_file(tmp_path):
+    body_file = tmp_path / 'builder.json'
+    body_file.write_text('{"globals":{},"nodes":[]}')
+    result, sdk = _invoke('red-team', 'deployment', 'plan', '--file', str(body_file))
+    assert result.exit_code == 0
+    assert sdk.red_team.deployment_terraform.call_args[0][1] == {
+        'globals': {}, 'nodes': []}
+
+
+def test_apply_reads_body_from_file_and_prompts_on_stdin(tmp_path):
+    body_file = tmp_path / 'builder.json'
+    body_file.write_text('{"globals":{},"nodes":[]}')
+    result, sdk = _invoke('red-team', 'deployment', 'apply',
+                          '--file', str(body_file), stdin='y\n')
+    assert result.exit_code == 0
+    assert 'Apply the Terraform deployment?' in result.output
+    assert sdk.red_team.deployment_terraform.call_args[0][0] == 'apply'
+    assert sdk.red_team.deployment_terraform.call_args[0][1] == {
+        'globals': {}, 'nodes': []}
+
+
+def test_load_json_body_missing_file():
+    result, sdk = _invoke('red-team', 'campaign', 'create',
+                          '--file', '/nonexistent/builder.json')
+    assert result.exit_code != 0
+    assert 'Cannot read JSON body from' in result.output
+    sdk.red_team.campaign_create.assert_not_called()
+
+
+def test_file_dash_reads_stdin():
+    result, sdk = _invoke('red-team', 'campaign', 'create', '--file', '-',
+                          stdin='{"name":"test"}')
+    assert result.exit_code == 0
+    sdk.red_team.campaign_create.assert_called_once_with({'name': 'test'})
+
+
+# --- Secret material off argv ---
+
+def test_configure_reads_params_from_file(tmp_path):
+    params_file = tmp_path / 'params.json'
+    params_file.write_text('{"client_id":"abc"}')
+    result, sdk = _invoke(
+        'red-team', 'evilginx', 'configure', '--node', 'n1',
+        '--domain', 'evil.com', '--phishlet', 'o365',
+        '--params-file', str(params_file))
+    assert result.exit_code == 0
+    sdk.red_team.evilginx_configure.assert_called_once_with(
+        'n1', 'evil.com', 'o365',
+        phishlet_params={'client_id': 'abc'}, unauth_url=None)
+
+
+def test_configure_params_and_params_file_are_mutually_exclusive():
+    result, sdk = _invoke(
+        'red-team', 'evilginx', 'configure', '--node', 'n1',
+        '--domain', 'evil.com', '--phishlet', 'o365',
+        '--params', '{"a":1}', '--params-file', 'params.json')
+    assert result.exit_code != 0
+    assert '--params and --params-file are mutually exclusive' in result.output
+    sdk.red_team.evilginx_configure.assert_not_called()
+
+
+def test_payload_generate_reads_variables_from_file(tmp_path):
+    vars_file = tmp_path / 'vars.json'
+    vars_file.write_text('{"dll_filename":"update.dll"}')
+    result, sdk = _invoke(
+        'red-team', 'payload-generate', '--shellcode', 'beacon.bin',
+        '--variables-file', str(vars_file))
+    assert result.exit_code == 0
+    sdk.red_team.payload_generate.assert_called_once_with(
+        'beacon.bin', variables={'dll_filename': 'update.dll'})
+
+
+def test_payload_generate_variables_and_file_are_mutually_exclusive():
+    result, sdk = _invoke(
+        'red-team', 'payload-generate', '--shellcode', 'beacon.bin',
+        '--variables', '{"a":1}', '--variables-file', 'vars.json')
+    assert result.exit_code != 0
+    assert '--variables and --variables-file are mutually exclusive' in result.output
+    sdk.red_team.payload_generate.assert_not_called()
+
+
+# --- Input validation exit codes ---
+
+def test_targets_bad_shape_is_a_usage_error():
+    result, sdk = _invoke('red-team', 'campaign', 'targets', '--id', 'c1',
+                          stdin='"just a string"')
+    assert result.exit_code == 2
+    assert "Expected JSON array or object with 'targets' key" in result.output
+    sdk.red_team.campaign_targets.assert_not_called()
+
+
+def test_targets_missing_key_is_a_usage_error():
+    result, sdk = _invoke('red-team', 'campaign', 'targets', '--id', 'c1',
+                          stdin='{"nope":[]}')
+    assert result.exit_code == 2
+    assert "Expected JSON with 'targets' key" in result.output
+    sdk.red_team.campaign_targets.assert_not_called()
