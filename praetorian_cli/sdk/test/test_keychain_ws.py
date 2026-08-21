@@ -33,7 +33,9 @@ class TestWebsocketUrl:
         monkeypatch.delenv('PRAETORIAN_CLI_WS_URL', raising=False)
         kc = self._make_keychain(MINIMAL_PROFILE)
         result = kc.websocket_url()
-        assert result is None
+        assert result is None, (
+            f"Expected None when websocket is unset, got {result!r}"
+        )
 
     def test_websocket_url_returns_env_var(self, monkeypatch):
         """PRAETORIAN_CLI_WS_URL env var overrides the profile option."""

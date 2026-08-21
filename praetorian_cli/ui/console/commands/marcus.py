@@ -355,13 +355,11 @@ class MarcusCommands:
                     messages, _ = self.sdk.search.by_key_prefix(
                         f'#message#{conversation_id}#', user=True)
                 except Exception as e:
-                    # Fetching message bodies after a WS signal can fail too. If we've
-                    # already yielded messages this stream, surface it as a MarcusError
-                    # (caller must not silently replay via polling); otherwise treat it
-                    # like a connect/subscribe failure so the caller can fall back.
-                    if yielded:
-                        raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
-                    raise _WSUnavailable(str(e))
+                    # Fetching message bodies after a WS signal can fail too.
+                    # The socket already connected, so this is an API-side
+                    # failure -- surface it as MarcusError (same as polling mode)
+                    # rather than _WSUnavailable which would silently retry.
+                    raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
                 new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
                              key=lambda x: x.get('key', ''))
                 for msg in new:
@@ -579,29 +577,14 @@ class MarcusCommands:
     def _marcus_do(self, args):
         """Give Marcus a direct instruction to execute."""
         if not args:
-            self.console.print('[dim]Usage: marcus do "<instruction>" [--skill <path>][/dim]')
+            self.console.print('[dim]Usage: marcus do "<instruction>"[/dim]')
             self.console.print('[dim]  Examples:[/dim]')
             self.console.print('[dim]    marcus do "add example.com as a seed and start discovery"[/dim]')
-            self.console.print('[dim]    marcus do "find SQLi" --skill ./skills/sqli.md[/dim]')
+            self.console.print('[dim]    marcus do "run nuclei on all assets with port 443"[/dim]')
+            self.console.print('[dim]    marcus do "generate an executive summary"[/dim]')
             return
 
-        # Parse --skill flags from args
-        remaining = []
-        i = 0
-        while i < len(args):
-            if args[i] == '--skill' and i + 1 < len(args):
-                try:
-                    name = self.context.load_skill(args[i + 1])
-                    self.console.print(f'[dim]Loaded skill: {name}[/dim]')
-                except (FileNotFoundError, ValueError) as e:
-                    self.console.print(f'[error]{e}[/error]')
-                    return
-                i += 2
-            else:
-                remaining.append(args[i])
-                i += 1
-
-        instruction = ' '.join(remaining)
+        instruction = ' '.join(args)
         message = self.context.apply_scope_to_message(instruction)
         response = self._send_to_marcus(message)
         if response:
@@ -700,8 +683,6 @@ class MarcusCommands:
                 self.console.print('[error]Usage: hunt start "<prompt>" [--duration 24h] [--scope #asset#...][/error]')
                 return
 
-            # Pull --duration/--scope flags out of rest before treating the
-            # remainder as the hunt mandate (prompt) text.
             prompt_parts = []
             duration = '24h'
             scope = []
