@@ -151,11 +151,6 @@ class MarcusCommands:
         account is always restored.
         """
         message = self.context.apply_skills_to_message(message)
-    def _post_to_planner(self, message: str):
-        """POST to /planner, handling the 403 retry-as-Praetorian path safely.
-        Returns the parsed JSON dict. Raises on network/HTTP error; the keychain
-        account is always restored.
-        """
         url = self.sdk.url('/planner')
         payload = {'message': message, 'mode': self.context.mode}
         if self.context.conversation_id:
@@ -176,9 +171,6 @@ class MarcusCommands:
                 saved_account = self.sdk.keychain.account
                 try:
                     self.sdk.keychain.account = None
-                    account_context = f'[Context: querying data for account {self.context.account}]'
-                    if not message.startswith(account_context):
-                        message = f'{account_context} {message}'
                     if self.context.account not in message:
                         message = f'[Context: querying data for account {self.context.account}] {message}'
                     payload['message'] = message
@@ -191,7 +183,6 @@ class MarcusCommands:
                             response = self.sdk.chariot_request('POST', url, json=payload)
                         except RequestException as e:
                             raise MarcusError(f'Network error reaching Marcus: {e}')
-                    with self.console.status('Sending via Praetorian account...', spinner='dots', spinner_style=self.colors['primary']):
                 finally:
                     self.sdk.keychain.account = saved_account
 
@@ -203,32 +194,6 @@ class MarcusCommands:
         except (ValueError, json.JSONDecodeError):
             raise MarcusError(
                 f'Unexpected non-JSON response ({response.status_code}): {response.text[:200]}')
-    def _send_to_marcus(self, message: str) -> Optional[str]:
-        """Send message to Marcus and poll for response with live tool output."""
-            result = self._post_to_planner(message)
-        except KeyboardInterrupt:
-            self.console.print('\n[warning]Cancelled — returned to console.[/warning]')
-            return None
-        except MarcusError as e:
-            self.console.print(f'[error]{e}[/error]')
-            return None
-        if not self.context.conversation_id and 'conversation' in result:
-        if isinstance(result, dict) and not self.context.conversation_id and 'conversation' in result:
-            self.context.conversation_id = result['conversation'].get('uuid')
-
-    def _snapshot_last_key(self, conversation_id: Optional[str]) -> str:
-        """Return the highest existing message key for a conversation, or '' if none/unknown."""
-        if not conversation_id:
-            return ''
-        try:
-            existing, _ = self.sdk.search.by_key_prefix(
-                f'#message#{conversation_id}#', user=True
-            )
-            if existing:
-                return max(m.get('key', '') for m in existing)
-        except Exception:
-            pass
-        return ''
 
     def _snapshot_last_key(self, conversation_id: Optional[str]) -> str:
         """Return the highest existing message key for a conversation, or '' if none/unknown."""
@@ -253,19 +218,6 @@ class MarcusCommands:
         pre_conversation_id = self.context.conversation_id
         last_key = self._snapshot_last_key(pre_conversation_id)
 
-        acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
-        self.console.print(f'[dim]Thinking...[/dim]{acct_label}')
-        tool_log = []
-        last_key = ''
-        if self.context.conversation_id:
-            try:
-                existing, _ = self.sdk.search.by_key_prefix(
-                    f'#message#{self.context.conversation_id}#', user=True
-                )
-                if existing:
-                    last_key = max(m.get('key', '') for m in existing)
-            except Exception:
-                pass
         try:
             result = self._post_to_planner(message)
         except KeyboardInterrupt:
@@ -291,8 +243,6 @@ class MarcusCommands:
         tool_log = []
         try:
             for msg in self._stream_messages(self.context.conversation_id, after_key=last_key):
-        pending_tool = None
-            for msg in self._poll_messages(self.context.conversation_id, after_key=last_key):
                 role = msg.get('role', '')
                 content = msg.get('content', '')
                 if role == 'chariot':
@@ -412,7 +362,6 @@ class MarcusCommands:
                     if yielded:
                         raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
                     raise _WSUnavailable(str(e))
-                    pass  # periodic wake to re-check / honor max_wait
                 new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
                              key=lambda x: x.get('key', ''))
                 for msg in new:
@@ -445,44 +394,6 @@ class MarcusCommands:
                     raise MarcusError('WebSocket connection lost mid-stream')
                 # else fall through to polling
         yield from self._poll_messages(conversation_id, after_key=after_key)
-            self.console.print(f'\n[warning]{e}[/warning]')
-
-    def _poll_messages(self, conversation_id, after_key='', *, max_wait=180,
-                       sleep=time.sleep, error_threshold=5):
-        """Yield new conversation messages in key order until a 'chariot' reply.
-
-        Pages by after_key (client-side filter). Backs off when idle. Raises
-        MarcusError after `error_threshold` consecutive fetch failures so
-        problems surface instead of hanging.
-        """
-        start = time.time()
-        last_key = after_key
-        delay = 1.0
-        consecutive_errors = 0
-        prefix = f'#message#{conversation_id}#'
-        while time.time() - start < max_wait:
-            try:
-                messages, _ = self.sdk.search.by_key_prefix(prefix, user=True)
-                consecutive_errors = 0
-            except Exception as e:
-                consecutive_errors += 1
-                if consecutive_errors >= error_threshold:
-                    raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
-                sleep(delay)
-                continue
-            new = sorted((m for m in messages if m.get('key', '') > last_key),
-                         key=lambda x: x.get('key', ''))
-            if new:
-                delay = 1.0
-                for msg in new:
-                    last_key = msg.get('key', '')
-                    yield msg
-                    if msg.get('role', '') == 'chariot':
-                        return
-            else:
-                delay = min(delay + 1.0, 3.0)
-            sleep(delay)
-        raise MarcusError('Timed out waiting for response')
 
     def _parse_tool_name(self, content: str, msg: dict = None) -> str:
         """Extract a human-readable tool name from a tool call message."""
@@ -668,29 +579,14 @@ class MarcusCommands:
     def _marcus_do(self, args):
         """Give Marcus a direct instruction to execute."""
         if not args:
-            self.console.print('[dim]Usage: marcus do "<instruction>" [--skill <path>][/dim]')
+            self.console.print('[dim]Usage: marcus do "<instruction>"[/dim]')
             self.console.print('[dim]  Examples:[/dim]')
             self.console.print('[dim]    marcus do "add example.com as a seed and start discovery"[/dim]')
-            self.console.print('[dim]    marcus do "find SQLi" --skill ./skills/sqli.md[/dim]')
+            self.console.print('[dim]    marcus do "run nuclei on all assets with port 443"[/dim]')
+            self.console.print('[dim]    marcus do "generate an executive summary"[/dim]')
             return
 
-        # Parse --skill flags from args
-        remaining = []
-        i = 0
-        while i < len(args):
-            if args[i] == '--skill' and i + 1 < len(args):
-                try:
-                    name = self.context.load_skill(args[i + 1])
-                    self.console.print(f'[dim]Loaded skill: {name}[/dim]')
-                except (FileNotFoundError, ValueError) as e:
-                    self.console.print(f'[error]{e}[/error]')
-                    return
-                i += 2
-            else:
-                remaining.append(args[i])
-                i += 1
-
-        instruction = ' '.join(remaining)
+        instruction = ' '.join(args)
         message = self.context.apply_scope_to_message(instruction)
         response = self._send_to_marcus(message)
         if response:
@@ -789,8 +685,6 @@ class MarcusCommands:
                 self.console.print('[error]Usage: hunt start "<prompt>" [--duration 24h] [--scope #asset#...][/error]')
                 return
 
-            # Pull --duration/--scope flags out of rest before treating the
-            # remainder as the hunt mandate (prompt) text.
             prompt_parts = []
             duration = '24h'
             scope = []
