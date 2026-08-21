@@ -22,20 +22,19 @@ class Multipart:
         return self.api.post('file/multipart/part', {}, params=params)
 
     def complete(self, name, upload_id, parts, praetorian=False):
-        params = {}
-        if praetorian:
-            params['praetorian'] = 'true'
-        return self.api.post('file/multipart/complete', {
+        params = {
             'name': name,
             'uploadId': upload_id,
-            'parts': parts,
-        }, params=params)
+        }
+        if praetorian:
+            params['praetorian'] = 'true'
+        return self.api.post('file/multipart/complete', {'parts': parts}, params=params)
 
     def abort(self, name, upload_id, praetorian=False):
-        params = {}
-        if praetorian:
-            params['praetorian'] = 'true'
-        return self.api.post('file/multipart/abort', {
+        params = {
             'name': name,
             'uploadId': upload_id,
-        }, params=params)
+        }
+        if praetorian:
+            params['praetorian'] = 'true'
+        return self.api.post('file/multipart/abort', {}, params=params)

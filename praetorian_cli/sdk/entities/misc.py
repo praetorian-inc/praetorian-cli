@@ -36,7 +36,7 @@ class Misc:
     def create_repository(self, name, source_archive_key):
         return self.api.post('repository', {
             'name': name,
-            'source_archive_key': source_archive_key,
+            'sourceArchiveKey': source_archive_key,
         })
 
     def parse_burp(self, content=None, url=None, filename=None):
@@ -97,8 +97,11 @@ class Misc:
     def planner_cost(self, uuid):
         return self.api.get('planner/' + quote(str(uuid), safe='') + '/cost')
 
-    def delete_planner(self, body):
-        return self.api.delete('planner', body, {})
+    def delete_planner(self, uuid):
+        # Routing follows the same path-embedded-uuid pattern as planner_cost()
+        # and other per-resource delete methods (e.g. hunts.delete, schedules.delete),
+        # rather than addressing the flat 'planner' endpoint with uuid in the body.
+        return self.api.delete('planner/' + quote(str(uuid), safe=''), {}, {})
 
     def put_hunt_memory(self, uuid, title, content):
         return self.api.put('hunt/' + quote(str(uuid), safe='') + '/memory/' + quote(str(title), safe=''), {'content': content})
