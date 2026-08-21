@@ -11,6 +11,11 @@ def constantine():
     pass
 
 
+def _parse_risk_keys(risk_keys_str):
+    """Parse comma-separated risk keys into a list."""
+    return [k.strip() for k in risk_keys_str.split(',') if k.strip()]
+
+
 @constantine.command()
 @cli_handler
 @click.option('--risk-keys', required=True, help='Comma-separated risk keys to exploit')
@@ -22,7 +27,7 @@ def exploit(sdk, risk_keys):
         guard constantine exploit --risk-keys "#risk#example.com#CVE-2024-1234"
         guard constantine exploit --risk-keys "key1,key2,key3"
     """
-    keys = [k.strip() for k in risk_keys.split(',') if k.strip()]
+    keys = _parse_risk_keys(risk_keys)
     print_json(sdk.constantine.exploit(keys))
 
 
@@ -36,7 +41,7 @@ def patch(sdk, risk_keys):
     Example usages:
         guard constantine patch --risk-keys "#risk#example.com#CVE-2024-1234"
     """
-    keys = [k.strip() for k in risk_keys.split(',') if k.strip()]
+    keys = _parse_risk_keys(risk_keys)
     print_json(sdk.constantine.patch(keys))
 
 
@@ -63,7 +68,7 @@ def validate(sdk, risk_keys):
     Example usages:
         guard constantine validate --risk-keys "#risk#example.com#CVE-2024-1234"
     """
-    keys = [k.strip() for k in risk_keys.split(',') if k.strip()]
+    keys = _parse_risk_keys(risk_keys)
     print_json(sdk.constantine.validate(keys))
 
 
