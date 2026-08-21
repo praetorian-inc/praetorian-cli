@@ -1,8 +1,9 @@
 import os
+import tempfile
 from configparser import ConfigParser
 from ipaddress import ip_address
 from os import environ
-from os.path import join, split
+from os.path import join
 from pathlib import Path
 from time import time
 from urllib.parse import urlsplit
@@ -163,12 +164,18 @@ class Keychain:
         """ Authenticate using API key or AWS Cognito and get the token. Cache the token until expiry. """
         if not self.token_cache or time() >= (self.token_expiry - 10):
             if self.has_api_key():
+                # requests preserves custom headers across redirects (only the
+                # standard Authorization header is stripped), so following a
+                # redirect off the validated HTTPS URL could leak the key
+                # headers. With redirects disabled, a redirect response lands
+                # in the fail-closed status_code check below.
                 response = requests.get(
                     f"{self.base_url()}/token",
                     headers={
                         'X-GUARD-API-KEY-ID': self.api_key_id(),
                         'X-GUARD-API-KEY-SECRET': self.api_key_secret(),
                     },
+                    allow_redirects=False,
                     timeout=DEFAULT_HTTP_TIMEOUT,
                 )
                 if response.status_code != 200:
@@ -182,8 +189,13 @@ class Keychain:
                 # LocalStack) for local dev; None (unset) uses real AWS.
                 # USER_PASSWORD_AUTH is an unsigned Cognito operation, so no AWS
                 # credentials are needed for either endpoint.
+                aws_endpoint_url = self.get_option('aws_endpoint_url')
+                if aws_endpoint_url is not None:
+                    # Same transport policy as base_url(): initiate_auth below
+                    # sends the password, which must not cross plaintext HTTP.
+                    aws_endpoint_url = _validated_backend_url(aws_endpoint_url)
                 cognito = boto3.client('cognito-idp', region_name='us-east-2',
-                                       endpoint_url=self.get_option('aws_endpoint_url'))
+                                       endpoint_url=aws_endpoint_url)
                 response = cognito.initiate_auth(
                     AuthFlow='USER_PASSWORD_AUTH',
                     AuthParameters=dict(USERNAME=self.username(), PASSWORD=self.password()),
@@ -265,23 +277,25 @@ class Keychain:
 
         config[profile] = new_profile
 
+        keychain_dir = Path(DEFAULT_KEYCHAIN_FILEPATH).parent
         # mkdir's mode leaves a pre-existing directory alone; a new one is created
         # owner-only to match the file it holds.
-        Path(split(Path(DEFAULT_KEYCHAIN_FILEPATH))[0]).mkdir(mode=0o700, exist_ok=True, parents=True)
-        # O_CREAT's 0o600 applies to new files only; the fchmod is what tightens a
-        # pre-existing looser file. Secrets are about to be written, so an fchmod
-        # failure propagates rather than writing them into a world-readable file.
-        fd = os.open(DEFAULT_KEYCHAIN_FILEPATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        keychain_dir.mkdir(mode=0o700, exist_ok=True, parents=True)
+        # Write to a same-directory temp file (mkstemp creates it 0600 at the open
+        # syscall, regardless of umask) and atomically replace the keychain: a
+        # failure at any point leaves an existing keychain intact rather than
+        # truncated, and os.replace swaps out a symlink planted at the final path
+        # instead of following it.
+        fd, tmp_path = tempfile.mkstemp(dir=keychain_dir, prefix='.keychain.', suffix='.tmp')
         try:
-            if hasattr(os, 'fchmod'):
-                os.fchmod(fd, 0o600)
-            f = os.fdopen(fd, 'w')
+            with os.fdopen(fd, 'w') as f:
+                config.write(f)
+                f.flush()
+                os.fsync(fd)
+            os.replace(tmp_path, DEFAULT_KEYCHAIN_FILEPATH)
         except BaseException:
-            os.close(fd)
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass
             raise
-        with f:
-            config.write(f)
-        if not hasattr(os, 'fchmod'):
-            # os.fchmod is POSIX-only; on Windows chmod is close to a no-op but
-            # keeps the code path defined.
-            os.chmod(DEFAULT_KEYCHAIN_FILEPATH, 0o600)

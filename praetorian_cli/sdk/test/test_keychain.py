@@ -107,6 +107,45 @@ def test_configure_preserves_other_profiles(keychain_path):
     assert config.get('United States', 'api_key_secret') == 'ksecret'
 
 
+def test_failed_configure_write_preserves_existing_keychain(keychain_path, monkeypatch):
+    """The O_TRUNC regression: writing the final path directly would zero the
+    existing keychain before the new content lands, so a failure mid-write
+    destroys the operator's credentials. The atomic tmp-file + os.replace path
+    must leave the old keychain byte-identical when the swap fails, and must
+    not litter the directory with the temp file."""
+    Keychain.configure(None, None, api_key_id='kid', api_key_secret='ksecret')
+    original = keychain_path.read_bytes()
+
+    def broken_replace(src, dst):
+        raise OSError('simulated')
+
+    monkeypatch.setattr(keychain_module.os, 'replace', broken_replace)
+    with pytest.raises(OSError):
+        Keychain.configure('someone@example.com', 'hunter2', profile='Other')
+    assert keychain_path.read_bytes() == original
+    assert list(keychain_path.parent.glob('.keychain.*.tmp')) == []
+
+
+@posix_modes
+def test_configure_replaces_symlinked_keychain_instead_of_following_it(
+        keychain_path, permissive_umask):
+    """A symlink planted at the keychain path must not trick configure into
+    writing credentials wherever the link points; os.replace swaps the link
+    out for a regular owner-only file and leaves the target untouched."""
+    keychain_path.parent.mkdir(parents=True)
+    target = keychain_path.parent.parent / 'symlink-target.ini'
+    target_content = '[Other]\napi = https://other.example.com\nclient_id = other\n'
+    target.write_text(target_content)
+    keychain_path.symlink_to(target)
+
+    Keychain.configure(None, None, api_key_id='kid', api_key_secret='ksecret')
+
+    assert not keychain_path.is_symlink()
+    assert keychain_path.is_file()
+    assert target.read_text() == target_content
+    assert _mode(keychain_path) == 0o600
+
+
 # ------------------------------------------------------------- in transit
 
 
@@ -188,3 +227,95 @@ def test_configure_rejects_plaintext_backend_before_writing(keychain_path):
         Keychain.configure(None, None, api='http://api.example.com/chariot',
                            api_key_id='kid', api_key_secret='ksecret')
     assert not keychain_path.exists()
+
+
+def test_token_sends_api_key_with_redirects_disabled(monkeypatch):
+    """requests preserves the custom API-key headers across redirects, so the
+    token request must not follow one off the validated HTTPS URL."""
+    calls = []
+
+    class _Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {'token': 'x'}
+
+    def record(*args, **kwargs):
+        calls.append((args, kwargs))
+        return _Response()
+
+    monkeypatch.setattr(keychain_module.requests, 'get', record)
+    keychain = Keychain(data=_profile(
+        extra='api_key_id = kid\napi_key_secret = ksecret\n'))
+    assert keychain.token() == 'x'
+    assert len(calls) == 1
+    assert calls[0][1]['allow_redirects'] is False
+
+
+# The Cognito username/password branch: aws_endpoint_url points initiate_auth
+# (which carries the password) at a local emulator, so it is a third injection
+# point for a plaintext endpoint alongside the keychain api field and
+# PRAETORIAN_CLI_API.
+
+
+def _cognito_profile(aws_endpoint_url=None):
+    extra = 'username = user\npassword = secret\n'
+    if aws_endpoint_url:
+        extra += f'aws_endpoint_url = {aws_endpoint_url}\n'
+    return _profile(extra=extra)
+
+
+def _record_boto3_client(monkeypatch):
+    """Replace boto3.client with a recorder returning a stub Cognito client."""
+    calls = []
+
+    class _StubCognito:
+        @staticmethod
+        def initiate_auth(**kwargs):
+            return {'AuthenticationResult': {'ExpiresIn': 3600, 'IdToken': 't'}}
+
+    def record(*args, **kwargs):
+        calls.append((args, kwargs))
+        return _StubCognito()
+
+    monkeypatch.setattr(keychain_module.boto3, 'client', record)
+    return calls
+
+
+def test_cognito_emulator_endpoint_rejected_without_opt_in(monkeypatch):
+    calls = _record_boto3_client(monkeypatch)
+    keychain = Keychain(data=_cognito_profile('http://localhost:4566'))
+    with pytest.raises(ConfigurationError):
+        keychain.token()
+    assert calls == []
+
+
+def test_opt_in_allows_loopback_cognito_emulator(monkeypatch):
+    monkeypatch.setenv(OPT_IN_ENV, '1')
+    calls = _record_boto3_client(monkeypatch)
+    keychain = Keychain(data=_cognito_profile('http://localhost:4566'))
+    assert keychain.token() == 't'
+    assert len(calls) == 1
+    assert calls[0][1]['endpoint_url'] == 'http://localhost:4566'
+
+
+def test_opt_in_never_allows_non_loopback_cognito_emulator(monkeypatch):
+    """Same policy as base_url(): the opt-in admits loopback only, so a
+    plaintext emulator URL on a real network stays rejected even when set."""
+    monkeypatch.setenv(OPT_IN_ENV, '1')
+    calls = _record_boto3_client(monkeypatch)
+    keychain = Keychain(data=_cognito_profile('http://198.51.100.7:4566'))
+    with pytest.raises(ConfigurationError):
+        keychain.token()
+    assert calls == []
+
+
+def test_absent_aws_endpoint_url_still_means_real_aws(monkeypatch):
+    """Unset must keep meaning real AWS: the validation of a configured
+    emulator URL must not turn None into a rejected or mangled endpoint."""
+    calls = _record_boto3_client(monkeypatch)
+    keychain = Keychain(data=_cognito_profile())
+    assert keychain.token() == 't'
+    assert len(calls) == 1
+    assert calls[0][1]['endpoint_url'] is None

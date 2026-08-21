@@ -52,8 +52,9 @@ export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-secret-here
 
 Environment variables take precedence over keychain file settings.
 
-The backend URL (the `api` field, or `PRAETORIAN_CLI_API`) must be an HTTPS URL;
-the CLI refuses to send credentials over plaintext HTTP. The one exception is a
+The backend URL (the `api` field, or `PRAETORIAN_CLI_API`) and the Cognito
+emulator endpoint (the `aws_endpoint_url` field) must be HTTPS URLs; the CLI
+refuses to send credentials over plaintext HTTP. The one exception is a
 loopback endpoint (`localhost`, `127.0.0.1`, `::1`) for local development, which
 requires an explicit opt-in:
 
