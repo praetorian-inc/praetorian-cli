@@ -7,7 +7,7 @@ from praetorian_cli.handlers.cli_decorators import cli_handler
 @cli_handler
 @click.pass_context
 def aegis(ctx, sdk):
-    """Aegis management commands"""
+    """Aegis commands"""
     if ctx.invoked_subcommand is None:
         # No subcommand was invoked, run the default interactive interface
         from praetorian_cli.ui.aegis.menu import run_aegis_menu
