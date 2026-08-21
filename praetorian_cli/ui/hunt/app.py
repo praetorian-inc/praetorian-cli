@@ -156,7 +156,7 @@ class HuntApp(App):
         log.write(HUNT_BANNER)
         log.write("")
         log.write(HUNT_TITLE)
-        log.write(f"[dim]Praetorian Offensive Security Platform[/dim]")
+        log.write("[dim]Praetorian Offensive Security Platform[/dim]")
         log.write("")
 
         if self._initial_uuid:
@@ -179,7 +179,7 @@ class HuntApp(App):
 
     def _update_context_bar(self) -> None:
         bar = self.query_one("#context-bar", Static)
-        parts = [f"[bold]Hannibal[/bold]"]
+        parts = ["[bold]Hannibal[/bold]"]
         if self.user_email and self.user_email != 'unknown':
             parts.append(f"[dim]user:[/dim] {self.user_email}")
         if self._account:
@@ -398,7 +398,7 @@ class HuntApp(App):
             else:
                 log.write(f"[red]Unknown command: /{cmd}[/red] — type /help for commands")
         else:
-            log.write(f"[dim]Type /help for commands. Prefix commands with /[/dim]")
+            log.write("[dim]Type /help for commands. Prefix commands with /[/dim]")
 
     def _show_help(self) -> None:
         log = self.query_one("#activity-log", RichLog)
