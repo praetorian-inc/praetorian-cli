@@ -7,6 +7,11 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
 
+# Default MCP tool allow profile: read-only query/list/get tools. Sensitive
+# tools (see praetorian_cli.sdk.mcp_server.SENSITIVE_TOOL_PATTERNS) are never
+# matched by these wildcards — they require an exact-name -a entry.
+DEFAULT_MCP_TOOLS = ['search_by_query', '*_list', '*_get']
+
 
 @chariot.group()
 def agent():
@@ -38,19 +43,26 @@ def mcp():
 
 @mcp.command()
 @cli_handler
-@click.option('--allowed', '-a', type=str, multiple=True, default=['search_by_query', '*_list', '*_get'])
+@click.option('--allowed', '-a', type=str, multiple=True, default=DEFAULT_MCP_TOOLS)
 def start(sdk, allowed):
     """ Starts the Guard MCP server
+
+    The default profile exposes read-only query/list/get tools. Tools that
+    return or manage secrets (accounts_*, credentials_*, integrations_*,
+    keys_*, webhook_*) are never matched by wildcard patterns — the default
+    profile included — and are only exposed by passing the exact tool name
+    with -a (e.g. -a credentials_get).
 
     \b
     Example usages:
         - guard agent mcp start
         - guard agent mcp start -a search_by_term -a risk_add
         - guard agent mcp start -a search_* -a risk_add
+        - guard agent mcp start -a credentials_get # exact name required for sensitive tools
 
     \b
     Claude code configuration/usage:
-        - claude mcp add chariot -- guard agent mcp start # read-only
+        - claude mcp add chariot -- guard agent mcp start # default read-only, non-sensitive tools
         - claude mcp add chariot -- guard agent mcp start -a search_by_query -a risk_add -a asset_add # select write tools
         - claude "show me my chariot assets from the example.com domain"
         - claude "show me my chariot assets with port 22 open"
@@ -61,10 +73,14 @@ def start(sdk, allowed):
     sdk.agents.start_mcp_server(allowed)
 
 @mcp.command()
-@click.option('--allowed', '-a', type=str, multiple=True, default=['search_by_query', '*_list', '*_get'])
+@click.option('--allowed', '-a', type=str, multiple=True, default=DEFAULT_MCP_TOOLS)
 @cli_handler
 def tools(sdk, allowed):
     """ Lists available mcp tools
+
+    Sensitive tools (accounts_*, credentials_*, integrations_*, keys_*,
+    webhook_*) never match wildcard patterns and appear only when named
+    exactly with -a.
 
     \b
     Example usages:
