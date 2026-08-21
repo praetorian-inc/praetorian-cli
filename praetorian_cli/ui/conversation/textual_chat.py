@@ -193,12 +193,23 @@ class ConversationApp(App):
     
     def on_mount(self) -> None:
         """Called when app starts"""
+        # Validate startup skills early so missing --skill paths are surfaced
+        # immediately rather than silently deferred to the first message send.
+        valid_skills = []
+        for path in self._skills:
+            resolved = os.path.realpath(os.path.expanduser(path))
+            if os.path.isfile(resolved):
+                valid_skills.append(resolved)
+            else:
+                self.add_system_message(f"Skill file not found (skipped): {path}")
+        self._skills = valid_skills
+
         # Start background polling for job completion events
         self.polling_task = asyncio.create_task(self.background_poll())
-        
+
         # Focus the input
         self.query_one("#message-input").focus()
-        
+
         # Show welcome message
         self.add_system_message("Welcome to Guard AI Assistant! Type 'help' for commands or ask about your security data.")
     

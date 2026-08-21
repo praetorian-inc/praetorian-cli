@@ -182,9 +182,18 @@ def list_findings(sdk, status, json_out):
         click.echo('No findings found.')
         return
 
+    # Map severity labels back to priority numbers so risks that lack a
+    # recognised priority field but carry a valid status code are grouped
+    # under the correct severity bucket instead of being dumped into
+    # "PRIORITY 99".
+    _sev_label_to_priority = {label: prio for prio, (label, _) in PRIORITY_LABELS.items()}
+
     by_priority = {}
     for r in risks:
-        p = r.get('priority', 99)
+        p = r.get('priority', 0)
+        if p not in PRIORITY_LABELS:
+            sev_label, _ = _get_severity(r)
+            p = _sev_label_to_priority.get(sev_label, 99)
         by_priority.setdefault(p, []).append(r)
 
     total = len(risks)

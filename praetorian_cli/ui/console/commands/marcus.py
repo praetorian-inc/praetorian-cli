@@ -68,12 +68,12 @@ class MarcusCommands:
             self.context.mode = 'query'
 
         self.console.print('[primary]Entering conversation mode[/primary] [dim](type "/back" to return)[/dim]')
-        self.console.print(f'[dim]Commands: /back, /new, /query, /agent, /skill <path>, /skills, /unskill <name>, or just chat[/dim]')
+        self.console.print('[dim]Commands: /back, /new, /query, /agent, /skill <path>, /skills, /unskill <name>, or just chat[/dim]')
         self.console.print(f'[dim]Context: {self.context.summary()}[/dim]')
         if self.context.skills:
             self.console.print(f'[dim]Skills: {", ".join(os.path.basename(s) for s in self.context.skills)}[/dim]')
         if not self.context.account:
-            self.console.print(f'[warning]No account set -- Marcus will query your personal account. Use "set account <email>" first.[/warning]')
+            self.console.print('[warning]No account set -- Marcus will query your personal account. Use "set account <email>" first.[/warning]')
         self.console.print()
 
         while True:
@@ -263,7 +263,7 @@ class MarcusCommands:
                     if result_summary:
                         self.console.print(f'    [dim]-- {result_summary}[/dim] [success]done[/success]')
                     else:
-                        self.console.print(f'    [success]done[/success]')
+                        self.console.print('    [success]done[/success]')
                     if self.context.verbose:
                         self._print_verbose_tool_response(content)
         except KeyboardInterrupt:
