@@ -124,6 +124,10 @@ export PRAETORIAN_CLI_API_KEY_ID=your-api-key-id-here
 export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-here
 ```
 
+The backend API URL and the Cognito emulator endpoint (`aws_endpoint_url`)
+must be HTTPS; the CLI refuses to send credentials over plaintext HTTP. For local development against a loopback endpoint (`localhost`,
+`127.0.0.1`, `::1`), set `PRAETORIAN_CLI_ALLOW_HTTP_LOOPBACK=1`.
+
 For more advanced configuration options or managing access in SSO organizations see
 [the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
