@@ -81,10 +81,9 @@ class GuardConsole(
 
         self.session = PromptSession(
             history=FileHistory(history_path),
-            completer=WordCompleter(CONSOLE_COMMANDS, ignore_case=True),
+            completer=self._build_completer(),
             complete_style=CompleteStyle.MULTI_COLUMN,
             reserve_space_for_menu=3,
-            completer=self._build_completer(),
         )
 
     def _build_completer(self):
