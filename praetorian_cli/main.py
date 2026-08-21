@@ -11,7 +11,6 @@ import praetorian_cli.handlers.add
 import praetorian_cli.handlers.aegis
 import praetorian_cli.handlers.agent
 import praetorian_cli.handlers.bulk
-import praetorian_cli.handlers.constantine  # noqa: F401
 import praetorian_cli.handlers.critfinder
 import praetorian_cli.handlers.delete
 import praetorian_cli.handlers.enrichment_admin  # noqa: F401
@@ -29,7 +28,6 @@ import praetorian_cli.handlers.list
 import praetorian_cli.handlers.purge
 import praetorian_cli.handlers.query
 import praetorian_cli.handlers.tenant
-import praetorian_cli.handlers.osint  # noqa: F401
 import praetorian_cli.handlers.remediation  # noqa: F401
 import praetorian_cli.handlers.report
 import praetorian_cli.handlers.script
