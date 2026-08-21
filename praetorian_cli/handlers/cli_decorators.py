@@ -51,17 +51,17 @@ def handle_error(func):
     def wrapper(ctx, *args, **kwargs):
         try:
             return func(*args, **kwargs)
+        except click.ClickException:
+            raise
         except click.Abort:
             raise
-        except Exception as e:
-            error(str(e), quit=False)
-            if chariot.is_debug:
-                click.echo(traceback.format_exc())
-        except click.ClickException:
         except click.exceptions.Exit:
+            raise
         except CancelledError:
+            raise
         except Exception as exc:
             if _debug_enabled(ctx):
+                raise
             raise click.ClickException(_error_message(exc)) from exc
 
     return wrapper
