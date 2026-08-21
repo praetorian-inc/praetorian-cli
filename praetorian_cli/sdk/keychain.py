@@ -138,6 +138,7 @@ class Keychain:
         self.load_env(API_KEY_SECRET, 'PRAETORIAN_CLI_API_KEY_SECRET', required=False)
         self.load_env('api', 'PRAETORIAN_CLI_API', required=False)
         self.load_env('client_id', 'PRAETORIAN_CLI_CLIENT_ID', required=False)
+        self.load_env('websocket', 'PRAETORIAN_CLI_WS_URL', required=False)
         
         if 'api' not in profile or 'client_id' not in profile:
             raise ConfigurationError(
@@ -207,6 +208,10 @@ class Keychain:
     def base_url(self):
         """ Get the base URL for the backend. It is the "api" field in the keychain file. """
         return _validated_backend_url(self.get_option('api'))
+
+    def websocket_url(self):
+        """ Get the optional WebSocket endpoint URL (profile 'websocket' option or PRAETORIAN_CLI_WS_URL env). Returns None if unset. """
+        return self.get_option('websocket')
 
     def username(self):
         """ Get the username field from the keychain profile """
