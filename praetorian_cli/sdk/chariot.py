@@ -20,6 +20,7 @@ from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.knossos import Knossos
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.remediation import Remediation
+from praetorian_cli.sdk.entities.red_team import RedTeam
 from praetorian_cli.sdk.entities.reports import Reports
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
@@ -43,6 +44,7 @@ class Chariot:
         self.assets = Assets(self)
         self.seeds = Seeds(self)
         self.preseeds = Preseeds(self)
+        self.red_team = RedTeam(self)
         self.reports = Reports(self)
         self.risks = Risks(self)
         self.accounts = Accounts(self)
@@ -303,9 +305,12 @@ class Chariot:
         """ Start MCP server exposing SDK methods as tools
         
         Arguments:
-        allowable_tools: list
-            Optional list of tool names to expose. If None, all tools are exposed.
-            Tool names should be in format 'entity.method' (e.g., 'assets.add', 'risks.list')
+        allowable_tools: list or tuple of str
+            Optional list of tool names to expose. Tool names are in format
+            'entity_method' (e.g., 'assets_add', 'risks_list'). If None, all
+            non-sensitive tools are exposed; sensitive tools (see
+            praetorian_cli.sdk.mcp_server.SENSITIVE_TOOL_PATTERNS) require an
+            exact-name allow entry and never match wildcard patterns.
         """
         from praetorian_cli.sdk.mcp_server import MCPServer
         import anyio

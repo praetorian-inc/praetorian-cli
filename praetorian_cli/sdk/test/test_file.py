@@ -2,14 +2,15 @@ import os
 
 import pytest
 
-from praetorian_cli.sdk.test.utils import epoch_micro, random_ip, setup_chariot
+from praetorian_cli.sdk.test.utils import selected_test_target, epoch_micro, random_ip, setup_chariot
 
 
 @pytest.mark.coherence
 class TestFile:
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        profile, account = selected_test_target()
+        self.sdk = setup_chariot(profile, account)
         micro = epoch_micro()
         self.chariot_filepath = f'home/test-file-{micro}.txt'
         self.encrypted_chariot_filepath = f'_encrypted/test-file-{micro}.txt'
