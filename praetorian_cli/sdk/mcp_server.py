@@ -8,6 +8,27 @@ from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
+# Tool-name patterns classified as sensitive: their tools return or manage
+# secret material (credential-broker payloads, API-key secrets, the webhook
+# auth PIN, integration records that embed that PIN) or change account
+# membership. A sensitive tool never matches a wildcard allow pattern: it is
+# exposed only when an allow entry names it exactly. When adding a new entity
+# or method to the SDK that returns or manages secret material, add its family
+# to this tuple — nothing detects an unclassified secret-bearing tool
+# automatically.
+SENSITIVE_TOOL_PATTERNS = (
+    'accounts_*',
+    'credentials_*',
+    'integrations_*',
+    'keys_*',
+    'webhook_*',
+)
+
+
+def is_sensitive_tool(tool_name: str) -> bool:
+    return any(fnmatch.fnmatch(tool_name, pattern) for pattern in SENSITIVE_TOOL_PATTERNS)
+
+
 class MCPServer:
     def __init__(self, chariot_instance, allowable_tools: Optional[List[str]] = None):
         self.chariot = chariot_instance
@@ -18,9 +39,13 @@ class MCPServer:
         self._register_tools()
 
     def _is_tool_allowed(self, tool_name: str) -> bool:
-        """Check if tool_name matches any of the allowed patterns using wildcards"""
-        if fnmatch.fnmatch(tool_name, "*accounts*"):
-            return False
+        """Two-tier allow check: sensitive tools (SENSITIVE_TOOL_PATTERNS) are
+        exposed only by an exact-name allow entry — wildcards never match them,
+        and a None/empty allowlist exposes none of them; non-sensitive tools keep the
+        original semantics (no allowlist means allowed, otherwise fnmatch
+        against the allow patterns)."""
+        if is_sensitive_tool(tool_name):
+            return bool(self.allowable_tools) and tool_name in self.allowable_tools
 
         # Destructive purge operations (e.g. assets_purge, risks_purge,
         # seeds_purge) have no confirmation or dry-run gate when invoked via
@@ -32,11 +57,8 @@ class MCPServer:
 
         if not self.allowable_tools:
             return True
-        
-        for pattern in self.allowable_tools:
-            if fnmatch.fnmatch(tool_name, pattern):
-                return True
-        return False
+
+        return any(fnmatch.fnmatch(tool_name, pattern) for pattern in self.allowable_tools)
 
     def _discover_tools(self):
         excluded_methods = {'start_mcp_server', 'api'}
