@@ -63,6 +63,7 @@
     "aurelian": {
       "repo": "praetorian-inc/aurelian",
       "binary_pattern": "aurelian-{os}-{arch}*",
+      "plugin": "aurelian",
       "capability": "aurelian",
       "local_only": true
     },

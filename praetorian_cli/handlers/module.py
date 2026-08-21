@@ -377,11 +377,20 @@ def update(sdk, name, update_registry, as_json):
         guard module update --registry
     """
     import re
+    import shutil
     import subprocess
     from praetorian_cli.registry import get_registry
     from praetorian_cli.runners.local import install_tool, is_installed, INSTALLABLE_TOOLS
 
     _repo_re = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
+
+    gh_path = shutil.which('gh')
+    if not gh_path:
+        if as_json:
+            print_json({"error": "gh CLI not found. Install GitHub CLI: https://cli.github.com/"})
+        else:
+            click.echo("Warning: gh CLI not found. Install GitHub CLI: https://cli.github.com/", err=True)
+        return
 
     reg = get_registry()
 
@@ -415,7 +424,7 @@ def update(sdk, name, update_registry, as_json):
 
         try:
             ver_result = subprocess.run(
-                ["gh", "release", "view", "--repo", repo, "--json", "tagName", "-q", ".tagName"],
+                [gh_path, "release", "view", "--repo", repo, "--json", "tagName", "-q", ".tagName"],
                 capture_output=True, text=True, timeout=15,
             )
             latest_ver = ver_result.stdout.strip() if ver_result.returncode == 0 else None
@@ -443,7 +452,7 @@ def update(sdk, name, update_registry, as_json):
             if as_json:
                 results.append({"name": tool_name, "status": "updated", "from": current_ver, "to": latest_ver, "path": path})
             else:
-                click.echo(f" done")
+                click.echo(" done")
         except Exception as e:
             if as_json:
                 results.append({"name": tool_name, "status": "error", "error": str(e)})

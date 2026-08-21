@@ -469,7 +469,7 @@ class GuardConsole(
         help_table.add_row('capabilities [name]', 'List all backend capabilities')
         help_table.add_row('install <tool|all>', 'Install binary from GitHub')
         help_table.add_row('installed', 'List locally installed binaries')
-        help_table.add_row('update [<name>|all]', 'Update installed module(s) to latest')
+        help_table.add_row('update <name>|all', 'Update installed module(s) to latest')
         help_table.add_row('module search [query]', 'Search module registry (name, category, tag)')
         help_table.add_row('module info <name>', 'Show module details (options, version, author)')
         help_table.add_row('module options <name>', 'Show configurable parameters for a module')
