@@ -24,13 +24,17 @@ the process exited 0 on every failure. These tests pin the replacement contract:
 Message *redaction* is deliberately out of scope here: it needs the SDK exception
 hierarchy (ENG-6570) to classify what is safe to show, and is owned by ENG-6781.
 
-Offline only: every command raises before `upgrade_check` can reach the network,
-and each test arms `requests.get` to fail loudly if that ever stops being true.
+Offline only. Most tests here raise before `upgrade_check` can reach the network
+and arm `requests.get` to fail loudly if that ever stops being true; the final
+group deliberately lets the advisory run, with `requests.get` replaced and
+`XDG_CACHE_HOME` redirected at `tmp_path`, to pin that its failures cannot change
+a command's outcome.
 """
 
 import asyncio
 import subprocess
 import sys
+import threading
 from concurrent.futures import CancelledError as FutureCancelledError
 from unittest.mock import Mock
 
@@ -43,6 +47,10 @@ from click.testing import CliRunner
 # from the suite's silently -- and would turn a deliberate re-wording into a
 # spurious test failure here.
 from praetorian_cli.handlers.cli_decorators import DEBUG_HINT
+
+# Imported for the same reason: the deadline test asserts the join was handed the
+# module's own budget, so a re-tuned budget must not need a matching edit here.
+from praetorian_cli.handlers.cli_decorators import UPDATE_CHECK_DEADLINE_SECONDS
 
 # The exact shape `Chariot.process_failure` raises on a failed API call
 # (praetorian_cli/sdk/chariot.py). Both halves -- the status line and the response
@@ -109,6 +117,44 @@ def _debug_root(command):
     return root
 
 
+def _successful_command():
+    """A `@cli_handler` command that succeeds, so `upgrade_check` actually runs."""
+    from praetorian_cli.handlers.cli_decorators import cli_handler
+
+    @click.command()
+    @cli_handler
+    def command(_sdk):
+        return "done"
+
+    return command
+
+
+def _force_update_request(monkeypatch, tmp_path, side_effect):
+    """The inverse of `_disable_update_request`: let the advisory reach the network.
+
+    Two forces are needed and both are load-bearing. `_session_is_interactive()`
+    requires BOTH `sys.stdout.isatty()` and `sys.stderr.isatty()`, and `CliRunner`
+    replaces both with non-tty buffers, so the gate is closed inside any `invoke`
+    and the advisory returns before it does anything -- a test that did not force
+    it would assert against a check that never ran, and would keep passing if the
+    advisory stopped running altogether. Forcing the whole predicate rather than
+    one stream is what keeps that hole shut. `XDG_CACHE_HOME` is redirected at
+    `tmp_path` so nothing reads or writes the real user cache, and an empty cache
+    is what guarantees the network branch is the one taken.
+
+    The predicate's own behaviour is pinned in test_update_check.py, which drives
+    the real `_session_is_interactive` instead of replacing it.
+    """
+    import praetorian_cli.handlers.cli_decorators as decorators
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    monkeypatch.delenv("PRAETORIAN_CLI_DISABLE_UPDATE_CHECK", raising=False)
+    monkeypatch.setattr(decorators, "_session_is_interactive", lambda: True)
+    request = Mock(side_effect=side_effect)
+    monkeypatch.setattr(decorators.requests, "get", request)
+    return request
+
+
 def _disable_update_request(monkeypatch):
     import praetorian_cli.handlers.cli_decorators as decorators
 
@@ -117,9 +163,10 @@ def _disable_update_request(monkeypatch):
     return request
 
 
-# `upgrade_check`'s bare `except:` swallows anything raisable, so an in-process
-# guard cannot make a stray network call visible in a child process. `os._exit`
-# cannot be caught: if the advisory ever runs, the child's status is 97 and the
+# `_check_for_update`'s `except Exception: pass` arm swallows every ordinary
+# exception -- an in-process `AssertionError` included -- so an in-process guard
+# cannot make a stray network call visible in a child process. `os._exit` cannot
+# be caught: if the advisory ever runs, the child's status is 97 and the
 # return-code assertion fails instead of the request silently going out.
 _NETWORK_TRIPWIRE = """
 import os
@@ -595,4 +642,161 @@ def test_handled_user_facing_error_is_unchanged(monkeypatch):
     assert result.exit_code == 1
     assert "ERROR: profile 'staging' is not configured" in result.stderr
     assert "Error:" not in result.output
+    request.assert_not_called()
+
+
+# --- the update advisory on a SUCCESSFUL command --------------------------------
+#
+# The cases above all raise, so `upgrade_check` never reaches `_check_for_update`.
+# These pin the other half: when the command succeeds the advisory does run, and
+# its own failures must not be able to change the outcome the user already earned.
+#
+# That holds for a Ctrl-C too, which is the correction ENG-6643 makes: the
+# advisory is a trailing informational courtesy, so an interrupt arriving during
+# it cannot retroactively fail work the user has already been handed. Process
+# control that the *process itself* initiated -- `sys.exit()`, a cancelled task --
+# is the deliberate exception and still reaches the exit status.
+
+
+def test_ordinary_update_advisory_failure_remains_fail_open(monkeypatch, tmp_path):
+    """An ordinary advisory failure is swallowed; the command still succeeds."""
+    request = _force_update_request(monkeypatch, tmp_path, RuntimeError("advisory unavailable"))
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert "advisory unavailable" not in result.output
+    request.assert_called_once()
+
+
+def _interrupt_the_deadline_wait(monkeypatch, exception):
+    """Raise `exception` in the main thread, where a real Ctrl-C would surface.
+
+    The advisory's fetch runs on a worker thread and the main thread waits it out
+    in `Thread.join(UPDATE_CHECK_DEADLINE_SECONDS)`, so that join -- not
+    `requests.get` -- is where an interrupt during the advisory actually lands:
+    CPython delivers SIGINT to the main thread only, and a worker parked in a
+    socket read never receives it. Injecting at `requests.get` instead would put
+    the exception inside the worker, whose `except BaseException: pass` discards
+    it, and the test would pass for the wrong reason.
+
+    The real `join` runs FIRST, before the exception is raised, so the worker has
+    already finished and its `requests.get` call is recorded by the time control
+    returns -- otherwise the call assertion would race the worker.
+
+    `threading` is referenced exactly once in the module under test (that join),
+    so shimming the module attribute reaches that one call and nothing else.
+    Returns the list of timeouts the shim observed, so a test can prove the seam
+    fired rather than passing because it was never reached.
+    """
+    import praetorian_cli.handlers.cli_decorators as decorators
+
+    joined_with = []
+
+    class _InterruptedJoin(threading.Thread):
+        def join(self, timeout=None):
+            super().join(timeout)
+            joined_with.append(timeout)
+            raise exception
+
+    class _ThreadingShim:
+        Thread = _InterruptedJoin
+
+    monkeypatch.setattr(decorators, "threading", _ThreadingShim)
+    return joined_with
+
+
+def test_update_keyboard_interrupt_leaves_the_finished_command_successful(monkeypatch, tmp_path):
+    """A Ctrl-C during the trailing advisory must not fail a command that already succeeded.
+
+    This is the corrected contract (ENG-6643, finding R4-3). The command's own
+    work is complete and its output already delivered before `upgrade_check`
+    calls the advisory; letting a `KeyboardInterrupt` from that trailing courtesy
+    become `Aborted!` and exit 1 tells the user their command failed when it did
+    not -- and invites whoever wrote `guard list assets && next-step` to re-run
+    work that already succeeded. Measured on the real CLI before the fix: 968
+    asset rows and the pagination hint were printed, the process then sat alive
+    10.1s past its own output, and Ctrl-C there produced `Aborted!` and exit 1.
+
+    `upgrade_check`'s `except KeyboardInterrupt: pass` is what closes that, and it
+    is deliberately narrow: it wraps only the advisory call, so a Ctrl-C during
+    the command's own body still aborts (pinned by
+    `test_keyboard_interrupt_keeps_click_abort_semantics_and_skips_update`), and
+    it names `KeyboardInterrupt` alone, so `SystemExit` and cancellation still
+    propagate (pinned directly below).
+
+    The interrupt is injected at the deadline wait rather than at `requests.get`
+    -- see `_interrupt_the_deadline_wait` for why that is the only reachable
+    seam. `joined_with` is asserted first because every other assertion here
+    would also hold if the shim were never installed; without it a green run
+    would prove nothing.
+    """
+    request = _force_update_request(monkeypatch, tmp_path, TimeoutError("fetch still in flight"))
+    joined_with = _interrupt_the_deadline_wait(monkeypatch, KeyboardInterrupt())
+    command = _command_calling(lambda: click.echo("delivered-before-the-interrupt"))
+
+    result = CliRunner().invoke(command, obj=object())
+
+    assert joined_with == [UPDATE_CHECK_DEADLINE_SECONDS]
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert "Aborted!" not in result.output
+    assert "Error:" not in result.output
+    assert result.output == "delivered-before-the-interrupt\n"
+    request.assert_called_once()
+
+
+def _raise_from_the_throttle_write(monkeypatch, exception):
+    """Raise `exception` from the throttle-record write, on the main thread.
+
+    `_check_for_update` writes the throttle record *before* it goes anywhere near
+    the network, so this is the earliest main-thread step of the advisory that can
+    fail -- and it is reached through the real `_write_update_check_cache`, so that
+    function's own arms (`except CancelledError: raise`, then
+    `except Exception: return False`) are exercised rather than replaced.
+
+    It also makes the fetch provably unreached, which is what the
+    `request.assert_not_called()` in the caller records.
+    """
+    import praetorian_cli.handlers.cli_decorators as decorators
+
+    def raise_during_the_write(*_args, **_kwargs):
+        raise exception
+
+    monkeypatch.setattr(decorators.json, "dump", raise_during_the_write)
+
+
+@pytest.mark.parametrize(
+    ("exception", "exit_code"),
+    [(SystemExit(73), 73), (FutureCancelledError("cancelled"), 1)],
+    ids=["system-exit", "future-cancelled"],
+)
+def test_update_process_control_exceptions_propagate(monkeypatch, tmp_path, exception, exit_code):
+    """Process control raised by the advisory still reaches the exit status.
+
+    `KeyboardInterrupt` is now absorbed (above); these two are not, and the
+    distinction is the point. A `SystemExit` means something in the process asked
+    to exit with that status, and a `CancelledError` means the surrounding task
+    was cancelled -- neither is "the user interrupted a courtesy message", so
+    neither may be reported as a clean success. `SystemExit` is a `BaseException`
+    and passes through `except Exception` untouched, keeping its own status;
+    `concurrent.futures.CancelledError` is `Exception`-derived on this runtime, so
+    the fail-open arm *would* swallow it and the dedicated
+    `except CancelledError: raise` arm is what makes it propagate instead.
+
+    Anchored at the throttle write, a main-thread step, rather than at
+    `requests.get`: the fetch now runs on a worker thread whose body is
+    `except BaseException: pass`, so nothing raised there reaches the main thread
+    at all. `request.assert_not_called()` is the negative half of that -- control
+    never got as far as the network.
+    """
+    assert issubclass(FutureCancelledError, Exception)
+    request = _force_update_request(monkeypatch, tmp_path, AssertionError("must not be reached"))
+    _raise_from_the_throttle_write(monkeypatch, exception)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == exit_code
+    assert result.exception is exception
     request.assert_not_called()

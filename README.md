@@ -20,6 +20,7 @@
     - [Signing up](#signing-up)
     - [Authentication](#authentication)
 - [Using the CLI](#using-the-cli)
+    - [Update checks](#update-checks)
 - [Operators](#operators)
     - [Interactive Console](#interactive-console)
     - [Install local security tools (optional)](#install-local-security-tools-optional)
@@ -150,6 +151,72 @@ To get detailed information about a specific asset, run:
 ```zsh
 guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
+
+## Update checks
+
+After a command finishes, the CLI may check PyPI for a newer release of
+`praetorian-cli` and print a three-line upgrade advisory to stderr. The check is
+deliberately quiet and infrequent:
+
+- **At most once every 24 hours.** Every attempt is recorded at
+  `${XDG_CACHE_HOME:-~/.cache}/praetorian-cli/update-check.json` *before* the
+  request is made, so a refresh that fails — offline, DNS, timeout, a malformed
+  response — is rate-limited exactly like one that succeeds, and keeps
+  advertising the last version it did learn. Between refreshes the check reads
+  that file and makes no network request at all — as long as the record is a
+  plain file that belongs to you and is no larger than 64 KiB. Anything else at
+  that path is ignored as though it were absent, so the next invocation refreshes
+  and replaces it rather than trusting what it found. Commands that start at the
+  same instant are excluded by a marker file created beside that record, so eight
+  concurrent invocations perform one refresh rather than eight — including when
+  the request fails instantly, since the attempt is recorded before it is made.
+  A process killed mid-refresh leaves the marker behind, which defers the next
+  refresh that is actually due rather than permitting an extra one — by up to a
+  minute, or up to two if the clock steps backwards in between, since a marker
+  counts as held while its age is within a minute in *either* direction. A
+  relative `XDG_CACHE_HOME` is
+  ignored in favour of `~/.cache`, as the base-directory spec requires —
+  honouring it would put a separate cache in every working directory and so
+  defeat the limit outright. If the cache directory cannot be written at all (a
+  read-only home, one owned by another user, or one reached through a symlink),
+  the check does not run: a probe whose rate we cannot limit is one we do not
+  send.
+- **Only when a human is watching.** It is skipped unless **both** stdout and
+  stderr are a terminal, and skipped when `CI` or `GITHUB_ACTIONS` is set or
+  `TERM=dumb`. Piping either stream — `guard list assets | jq` — turns it off.
+  A script you launch by hand from your own terminal inherits your terminal, so
+  treat the opt-out below, not this gate, as the way to guarantee silence.
+- **Never in place of your command's work.** A command that raises skips the
+  check, and a group that is only delegating to a subcommand leaves the check to
+  the subcommand that does the work. A command that reports an error but still
+  exits `0` is the one case where an advisory can follow a visible error.
+- **Not on the path you run day to day.** The daily refresh passes a 2-second
+  timeout to `requests`, which bounds how long the server may go without
+  sending data — not total wall-clock, so DNS, TLS, redirects and a slow trickle
+  are outside it. Ordinary failures are swallowed and cannot change your exit
+  code; `Ctrl-C` and process-control exceptions raised during the check still
+  propagate, by design, so that interrupting the CLI always works.
+
+### Disabling it
+
+```zsh
+export PRAETORIAN_CLI_DISABLE_UPDATE_CHECK=1
+```
+
+`1`, `true`, `yes` or `on` (any case). Nothing is read or written — no request,
+no cache file.
+
+### Privacy
+
+A refresh is an unauthenticated `GET` to `https://pypi.org/pypi/praetorian-cli/json`.
+It sends no account, profile, command, or argument — only what any HTTPS request
+inherently reveals to the server: your IP address and the fact that some
+`praetorian-cli` install asked for the package index at that moment. Because
+every attempt is recorded before it is made and concurrent attempts are
+excluded, that happens at most once per day per user account on the machine —
+several users each get their own cache — so your per-command usage cadence is
+not exposed. If contacting
+pypi.org at all is unacceptable in your environment, set the variable above.
 
 # Operators
 
