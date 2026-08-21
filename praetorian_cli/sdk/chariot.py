@@ -22,6 +22,8 @@ from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.knossos import Knossos
 from praetorian_cli.sdk.entities.onboarding import Onboarding
 from praetorian_cli.sdk.entities.plextrac import PlexTrac
+from praetorian_cli.sdk.entities.misc import Misc
+from praetorian_cli.sdk.entities.multipart import Multipart
 from praetorian_cli.sdk.entities.preseeds import Preseeds
 from praetorian_cli.sdk.entities.remediation import Remediation
 from praetorian_cli.sdk.entities.red_team import RedTeam
@@ -33,6 +35,7 @@ from praetorian_cli.sdk.entities.schema import Schema
 from praetorian_cli.sdk.entities.search import Search
 from praetorian_cli.sdk.entities.seeds import Seeds
 from praetorian_cli.sdk.entities.settings import Settings
+from praetorian_cli.sdk.entities.share import Share
 from praetorian_cli.sdk.entities.statistics import Statistics
 from praetorian_cli.sdk.entities.webpage import Webpage
 from praetorian_cli.sdk.entities.webhook import Webhook
@@ -81,6 +84,9 @@ class Chariot:
         self.hackerone = HackerOne(self)
         self.onboarding = Onboarding(self)
         self.plextrac = PlexTrac(self)
+        self.misc = Misc(self)
+        self.multipart = Multipart(self)
+        self.share = Share(self)
         self.proxy = proxy
 
         if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):
