@@ -172,15 +172,18 @@ deliberately quiet and infrequent:
   plain file that belongs to you and is no larger than 64 KiB. Anything else at
   that path is ignored as though it were absent, so the next invocation refreshes
   and replaces it rather than trusting what it found. Commands that start at the
-  same instant are excluded by a marker file created beside that record, so eight
-  concurrent invocations perform one refresh rather than eight — including when
-  the request fails instantly, since the attempt is recorded before it is made.
-  A process killed mid-refresh leaves the marker behind, which defers the next
-  refresh that is actually due rather than permitting an extra one — by up to a
-  minute, or up to two if the clock steps backwards in between, since a marker
-  counts as held while its age is within a minute in *either* direction. A
-  relative `XDG_CACHE_HOME` is
-  ignored in favour of `~/.cache`, as the base-directory spec requires —
+  same instant are *not* excluded from one another: each reads the same stale
+  record before any of them writes, so eight simultaneous invocations may each
+  refresh once. That is an accepted tradeoff rather than an oversight — all
+  eight then write the record, so the following 24 hours are quiet; the gates
+  below already skip non-interactive and CI sessions, which leaves simultaneous
+  *interactive* invocations rare; and a duplicate refresh costs one CDN-backed
+  GET. An exclusion held by path was measured to be worse than none: a claim
+  that cannot identify its own holder unlinks a live peer's claim and so defeats
+  the very limit it was added to guarantee. Each write is an atomic
+  same-directory rename, so a reader always sees one writer's whole record,
+  never a torn one. A relative `XDG_CACHE_HOME` is ignored in favour of
+  `~/.cache`, as the base-directory spec requires —
   honouring it would put a separate cache in every working directory and so
   defeat the limit outright. If the cache directory cannot be written at all (a
   read-only home, one owned by another user, or one reached through a symlink),

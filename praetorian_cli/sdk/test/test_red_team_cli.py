@@ -629,6 +629,15 @@ def test_plan_reads_body_from_file(tmp_path):
         'globals': {}, 'nodes': []}
 
 
+def test_plan_reads_a_non_ascii_body_from_file(tmp_path):
+    body_file = tmp_path / 'builder.json'
+    body_file.write_text('{"globals":{"name":"Jos\u00e9"},"nodes":[]}', encoding='utf-8')
+    result, sdk = _invoke('red-team', 'deployment', 'plan', '--file', str(body_file))
+    assert result.exit_code == 0
+    assert sdk.red_team.deployment_terraform.call_args[0][1] == {
+        'globals': {'name': 'Jos\u00e9'}, 'nodes': []}
+
+
 def test_apply_reads_body_from_file_and_prompts_on_stdin(tmp_path):
     body_file = tmp_path / 'builder.json'
     body_file.write_text('{"globals":{},"nodes":[]}')
@@ -721,10 +730,10 @@ def test_targets_missing_key_is_a_usage_error():
 
 # --- Piped stdin is decoded as UTF-8 before anything reads it ---
 
-# Real locale decoding is unreachable from a test: CliRunner's stdin is a BytesIO
-# wrapper it decodes itself, and the process locale is fixed at interpreter start.
-# What IS testable is the mechanism -- that the reconfigure happens at all, that a
-# tty is left alone, and that it lands before the first read of the stream.
+# These stub-driven tests cover the mechanism -- that the reconfigure happens at
+# all, that a tty is left alone, and that it lands before the first read of the
+# stream. The stub wraps a StringIO, so it cannot decode anything; the decoding
+# behavior itself is covered by the byte-level tests further down.
 class _StdinStub:
     """A stdin that records reconfigure() and read calls, in order."""
 
@@ -784,8 +793,28 @@ def test_piped_stdin_is_reconfigured_to_utf8():
     stub = _StdinStub()
     exit_code, _, sdk = _invoke_with_stdin(stub, 'red-team', 'deployment', 'details')
     assert exit_code == 0
-    assert stub.reconfigure_calls == [{'encoding': 'utf-8'}]
+    # errors= is as load-bearing as encoding=. Under the strict default an
+    # undecodable byte raises inside Click's eager prompt, out of reach of any
+    # handler here; surrogateescape carries the byte through to _load_json_body,
+    # which is the only place that can report it as a usage error.
+    assert stub.reconfigure_calls == [
+        {'encoding': 'utf-8', 'errors': 'surrogateescape'}], stub.reconfigure_calls
     sdk.red_team.deployment_details.assert_called_once()
+
+
+def test_load_json_body_reconfigures_stdin_with_the_same_error_handler():
+    # _load_json_body has its own reconfigure for a caller that reaches it
+    # without the red-team group. It must install the same error handler: under
+    # the strict default that caller gets a raw UnicodeDecodeError out of
+    # sys.stdin.read() instead of the usage error, and the two paths disagree.
+    stub = _StdinStub('{"name":"t"}')
+    exit_code, _, sdk = _invoke_with_stdin(stub, 'red-team', 'campaign', 'create')
+    assert exit_code == 0
+    # Two calls: the group callback's, then _load_json_body's own.
+    assert len(stub.reconfigure_calls) == 2, stub.reconfigure_calls
+    assert stub.reconfigure_calls[1] == {
+        'encoding': 'utf-8', 'errors': 'surrogateescape'}, stub.reconfigure_calls
+    sdk.red_team.campaign_create.assert_called_once_with({'name': 't'})
 
 
 def test_tty_stdin_is_not_reconfigured():
@@ -829,3 +858,66 @@ def test_an_already_read_stdin_is_tolerated():
     assert exit_code == 0
     assert stub.reconfigure_calls, stub.events
     sdk.red_team.campaign_create.assert_called_once_with({'name': 't'})
+
+
+# --- Real decoding of a piped stdin (byte level) ---
+
+# The stub above wraps a StringIO, so it has no decoder and cannot exercise this
+# at all. These tests install a real TextIOWrapper over real bytes: it reports
+# isatty() False, honors reconfigure(), and raises UnicodeDecodeError on an
+# undecodable byte exactly as a piped stdin does under a UTF-8 locale.
+UNDECODABLE_BODY = b'{"a": "\xff\xfe bad"}'
+NON_ASCII_BODY = b'{"a": "Jos\xc3\xa9"}'
+
+
+def _byte_stdin(payload):
+    """A real text stdin over `payload`, decoding strictly as UTF-8."""
+    # encoding= is pinned so the test does not depend on the process locale.
+    # errors= is deliberately left at the strict default: the tolerant handler
+    # is what the code under test is supposed to install.
+    return io.TextIOWrapper(io.BytesIO(payload), encoding='utf-8')
+
+
+def test_an_undecodable_body_is_a_usage_error_on_a_confirmed_command():
+    # The eager confirmation prompt reads first, and readline() decodes the
+    # whole buffered chunk while hunting the newline -- so an undecodable byte
+    # anywhere in the body raises inside Click's prompt, which handles only EOF
+    # and interrupts. That is outside the command callback, so cli_handler never
+    # sees it. The body's bytes must survive the prompt and be reported by
+    # _load_json_body instead.
+    exit_code, output, sdk = _invoke_with_stdin(
+        _byte_stdin(b'y\n' + UNDECODABLE_BODY),
+        'red-team', 'deployment', 'apply')
+    assert exit_code == 2, output
+    assert 'JSON body on stdin is not valid UTF-8' in output, output
+    sdk.red_team.deployment_terraform.assert_not_called()
+
+
+def test_a_non_ascii_body_survives_the_confirmation_prompt():
+    # Tolerating an undecodable byte must not corrupt a valid one: a body that
+    # decodes cleanly still reaches the SDK intact.
+    exit_code, output, sdk = _invoke_with_stdin(
+        _byte_stdin(b'y\n' + NON_ASCII_BODY),
+        'red-team', 'deployment', 'apply')
+    assert exit_code == 0, output
+    assert 'Apply the Terraform deployment?' in output, output
+    assert sdk.red_team.deployment_terraform.call_args[0][1] == {'a': 'Jos\u00e9'}
+
+
+def test_a_non_ascii_body_survives_a_command_without_a_prompt():
+    exit_code, output, sdk = _invoke_with_stdin(
+        _byte_stdin(NON_ASCII_BODY), 'red-team', 'deployment', 'plan')
+    assert exit_code == 0, output
+    assert sdk.red_team.deployment_terraform.call_args[0][0] == 'plan'
+    assert sdk.red_team.deployment_terraform.call_args[0][1] == {'a': 'Jos\u00e9'}
+
+
+def test_an_undecodable_body_is_a_usage_error_without_a_prompt():
+    # No prompt reads first here, so the bytes reach sys.stdin.read(). The usage
+    # error must still be reported -- a tolerant error handler on the stream
+    # must not become silent acceptance of an undecodable body.
+    exit_code, output, sdk = _invoke_with_stdin(
+        _byte_stdin(UNDECODABLE_BODY), 'red-team', 'deployment', 'plan')
+    assert exit_code == 2, output
+    assert 'JSON body on stdin is not valid UTF-8' in output, output
+    sdk.red_team.deployment_terraform.assert_not_called()

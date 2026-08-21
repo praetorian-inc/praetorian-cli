@@ -32,13 +32,29 @@ def _load_json_body(path=None):
         # refused once the stream has been read, and is absent on a stdin that is
         # not a TextIOWrapper; in both cases the stream's own decoder stands.
         # _decode_piped_stdin_as_utf8() normally gets there first -- this call is
-        # what covers a caller that reaches here without the red-team group.
+        # what covers a caller that reaches here without the red-team group. Both
+        # sites install the same permissive error handler; they must agree, or a
+        # caller arriving without the group gets strict decoding back and the
+        # validation below never sees the undecodable bytes.
         try:
-            sys.stdin.reconfigure(encoding='utf-8')
+            sys.stdin.reconfigure(encoding='utf-8', errors='surrogateescape')
         except (AttributeError, OSError, ValueError):
             pass
         try:
             data = sys.stdin.read().strip()
+        except UnicodeDecodeError:
+            # Reached when reconfigure() above was refused and the stream's own
+            # decoder is a strict one.
+            raise click.UsageError(f'JSON body on {source} is not valid UTF-8')
+        # POLICY: stdin is decoded permissively but validated strictly, and this
+        # is where the strict check lives -- it cannot live in the decoder,
+        # because an eager @click.confirmation_option reads (and so decodes) the
+        # buffered body before any command body runs, where a decode error is out
+        # of reach of cli_handler (see _decode_piped_stdin_as_utf8). Undecodable
+        # bytes arrive here as lone surrogates; the round-trip is what rejects
+        # them, as a usage error the caller can act on.
+        try:
+            data.encode('utf-8', 'surrogateescape').decode('utf-8')
         except UnicodeDecodeError:
             raise click.UsageError(f'JSON body on {source} is not valid UTF-8')
     else:
@@ -85,14 +101,21 @@ def _decode_piped_stdin_as_utf8():
     # @click.confirmation_option is an EAGER Click parameter -- its prompt
     # consumes a line before any command body runs. The in-body call in
     # _load_json_body therefore arrives too late on every confirmed command, and
-    # the locale decoder either mojibakes the body or raises inside Click's
-    # prompt, out of reach of any handler here. A group callback runs before a
+    # the locale decoder would mojibake the body. A group callback runs before a
     # leaf command's eager parameters (measured), so this is the last point that
     # still precedes that first read. A tty is left alone: it never carries a
     # JSON body (see _load_json_body), and its encoding is the terminal's.
+    #
+    # POLICY: errors='surrogateescape', never strict. readline() decodes the
+    # whole buffered chunk while it hunts the newline, so an undecodable byte
+    # anywhere in the body -- not just in the prompt's own line -- raises inside
+    # Click's prompt, which handles only EOF and interrupts. That runs during
+    # parse_args, outside the command callback and so outside cli_handler, where
+    # nothing can turn it into a usage error. Permissive here carries those bytes
+    # through as lone surrogates; _load_json_body is what rejects them.
     try:
         if not sys.stdin.isatty():
-            sys.stdin.reconfigure(encoding='utf-8')
+            sys.stdin.reconfigure(encoding='utf-8', errors='surrogateescape')
     except (AttributeError, OSError, ValueError):
         pass
 
