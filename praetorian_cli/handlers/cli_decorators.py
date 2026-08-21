@@ -4,6 +4,7 @@ import os
 import stat
 import sys
 import tempfile
+import threading
 import time
 from concurrent.futures import CancelledError
 from functools import wraps
@@ -68,21 +69,34 @@ def handle_error(func):
 
 # POLICY: the update advisory is best-effort. It is skipped when the session is
 # not interactive, when the opt-out env var is set, and when a group callback is
-# merely delegating to a subcommand; it reaches pypi.org at most once per TTL,
-# carries no command context (no argv, profile, account, or custom headers), and
-# fails open -- no ordinary failure of it changes a command outcome. The cache is
-# private where the platform enforces POSIX modes: 0700 directory, 0600 file,
-# atomic same-directory replace.
+# merely delegating to a subcommand; it carries no command context (no argv,
+# profile, account, or custom headers), bounds its network refresh to
+# `UPDATE_CHECK_DEADLINE_SECONDS` of wall clock, and fails open -- no ordinary
+# failure of it changes a command outcome. The cache is private where the
+# platform enforces POSIX modes: 0700 directory, 0600 file, atomic
+# same-directory replace.
 #
-# WHERE TO CHANGE: cadence, opt-out, endpoint, timeout, and the size a record may
-# reach before it is refused are the constants below; the advisory itself is
+# POLICY: the throttle record orders SEQUENTIAL invocations only. N truly
+# simultaneous ones all read the stale record before any of them writes, so each
+# may probe once -- an accepted tradeoff: all of them then write the record, so
+# the next TTL is quiet, and the gates above already exclude non-interactive and
+# CI sessions, which leaves simultaneous interactive invocations rare. Do NOT
+# reintroduce a claim held BY PATH to close it: a claim that cannot identify its
+# own holder unlinks a live peer's claim and defeats the rate limit it was built
+# to guarantee (measured), and a duplicate refresh costs one CDN-backed GET
+# against an already-atomic record write.
+#
+# WHERE TO CHANGE: cadence, opt-out, endpoint, per-socket timeout, total
+# wall-clock deadline, and the sizes a record and a response body may reach
+# before they are refused are the constants below; the advisory itself is
 # `_check_for_update`.
 UPDATE_CHECK_CACHE_MAX_BYTES = 64 * 1024
 UPDATE_CHECK_CACHE_TTL_SECONDS = 24 * 60 * 60
+UPDATE_CHECK_DEADLINE_SECONDS = 3
 UPDATE_CHECK_DISABLE_ENV = "PRAETORIAN_CLI_DISABLE_UPDATE_CHECK"
 UPDATE_CHECK_DISABLE_VALUES = frozenset({"1", "true", "yes", "on"})
 UPDATE_CHECK_NON_INTERACTIVE_ENV = ("CI", "GITHUB_ACTIONS")
-UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS = 60
+UPDATE_CHECK_RESPONSE_MAX_BYTES = 1024 * 1024
 UPDATE_CHECK_TIMEOUT_SECONDS = 2
 UPDATE_CHECK_URL = "https://pypi.org/pypi/praetorian-cli/json"
 
@@ -152,56 +166,6 @@ def _path_is_owned_by_effective_user(path):
     return path.stat().st_uid == geteuid()
 
 
-def _create_update_refresh_marker(marker_path):
-    """True only for the call that created the marker. Never raises."""
-    try:
-        os.close(os.open(marker_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
-        return True
-    except OSError:
-        return False
-
-
-def _claim_update_refresh_marker(cache_path):
-    """The marker path when this invocation may refresh, otherwise None.
-
-    POLICY: exactly one of N simultaneous invocations refreshes. The throttle
-    record cannot deliver that on its own -- all N read the stale cache before
-    any of them writes -- so the claim is an exclusive create. `O_EXCL` is
-    atomic on POSIX and Windows alike, which is why it is the mechanism here
-    instead of `fcntl`/`flock`. Losing the claim skips the REFRESH only. A
-    marker counts as held only while its age is inside
-    +/-`UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS`, which tolerates clock skew in
-    both directions: a marker stamped in the future ages out instead of wedging
-    refreshes for good, and a filesystem clock running seconds ahead of ours does
-    not reclaim a live holder's marker.
-
-    WHERE TO CHANGE: the stale window is
-    `UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS`. A marker whose age falls outside
-    that window in either direction is unlinked and the claim re-attempted
-    exactly once, so a process killed while holding one cannot wedge refreshes
-    for good. Any `OSError` anywhere here means "did not win".
-    """
-    marker_path = cache_path.with_name(cache_path.name + ".refresh")
-    if _create_update_refresh_marker(marker_path):
-        return marker_path
-    try:
-        if -UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS <= time.time() - os.stat(marker_path).st_mtime \
-                <= UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS:
-            return None
-        os.unlink(marker_path)
-    except OSError:
-        return None
-    return marker_path if _create_update_refresh_marker(marker_path) else None
-
-
-def _release_update_refresh_marker(marker_path):
-    """Best-effort unlink. Never raises: every caller is already in a `finally`."""
-    try:
-        os.unlink(marker_path)
-    except OSError:
-        pass
-
-
 def _parse_version(raw):
     """A `Version`, or None when the value is absent or unparseable.
 
@@ -236,10 +200,20 @@ def _read_update_check_cache(cache_path):
     record planted by another user. Every refusal is raised as an `OSError`, so
     the arm below already reads it as "no usable record".
 
-    WHERE TO CHANGE: the ceiling is `UPDATE_CHECK_CACHE_MAX_BYTES`. On Windows
-    both flags degrade to 0 and the descriptor is text-mode (`O_BINARY` unset),
-    which is symmetric with the writer's `os.fdopen(fd, "w", encoding="utf-8")`
-    and JSON-insensitive; the type, size, and ownership checks still hold there.
+    POLICY: the `fstat` size check is the cheap first line of defence, not the
+    enforcement -- it describes the file as of the stat, and the read that
+    follows is a separate syscall on the same descriptor. So the read is bounded
+    too: at most `UPDATE_CHECK_CACHE_MAX_BYTES + 1` bytes, and one byte over the
+    ceiling is refused as `EFBIG` for the arm below (measured: an unbounded
+    `json.load` on a descriptor whose file grew after the stat yielded 8 MiB
+    against a 64 KiB cap).
+
+    WHERE TO CHANGE: the ceiling is `UPDATE_CHECK_CACHE_MAX_BYTES`, and it counts
+    BYTES -- the descriptor is read in binary and `json.loads` decodes UTF-8
+    itself, so a multi-byte record cannot spend more than the ceiling. On Windows
+    both `os.open` flags degrade to 0 and `O_BINARY` stays unset, which is
+    JSON-insensitive (the writer emits no newlines); the type, size, and
+    ownership checks still hold there.
     """
     try:
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
@@ -255,12 +229,15 @@ def _read_update_check_cache(cache_path):
             geteuid = getattr(os, "geteuid", None)
             if geteuid is not None and info.st_uid != geteuid():
                 raise OSError(errno.EPERM, "cache record is not owned by us")
-            cache_file = os.fdopen(fd, encoding="utf-8")
+            cache_file = os.fdopen(fd, "rb")
         except BaseException:
             os.close(fd)
             raise
         with cache_file:
-            cache = json.load(cache_file)
+            record = cache_file.read(UPDATE_CHECK_CACHE_MAX_BYTES + 1)
+        if len(record) > UPDATE_CHECK_CACHE_MAX_BYTES:
+            raise OSError(errno.EFBIG, "cache record is too large")
+        cache = json.loads(record)
         checked_at = cache["checked_at"]
         if isinstance(checked_at, bool) or not isinstance(checked_at, (int, float)):
             return None
@@ -343,7 +320,7 @@ def _prepare_update_check_cache_dir(cache_path):
     at, and a path we did not create is only ours to repair when it is a
     directory we own.
 
-    WHERE TO CHANGE: this runs before the refresh marker is claimed (the marker
+    WHERE TO CHANGE: this runs before the throttle record is written (the record
     needs a directory to be created in) and again inside
     `_write_update_check_cache`, which validates on its own terms rather than
     trusting its caller -- and which keeps the descriptor this discards. The
@@ -456,10 +433,11 @@ def _write_update_check_cache(cache_path, checked_at, latest_version):
     * It lets NOTHING ESCAPE. No descriptor and no temporary file survives any
       failure path, including a failure raised between the temporary's creation
       and the `os.fdopen` that takes ownership of its descriptor.
-    * It is NO PART of the exclusion between concurrent refreshes. That is
-      `_claim_update_refresh_marker`, and `_check_for_update` claims it BEFORE
-      calling this -- so reaching this function at all already means this
-      invocation is the one refreshing.
+    * It is NO PART of any exclusion between concurrent refreshes -- there is
+      none, by policy (see the module POLICY block). Simultaneous invocations
+      each reach this function and each write; the write is an atomic
+      same-directory rename, so the record a reader sees is always one writer's
+      whole record.
     * `False` means "this environment cannot be throttled, so do not probe".
       Returns rather than raises: the caller treats a failed write as a
       control-flow signal (stay off the network), not as an error to swallow.
@@ -494,10 +472,73 @@ def _fetch_latest_version():
     `info.version` rather than `max(Version(r) for r in releases)`: the max over
     release keys ranks prereleases above stable ones (2.0.0rc1 over 1.0.0), and a
     single unparseable key raises `InvalidVersion` into the fail-open arm.
+
+    POLICY: the GET asks for no compression and the body is bounded by the RAW
+    bytes read off the socket, so raw and decoded are the same bytes. The cap has
+    to hold on EVERY urllib3 the `requests` pin permits, and only the raw read is
+    bounded on all of them: `decode_content=True` bounds DECODED bytes on urllib3
+    >= 2, but on 1.26.x it reads that many ENCODED bytes and then decompresses
+    without any bound -- a wire-bytes cap, which a gzip bomb walks straight
+    through (measured, 55 KiB of wire peaking 131x past this 1 MiB ceiling). A
+    server that ignores the header and compresses anyway is still capped at the
+    raw read, and `json.loads` then raises on the compressed bytes into the
+    fail-open arm -- no advisory, which is the intended outcome, so a
+    `Content-Encoding` check would add a branch and change no behaviour.
+    `Content-Length` cannot stand in for the cap either: measured, this endpoint
+    answers `Content-Length: 28568` for a body of 117712 bytes when it gzips, and
+    a header describes what a server claims it will send, not what arrives.
+
+    WHERE TO CHANGE: the ceiling is `UPDATE_CHECK_RESPONSE_MAX_BYTES`, it counts
+    RAW bytes, and the oversize arm must return BEFORE parsing. The real payload
+    is 115 KiB across 64 releases (~1.8 KiB per release), so the 1 MiB ceiling
+    keeps ~8.9x of headroom that grows with the release count. `json.loads` takes
+    the undecoded `bytes` and detects UTF-8 itself, so no decoding step belongs
+    here. The response is closed on every path: `stream=True` holds the
+    connection open until it is.
     """
-    response = requests.get(UPDATE_CHECK_URL, timeout=UPDATE_CHECK_TIMEOUT_SECONDS)
-    response.raise_for_status()
-    return _parse_version(response.json()["info"]["version"])
+    response = requests.get(UPDATE_CHECK_URL, timeout=UPDATE_CHECK_TIMEOUT_SECONDS, stream=True,
+                            headers={"Accept-Encoding": "identity"})
+    with response:
+        response.raise_for_status()
+        body = response.raw.read(UPDATE_CHECK_RESPONSE_MAX_BYTES + 1, decode_content=False)
+    if len(body) > UPDATE_CHECK_RESPONSE_MAX_BYTES:
+        return None
+    return _parse_version(json.loads(body)["info"]["version"])
+
+
+def _fetch_latest_version_within_deadline():
+    """`_fetch_latest_version`'s answer, or None when it does not land in time.
+
+    POLICY: the refresh gets a hard WALL-CLOCK bound. `requests`' `timeout`
+    bounds each individual socket operation and never the total -- measured, a
+    `timeout=2` GET against a server dribbling one header byte every 1.5s
+    returned after 64.7 seconds, and the real CLI sat alive 10.1s past its own
+    last line of output. So the fetch runs on a thread and a thread still alive
+    after the join is ABANDONED, its result discarded. `daemon=True` is
+    load-bearing: the interpreter must not wait for an abandoned fetch at exit.
+    For the same reason this is a bare thread and NOT a
+    `concurrent.futures.ThreadPoolExecutor`, whose `atexit` handler joins its
+    workers and would reinstate exactly the wait this removes.
+
+    WHERE TO CHANGE: the bound is `UPDATE_CHECK_DEADLINE_SECONDS`; the per-socket
+    `UPDATE_CHECK_TIMEOUT_SECONDS` still applies inside the thread and still
+    helps the common case -- this is the outer guarantee, not its replacement.
+    """
+    fetched = [None]
+
+    def fetch():
+        # Nothing may escape a thread nobody is waiting for any more: an
+        # exception here would reach the interpreter's excepthook and print over
+        # the command's own output.
+        try:
+            fetched[0] = _fetch_latest_version()
+        except BaseException:
+            pass
+
+    thread = threading.Thread(target=fetch, daemon=True)
+    thread.start()
+    thread.join(UPDATE_CHECK_DEADLINE_SECONDS)
+    return None if thread.is_alive() else fetched[0]
 
 
 def _check_for_update():
@@ -513,56 +554,33 @@ def _check_for_update():
         cached = _read_update_check_cache(cache_path)
         latest = cached[1] if cached is not None else None
         if not _update_check_cache_is_fresh(cached, now):
-            # The marker below is created IN the cache directory, so the directory
+            # The record below is written IN the cache directory, so the directory
             # has to exist and be trustworthy first. Failing to prepare it is the
             # same signal a failed record write is: an environment whose probe
             # rate we cannot limit is one we must not probe.
             if not _prepare_update_check_cache_dir(cache_path):
                 return
-            # POLICY: the throttle record orders SEQUENTIAL invocations; it does
-            # nothing for simultaneous ones, which all read the stale cache before
-            # any of them writes. The marker is what makes exactly one of them
-            # refresh, and it is claimed BEFORE that record is written -- claimed
-            # after, the only record a late arrival could find would be its own,
-            # and it would refresh again. Losing the claim skips the REFRESH only:
-            # control falls through to the comparison below, so a version already
-            # known is still advertised.
-            marker_path = _claim_update_refresh_marker(cache_path)
-            if marker_path is not None:
-                try:
-                    # A peer that refreshed while we queued for the claim wrote
-                    # its record before fetching, so it is readable here and this
-                    # invocation stands down exactly as a lost claim does. The
-                    # clock is read again rather than reused: `now` was sampled
-                    # before the claim, so a peer record written after it would
-                    # score as a future timestamp and read as stale.
-                    refreshed = _read_update_check_cache(cache_path)
-                    if _update_check_cache_is_fresh(refreshed, time.time()):
-                        latest = refreshed[1]
-                    # Record the attempt BEFORE making it, so EVERY way a refresh
-                    # can fail is throttled by the same record -- network and HTTP
-                    # errors, an unparseable payload, and the environments where
-                    # the cache cannot be written at all (a read-only filesystem,
-                    # a cache directory owned by another user). A file-based cache
-                    # written only on success cannot throttle the case where the
-                    # file cannot be written, which is how this reached pypi.org
-                    # on every single invocation. The previous known version rides
-                    # along, so a failed refresh keeps advertising what we already
-                    # knew.
-                    elif not _write_update_check_cache(cache_path, now, latest):
-                        return
-                    else:
-                        try:
-                            fetched = _fetch_latest_version()
-                        except CancelledError:
-                            raise
-                        except Exception:
-                            fetched = None
-                        if fetched is not None:
-                            latest = fetched
-                            _write_update_check_cache(cache_path, now, latest)
-                finally:
-                    _release_update_refresh_marker(marker_path)
+            # Record the attempt BEFORE making it, so EVERY way a refresh can
+            # fail is throttled by the same record -- network and HTTP errors, an
+            # unparseable payload, a body over the size ceiling, a fetch
+            # abandoned at the deadline, and the environments where the cache
+            # cannot be written at all (a read-only filesystem, a cache directory
+            # owned by another user). A file-based cache written only on success
+            # cannot throttle the case where the file cannot be written, which is
+            # how this reached pypi.org on every single invocation. The previous
+            # known version rides along, so a failed refresh keeps advertising
+            # what we already knew.
+            if not _write_update_check_cache(cache_path, now, latest):
+                return
+            try:
+                fetched = _fetch_latest_version_within_deadline()
+            except CancelledError:
+                raise
+            except Exception:
+                fetched = None
+            if fetched is not None:
+                latest = fetched
+                _write_update_check_cache(cache_path, now, latest)
         if latest is None:
             return
         local = Version(version('praetorian-cli'))
@@ -579,10 +597,25 @@ def _check_for_update():
 
 
 def upgrade_check(func):
+    # POLICY: the advisory is an epilogue to work whose output has ALREADY been
+    # produced, and this decorator composes OUTERMOST -- outside `handle_error`
+    # -- so anything escaping here becomes the command's exit status. A Ctrl-C
+    # during the advisory therefore must not turn a completed command into
+    # `Aborted!` and exit 1: a non-zero exit for work that already succeeded
+    # invites an unsafe retry of a mutating command (measured: 968 rows
+    # delivered, then exit 1).
+    #
+    # WHERE TO CHANGE: `CancelledError` is deliberately NOT caught here, and the
+    # asymmetry with `KeyboardInterrupt` is not an oversight -- a cancelled async
+    # task must still observe its cancellation, so it keeps propagating exactly
+    # as `_check_for_update`'s own `except CancelledError: raise` arm sends it.
     @wraps(func)
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
-        _check_for_update()
+        try:
+            _check_for_update()
+        except KeyboardInterrupt:
+            pass
         return result
 
     return wrapper

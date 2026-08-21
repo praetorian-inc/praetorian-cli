@@ -34,6 +34,7 @@ a command's outcome.
 import asyncio
 import subprocess
 import sys
+import threading
 from concurrent.futures import CancelledError as FutureCancelledError
 from unittest.mock import Mock
 
@@ -46,6 +47,10 @@ from click.testing import CliRunner
 # from the suite's silently -- and would turn a deliberate re-wording into a
 # spurious test failure here.
 from praetorian_cli.handlers.cli_decorators import DEBUG_HINT
+
+# Imported for the same reason: the deadline test asserts the join was handed the
+# module's own budget, so a re-tuned budget must not need a matching edit here.
+from praetorian_cli.handlers.cli_decorators import UPDATE_CHECK_DEADLINE_SECONDS
 
 # The exact shape `Chariot.process_failure` raises on a failed API call
 # (praetorian_cli/sdk/chariot.py). Both halves -- the status line and the response
@@ -644,9 +649,13 @@ def test_handled_user_facing_error_is_unchanged(monkeypatch):
 #
 # The cases above all raise, so `upgrade_check` never reaches `_check_for_update`.
 # These pin the other half: when the command succeeds the advisory does run, and
-# its own failures must not be able to change the outcome the user already earned
-# -- except for the process-control exceptions, which are the deliberate
-# exceptions to that rule and must keep propagating.
+# its own failures must not be able to change the outcome the user already earned.
+#
+# That holds for a Ctrl-C too, which is the correction ENG-6643 makes: the
+# advisory is a trailing informational courtesy, so an interrupt arriving during
+# it cannot retroactively fail work the user has already been handed. Process
+# control that the *process itself* initiated -- `sys.exit()`, a cancelled task --
+# is the deliberate exception and still reaches the exit status.
 
 
 def test_ordinary_update_advisory_failure_remains_fail_open(monkeypatch, tmp_path):
@@ -661,21 +670,101 @@ def test_ordinary_update_advisory_failure_remains_fail_open(monkeypatch, tmp_pat
     request.assert_called_once()
 
 
-def test_update_keyboard_interrupt_keeps_click_abort_semantics(monkeypatch, tmp_path):
-    """Ctrl-C during the advisory still aborts, rather than being swallowed.
+def _interrupt_the_deadline_wait(monkeypatch, exception):
+    """Raise `exception` in the main thread, where a real Ctrl-C would surface.
 
-    `KeyboardInterrupt` derives from `BaseException`, so `except Exception: pass`
-    leaves it alone and Click's standalone mode renders it as `Aborted!`. A bare
-    `except:` in `_check_for_update` would swallow it and report success.
+    The advisory's fetch runs on a worker thread and the main thread waits it out
+    in `Thread.join(UPDATE_CHECK_DEADLINE_SECONDS)`, so that join -- not
+    `requests.get` -- is where an interrupt during the advisory actually lands:
+    CPython delivers SIGINT to the main thread only, and a worker parked in a
+    socket read never receives it. Injecting at `requests.get` instead would put
+    the exception inside the worker, whose `except BaseException: pass` discards
+    it, and the test would pass for the wrong reason.
+
+    The real `join` runs FIRST, before the exception is raised, so the worker has
+    already finished and its `requests.get` call is recorded by the time control
+    returns -- otherwise the call assertion would race the worker.
+
+    `threading` is referenced exactly once in the module under test (that join),
+    so shimming the module attribute reaches that one call and nothing else.
+    Returns the list of timeouts the shim observed, so a test can prove the seam
+    fired rather than passing because it was never reached.
     """
-    request = _force_update_request(monkeypatch, tmp_path, KeyboardInterrupt())
+    import praetorian_cli.handlers.cli_decorators as decorators
 
-    result = CliRunner().invoke(_successful_command(), obj=object())
+    joined_with = []
 
-    assert result.exit_code == 1
-    assert "Aborted!" in result.output
+    class _InterruptedJoin(threading.Thread):
+        def join(self, timeout=None):
+            super().join(timeout)
+            joined_with.append(timeout)
+            raise exception
+
+    class _ThreadingShim:
+        Thread = _InterruptedJoin
+
+    monkeypatch.setattr(decorators, "threading", _ThreadingShim)
+    return joined_with
+
+
+def test_update_keyboard_interrupt_leaves_the_finished_command_successful(monkeypatch, tmp_path):
+    """A Ctrl-C during the trailing advisory must not fail a command that already succeeded.
+
+    This is the corrected contract (ENG-6643, finding R4-3). The command's own
+    work is complete and its output already delivered before `upgrade_check`
+    calls the advisory; letting a `KeyboardInterrupt` from that trailing courtesy
+    become `Aborted!` and exit 1 tells the user their command failed when it did
+    not -- and invites whoever wrote `guard list assets && next-step` to re-run
+    work that already succeeded. Measured on the real CLI before the fix: 968
+    asset rows and the pagination hint were printed, the process then sat alive
+    10.1s past its own output, and Ctrl-C there produced `Aborted!` and exit 1.
+
+    `upgrade_check`'s `except KeyboardInterrupt: pass` is what closes that, and it
+    is deliberately narrow: it wraps only the advisory call, so a Ctrl-C during
+    the command's own body still aborts (pinned by
+    `test_keyboard_interrupt_keeps_click_abort_semantics_and_skips_update`), and
+    it names `KeyboardInterrupt` alone, so `SystemExit` and cancellation still
+    propagate (pinned directly below).
+
+    The interrupt is injected at the deadline wait rather than at `requests.get`
+    -- see `_interrupt_the_deadline_wait` for why that is the only reachable
+    seam. `joined_with` is asserted first because every other assertion here
+    would also hold if the shim were never installed; without it a green run
+    would prove nothing.
+    """
+    request = _force_update_request(monkeypatch, tmp_path, TimeoutError("fetch still in flight"))
+    joined_with = _interrupt_the_deadline_wait(monkeypatch, KeyboardInterrupt())
+    command = _command_calling(lambda: click.echo("delivered-before-the-interrupt"))
+
+    result = CliRunner().invoke(command, obj=object())
+
+    assert joined_with == [UPDATE_CHECK_DEADLINE_SECONDS]
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert "Aborted!" not in result.output
     assert "Error:" not in result.output
+    assert result.output == "delivered-before-the-interrupt\n"
     request.assert_called_once()
+
+
+def _raise_from_the_throttle_write(monkeypatch, exception):
+    """Raise `exception` from the throttle-record write, on the main thread.
+
+    `_check_for_update` writes the throttle record *before* it goes anywhere near
+    the network, so this is the earliest main-thread step of the advisory that can
+    fail -- and it is reached through the real `_write_update_check_cache`, so that
+    function's own arms (`except CancelledError: raise`, then
+    `except Exception: return False`) are exercised rather than replaced.
+
+    It also makes the fetch provably unreached, which is what the
+    `request.assert_not_called()` in the caller records.
+    """
+    import praetorian_cli.handlers.cli_decorators as decorators
+
+    def raise_during_the_write(*_args, **_kwargs):
+        raise exception
+
+    monkeypatch.setattr(decorators.json, "dump", raise_during_the_write)
 
 
 @pytest.mark.parametrize(
@@ -684,19 +773,30 @@ def test_update_keyboard_interrupt_keeps_click_abort_semantics(monkeypatch, tmp_
     ids=["system-exit", "future-cancelled"],
 )
 def test_update_process_control_exceptions_propagate(monkeypatch, tmp_path, exception, exit_code):
-    """Process-control exceptions raised by the advisory are not swallowed.
+    """Process control raised by the advisory still reaches the exit status.
 
-    `SystemExit` is a `BaseException` and so passes through `except Exception`
-    untouched, keeping its own status. `concurrent.futures.CancelledError` is
-    `Exception`-derived on this runtime, so it would be swallowed on the fail-open
-    path -- the dedicated `except CancelledError: raise` arm is what makes it
-    propagate instead.
+    `KeyboardInterrupt` is now absorbed (above); these two are not, and the
+    distinction is the point. A `SystemExit` means something in the process asked
+    to exit with that status, and a `CancelledError` means the surrounding task
+    was cancelled -- neither is "the user interrupted a courtesy message", so
+    neither may be reported as a clean success. `SystemExit` is a `BaseException`
+    and passes through `except Exception` untouched, keeping its own status;
+    `concurrent.futures.CancelledError` is `Exception`-derived on this runtime, so
+    the fail-open arm *would* swallow it and the dedicated
+    `except CancelledError: raise` arm is what makes it propagate instead.
+
+    Anchored at the throttle write, a main-thread step, rather than at
+    `requests.get`: the fetch now runs on a worker thread whose body is
+    `except BaseException: pass`, so nothing raised there reaches the main thread
+    at all. `request.assert_not_called()` is the negative half of that -- control
+    never got as far as the network.
     """
     assert issubclass(FutureCancelledError, Exception)
-    request = _force_update_request(monkeypatch, tmp_path, exception)
+    request = _force_update_request(monkeypatch, tmp_path, AssertionError("must not be reached"))
+    _raise_from_the_throttle_write(monkeypatch, exception)
 
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == exit_code
     assert result.exception is exception
-    request.assert_called_once()
+    request.assert_not_called()

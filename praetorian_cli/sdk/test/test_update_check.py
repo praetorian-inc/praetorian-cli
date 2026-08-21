@@ -33,7 +33,8 @@ from click.testing import CliRunner
 from praetorian_cli.handlers.cli_decorators import (
     UPDATE_CHECK_CACHE_MAX_BYTES,
     UPDATE_CHECK_CACHE_TTL_SECONDS,
-    UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS,
+    UPDATE_CHECK_DEADLINE_SECONDS,
+    UPDATE_CHECK_RESPONSE_MAX_BYTES,
 )
 
 
@@ -51,6 +52,30 @@ ADVISORY_FRAGMENTS = (
 # The one fragment that appears exactly once per advisory, so counting it counts
 # advisories.
 ADVISORY_LEAD = ADVISORY_FRAGMENTS[0]
+
+# The exact call `_fetch_latest_version` makes. Asserted in full rather than as
+# "the URL, with some timeout", because three of these four arguments are
+# load-bearing and each was added for a measured reason: `stream=True` is what
+# leaves the body unread until the size cap has been applied to it, and
+# `Accept-Encoding: identity` is what makes a cap on RAW bytes a cap on the bytes
+# that actually get parsed -- a compressed body is capped on the wire and then
+# expanded without any bound at all, which a gzip bomb walks straight through
+# (measured: 55 KiB of wire peaking 131x past the 1 MiB ceiling). A call
+# assertion naming only the URL and the timeout would let any of them be dropped
+# again in silence.
+FETCH_ARGS = (UPDATE_URL,)
+FETCH_KWARGS = {
+    "timeout": 2,
+    "stream": True,
+    "headers": {"Accept-Encoding": "identity"},
+}
+
+
+def _assert_fetched_once(request):
+    """Exactly one fetch, made with the whole documented request shape."""
+    assert request.call_count == 1
+    assert request.call_args.args == FETCH_ARGS
+    assert request.call_args.kwargs == FETCH_KWARGS
 
 # The 0700/0600 guarantees are POSIX mode bits. Windows has no equivalent, and
 # `Path.chmod` there is close to a no-op -- so these are skipped rather than
@@ -111,17 +136,6 @@ def _cache_path(cache_root: Path) -> Path:
     return cache_root / "praetorian-cli" / "update-check.json"
 
 
-def _refresh_marker_path(cache_root: Path) -> Path:
-    """The exclusive-create marker that serialises concurrent refreshes.
-
-    Derived here the same way the module derives it -- a sibling of the cache
-    record -- so a test can pre-create it (another invocation holds the claim) or
-    assert its absence (the claim was released).
-    """
-    cache_path = _cache_path(cache_root)
-    return cache_path.with_name(cache_path.name + ".refresh")
-
-
 def _write_cache_record(cache_path: Path, checked_at, latest_version) -> None:
     """Leave the cache record a previous invocation -- or a peer -- would have left."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,7 +177,72 @@ def _symlinked_leaf_cache(tmp_path: Path):
     return cache_root, victim
 
 
-def _response(latest: str = "1.1.0", releases=None) -> Mock:
+class _RawBody:
+    """`response.raw`: the byte source `_fetch_latest_version` reads under a cap.
+
+    Every read is recorded, so a test can assert the body is read ONCE, bounded at
+    one byte PAST the ceiling -- which is the only way "over the ceiling" is
+    detectable at all -- and with decoding switched off.
+    """
+
+    def __init__(self, body: bytes):
+        self._remaining = body
+        self.reads = []
+
+    def read(self, amt=None, decode_content=None):
+        self.reads.append((amt, decode_content))
+        if amt is None:
+            chunk, self._remaining = self._remaining, b""
+        else:
+            chunk, self._remaining = self._remaining[:amt], self._remaining[amt:]
+        return chunk
+
+
+class _FakeResponse:
+    """The part of `requests.Response` that `_fetch_latest_version` actually uses.
+
+    Hand-written rather than a `Mock`, and that is the point of it: the fetch uses
+    the response as a CONTEXT MANAGER and reads BYTES off `.raw`, and a mock fakes
+    both shapes without holding them to anything -- `MagicMock.__enter__` hands
+    back another mock, and `raw.read(...)` hands back a mock whose `len()` raises
+    `TypeError` from inside the fail-open arm. So a mock turns "the fetch no
+    longer calls `.json()`" into either a vacuous pass or an unrelated failure,
+    while this fake turns it into a `TypeError` on the first shape that does not
+    match. `closed` is recorded because `stream=True` holds the connection open
+    until the response is closed, which makes leaking one a real defect rather
+    than a detail of the fake.
+    """
+
+    def __init__(self, body: bytes, status_error=None):
+        self.body = body
+        self.raw = _RawBody(body)
+        self.status_error = status_error
+        self.closed = False
+        self.entered = 0
+
+    def __enter__(self):
+        self.entered += 1
+        return self
+
+    def __exit__(self, *_exception):
+        self.close()
+        return False
+
+    def close(self):
+        self.closed = True
+
+    def raise_for_status(self):
+        if self.status_error is not None:
+            raise self.status_error
+
+    def json(self):
+        raise AssertionError(
+            "the fetch must not call response.json(): it reads and decodes the "
+            "whole body, which is exactly what the size cap exists to prevent"
+        )
+
+
+def _payload(latest: str, releases=None) -> dict:
     """A PyPI payload whose `releases` block is a decoy for `info.version`.
 
     The default decoy carries a prerelease that outranks `info.version` and a key
@@ -172,34 +251,45 @@ def _response(latest: str = "1.1.0", releases=None) -> Mock:
     `InvalidVersion` into the fail-open arm -- and every test that uses this
     fixture notices, not just the one that names the behaviour.
     """
-    response = Mock()
     if releases is None:
         releases = ["0.9.0", latest, "9.9.9rc1", "not-a-version"]
-    response.json.return_value = {
+    return {
         "info": {"version": latest},
         "releases": {key: [] for key in releases},
     }
-    return response
 
 
-def _response_without_info() -> Mock:
+def _response(latest: str = "1.1.0", releases=None, padded_to=None) -> _FakeResponse:
+    """The successful response for `latest`, as a real streamed-body response.
+
+    `padded_to` pads the encoded body out to exactly that many bytes with JSON
+    whitespace, which is how the size-cap boundary cases differ from an ordinary
+    payload in byte count and in nothing else.
+    """
+    body = json.dumps(_payload(latest, releases)).encode()
+    if padded_to is not None:
+        assert len(body) <= padded_to, "payload already exceeds the requested size"
+        body += b" " * (padded_to - len(body))
+        assert len(body) == padded_to
+    return _FakeResponse(body)
+
+
+def _response_without_info() -> _FakeResponse:
     """The payload shape that raises `KeyError` inside `_fetch_latest_version`."""
-    response = Mock()
-    response.json.return_value = {"releases": {"9.9.9": []}}
-    return response
+    return _FakeResponse(json.dumps({"releases": {"9.9.9": []}}).encode())
 
 
-def _error_response() -> Mock:
+def _error_response() -> _FakeResponse:
     """A 500 from pypi.org: a body that parses fine, behind a failing status.
 
     The body deliberately carries a plausible-looking version, so a
     `_fetch_latest_version` that skipped `raise_for_status()` would advertise an
     error page's contents as the latest release.
     """
-    response = Mock()
-    response.raise_for_status.side_effect = RuntimeError("500 Server Error")
-    response.json.return_value = {"info": {"version": "9.9.9"}, "releases": {}}
-    return response
+    return _FakeResponse(
+        json.dumps({"info": {"version": "9.9.9"}, "releases": {}}).encode(),
+        status_error=RuntimeError("500 Server Error"),
+    )
 
 
 def _configure_inputs(monkeypatch, cache_root: Path):
@@ -409,7 +499,7 @@ def test_update_check_opt_out_ignores_values_that_do_not_mean_yes(
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     assert "A new version of praetorian-cli is available: 1.2.0" in result.output
 
 
@@ -447,7 +537,7 @@ def test_update_check_refreshes_stale_cached_result_once_with_short_timeout(
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     assert json.loads(cache_path.read_text(encoding="utf-8"))["latest_version"] == "1.3.0"
 
 
@@ -492,7 +582,7 @@ def test_update_check_timeout_failure_is_fail_open(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert result.exception is None
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
 
 
 def test_update_check_privacy_request_excludes_command_context(monkeypatch, tmp_path):
@@ -518,7 +608,7 @@ def test_update_check_privacy_request_excludes_command_context(monkeypatch, tmp_
     )
 
     assert result.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     request_repr = repr(request.call_args)
     assert all(sentinel not in request_repr for sentinel in sentinels)
 
@@ -711,7 +801,7 @@ def test_update_check_records_the_attempt_before_making_the_request(
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     assert snapshots == [{"checked_at": CHECKED_AT, "latest_version": "1.2.0"}]
     # And the second record lands afterwards, carrying the fetched answer.
     assert json.loads(cache_path.read_text(encoding="utf-8")) == {
@@ -887,7 +977,7 @@ def test_update_check_failed_refresh_retains_the_previous_version(
 
     assert result.exit_code == 0
     assert result.exception is None
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     assert result.output.count(ADVISORY_LEAD) == 1
     assert "A new version of praetorian-cli is available: 1.2.0" in result.output
     # Nothing about the failure itself reaches the user.
@@ -933,7 +1023,7 @@ def test_update_check_fresh_unparseable_entry_is_silent_until_the_ttl_expires(
     after_ttl = CliRunner().invoke(_successful_command(), obj=object())
 
     assert after_ttl.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     assert "A new version of praetorian-cli is available: 1.8.0" in after_ttl.output
 
 
@@ -1023,7 +1113,7 @@ def test_update_check_requires_both_streams_to_be_a_terminal(
     assert result.exit_code == 0
     assert result.exception is None
     if expect_request:
-        request.assert_called_once_with(UPDATE_URL, timeout=2)
+        _assert_fetched_once(request)
         assert "A new version of praetorian-cli is available: 1.9.0" in result.output
     else:
         request.assert_not_called()
@@ -1081,7 +1171,7 @@ def test_update_check_future_timestamp_is_treated_as_stale(monkeypatch, tmp_path
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     # The future-dated entry was neither served to the user nor left in place.
     assert "9.9.9" not in result.output
     assert "1.5.0" in result.output
@@ -1138,7 +1228,7 @@ def test_update_check_advises_exactly_once_for_a_succeeding_subcommand(
     assert events == ["group", "leaf"]
     for fragment in ADVISORY_FRAGMENTS:
         assert result.output.count(fragment) == 1
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
 
 
 def test_update_check_advises_once_for_a_bare_group_invocation(monkeypatch, tmp_path):
@@ -1161,7 +1251,88 @@ def test_update_check_advises_once_for_a_bare_group_invocation(monkeypatch, tmp_
     assert events == ["group", "group-default"]
     for fragment in ADVISORY_FRAGMENTS:
         assert result.output.count(fragment) == 1
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
+
+
+class _SentinelBaseException(BaseException):
+    """A `BaseException` that is nothing else: not process control, not `Exception`.
+
+    Its only job is to prove the fetch's guard is written against `BaseException`
+    and not against a list of known classes -- an `except Exception` there, or an
+    `except (Exception, KeyboardInterrupt, SystemExit)`, would let this one out.
+    """
+
+
+@pytest.mark.parametrize(
+    "exception",
+    [
+        RuntimeError("boom"),
+        OSError("offline"),
+        KeyboardInterrupt(),
+        SystemExit(73),
+        CancelledError("cancelled"),
+        _SentinelBaseException("stop"),
+    ],
+    ids=[
+        "runtime-error",
+        "os-error",
+        "keyboard-interrupt",
+        "system-exit",
+        "cancelled",
+        "base-exception",
+    ],
+)
+@pytest.mark.filterwarnings("error::pytest.PytestUnhandledThreadExceptionWarning")
+def test_update_check_abandons_a_fetch_that_raises_anything(monkeypatch, tmp_path, exception):
+    """Whatever class the fetch raises, the fetch is abandoned and the command is untouched.
+
+    This is the guarantee the fetch seam actually offers, and it is unconditional
+    in the exception's class. The fetch runs on a worker thread
+    (`_fetch_latest_version_within_deadline`) whose body is
+    `except BaseException: pass`, so an advisory that cannot answer simply does
+    not answer: no version, no advisory, and nothing raised into the command's
+    result. The alternative -- re-raising the worker's exception in the main
+    thread -- would let an unreachable PyPI turn every successful command into a
+    failure, which is the whole reason the advisory is fail-open.
+
+    The class list is the point rather than decoration. `RuntimeError` and
+    `OSError` are what a real fetch fails with; the next three are the classes the
+    suite used to assert *propagate* from here (they do not, and cannot: SIGINT is
+    delivered to the main thread only, `SystemExit` in a non-main thread ends that
+    thread alone, and there is no future or event loop in a raw `threading.Thread`
+    to inject a `CancelledError`); and `_SentinelBaseException` covers the rest of
+    the hierarchy, so narrowing the guard to any enumerated set fails here.
+
+    `result.output == ""` pins that nothing reached the user: no advisory, because
+    there is no version to advise about, and no error either.
+
+    The `filterwarnings` mark is the other half, and it is load-bearing rather
+    than hygiene. If the worker's guard were narrowed, the exception would escape
+    the thread instead of the command -- so every assertion above would still
+    hold, and the test would pass over the regression. What actually happens then
+    is `threading.excepthook`, which on the real CLI prints a bare traceback onto
+    the user's stderr after a command that succeeded (and for `SystemExit` prints
+    nothing at all, killing the fetch thread silently). Under pytest that hook is
+    replaced by the threadexception plugin, which turns an escaped thread
+    exception into a warning; promoting that warning to an error is what lets this
+    test see it. Measured: narrowing `except BaseException` to `except Exception`
+    reddens the `keyboard-interrupt`, `system-exit` and `base-exception` cases and
+    is silent without the mark.
+
+    Where each of these *is* still expected to surface is pinned separately: at
+    the main-thread cache read below, at the cache write after that, and at the
+    CLI boundary in test_cli_errors.py.
+    """
+    decorators = _configure_update_check(monkeypatch, tmp_path)
+    request = Mock(side_effect=exception)
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    result = CliRunner().invoke(_successful_command(), obj=object())
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert result.output == ""
+    _assert_fetched_once(request)
 
 
 @pytest.mark.parametrize(
@@ -1169,36 +1340,68 @@ def test_update_check_advises_once_for_a_bare_group_invocation(monkeypatch, tmp_
     [KeyboardInterrupt(), SystemExit(73), CancelledError("cancelled")],
     ids=["keyboard-interrupt", "system-exit", "cancelled"],
 )
-def test_update_check_propagates_process_control_exceptions(
+def test_update_check_propagates_process_control_from_the_cache_read(
     monkeypatch, tmp_path, exception
 ):
     """The fail-open arms swallow failures, not process control.
 
-    `except Exception` already lets `KeyboardInterrupt` and `SystemExit` through
-    (both are `BaseException`), which is why it is written that way rather than as
-    a bare `except:`. `concurrent.futures.CancelledError` is `Exception`-derived on
-    this runtime, so the dedicated `except CancelledError: raise` arm is the only
-    thing that keeps a cancelled command from being reported as a success.
+    `_read_update_check_cache` narrows its arm to
+    `except (KeyError, OSError, TypeError, ValueError)`, and all three of these
+    fall outside it. Widening it to `except Exception` would swallow the
+    cancellation; a bare `except:` would swallow all three and report a cancelled
+    or exiting command as a clean success.
+
+    Anchored on the cache read because the read is a MAIN-THREAD step and the
+    fetch is not. This test used to inject at `requests.get`, which is now the
+    wrong seam twice over: the worker discards whatever it raises (see
+    `test_update_check_abandons_a_fetch_that_raises_anything`), and none of these
+    three can arise inside a worker blocked in a socket read in the first place.
+    The read is where a Ctrl-C, a `sys.exit()` from a signal handler, or a
+    cancellation of the surrounding task genuinely can land.
+
+    The record is seeded so the read has something to parse -- a missing file
+    returns before `json.loads` is reached. Seeding it STALE and arming the fetch
+    to fail loudly makes `request.assert_not_called()` a real guard: if the read
+    ever stopped raising, control would fall through to the refresh and the test
+    would fail at the fetch rather than passing vacuously.
 
     Called directly rather than through `CliRunner`, because the claim is about
-    what leaves `_check_for_update` -- Click's standalone mode would translate
-    each of these into an exit status and hide which one escaped.
+    what leaves `_check_for_update`; Click's standalone mode would translate each
+    of these into an exit status and hide which one escaped. What the CLI then
+    does with each is a separate contract, pinned in test_cli_errors.py:
+    `SystemExit` and `CancelledError` become the exit status, while
+    `KeyboardInterrupt` is caught by `upgrade_check` so a command that already
+    succeeded still exits 0.
     """
     decorators = _configure_update_check(monkeypatch, tmp_path)
-    monkeypatch.setattr(decorators.requests, "get", Mock(side_effect=exception))
+    _write_cache_record(
+        _cache_path(tmp_path), CHECKED_AT - UPDATE_CHECK_CACHE_TTL_SECONDS - 1, "1.1.0"
+    )
+    request = Mock(side_effect=AssertionError("must not be reached"))
+    monkeypatch.setattr(decorators.requests, "get", request)
+
+    def raise_during_the_read(*_args, **_kwargs):
+        raise exception
+
+    monkeypatch.setattr(decorators.json, "loads", raise_during_the_read)
 
     with pytest.raises(type(exception)) as raised:
         decorators._check_for_update()
 
     assert raised.value is exception
+    request.assert_not_called()
 
 
 def test_update_check_propagates_cancellation_from_the_cache_write(monkeypatch, tmp_path):
-    """Cancellation during the *write* propagates too, not just during the fetch.
+    """Cancellation during the *write* propagates too, not just during the read.
 
     The write has its own fail-open arm (it returns False rather than raising, so
     the caller can treat a failed write as "stay off the network"), which is
     exactly the shape that would turn a cancelled command into a silent success.
+
+    The write is the second main-thread step of the advisory, after the read
+    pinned above; the fetch is not one at all, so it is deliberately not the
+    comparison here.
     """
     decorators = _configure_update_check(monkeypatch, tmp_path)
     cancelled = CancelledError("cancelled")
@@ -1293,378 +1496,13 @@ def test_update_check_advisory_is_silent_when_local_version_is_current(
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     # `output` is the interleaved stdout+stderr stream and the command itself
     # prints nothing, so total emptiness is assertable -- a stronger claim than
     # the absence of the three fragments alone.
     assert result.output == ""
     for fragment in ADVISORY_FRAGMENTS:
         assert fragment not in result.output
-
-
-# --------------------------------------------------------------------------- #
-# Concurrent refresh exclusion.
-#
-# One exclusive-create marker beside the cache record elects one refresher out of
-# N simultaneous invocations. Real concurrency cannot be scheduled deterministically
-# in one process, so these tests drive the two halves of the race separately: the
-# LOSER's half by pre-creating the marker, and the WINNER-that-arrived-late half by
-# letting a peer land its record between the claim and the re-read.
-# --------------------------------------------------------------------------- #
-
-
-@pytest.mark.parametrize(
-    "marker_age",
-    [0, UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS],
-    ids=["just-claimed", "at-the-staleness-boundary"],
-)
-def test_update_check_lost_refresh_claim_makes_no_request(
-    monkeypatch, tmp_path, marker_age
-):
-    """Whoever loses the claim does not fetch: N invocations, one probe.
-
-    Both ages are held by another invocation. The boundary case is the one an
-    off-by-one reclaim would get wrong: a marker exactly at the staleness constant
-    is *not* yet stale, so treating the comparison as `<` instead of `<=` would let
-    a second invocation reclaim it and probe concurrently with the holder.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    cache_path = _cache_path(tmp_path)
-    # Stale, so the refresh branch is the one taken and the claim is attempted.
-    _write_cache_record(cache_path, 0, "1.2.0")
-    marker = _refresh_marker_path(tmp_path)
-    marker.write_bytes(b"")
-    os.utime(marker, (CHECKED_AT - marker_age, CHECKED_AT - marker_age))
-    request = Mock(side_effect=AssertionError("a lost refresh claim must not probe"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    assert result.exit_code == 0
-    assert result.exception is None
-    request.assert_not_called()
-
-
-def test_update_check_lost_refresh_claim_still_advises(monkeypatch, tmp_path):
-    """Losing the claim skips the REFRESH, not the whole check.
-
-    The cached version is still compared against the local one and still printed.
-    An implementation that returned early on a lost claim would silence the
-    advisory for every invocation that happens to collide with a refresh -- and
-    under a shell that runs several `guard` commands at once, that is most of them.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
-    marker = _refresh_marker_path(tmp_path)
-    marker.write_bytes(b"")
-    os.utime(marker, (CHECKED_AT, CHECKED_AT))
-    request = Mock(side_effect=AssertionError("a lost refresh claim must not probe"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    assert "A new version of praetorian-cli is available: 1.2.0" in result.output
-    assert result.exit_code == 0
-    request.assert_not_called()
-
-
-def test_update_check_lost_refresh_claim_leaves_the_holders_marker(monkeypatch, tmp_path):
-    """The loser does not release a marker it never claimed.
-
-    This is the whole exclusion: a loser that unlinked the holder's marker in its
-    own `finally` would hand the claim straight back to the next arrival, and N
-    invocations would probe N times again -- with the added hazard that the holder
-    is still mid-fetch and will release a marker that by then belongs to someone
-    else.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
-    marker = _refresh_marker_path(tmp_path)
-    marker.write_bytes(b"held")
-    os.utime(marker, (CHECKED_AT, CHECKED_AT))
-    request = Mock(side_effect=AssertionError("a lost refresh claim must not probe"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    assert marker.exists()
-    assert marker.read_bytes() == b"held"
-    assert result.exit_code == 0
-    request.assert_not_called()
-
-
-def test_update_check_stale_refresh_marker_is_reclaimed(monkeypatch, tmp_path):
-    """A marker left behind by a killed invocation cannot wedge refreshes forever.
-
-    One second past the staleness constant is enough: the marker is only an
-    election, so the recovery window is deliberately short compared to the cache
-    TTL. Without the reclaim, a single `SIGKILL` during a fetch would suppress
-    every future refresh for the lifetime of the cache directory.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
-    marker = _refresh_marker_path(tmp_path)
-    marker.write_bytes(b"")
-    abandoned_at = CHECKED_AT - (UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS + 1)
-    os.utime(marker, (abandoned_at, abandoned_at))
-    assert UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS < UPDATE_CHECK_CACHE_TTL_SECONDS
-    request = Mock(return_value=_response("1.8.0"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
-    assert result.exit_code == 0
-    assert "A new version of praetorian-cli is available: 1.8.0" in result.output
-
-
-def test_update_check_future_dated_refresh_marker_is_reclaimed(monkeypatch, tmp_path):
-    """A marker stamped in the FUTURE ages out too, instead of wedging refreshes.
-
-    A negative age is what a filesystem clock running ahead of ours, a restored
-    backup, or a copied home directory leaves behind, and it is unbounded in a way
-    a positive age is not: a marker a day in the future suppresses every refresh
-    for that whole day plus the staleness window if the bound only looks at the
-    positive side. The assertion is on the fetch count rather than on the claim's
-    return value, because the fetch is the behaviour the user loses.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
-    marker = _refresh_marker_path(tmp_path)
-    marker.write_bytes(b"stamped ahead")
-    a_day_ahead = CHECKED_AT + 24 * 60 * 60
-    os.utime(marker, (a_day_ahead, a_day_ahead))
-    request = Mock(return_value=_response("1.9.0"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
-    assert result.exit_code == 0
-    assert "A new version of praetorian-cli is available: 1.9.0" in result.output
-    # Reclaimed, used, and released -- not merely reclaimed.
-    assert not marker.exists()
-
-
-@pytest.mark.parametrize(
-    "skew_seconds",
-    [5, 30, UPDATE_CHECK_REFRESH_MARKER_STALE_SECONDS],
-    ids=["five-seconds-ahead", "thirty-seconds-ahead", "at-the-negative-boundary"],
-)
-def test_update_check_refresh_marker_stamped_by_a_fast_clock_still_holds(
-    monkeypatch, tmp_path, skew_seconds
-):
-    """A LIVE holder's marker is not reclaimed merely for reading as future-dated.
-
-    The tolerance is symmetric by policy, not by accident. A network filesystem
-    whose clock runs a few seconds ahead of this host stamps every marker in our
-    future, and a bound that tolerated only the positive side (`0 <= age <= S`)
-    would reclaim all of them the moment they were created -- the exclusion
-    failing open, N invocations probing together, which is the one thing the
-    marker exists to prevent. Modest skew is therefore *held*, and the negative
-    edge is inclusive, so a skew of exactly the staleness constant still holds.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    # Stale, so the refresh branch is the one taken and the claim is attempted.
-    _write_cache_record(_cache_path(tmp_path), 0, "1.2.0")
-    marker = _refresh_marker_path(tmp_path)
-    marker.write_bytes(b"held")
-    stamped_ahead = CHECKED_AT + skew_seconds
-    os.utime(marker, (stamped_ahead, stamped_ahead))
-    request = Mock(side_effect=AssertionError("a live holder's marker must not be reclaimed"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    assert result.exit_code == 0
-    assert result.exception is None
-    request.assert_not_called()
-    # The holder's marker is left exactly as it was, mtime included.
-    assert marker.read_bytes() == b"held"
-    assert marker.stat().st_mtime == stamped_ahead
-
-
-def test_update_check_refresh_marker_is_released_when_the_fetch_raises(
-    monkeypatch, tmp_path
-):
-    """The claim is released on the failure paths too, not only on success.
-
-    The release lives in a `finally`, which is what this asserts: a marker left
-    behind by a raising fetch would suppress refreshes until it aged out of the
-    staleness window, turning one unreachable index into a stall on every
-    invocation in that window.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    _write_cache_record(_cache_path(tmp_path), 0, None)
-    marker = _refresh_marker_path(tmp_path)
-    request = Mock(side_effect=OSError("name or service not known"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    assert not marker.exists()
-    assert result.exit_code == 0
-    assert result.exception is None
-    assert request.call_count == 1
-
-
-def test_update_check_released_marker_lets_the_next_stale_invocation_refresh(
-    monkeypatch, tmp_path
-):
-    """The consequence of the release: the next stale invocation can still refresh.
-
-    The TTL throttle is deliberately stepped over between the two invocations, so
-    the only thing that could stop the second refresh is a marker the first one
-    failed to release -- and under the frozen clock any leftover marker is inside
-    the staleness window, so the claim would be lost and the request count would
-    stay at one.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    cache_path = _cache_path(tmp_path)
-    _write_cache_record(cache_path, 0, None)
-    request = Mock(side_effect=OSError("name or service not known"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    first = CliRunner().invoke(_successful_command(), obj=object())
-    assert first.exit_code == 0
-    assert request.call_count == 1
-
-    # Age the throttle record back out of the TTL window, so the second
-    # invocation reaches the claim at all.
-    _write_cache_record(cache_path, 0, None)
-    request.side_effect = None
-    request.return_value = _response("1.9.0")
-
-    second = CliRunner().invoke(_successful_command(), obj=object())
-
-    assert request.call_count == 2
-    assert second.exit_code == 0
-    assert "A new version of praetorian-cli is available: 1.9.0" in second.output
-
-
-def _claim_then_let_a_peer_refresh(decorators, monkeypatch, cache_path, peer_at, peer_version):
-    """Win the claim, then let a peer land `peer_version` before the re-read.
-
-    This is the late-arrival half of the race: two invocations read the same stale
-    record, one wins the claim and fetches, and the other wins it *afterwards* --
-    by which point the answer it needs is already on disk. Patching the claim is
-    the only deterministic seam for it, because the peer's write has to land
-    strictly between this invocation's claim and its re-read.
-    """
-    real_claim = decorators._claim_update_refresh_marker
-
-    def claim_then_peer_refreshes(path):
-        claimed = real_claim(path)
-        _write_cache_record(cache_path, peer_at, peer_version)
-        return claimed
-
-    monkeypatch.setattr(
-        decorators, "_claim_update_refresh_marker", claim_then_peer_refreshes
-    )
-
-
-def test_update_check_claim_winner_stands_down_for_a_peers_fresh_record(
-    monkeypatch, tmp_path
-):
-    """A claim won *after* a peer refreshed makes ZERO requests.
-
-    Without the re-read inside the claim, the exclusion only narrows the race
-    window instead of closing it: every invocation that queues up behind the
-    holder claims the marker in turn the moment it is released, and each one
-    fetches on the strength of the stale record it read before it ever waited.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    cache_path = _cache_path(tmp_path)
-    _write_cache_record(cache_path, 0, "1.2.0")
-    request = Mock(side_effect=AssertionError("a peer's fresh record must not be re-fetched"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-    _claim_then_let_a_peer_refresh(decorators, monkeypatch, cache_path, CHECKED_AT, "1.5.0")
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    request.assert_not_called()
-    assert result.exit_code == 0
-    assert result.exception is None
-    assert not _refresh_marker_path(tmp_path).exists()
-
-
-def test_update_check_claim_winner_advises_the_peers_version(monkeypatch, tmp_path):
-    """Standing down still advises -- with the PEER's version, not the stale one.
-
-    The invocation read 1.2.0 at entry and the peer replaced it with 1.5.0 while
-    the claim was being taken. Serving the entry-time value would advertise a
-    version the process already knows to be superseded, and would keep doing so
-    for as long as invocations kept colliding.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    cache_path = _cache_path(tmp_path)
-    _write_cache_record(cache_path, 0, "1.2.0")
-    request = Mock(side_effect=AssertionError("a peer's fresh record must not be re-fetched"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-    _claim_then_let_a_peer_refresh(decorators, monkeypatch, cache_path, CHECKED_AT, "1.5.0")
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    assert "A new version of praetorian-cli is available: 1.5.0" in result.output
-    assert "1.2.0" not in result.output
-    assert result.exit_code == 0
-    request.assert_not_called()
-
-
-def test_update_check_peer_record_freshness_is_judged_by_the_clock_read_after_the_claim(
-    monkeypatch, tmp_path
-):
-    """The re-read samples the clock AGAIN; it must not reuse the pre-claim `now`.
-
-    Time passes while an invocation waits for the claim, so the peer's record can
-    carry a timestamp *later* than the `now` this invocation captured on entry.
-    Judged against that stale `now`, the age is negative, the future-timestamp rule
-    scores the peer's record as stale, and the invocation refetches -- which is the
-    exact stampede the re-read exists to prevent, restored in the one case where
-    contention is highest. Judged against a fresh reading, the age is positive and
-    the invocation stands down.
-
-    The clock is keyed on whether the peer has written rather than on call order,
-    so the discrimination does not depend on how many times `time.time()` happens
-    to be consulted.
-    """
-    decorators = _configure_update_check(monkeypatch, tmp_path)
-    cache_path = _cache_path(tmp_path)
-    _write_cache_record(cache_path, 0, "1.2.0")
-    request = Mock(side_effect=AssertionError("a peer's fresh record must not be re-fetched"))
-    monkeypatch.setattr(decorators.requests, "get", request)
-
-    peer_written = []
-    monkeypatch.setattr(
-        decorators.time, "time", lambda: CHECKED_AT + 10 if peer_written else CHECKED_AT
-    )
-
-    real_claim = decorators._claim_update_refresh_marker
-
-    def claim_then_peer_refreshes(path):
-        claimed = real_claim(path)
-        # Written 5s after this invocation's entry -- ahead of the pre-claim `now`,
-        # behind the clock as it reads once the claim has been taken.
-        _write_cache_record(cache_path, CHECKED_AT + 5, "1.5.0")
-        peer_written.append(True)
-        return claimed
-
-    monkeypatch.setattr(
-        decorators, "_claim_update_refresh_marker", claim_then_peer_refreshes
-    )
-
-    result = CliRunner().invoke(_successful_command(), obj=object())
-
-    request.assert_not_called()
-    assert "A new version of praetorian-cli is available: 1.5.0" in result.output
-    assert result.exit_code == 0
-    # The peer's record is left exactly as the peer wrote it: standing down writes
-    # nothing, so the peer's timestamp is not walked backwards to this
-    # invocation's older `now`.
-    assert json.loads(cache_path.read_text(encoding="utf-8")) == {
-        "checked_at": CHECKED_AT + 5,
-        "latest_version": "1.5.0",
-    }
 
 
 # --------------------------------------------------------------------------- #
@@ -1708,7 +1546,7 @@ def test_update_check_non_absolute_xdg_cache_home_falls_back_to_the_home_cache(
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     assert "A new version of praetorian-cli is available: 2.0.0" in result.output
     assert json.loads(resolved.read_text(encoding="utf-8"))["latest_version"] == "2.0.0"
     # Nothing was resolved against the working directory.
@@ -1829,7 +1667,7 @@ def test_update_check_symlinked_cache_ancestor_still_works(monkeypatch, tmp_path
 
     result = CliRunner().invoke(_successful_command(), obj=object())
 
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     assert result.exit_code == 0
     assert "A new version of praetorian-cli is available: 2.1.0" in result.output
     assert json.loads(
@@ -2060,7 +1898,7 @@ def test_update_check_cache_record_symlinked_to_a_valid_record_is_refused(
     result = CliRunner().invoke(_successful_command(), obj=object())
 
     assert result.exit_code == 0
-    request.assert_called_once_with(UPDATE_URL, timeout=2)
+    _assert_fetched_once(request)
     assert "A new version of praetorian-cli is available: 1.9.0" in result.output
     # The record was replaced, not written *through* the link.
     assert json.loads(planted.read_text(encoding="utf-8"))["latest_version"] == LOCAL_VERSION
