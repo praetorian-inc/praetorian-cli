@@ -3,8 +3,7 @@ import shlex
 import shutil
 import subprocess
 import time
-from praetorian_cli.sdk.model.aegis import Agent
-from praetorian_cli.handlers.ssh_utils import validate_agent_for_ssh
+from praetorian_cli.sdk.model.aegis import Agent, validate_agent_for_ssh
 
 
 def normalize_to_list(value, item_keys: List[str] = None) -> List:

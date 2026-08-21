@@ -1,14 +1,15 @@
 import pytest
 
 from praetorian_cli.sdk.model.globals import Risk
-from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
+from praetorian_cli.sdk.test.utils import selected_test_target, make_test_values, clean_test_entities, setup_chariot
 
 
 @pytest.mark.coherence
 class TestRisk:
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        profile, account = selected_test_target()
+        self.sdk = setup_chariot(profile, account)
         make_test_values(self)
 
     def test_affiliation(self):
