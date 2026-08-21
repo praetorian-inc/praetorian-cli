@@ -565,15 +565,15 @@
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-19"
+      "disposition": "excluded",
+      "reason": "Leaderboard is not customer-facing"
     },
     "/leaderboard/weights": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-19"
+      "disposition": "excluded",
+      "reason": "Leaderboard is not customer-facing"
     },
     "/plextrac/reporting": {
       "cli_command": null,
