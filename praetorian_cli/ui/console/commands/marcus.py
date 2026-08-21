@@ -355,13 +355,11 @@ class MarcusCommands:
                     messages, _ = self.sdk.search.by_key_prefix(
                         f'#message#{conversation_id}#', user=True)
                 except Exception as e:
-                    # Fetching message bodies after a WS signal can fail too. If we've
-                    # already yielded messages this stream, surface it as a MarcusError
-                    # (caller must not silently replay via polling); otherwise treat it
-                    # like a connect/subscribe failure so the caller can fall back.
-                    if yielded:
-                        raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
-                    raise _WSUnavailable(str(e))
+                    # Fetching message bodies after a WS signal can fail too.
+                    # The socket already connected, so this is an API-side
+                    # failure -- surface it as MarcusError (same as polling mode)
+                    # rather than _WSUnavailable which would silently retry.
+                    raise MarcusError(f'Lost connection while waiting for Marcus: {e}')
                 new = sorted((m for m in messages if isinstance(m, dict) and m.get('key', '') > last_key),
                              key=lambda x: x.get('key', ''))
                 for msg in new:
