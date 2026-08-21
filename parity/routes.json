@@ -655,50 +655,50 @@
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-6"
+      "disposition": "excluded",
+      "reason": "Internal, not customer-facing"
     },
     "/osint/submit": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-6"
+      "disposition": "excluded",
+      "reason": "Internal, not customer-facing"
     },
     "/osint/create-technology": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-6"
+      "disposition": "excluded",
+      "reason": "Internal, not customer-facing"
     },
     "/constantine/exploit": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-6"
+      "disposition": "excluded",
+      "reason": "Internal, not customer-facing"
     },
     "/constantine/patch": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-6"
+      "disposition": "excluded",
+      "reason": "Internal, not customer-facing"
     },
     "/constantine/patch-and-pr": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-6"
+      "disposition": "excluded",
+      "reason": "Internal, not customer-facing"
     },
     "/constantine/validate": {
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-6"
+      "disposition": "excluded",
+      "reason": "Internal, not customer-facing"
     },
     "/remediation/pr": {
       "cli_command": null,
@@ -718,8 +718,8 @@
       "cli_command": null,
       "sdk_entity": null,
       "gui": true,
-      "disposition": "planned",
-      "ticket": "ST-6"
+      "disposition": "excluded",
+      "reason": "Internal, not customer-facing"
     },
     "/findings/sealed": {
       "cli_command": null,
