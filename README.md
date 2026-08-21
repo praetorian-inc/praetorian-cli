@@ -434,8 +434,9 @@ guard red-team phishkit-nodes --status all
 
 Two conventions run through the family:
 
-- **JSON bodies come from a file.** Commands that take a JSON document accept `-f/--file PATH`, and
-  `--file -` reads stdin as before. Prefer the file form on `deployment apply`: stdin is also the
+- **JSON bodies come from a file or stdin.** Commands that take a JSON document accept `-f/--file PATH`.
+  When `--file` is omitted, stdin is read automatically (matching the SDK test patterns). `--file -`
+  makes the stdin source explicit. Prefer the file form on `deployment apply`: stdin is also the
   confirmation channel, so a piped payload leaves the prompt with nothing to read and the command
   aborts unless `--yes` is given.
 - **Secrets stay off the command line.** Evilginx phishlet parameters (OAuth client IDs and secrets,
