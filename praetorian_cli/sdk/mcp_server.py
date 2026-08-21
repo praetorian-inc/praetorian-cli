@@ -12,7 +12,10 @@ from mcp.types import Tool, TextContent
 # secret material (credential-broker payloads, API-key secrets, the webhook
 # auth PIN, integration records that embed that PIN) or change account
 # membership. A sensitive tool never matches a wildcard allow pattern: it is
-# exposed only when an allow entry names it exactly.
+# exposed only when an allow entry names it exactly. When adding a new entity
+# or method to the SDK that returns or manages secret material, add its family
+# to this tuple — nothing detects an unclassified secret-bearing tool
+# automatically.
 SENSITIVE_TOOL_PATTERNS = (
     'accounts_*',
     'credentials_*',

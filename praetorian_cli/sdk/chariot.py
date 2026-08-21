@@ -297,7 +297,7 @@ class Chariot:
         """ Start MCP server exposing SDK methods as tools
         
         Arguments:
-        allowable_tools: list
+        allowable_tools: list or tuple of str
             Optional list of tool names to expose. Tool names are in format
             'entity_method' (e.g., 'assets_add', 'risks_list'). If None, all
             non-sensitive tools are exposed; sensitive tools (see

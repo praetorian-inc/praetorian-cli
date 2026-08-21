@@ -51,7 +51,9 @@ def start(sdk, allowed):
     return or manage secrets (accounts_*, credentials_*, integrations_*,
     keys_*, webhook_*) are never matched by wildcard patterns — the default
     profile included — and are only exposed by passing the exact tool name
-    with -a (e.g. -a credentials_get).
+    with -a (e.g. -a credentials_get). Opting in accounts_assume_role is
+    higher-consequence than a read tool: it switches the session's tenant for
+    all subsequent tool calls.
 
     \b
     Example usages:
