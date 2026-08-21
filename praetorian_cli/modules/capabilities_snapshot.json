@@ -1,0 +1,5078 @@
+{
+  "capabilities": [
+    {
+      "name": "smugchunks",
+      "title": "Smugchunks",
+      "target": [
+        "port"
+      ],
+      "description": "Detects HTTP request smuggling vulnerabilities using chunked transfer encoding.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "CHARIOT_HEADER",
+          "description": "Headers to send with the request",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "CHARIOT_USER_AGENT",
+          "description": "Headers to send with the request",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "linux-ad-umber-check",
+      "title": "Linux Umber AD Domain Check",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs Active Directory security checks using Umber. Evaluates domain configuration against security rules and best practices. Supports filtering by specific rules or categories to focus on particular security concerns.",
+      "category": "recon,ad",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Username for authentication.",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Password for authentication.",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Rules",
+          "description": "Comma-separated list of specific rules to run (e.g., 'rule1,rule2'). If empty, all rules are run unless Category is specified.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Category",
+          "description": "Category of rules to run (e.g., 'passwords', 'privileges'). If empty, all categories are run unless Rules is specified.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Server",
+          "description": "Domain controller address. If empty, auto-discovered via DNS.",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "cve-researcher-agent",
+      "title": "CVE Researcher Agent",
+      "target": [
+        "noinput"
+      ],
+      "description": "Query CISA KEV for CVEs, search for existing templates, and run vulnerability research pipeline",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "days",
+          "description": "Number of days to look back for CVEs",
+          "default": "1",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "cve_id",
+          "description": "Specific CVE ID to research (optional)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "format",
+          "description": "Output format (text, json, xml)",
+          "default": "text",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "detailed",
+          "description": "Include detailed CVE information",
+          "default": "true",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "verbose",
+          "description": "Enable verbose output",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "run_pipeline",
+          "description": "Run the full CVE research pipeline",
+          "default": "true",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "run_validation",
+          "description": "Run the full validation pipeline for each child account",
+          "default": "true",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "create_prs",
+          "description": "Create PRs for new vulnerabilities",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "create_linear_ticket",
+          "description": "Create a linear ticket for new vulnerabilities",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "ldap-null-bind",
+      "title": "LDAP NULL Bind",
+      "target": [
+        "port"
+      ],
+      "description": "Checks LDAP servers for NULL bind authentication.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "cve-researcher-lite",
+      "title": "CVE Researcher Lite",
+      "target": [
+        "noinput"
+      ],
+      "description": "Generate Nuclei templates from CVE IDs using AI-powered research and template generation",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "cve_id",
+          "description": "CVE identifier (e.g., CVE-2021-44228)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "template_type",
+          "description": "Template type: detection, exploitation, or both",
+          "default": "detection",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "target_host",
+          "description": "Target host for template validation",
+          "default": "example.com",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "max_iterations",
+          "description": "Maximum fix iterations",
+          "default": "3",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "verbose",
+          "description": "Enable verbose logging",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "current_branch",
+          "description": "GitHub branch for template commit",
+          "default": "main",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "augustus",
+      "title": "Augustus",
+      "target": [
+        "webpage"
+      ],
+      "description": "scans LLM services for jailbreaks, prompt injection, and adversarial attacks",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "probes",
+          "description": "Probe patterns to run (glob supported, e.g. '*', 'dan.*')",
+          "default": "dan.*,goodside.SystemPromptConfusion,goodside.PayloadSplitting",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "timeout",
+          "description": "Per-request timeout (e.g. '60s', '2m')",
+          "default": "60s",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "goal",
+          "description": "Attack goal for adaptive attack phase",
+          "default": "Leak the system prompt",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "config_file",
+          "description": "Full Augustus YAML config file to override all other parameters (generators, probes, detectors, etc.)",
+          "required": false,
+          "type": "file"
+        },
+        {
+          "name": "generator_type",
+          "description": "Temporary generator type override (e.g. openai-compatible, ollama, rest)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_endpoint",
+          "description": "Temporary generator endpoint override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_model",
+          "description": "Temporary generator model override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_api_key",
+          "description": "Temporary generator API key override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_method",
+          "description": "Temporary generator HTTP method override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_response_path",
+          "description": "Temporary generator response path override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_response_type",
+          "description": "Temporary generator response type override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_timeout",
+          "description": "Temporary generator request timeout override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_proxy",
+          "description": "Temporary generator proxy override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_headers_json",
+          "description": "Temporary generator headers as a JSON object",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_body",
+          "description": "Temporary generator body override",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "generator_extra_json",
+          "description": "Temporary generator provider-specific extra config as a JSON object",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "collect-edgar",
+      "title": "EDGAR Filing Lookup",
+      "target": [
+        "preseed"
+      ],
+      "description": "collects EDGAR company information from SEC database",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "reverse-whois",
+      "title": "Reverse Whois",
+      "target": [
+        "preseed"
+      ],
+      "description": "performs reverse WHOIS lookups to find related domains",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "linux-ad-smbsigning-dc",
+      "title": "Linux AD Domain Controller SMB Signing Check",
+      "target": [
+        "addomain"
+      ],
+      "description": "Executes NetExec (nxc) SMB signing check against target domain controllers to identify potential SMB signing vulnerabilities. This capability checks the SMB signing configuration of domain controllers to determine if they are vulnerable to SMB signing attacks. Supports both DNS-based discovery (external assessments) and credential-enhanced discovery (internal assessments) for maximum accuracy.",
+      "category": "recon",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username for enhanced DC discovery (optional - enables 99%+ accuracy vs 85-90% with DNS-only)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain password for enhanced DC discovery (optional - used with Username for authenticated LDAP queries)",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "linux-gitlab-pat-scanner",
+      "title": "Linux Web GitLab PAT Scanner",
+      "target": [
+        "asset"
+      ],
+      "description": "Scans accessible GitLab projects for leaked Personal Access Tokens (glpat) using code search, validates discovered tokens via the GitLab API, and outputs a JSON report with metadata and occurrence details.",
+      "category": "recon",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "GitlabToken",
+          "description": "GitLab access token used to perform search across projects",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "NoVerifySSL",
+          "description": "Disable SSL certificate verification (use with caution for self-signed certificates)",
+          "default": "true",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "cve-2025-55182",
+      "title": "CVE-2025-55182",
+      "target": [
+        "webpage"
+      ],
+      "description": "Scans webpages for CVE-2025-55182",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "portscan",
+      "title": "Port Scan",
+      "target": [
+        "asset"
+      ],
+      "description": "scans IP addresses and CIDRs for open ports",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "webapp-discovery",
+      "title": "Web Application Discovery",
+      "target": [
+        "port"
+      ],
+      "description": "discovers web applications from port attributes with HTTP/HTTPS services",
+      "version": "",
+      "executor": "chariot",
+      "surface": "application",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "anon-ftps",
+      "title": "Anonymous FTPS",
+      "target": [
+        "port"
+      ],
+      "description": "Checks FTPS servers for anonymous access, supporting implied and explicit configurations.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "JANUS_TOOLS",
+          "description": "Path to Janus tools directory",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "collect-favicon",
+      "title": "Favicon Lookup",
+      "target": [
+        "port"
+      ],
+      "description": "collects favicon images from web attributes for fingerprinting",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "github-repository",
+      "title": "GitHub Repository",
+      "target": [
+        "repository"
+      ],
+      "description": "monitors GitHub repositories for public exposure and recent changes",
+      "version": "",
+      "executor": "chariot",
+      "surface": "repository",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "java-jmx-scanner",
+      "title": "Java JMX Scanner",
+      "target": [
+        "port"
+      ],
+      "description": "Scans for Java JMX services and detects exposed management interfaces without proper authentication.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "windows-web-nuclei",
+      "title": "Windows Web Nuclei",
+      "target": [
+        "attribute"
+      ],
+      "description": "Performs automated web application vulnerability scanning using Nuclei's extensive template library. Identifies security vulnerabilities, misconfigurations, exposed services, and potential attack vectors across web applications and services within the client's internal environment. Features comprehensive vulnerability detection including CVEs, exposed panels, default credentials, and security misconfigurations.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "TemplateFilter",
+          "description": "(Optional) Filter templates by tags (e.g., cves,exposures,network). Leave empty to run all templates. Common tags: cves, exposures, exposed-panels, default-logins, misconfiguration, vulnerabilities, network, ssl, dns",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "EnableAutoScan",
+          "description": "Enable automatic scan mode for comprehensive coverage",
+          "default": "true",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "ExtraArgs",
+          "description": "(Optional) Additional Nuclei arguments",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "aurelian-azure-find-secrets",
+      "title": "Azure Find Secrets",
+      "target": [
+        "azureresource"
+      ],
+      "description": "Enumerates Azure resources via Resource Graph, extracts content likely to contain hardcoded secrets (VM user data, web app settings, automation variables, storage blobs, container env vars, Cosmos DB, APIM named values, Key Vault, and 30+ other sources), and scans with Titus.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "subscription-ids",
+          "description": "Azure subscription ID(s) or 'all' to enumerate all accessible subscriptions",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "db-path",
+          "description": "Path for Titus SQLite database",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "disabled-titus-rules",
+          "description": "Rule IDs to exclude from scanning",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "validate",
+          "description": "Validate detected secrets against their source APIs",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "ignore-file",
+          "description": "Path to gitignore-style file for skipping paths; when empty uses a default list",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ruleset",
+          "description": "Titus ruleset to apply; empty string disables ruleset filtering",
+          "default": "default",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "resource-id",
+          "description": "Azure resource ID(s) to scan directly, skipping enumeration",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "max-cosmos-doc-size",
+          "description": "Max individual Cosmos document size in bytes",
+          "default": "1048576",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "max-cosmos-doc-scan",
+          "description": "Max total Cosmos documents to scan per container",
+          "default": "50",
+          "required": false,
+          "type": "int"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "burp-dast-scan",
+      "title": "Burp DAST Scan",
+      "target": [
+        "webapplication"
+      ],
+      "description": "initiates a single Burp DAST scan for a WebApplication target",
+      "version": "",
+      "executor": "chariot",
+      "surface": "application",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "burpsuite-internal",
+      "title": "BurpSuite Internal",
+      "target": [
+        "noinput"
+      ],
+      "description": "scans Burp Enterprise internal sites and retrieves vulnerability data",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "secrets",
+      "title": "secrets",
+      "target": [
+        "repository"
+      ],
+      "description": "scans repositories for sensitive information and secrets with titus",
+      "version": "",
+      "executor": "chariot",
+      "surface": "repository",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "validation",
+          "description": "Validate discovered secrets against their source APIs (defaults to true)",
+          "default": "true",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "rules",
+          "description": "Comma-separated list of rule IDs to scan for (defaults to all rules)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "full_history",
+          "description": "Scan full git history vs only HEAD (defaults to true)",
+          "default": "true",
+          "required": false,
+          "type": "bool"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "priscus-agent",
+      "title": "Retest Validator",
+      "target": [
+        "risk"
+      ],
+      "description": "Specialized agent that validates remediation by retesting previously identified vulnerabilities, confirming fixes through targeted re-scans and evidence-based verification",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "collect-csp",
+      "title": "CSP Lookup",
+      "target": [
+        "port"
+      ],
+      "description": "collects Content Security Policy headers from HTTP responses",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "collect-tls",
+      "title": "TLS Lookup",
+      "target": [
+        "port"
+      ],
+      "description": "collects TLS certificates from HTTP endpoints",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "augustus-agent",
+      "title": "Augustus Agent",
+      "target": [
+        "webpage"
+      ],
+      "description": "Specialized agent that executes jailbreak detection, prompt injection testing, and adversarial attack simulation against fingerprinted LLM services to demonstrate AI security risks",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "edgar",
+      "title": "EDGAR Filings Extractor",
+      "target": [
+        "preseed"
+      ],
+      "description": "processes SEC EDGAR filings to extract subsidiary information",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "nfs-share",
+      "title": "NFS Share Enumerator",
+      "target": [
+        "port"
+      ],
+      "description": "",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "PROTOCOL",
+          "description": "The protocol -- UDP or TCP -- that we'd like to use. The most commonly encountered protocol for this module to run is UDP. If you are unsure which protocol to use, then leave as the default UDP. ",
+          "default": "udp",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "csp-mine",
+      "title": "CSP Extractor",
+      "target": [
+        "preseed"
+      ],
+      "description": "extracts domains from Content Security Policy directives",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "organization-enumeration",
+      "title": "Organization Enumeration",
+      "target": [
+        "asset"
+      ],
+      "description": "Enriches organization data using Apollo.io organizations/enrich API to gather company information, industry details, employee counts, and contact information",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "builtwith",
+      "title": "Web Tag Lookup",
+      "target": [
+        "preseed"
+      ],
+      "description": "looks up domains using the BuiltWith API based on analytics identifiers",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "tls-mine",
+      "title": "TLS Mine",
+      "target": [
+        "preseed"
+      ],
+      "description": "extracts domains from TLS certificates",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "titus-agent",
+      "title": "Repository Secret Scanner",
+      "target": [
+        "repository"
+      ],
+      "description": "Specialized agent that scans code repositories for leaked secrets, API keys, and credentials, validates them, and can orchestrate credential testing with Brutus",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "export",
+      "title": "Data Export",
+      "target": [
+        "noinput"
+      ],
+      "description": "Export assets, risks, seeds, technologies, or agents to CSV/JSON",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "java-rmi-scanner",
+      "title": "Java RMI Scanner (MSF)",
+      "target": [
+        "port"
+      ],
+      "description": "Scans for Java RMI services and detects exposed remote objects.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "login-detection",
+      "title": "Login Detection",
+      "target": [
+        "webpage"
+      ],
+      "description": "Login detection",
+      "version": "",
+      "executor": "chariot",
+      "surface": "application",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "linux-web-nuclei",
+      "title": "Linux Web Nuclei",
+      "target": [
+        "attribute"
+      ],
+      "description": "Performs automated web application vulnerability scanning using Nuclei's extensive template library. Identifies security vulnerabilities, misconfigurations, exposed services, and potential attack vectors across web applications and services within the client's internal environment. Features comprehensive vulnerability detection including CVEs, exposed panels, default credentials, and security misconfigurations.",
+      "category": "recon",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "TemplateFilter",
+          "description": "(Optional) Filter templates by tags (e.g., cves,exposures,network). Leave empty to run all templates. Common tags: cves, exposures, exposed-panels, default-logins, misconfiguration, vulnerabilities, network, ssl, dns",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "EnableAutoScan",
+          "description": "Enable automatic scan mode for comprehensive coverage",
+          "default": "true",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "ExtraArgs",
+          "description": "(Optional) Additional Nuclei arguments",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "windows-ad-pingcastle",
+      "title": "Windows AD PingCastle",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs comprehensive Active Directory security posture assessment using PingCastle's advanced health check algorithms. Analyzes AD configuration, identifies security vulnerabilities, weak authentication policies, privilege escalation paths, and provides detailed remediation recommendations with risk scoring across the client's domain infrastructure.",
+      "category": "recon,ad,windows",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Server",
+          "description": "Specify a domain controller to connect to",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ReportType",
+          "description": "Type of report to generate",
+          "default": "healthcheck",
+          "required": false,
+          "type": "choices"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "windows-network-nmap-s3support",
+      "title": "Windows Network Nmap with S3 Support",
+      "target": [
+        "asset"
+      ],
+      "description": "Performs comprehensive network reconnaissance and port scanning from Windows environments using Nmap. Identifies open ports, running services, service versions, and potential vulnerabilities across target hosts within the client's network infrastructure. Includes service detection and vulnerability scanning capabilities to map the network attack surface.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "ports",
+          "description": "Port selection method",
+          "default": "Top100",
+          "required": true,
+          "type": "choices"
+        },
+        {
+          "name": "custom_ports",
+          "description": "Custom port specification when ports is set to 'Custom'. Examples: '80,443', '1-1000', '22,80-90,443'",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "scan_flags",
+          "description": "Additional nmap flags for scanning options. The default value includes service detection, script scanning with default and vuln groups, and skipping Ping for checking if the target host responds.",
+          "default": "-sV -Pn",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "output_format",
+          "description": "Output format for Nmap results. Choose from xml (structured XML), text (normal text output), or grep (greppable format).",
+          "default": "xml",
+          "required": false,
+          "type": "choices"
+        }
+      ],
+      "async": true,
+      "largeArtifact": true
+    },
+    {
+      "name": "scanner-cve-2025-53770",
+      "title": "CVE-2025-53770",
+      "target": [
+        "port"
+      ],
+      "description": "Detect CVE-2025-53770 (Microsoft SharePoint Server ToolPane Unauthenticated Remote Code Execution) using Metasploit.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "timeout",
+          "description": "Connection timeout in seconds",
+          "default": "10",
+          "required": false,
+          "type": "int"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "linux-network-nerva",
+      "title": "Linux Network Nerva Service Scanner",
+      "target": [
+        "asset"
+      ],
+      "description": "Identifies services running on open ports using nerva, a fast service fingerprinting tool from Praetorian. Supports numerous protocols including HTTP, SSH, RDP, MySQL, PostgreSQL, SMB, LDAP, Kafka, and more. Accepts host:port pairs as input.",
+      "category": "recon,network",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Mode",
+          "description": "Execution mode",
+          "default": "nerva",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ExtraArgs",
+          "description": "(Optional) Additional nerva arguments",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "aurelian-agent",
+      "title": "Cloud Resource Discovery",
+      "target": [
+        "awsresource"
+      ],
+      "description": "Specialized agent that inventories and discovers cloud infrastructure across AWS, Azure, and GCP environments to map cloud attack surface and identify targets for security assessment",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "redirect",
+      "title": "Redirect",
+      "target": [
+        "port"
+      ],
+      "description": "analyzes a website's redirects and extracts associated assets",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "mongodb-login",
+      "title": "MongoDB Login",
+      "target": [
+        "port"
+      ],
+      "description": "Checks MongoDB servers for weak credentials.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "user_file",
+          "description": "",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "pass_file",
+          "description": "",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "workflow-whois-affiliation",
+      "title": "workflow-whois-affiliation",
+      "target": [
+        "noinput"
+      ],
+      "description": "Verify asset ownership via whois/RDAP records",
+      "version": "",
+      "executor": "litellm",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "asset",
+          "description": "IP address or domain to check",
+          "required": true,
+          "type": ""
+        },
+        {
+          "name": "organization",
+          "description": "Target organization name to match against",
+          "required": true,
+          "type": ""
+        },
+        {
+          "name": "config",
+          "description": "Path to YAML config file for LLM settings",
+          "required": false,
+          "type": "",
+          "options": [
+            "anthropic_opus",
+            "anthropic_sonnet",
+            "bedrock_claude_haiku",
+            "bedrock_claude_sonnet",
+            "bedrock_deepseek_r1_v1",
+            "bedrock_llama_3_1_8b",
+            "openai_gpt4o"
+          ]
+        },
+        {
+          "name": "output_dir",
+          "description": "Directory for output artifacts",
+          "required": false,
+          "type": ""
+        },
+        {
+          "name": "verbose",
+          "description": "Enable detailed logging (true/false)",
+          "required": false,
+          "type": ""
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "cisco-smart-install",
+      "title": "Cisco Smart Install Scanner",
+      "target": [
+        "port"
+      ],
+      "description": "Identifies Cisco Smart Install endpoints and determines if they speak the Smart Install Protocol. Exposure of SMI to untrusted networks can allow complete compromise of the switch.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "windows-ad-umber-collect",
+      "title": "Windows AD Umber Collect",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs comprehensive Active Directory enumeration and data collection using umber. Implements a SharpHound-style collection engine that enumerates all AD objects (users, computers, groups, GPOs, OUs, etc.) and collects their properties and relationships. Supports LDAP-only collection or extended collection including network sessions, local group membership, and user rights assignments via RPC.",
+      "category": "recon,ad",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Domain",
+          "description": "Domain where user credentials are valid. If empty, defaults to TargetDomain.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Username",
+          "description": "Username for authentication. If empty, uses current context.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Password for authentication. Required if Username is specified.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Server",
+          "description": "Domain controller address. If empty, auto-discovered via DNS.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Threads",
+          "description": "Number of concurrent collection threads",
+          "default": "25",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "CollectAll",
+          "description": "Enable all computer collection methods (sessions, local groups, user rights via RPC). If false, only LDAP collection is performed.",
+          "default": "false",
+          "required": false,
+          "type": "choices"
+        }
+      ],
+      "async": true,
+      "largeArtifact": true
+    },
+    {
+      "name": "hackerone-submit",
+      "title": "HackerOne Submit",
+      "target": [
+        "risk"
+      ],
+      "description": "Submits vulnerability reports to HackerOne bug bounty programs",
+      "version": "",
+      "executor": "chariot",
+      "surface": "repository",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "team_handle",
+          "description": "HackerOne program handle to submit the report to",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "title",
+          "description": "Override report title (defaults to finding title or risk name)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "vulnerability_information",
+          "description": "Override vulnerability details",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "impact",
+          "description": "Override impact statement",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "severity_rating",
+          "description": "Severity rating: none, low, medium, high, or critical",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "weakness_id",
+          "description": "HackerOne weakness ID",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "structured_scope_id",
+          "description": "HackerOne structured scope ID (asset identifier)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "attachment_s3_keys",
+          "description": "Comma-separated list of Guard S3 keys to upload as report attachments",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "cloudbrute",
+      "title": "Cloudbrute",
+      "target": [
+        "asset"
+      ],
+      "description": "",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "JANUS_TOOLS",
+          "description": "Janus Tools Directory",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "open-x11",
+      "title": "Open X11",
+      "target": [
+        "port"
+      ],
+      "description": "Checks for exposed openX11 displays.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "JANUS_TOOLS",
+          "description": "Path to Janus tools directory",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "redis-login",
+      "title": "Redis Login",
+      "target": [
+        "port"
+      ],
+      "description": "Checks Redis servers for weak credentials.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "pass_file",
+          "description": "",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "julius-agent",
+      "title": "Julius Agent",
+      "target": [
+        "port"
+      ],
+      "description": "Specialized agent that fingerprints HTTP endpoints to detect AI/ML services (Ollama, OpenAI, LocalAI, vLLM) - required prerequisite before launching Augustus attacks",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "gato-artifacts",
+      "title": "Gato Artifact Scanner",
+      "target": [
+        "repository"
+      ],
+      "description": "Scans for hard-coded secrets in GitHub actions artifacts.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "outfile",
+          "description": "The JSON file to write the output to",
+          "default": "gato-artifacts.json",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "GH_TOKEN",
+          "description": "GitHub token to use for enumeration",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "imap-ntlm-info",
+      "title": "IMAP NTLM Enumerator",
+      "target": [
+        "port"
+      ],
+      "description": "Extracts NTLM information from IMAP servers using Nmap's imap-ntlm-info NSE script to identify Windows domain configurations and potential information disclosure vulnerabilities.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "windows-ad-umber-check",
+      "title": "Windows Umber AD Domain Check",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs Active Directory security checks using Umber. Evaluates domain configuration against security rules and best practices. Supports filtering by specific rules or categories to focus on particular security concerns.",
+      "category": "recon,ad",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Username for authentication. If empty, uses current context.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Password for authentication. Required if Username is specified.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Rules",
+          "description": "Comma-separated list of specific rules to run (e.g., 'rule1,rule2'). If empty, all rules are run unless Category is specified.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Category",
+          "description": "Category of rules to run (e.g., 'passwords', 'privileges'). If empty, all categories are run unless Rules is specified.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Server",
+          "description": "Domain controller address. If empty, auto-discovered via DNS.",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "windows-ad-group3r-s3support",
+      "title": "Windows AD Group3r with S3 Support",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs security analysis of Active Directory Group Policy Objects (GPOs) to identify misconfigurations and vulnerabilities. Group3r examines GPO settings, ACLs, script paths, registry modifications, and privilege assignments to discover potential attack vectors, insecure configurations, and opportunities for privilege escalation within the client's AD Group Policy infrastructure.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Username (without domain, e.g., 'brandon.stark')",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Password for the specified username",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "TargetDomain",
+          "description": "Target domain to assess (e.g., 'north.sevenkingdoms.local')",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "DomainControllerIP",
+          "description": "IP address or hostname of a specific domain controller to connect to",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true,
+      "largeArtifact": true
+    },
+    {
+      "name": "aurelian-aws-org-policies",
+      "title": "AWS Organization Policies",
+      "target": [
+        "awsresource"
+      ],
+      "description": "Collects AWS Organizations service control policies (SCPs) and resource control policies (RCPs), including the organizational hierarchy and policy-to-target mappings.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile",
+          "description": "AWS profile to use",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile-dir",
+          "description": "Set to override the default AWS profile directory",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "opsec_level",
+          "description": "Operational security level for AWS operations",
+          "default": "none",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "research-gatekeeper",
+      "title": "CritFinder Adversarial Reviewer",
+      "target": [
+        "asset"
+      ],
+      "description": "Adversarial quality gate that filters vulnerability hypotheses \u2014 breaks bad hypotheses before they waste exploiter time",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "couchdb-login",
+      "title": "CouchDB Login",
+      "target": [
+        "port"
+      ],
+      "description": "Checks CouchDB servers for weak credentials.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "JANUS_TOOLS",
+          "description": "Path to Janus tools directory",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "java-rmi-scanner-nse",
+      "title": "Java RMI Scanner (NSE)",
+      "target": [
+        "port"
+      ],
+      "description": "Enumerates Java RMI registries using Nmap's rmi-dumpregistry NSE script to identify exposed remote objects.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "workflow-exploit",
+      "title": "workflow-exploit",
+      "target": [
+        "noinput"
+      ],
+      "description": "Generate Nuclei exploit templates from CVE IDs (3-step: research \u2192 analyze \u2192 generate)",
+      "version": "",
+      "executor": "litellm",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "cve_id",
+          "description": "CVE identifier (e.g., CVE-2024-1234)",
+          "required": true,
+          "type": ""
+        },
+        {
+          "name": "config",
+          "description": "Path to YAML config file for LLM settings",
+          "required": false,
+          "type": "",
+          "options": [
+            "anthropic_opus",
+            "anthropic_sonnet",
+            "bedrock_claude_haiku",
+            "bedrock_claude_sonnet",
+            "bedrock_deepseek_r1_v1",
+            "bedrock_llama_3_1_8b",
+            "openai_gpt4o"
+          ]
+        },
+        {
+          "name": "output_dir",
+          "description": "Directory for output artifacts (auto-generated if not specified)",
+          "required": false,
+          "type": ""
+        },
+        {
+          "name": "verbose",
+          "description": "Enable detailed logging - shows model calls and responses (true/false)",
+          "required": false,
+          "type": ""
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "workflow-generate",
+      "title": "workflow-generate",
+      "target": [
+        "noinput"
+      ],
+      "description": "Generate Nuclei detection templates from CVE IDs (2-step: research \u2192 generate)",
+      "version": "",
+      "executor": "litellm",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "cve_id",
+          "description": "CVE identifier (e.g., CVE-2024-1234)",
+          "required": true,
+          "type": ""
+        },
+        {
+          "name": "config",
+          "description": "Path to YAML config file for LLM settings",
+          "required": false,
+          "type": "",
+          "options": [
+            "anthropic_opus",
+            "anthropic_sonnet",
+            "bedrock_claude_haiku",
+            "bedrock_claude_sonnet",
+            "bedrock_deepseek_r1_v1",
+            "bedrock_llama_3_1_8b",
+            "openai_gpt4o"
+          ]
+        },
+        {
+          "name": "output_dir",
+          "description": "Directory for output artifacts (auto-generated if not specified)",
+          "required": false,
+          "type": ""
+        },
+        {
+          "name": "template_type",
+          "description": "Template type: detection or exploitation (default: detection)",
+          "required": false,
+          "type": ""
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "ip",
+      "title": "WHOIS (IP)",
+      "target": [
+        "asset"
+      ],
+      "description": "resolves IP addresses or CIDRs to ASN, country, and AS name",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "linux-ad-smbellum",
+      "title": "Linux AD SMBellum Share Scanner",
+      "target": [
+        "addomain"
+      ],
+      "description": "Scans SMB shares for sensitive data using Titus. Performs domain-wide share discovery and scanning with in-memory file analysis.",
+      "category": "recon,ad,smb",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username for authentication.",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password.",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "DomainController",
+          "description": "Domain controller hostname/IP for AD share discovery (e.g., dc01.corp.local). If empty, auto-discovered via DNS.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Dns",
+          "description": "Custom DNS server IP for hostname resolution.",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true,
+      "largeArtifact": true
+    },
+    {
+      "name": "collect-cidr",
+      "title": "CIDR Lookup",
+      "target": [
+        "preseed"
+      ],
+      "description": "collects CIDR information from regional internet registries for organizations found in WHOIS data",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "github-device-code",
+      "title": "GitHub Device Code Phishing",
+      "target": [
+        "person"
+      ],
+      "description": "Executes GitHub OAuth 2.0 Device Authorization Grant phishing attack by sending device code via email and monitoring for authorization",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "reverse-csp",
+      "title": "Reverse CSP",
+      "target": [
+        "preseed"
+      ],
+      "description": "searches for websites with matching Content Security Policy headers",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "workflow-refine",
+      "title": "workflow-refine",
+      "target": [
+        "noinput"
+      ],
+      "description": "Refine existing Nuclei templates with CVE research (2-step: research \u2192 refine)",
+      "version": "",
+      "executor": "litellm",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "cve_id",
+          "description": "CVE identifier (e.g., CVE-2024-1234)",
+          "required": true,
+          "type": ""
+        },
+        {
+          "name": "template",
+          "description": "Path to existing Nuclei template file to refine",
+          "required": true,
+          "type": ""
+        },
+        {
+          "name": "config",
+          "description": "Path to YAML config file for LLM settings",
+          "required": false,
+          "type": "",
+          "options": [
+            "anthropic_opus",
+            "anthropic_sonnet",
+            "bedrock_claude_haiku",
+            "bedrock_claude_sonnet",
+            "bedrock_deepseek_r1_v1",
+            "bedrock_llama_3_1_8b",
+            "openai_gpt4o"
+          ]
+        },
+        {
+          "name": "output_dir",
+          "description": "Directory for output artifacts (auto-generated if not specified)",
+          "required": false,
+          "type": ""
+        },
+        {
+          "name": "prompt",
+          "description": "Refinement guidance (e.g., 'reduce false positives')",
+          "required": false,
+          "type": ""
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "ab-benchmark",
+      "title": "Apache Benchmark",
+      "target": [
+        "asset"
+      ],
+      "description": "HTTP load testing using Apache Benchmark (ab) against a domain or IP address with verbose output logging",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "duration",
+          "description": "Duration in seconds (1\u20133600, max 60 minutes)",
+          "default": "300",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "concurrency",
+          "description": "Number of concurrent requests",
+          "default": "10",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "requests",
+          "description": "Maximum total number of requests (0 = unlimited, time-based only)",
+          "default": "0",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "processes",
+          "description": "Number of concurrent ab processes to spawn (1\u201310)",
+          "default": "1",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "path",
+          "description": "URL path to benchmark",
+          "default": "/",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "method",
+          "description": "HTTP method (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH)",
+          "default": "GET",
+          "required": false,
+          "type": "string",
+          "options": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "HEAD",
+            "OPTIONS",
+            "PATCH"
+          ]
+        },
+        {
+          "name": "headers",
+          "description": "Custom HTTP headers, one per line (e.g. Content-Type: application/json)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "body",
+          "description": "Request body to send (requires a non-GET method)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "scheme",
+          "description": "URL scheme",
+          "default": "https",
+          "required": false,
+          "type": "string",
+          "options": [
+            "https",
+            "http"
+          ]
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "bulk-action",
+      "title": "Bulk Action",
+      "target": [
+        "noinput"
+      ],
+      "description": "Apply an action to a bulk selection of items",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "snmp-community-strings",
+      "title": "SNMP Community Strings",
+      "target": [
+        "port"
+      ],
+      "description": "Checks SNMP servers for default/weak community strings",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "VERSION",
+          "description": "The version of SNMP (if known). Supplying the version can help reduce duplicates from Metasploit. Options are: (1,2c,all)",
+          "default": "all",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "windows-smb-snaffler",
+      "title": "Windows SMB Snaffler",
+      "target": [
+        "addomain"
+      ],
+      "description": "Discovers and analyzes sensitive files, credentials, and configuration data across SMB network shares in Windows AD environments. Supports running with the current computer/user context (no credentials required on domain-joined machines) or with explicit credentials. Snaffler automatically crawls accessible shares, identifies files containing passwords, API keys, certificates, and other high-value secrets that could be leveraged during lateral movement or privilege escalation attacks.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "VerbosityLevel",
+          "description": "Level of output verbosity from data (least verbose) to trace (most verbose)",
+          "default": "info",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "Username",
+          "description": "Domain username for authentication. If empty, uses the current computer/user context.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password. Required only if Username is specified.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "DomainController",
+          "description": "Domain controller to connect to. Useful when auto-discovery fails.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "MaxSizeToScan",
+          "description": "(Optional) Maximum file size in bytes to scan for content (in bytes). Default: 10MB",
+          "default": "0",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "MaxThreads",
+          "description": "(Optional) Maximum number of concurrent threads to use. Don't set it below 4. Default: 60",
+          "default": "0",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "TargetHosts",
+          "description": "(Optional) Disable AD discovery and scan a list of hosts (e.g. 192.168.1.1,192.168.1.35)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "TargetPath",
+          "description": "(Optional) Disable AD discovery and scan specific shares (e.g. \\\\host.lol.domain\\share) or folders (e.g. C:\\)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "OptionalRuleSet",
+          "description": "(Optional) Load a custom ZIP file containing a folder with .toml files to use as ruleset instead of the default ones",
+          "default": "<nil>",
+          "required": false,
+          "type": "upload"
+        },
+        {
+          "name": "ExtraArgs",
+          "description": "(Optional) Additional Snaffler arguments",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "brutus",
+      "title": "brutus",
+      "target": [
+        "port"
+      ],
+      "description": "credential testing against network services",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "usernames",
+          "description": "Comma-separated list of usernames to test (defaults to brutus-provided list)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "passwords",
+          "description": "Comma-separated list of passwords to test (defaults to brutus-provided list)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ratelimit",
+          "description": "Requests per second, supports fractional values like 0.5 (defaults to unlimited)",
+          "required": false,
+          "type": "float"
+        },
+        {
+          "name": "protocol",
+          "description": "The protocol to use (defaults to the protocol detected on this port)",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "webpage-secrets",
+      "title": "Webpage Secrets",
+      "target": [
+        "webpage"
+      ],
+      "description": "detection of secrets in webpage responses",
+      "version": "",
+      "executor": "chariot",
+      "surface": "application",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "cato-agent",
+      "title": "Finding Validator",
+      "target": [
+        "risk"
+      ],
+      "description": "Specialized agent that validates triage security findings through evidence retrieval, asset attribution, deduplication, knowledge loading, validation, severity evaluation, evidence drafting, and risk proposal",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "person-enumeration",
+      "title": "Person Enumeration",
+      "target": [
+        "organization"
+      ],
+      "description": "Enumerates people associated with organizations using Apollo.io People Search API to discover employees and their contact information",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "linux-web-gowitness",
+      "title": "Linux Web GoWitness",
+      "target": [
+        "attribute"
+      ],
+      "description": "Automates web reconnaissance and takes web screenshots of assets within the client's internal environment. GoWitness captures visual proof of web services, helping identify running applications, service banners, and potential security exposures through automated screenshot collection.",
+      "category": "recon",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Targets",
+          "description": "Target URLs (comma-separated). Examples: 'https://example.com', 'https://example.com/page1,https://example.com/page2'",
+          "default": "https://praetorian.com",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "cookie-monster",
+      "title": "Cookie Monster",
+      "target": [
+        "port"
+      ],
+      "description": "Finds weak session tokens in cookies.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "wordlist",
+          "description": "Path to custom wordlist file (base64 encoded entries, one per line)",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "ipmi-cipher-zero",
+      "title": "IPMI Cipher Zero Authentication Bypass Scanner",
+      "target": [
+        "port"
+      ],
+      "description": "Identifies IPMI 2.0-compatible systems vulnerable to authentication bypass through cipher zero.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "HOME environment variable for Metasploit",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "telnet-login",
+      "title": "Telnet Login",
+      "target": [
+        "port"
+      ],
+      "description": "Checks Telnet servers for weak credentials",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "JANUS_TOOLS",
+          "description": "Path to Janus tools directory",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "trajan-agent",
+      "title": "CI/CD Security Scanner",
+      "target": [
+        "repository"
+      ],
+      "description": "Specialized agent that scans CI/CD pipelines for security vulnerabilities including injection, supply chain poisoning, permission misconfigurations, and AI code review agent attacks across GitHub Actions, GitLab CI, Azure DevOps, Jenkins, and JFrog",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "linux-network-naabu",
+      "title": "Linux Network Naabu Port Scanner",
+      "target": [
+        "asset"
+      ],
+      "description": "Performs fast port scanning using Naabu, a high-speed port scanner from ProjectDiscovery. Identifies open ports across target hosts using SYN/CONNECT scans with configurable port ranges and rate limiting. For combined port scanning, service detection, and DNS resolution, use the Network Recon capability instead.",
+      "category": "recon,network",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Mode",
+          "description": "Execution mode",
+          "default": "naabu",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Ports",
+          "description": "Port selection mode",
+          "default": "Top100",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "CustomPorts",
+          "description": "Custom port specification when Ports is set to 'Custom'. Examples: '80,443', '1-1000', '22,80-90,443'",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Rate",
+          "description": "Packets per second rate limit",
+          "default": "1000",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ExtraArgs",
+          "description": "(Optional) Additional naabu arguments",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "oracle-database-login",
+      "title": "Oracle DB Login",
+      "target": [
+        "port"
+      ],
+      "description": "Checks Oracle Database servers for weak and default credentials",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "JANUS_TOOLS",
+          "description": "Path to Janus tools directory",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "SID",
+          "description": "The SID for the Oracle Database. You need to know what the correct, unique SID is prior to running this script.",
+          "default": "XEPDB1",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "aurelian-azure-public-resources",
+      "title": "Azure Public Resources",
+      "target": [
+        "azureresource"
+      ],
+      "description": "Identifies publicly accessible Azure resources by executing Azure Resource Graph query templates against target subscriptions. Detects public storage accounts, databases, key vaults, web apps, and other resources exposed to the internet.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "subscription-ids",
+          "description": "Azure subscription ID(s) or 'all' to enumerate all accessible subscriptions",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "template-dir",
+          "description": "Optional directory with additional YAML query templates",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "asset-analyzer",
+      "title": "Asset Security Analyzer",
+      "target": [
+        "asset"
+      ],
+      "description": "Specialized agent that performs deep-dive security analysis of individual assets - maps risks, technologies, relationships, attack paths, and recommends targeted offensive capabilities",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "subdomain",
+      "title": "Subdomain",
+      "target": [
+        "asset"
+      ],
+      "description": "discovered subdomains of a domain using various public APIs",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "research-scanner",
+      "title": "CritFinder Vulnerability Scanner",
+      "target": [
+        "asset"
+      ],
+      "description": "Generates structured vulnerability hypotheses through attack surface analysis of Guard entities",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "discovery-triage-agent",
+      "title": "Discovery Triage",
+      "target": [
+        "asset"
+      ],
+      "description": "Specialized agent that triages pending assets and seeds by evaluating discovery confidence, origination data, and supplemental OSINT checks to approve or defer their activation",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "passive-recon",
+      "title": "passive-recon",
+      "target": [
+        "webapplication"
+      ],
+      "description": "discovers endpoints via passive URL enumeration (Wayback, CommonCrawl, OTX, URLScan) and emits live URLs as Webpage assets",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "collection-timeout",
+          "description": "Passive URL collection timeout in seconds",
+          "default": "600",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "probe-concurrency",
+          "description": "Number of concurrent liveness probe requests",
+          "default": "10",
+          "required": false,
+          "type": "int"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "dns-zone-transfer",
+      "title": "DNS Zone Transfer",
+      "target": [
+        "port"
+      ],
+      "description": "Checks if zone transfers are enabled for a DNS server",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "linux-network-nmap",
+      "title": "Linux Network Nmap",
+      "target": [
+        "asset"
+      ],
+      "description": "Performs comprehensive network reconnaissance by scanning target hosts to identify open ports, running services, service versions, and potential vulnerabilities. Uses Nmap's powerful scanning engine to map the network attack surface and gather intelligence on exposed services within the client's environment.",
+      "category": "recon,network",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "ports",
+          "description": "Port selection method",
+          "default": "Top100",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "custom_ports",
+          "description": "Custom port specification when Ports is set to 'Custom'. Examples: '80,443', '1-1000', '22,80-90,443', or '-' for all ports",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "scan_flags",
+          "description": "Additional nmap flags for scanning options",
+          "default": "-sV -Pn",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "aurelian-aws-graph",
+      "title": "AWS Graph Analysis",
+      "target": [
+        "awsresource"
+      ],
+      "description": "Collects AWS IAM data (GAAD, resources, policies), evaluates permissions, and detects privilege escalation paths. Outputs JSON by default; use --neo4j-uri to populate graph database with relationships.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile",
+          "description": "AWS profile to use",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile-dir",
+          "description": "Set to override the default AWS profile directory",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "opsec_level",
+          "description": "Operational security level for AWS operations",
+          "default": "none",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "regions",
+          "description": "AWS regions to scan",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "resource-type",
+          "description": "AWS Cloud Control resource type",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "resource-arn",
+          "description": "AWS target resource ARN",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "neo4j-uri",
+          "description": "Neo4j connection URI (e.g., bolt://localhost:7687)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "neo4j-username",
+          "description": "Neo4j username",
+          "default": "neo4j",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "neo4j-password",
+          "description": "Neo4j password",
+          "default": "neo4j",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "org-policies-file",
+          "description": "Path to Org Policies JSON file",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "caligula-ami",
+      "title": "Caligula AMI",
+      "target": [
+        "awsresource"
+      ],
+      "description": "Scans Amazon Linux AMIs for OS-level vulnerabilities by peeling each AMI's EBS snapshot, extracting the RPM database, and matching against ALAS / EPSS / CISA KEV",
+      "version": "",
+      "executor": "chariot",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "min_severity",
+          "description": "Minimum severity threshold for findings",
+          "default": "low",
+          "required": false,
+          "type": "string",
+          "options": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        {
+          "name": "kev_only",
+          "description": "Only emit findings flagged in CISA KEV",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "max_ami_size_gb",
+          "description": "Skip AMIs whose root volume exceeds this many GB",
+          "default": "256",
+          "required": false,
+          "type": "int"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "constantine",
+      "title": "Constantine",
+      "target": [
+        "repository"
+      ],
+      "description": "LLM-powered source code vulnerability scanner",
+      "version": "",
+      "executor": "chariot",
+      "surface": "repository",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "pipeline",
+          "description": "Predefined pipeline to run (leave blank for auto-selection based on scan type)",
+          "required": false,
+          "type": "string",
+          "options": [
+            "premium",
+            "medium",
+            "basic"
+          ]
+        },
+        {
+          "name": "scan_mode",
+          "description": "Scan mode: auto (skip when HEAD unchanged, delta-scan when possible), full (entire repo), diff (last_scanned_commit..HEAD only)",
+          "default": "auto",
+          "required": false,
+          "type": "string",
+          "options": [
+            "auto",
+            "full",
+            "diff"
+          ]
+        },
+        {
+          "name": "custom_pipeline",
+          "description": "Custom pipeline YAML file (overrides pipeline param)",
+          "required": false,
+          "type": "file"
+        },
+        {
+          "name": "goal",
+          "description": "Goal to inject into all LLM system prompts (e.g. 'Focus on SQL injection vulnerabilities')",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "aurelian-azure-list-all",
+      "title": "Azure List All Resources",
+      "target": [
+        "azureresource"
+      ],
+      "description": "List all Azure resources across subscriptions using Azure Resource Graph. Supports scanning specific subscriptions or all accessible subscriptions.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "subscription-ids",
+          "description": "Azure subscription ID(s) or 'all' to enumerate all accessible subscriptions",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "ipmi-hash-extraction",
+      "title": "IPMI Hash Extraction",
+      "target": [
+        "port"
+      ],
+      "description": "Detects vulnerable IPMI interfaces and extracts password hashes from discovered IPMI services.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "HOME environment variable for Metasploit",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "linux-ad-certipy",
+      "title": "Linux AD Certipy Certificate Template Vulnerability Scanner",
+      "target": [
+        "addomain"
+      ],
+      "description": "Executes Certipy to find vulnerable Active Directory Certificate Services (ADCS) certificate templates and outputs results in JSON format. This capability identifies certificate templates that may be vulnerable to various attacks including ESC1, ESC2, ESC3, and other certificate-based privilege escalation techniques. Requires domain credentials and domain controller IP for authenticated enumeration.",
+      "category": "recon",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Server",
+          "description": "Domain controller IP address or hostname (optional - will auto-discover if not provided)",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "aurelian-aws-public-resources",
+      "title": "AWS Public Resources",
+      "target": [
+        "awsresource"
+      ],
+      "description": "Finds publicly accessible AWS resources through policy evaluation, property inspection, and enrichment. Combines resource listing, enrichment, policy fetching, and public access evaluation to identify resources that are exposed to the internet or allow anonymous access.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile",
+          "description": "AWS profile to use",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile-dir",
+          "description": "Set to override the default AWS profile directory",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "opsec_level",
+          "description": "Operational security level for AWS operations",
+          "default": "none",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "regions",
+          "description": "AWS regions to scan",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "resource-type",
+          "description": "AWS Cloud Control resource type",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "resource-arn",
+          "description": "AWS target resource ARN",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "org-policies-file",
+          "description": "Path to Org Policies JSON file",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "favicon",
+      "title": "Favicon Extractor",
+      "target": [
+        "preseed"
+      ],
+      "description": "searches for websites with matching favicons using Shodan",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "aurelian-azure-subdomain-takeover",
+      "title": "Azure Subdomain Takeover",
+      "target": [
+        "azureresource"
+      ],
+      "description": "Scan for dangling DNS records in Azure DNS zones that could enable subdomain takeover. Checks CNAME records for unclaimed App Service, Blob Storage, CDN, and Traffic Manager names; A/AAAA records for orphaned public IPs; and NS delegations to non-existent Azure DNS zones.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "subscription-ids",
+          "description": "Azure subscription ID(s) or 'all' to enumerate all accessible subscriptions",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Number of concurrent checker goroutines",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "romulus-agent",
+      "title": "Web Exploiter",
+      "target": [
+        "webapplication"
+      ],
+      "description": "Browser-driven web exploiter for SPA / auth-walled targets. Navigates rendered pages, harvests endpoints from network traffic, then tests them directly with curl/python. Files Risks directly via report_new_risk when a chain lands.",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "smb-userenum",
+      "title": "SMB User Enumeration",
+      "target": [
+        "port"
+      ],
+      "description": "Enumerates users on exposed SMB servers",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "caligula",
+      "title": "caligula",
+      "target": [
+        "repository"
+      ],
+      "description": "scans software dependencies for known vulnerabilities, malicious packages, typosquatting, code obfuscation, and supply chain integrity issues",
+      "version": "",
+      "executor": "chariot",
+      "surface": "repository",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "mod",
+          "description": "Modules to run: all, deps, malware, iac",
+          "default": "all",
+          "required": false,
+          "type": "string",
+          "options": [
+            "all",
+            "deps",
+            "malware",
+            "iac"
+          ]
+        },
+        {
+          "name": "min_severity",
+          "description": "Minimum severity threshold for findings",
+          "default": "low",
+          "required": false,
+          "type": "string",
+          "options": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        {
+          "name": "aws_region",
+          "description": "AWS region for AMI peel calls (mod=iac)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "no_peel",
+          "description": "Discovery only: skip AMI peel + advisory match (mod=iac)",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "kev_only_gate",
+          "description": "Exit non-zero only on KEV findings (mod=iac)",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "rpm_manifest",
+          "description": "Path to rpm -qa output file for Amazon Linux scanning",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "dir",
+          "description": "Local clone path",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "windows-smb-powerhuntshares",
+      "title": "Windows SMB PowerHuntShares",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs comprehensive SMB share enumeration and access analysis across Active Directory environments. PowerHuntShares discovers accessible network shares, analyzes permissions, identifies potentially sensitive directories, and maps the SMB attack surface within the client's internal network infrastructure.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "(Optional) Domain username (without domain prefix)",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "(Optional) Domain user password",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "DomainController",
+          "description": "(Optional) Specify domain controller to use",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Threads",
+          "description": "Number of threads to use",
+          "default": "100",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "RunSpaceTimeOut",
+          "description": "Timeout for runspaces in seconds",
+          "default": "10",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ExtraArgs",
+          "description": "Additional PowerHuntShares arguments",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "gowitness",
+      "title": "Gowitness",
+      "target": [
+        "webpage"
+      ],
+      "description": "takes screenshots of webpages",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "finger-username-enumeration",
+      "title": "Finger Username Enumeration",
+      "target": [
+        "port"
+      ],
+      "description": "Enumerates usernames on a finger server",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "JANUS_TOOLS",
+          "description": "The JANUS_TOOLS environment variable that maps the path to the janus/tools/ directory.",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "windows-database-powerupsql-audit",
+      "title": "Windows Database PowerUpSQL Audit",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs comprehensive SQL Server security auditing using PowerUpSQL's Invoke-SQLAudit functionality. Identifies SQL Server vulnerabilities, misconfigurations, excessive privileges, weak authentication, and security gaps across discovered SQL instances within the client's Active Directory environment. Can audit individual instances or automatically discover and audit all SQL servers in the domain.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Instance",
+          "description": "SQL Server instance to audit (e.g., SQLServer1\\Instance1). Not required when using DiscoverAndAuditAll.",
+          "default": "SQLSERVER01\\MSSQLSERVER",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "DiscoverAndAuditAll",
+          "description": "Discover all SQL Server instances (local, AD, and linked servers) and audit them all. When enabled, Instance parameter is ignored.",
+          "default": "false",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Username",
+          "description": "Domain username for authentication (optional)",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password (optional)",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "brutus-agent",
+      "title": "Credential Security Tester",
+      "target": [
+        "port"
+      ],
+      "description": "Specialized agent that discovers authentication services (SSH, RDP, FTP, SMB, etc.) and tests for weak, default, or compromised credentials to demonstrate unauthorized access",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "chain-correlator",
+      "title": "Exploit Chain Correlator",
+      "target": [
+        "noinput"
+      ],
+      "description": "Correlates customer CVE inventories against curated database of in-the-wild desktop exploit chains",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "nuclei-dast",
+      "title": "nuclei-dast",
+      "target": [
+        "webpage"
+      ],
+      "description": "runs Nuclei DAST and generic vulnerability templates against a discovered webpage and emits risks for findings",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "nuclei-rate-limit",
+          "description": "Nuclei requests per second rate limit",
+          "default": "10",
+          "required": false,
+          "type": "int"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "trajan",
+      "title": "trajan",
+      "target": [
+        "repository"
+      ],
+      "description": "Scans CI/CD pipelines for security vulnerabilities including injection, supply chain, and permission misconfigurations",
+      "version": "",
+      "executor": "chariot",
+      "surface": "repository",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "token",
+          "description": "Authentication token for the CI/CD platform API",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "platform",
+          "description": "CI/CD platform override (auto-detected from URL if omitted). Required for self-hosted platforms: jenkins, jfrog",
+          "required": false,
+          "type": "string",
+          "options": [
+            "github",
+            "gitlab",
+            "azuredevops",
+            "bitbucket",
+            "jenkins",
+            "jfrog",
+            "circleci"
+          ]
+        },
+        {
+          "name": "base_url",
+          "description": "Base URL for self-hosted platforms (e.g., https://jenkins.corp.com). Required when platform=jenkins or platform=jfrog",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "active_mode",
+          "description": "Enable active attack execution (disabled by default)",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "attack_plugins",
+          "description": "Attack plugins to execute",
+          "required": false,
+          "type": "[]string",
+          "options": [
+            "azuredevops/ado-agent-exec",
+            "azuredevops/ado-ai-probe",
+            "azuredevops/ado-extract-connections",
+            "azuredevops/ado-extract-securefiles",
+            "azuredevops/ado-persistence",
+            "azuredevops/ado-pipeline-injection",
+            "azuredevops/ado-pr-attack",
+            "azuredevops/ado-privesc",
+            "azuredevops/ado-secrets-dump",
+            "github/ai-probe",
+            "github/ai-prompt-injection",
+            "github/c2-setup",
+            "github/interactive-shell",
+            "github/persistence",
+            "github/pr-attack",
+            "github/runner-on-runner",
+            "github/secrets-dump",
+            "github/workflow-injection",
+            "gitlab/ai-probe"
+          ]
+        },
+        {
+          "name": "dry_run",
+          "description": "Simulate attacks without making changes",
+          "default": "true",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "attack_timeout",
+          "description": "Timeout in seconds for attack execution",
+          "default": "300",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "c2_repo",
+          "description": "C2 repository for interactive shell and runner-on-runner attacks (e.g., owner/repo)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "target_os",
+          "description": "Target runner OS for runner-on-runner attacks",
+          "required": false,
+          "type": "string",
+          "options": [
+            "linux",
+            "win",
+            "macos"
+          ]
+        },
+        {
+          "name": "target_arch",
+          "description": "Target runner architecture for runner-on-runner attacks",
+          "required": false,
+          "type": "string",
+          "options": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "name": "runner_labels",
+          "description": "Comma-separated runner labels for targeting specific runners",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "delivery",
+          "description": "Delivery method for AI prompt injection attacks",
+          "required": false,
+          "type": "string",
+          "options": [
+            "pr",
+            "issue",
+            "comment"
+          ]
+        },
+        {
+          "name": "persistence_method",
+          "description": "Persistence method for persistence attacks",
+          "required": false,
+          "type": "string",
+          "options": [
+            "workflow",
+            "action",
+            "package"
+          ]
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "mssql-login",
+      "title": "MSSQL Login",
+      "target": [
+        "port"
+      ],
+      "description": "Checks MSSQL servers for weak credentials.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "JANUS_TOOLS",
+          "description": "The JANUS_TOOLS environment variable that maps the path to the janus/tools/ directory.",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "linux-ad-bloodhound",
+      "title": "Linux AD BloodHound Data Collector",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs Active Directory data collection using BloodHound.py",
+      "category": "recon,ad",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username for authentication",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "CollectionMethod",
+          "description": "Data collection method to use. Multiple methods can be comma-separated (e.g., Group,LocalAdmin)",
+          "default": "All",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "Server",
+          "description": "Domain controller IP address or hostname (optional - will auto-discover if not provided)",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true,
+      "largeArtifact": true
+    },
+    {
+      "name": "subdomain-test",
+      "title": "",
+      "target": [
+        "asset"
+      ],
+      "description": "Test agent for subdomain capability tool validation",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "unauth-mqtt-broker",
+      "title": "Unauthenticated MQTT Broker",
+      "target": [
+        "port"
+      ],
+      "description": "Checks MQTT servers for unauthenticated access",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "integration-affiliation",
+      "title": "Integration Affiliation Agent",
+      "target": [
+        "asset"
+      ],
+      "description": "Determines whether an integration-originated asset still belongs to the user.",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "aurelian-aws-list-all",
+      "title": "AWS List All Resources",
+      "target": [
+        "awsresource"
+      ],
+      "description": "List resources in an AWS account using CloudControl API. Supports 'full' scan for all resources or 'summary' scan for key services. Can scan multiple regions concurrently.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile",
+          "description": "AWS profile to use",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile-dir",
+          "description": "Set to override the default AWS profile directory",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "opsec_level",
+          "description": "Operational security level for AWS operations",
+          "default": "none",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "regions",
+          "description": "AWS regions to scan",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "resource-type",
+          "description": "AWS Cloud Control resource type",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "resource-arn",
+          "description": "AWS target resource ARN",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "scan-type",
+          "description": "Scan type - 'full' for all resources or 'summary' for key services",
+          "default": "full",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "crawler",
+      "title": "Crawler",
+      "target": [
+        "webapplication"
+      ],
+      "description": "Crawls web applications to discover content, enumerate directories, and identify authentication mechanisms",
+      "version": "",
+      "executor": "chariot",
+      "surface": "application",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "nuclei",
+      "title": "Nuclei",
+      "target": [
+        "port"
+      ],
+      "description": "scans services for vulnerabilities using nuclei templates across HTTP, TCP, DNS, SSL, and other protocols",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "test",
+          "description": "Nuclei template ID to run (passed to -id). Leave blank to run the default template set.",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "postgres-login",
+      "title": "Postgres Login",
+      "target": [
+        "port"
+      ],
+      "description": "Checks PostgreSQL servers for weak credentials.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "correlation-engine",
+      "title": "Batch Correlation Engine",
+      "target": [
+        "noinput"
+      ],
+      "description": "pages through all correlatable assets and cross-references them against integrated service providers",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "vespasian",
+      "title": "vespasian",
+      "target": [
+        "webapplication"
+      ],
+      "description": "discovers API endpoints via headless browser crawling and generates OpenAPI specs",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "mode",
+          "description": "Operating mode: scan (default) or crawl",
+          "default": "scan",
+          "required": false,
+          "type": "string",
+          "options": [
+            "scan",
+            "crawl"
+          ]
+        },
+        {
+          "name": "timeout",
+          "description": "Total crawl duration in seconds",
+          "default": "600",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "max_pages",
+          "description": "Maximum pages to crawl",
+          "default": "100",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "depth",
+          "description": "Maximum crawl depth",
+          "default": "3",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "scope",
+          "description": "Crawl scope: same-origin or same-domain",
+          "default": "same-origin",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "headers",
+          "description": "Comma-separated auth headers (e.g. Authorization: Bearer tok)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "confidence",
+          "description": "Minimum classification confidence 0-1",
+          "default": "0.5",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "probe",
+          "description": "Enable endpoint probing",
+          "default": "true",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "mysql-login",
+      "title": "MySQL Login",
+      "target": [
+        "port"
+      ],
+      "description": "Checks MySQL servers for weak credentials.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "JANUS_TOOLS",
+          "description": "Path to Janus tools directory",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "cidr",
+      "title": "CIDR",
+      "target": [
+        "preseed"
+      ],
+      "description": "queries CIDR blocks from various regional internet registries",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "julius",
+      "title": "Julius",
+      "target": [
+        "port"
+      ],
+      "description": "detects LLM services (Ollama, OpenAI, etc.) on HTTP endpoints",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "base-paths",
+          "description": "Comma-separated path prefixes for probing nonstandard LLM endpoint paths (e.g., /api,/proxy)",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "whois",
+      "title": "WHOIS (Domain)",
+      "target": [
+        "asset"
+      ],
+      "description": "performs WHOIS lookups for domains and extracts registration information",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "bad-dns",
+      "title": "Bad DNS",
+      "target": [
+        "asset"
+      ],
+      "description": "A tool to check for subdomain takeover vulnerabilities using baddns.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "windows-ad-group3r",
+      "title": "Windows AD Group3r",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs security analysis of Active Directory Group Policy Objects (GPOs) to identify misconfigurations and vulnerabilities. Group3r examines GPO settings, ACLs, script paths, registry modifications, and privilege assignments to discover potential attack vectors, insecure configurations, and opportunities for privilege escalation within the client's AD Group Policy infrastructure.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Username (without domain, e.g., 'brandon.stark')",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Password for the specified username",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "TargetDomain",
+          "description": "Target domain to assess (e.g., 'north.sevenkingdoms.local')",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "DomainControllerIP",
+          "description": "IP address or hostname of a specific domain controller to connect to",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "diana-agent",
+      "title": "",
+      "target": [
+        "asset",
+        "integration"
+      ],
+      "description": "Diana \u2014 makes read-only API calls to cloud and integration environments (AWS, GitHub, GitLab) via native CLIs",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "freeze",
+      "title": "Tenant Burp Teardown",
+      "target": [
+        "noinput"
+      ],
+      "description": "Pause every Burp site under a frozen tenant's folder and drop folder-level schedules.",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "recorder-agent",
+      "title": "Login Recipe Recorder",
+      "target": [
+        "webapplication"
+      ],
+      "description": "Drives a browser-based login against a target with supplied credentials and emits a deterministic webauth recipe (CredentialBlob) that downstream capabilities can replay without an LLM in the loop.",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "research-exploiter",
+      "title": "CritFinder Exploit Validator",
+      "target": [
+        "asset"
+      ],
+      "description": "Validates approved vulnerability hypotheses through practical exploitation and evidence collection within the CritFinder adversarial research pipeline",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "windows-network-nmap",
+      "title": "Windows Network Nmap",
+      "target": [
+        "asset"
+      ],
+      "description": "Performs comprehensive network reconnaissance and port scanning from Windows environments using Nmap. Identifies open ports, running services, service versions, and potential vulnerabilities across target hosts within the client's network infrastructure. Includes service detection and vulnerability scanning capabilities to map the network attack surface.",
+      "category": "recon,network",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "ports",
+          "description": "Port selection method",
+          "default": "Top100",
+          "required": true,
+          "type": "choices"
+        },
+        {
+          "name": "custom_ports",
+          "description": "Custom port specification when ports is set to 'Custom'. Examples: '80,443', '1-1000', '22,80-90,443'",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "scan_flags",
+          "description": "Additional nmap flags for scanning options. The default value includes service detection, script scanning with default and vuln groups, and skipping Ping for checking if the target host responds.",
+          "default": "-sV -Pn",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "output_format",
+          "description": "Output format for Nmap results. Choose from xml (structured XML), text (normal text output), or grep (greppable format).",
+          "default": "xml",
+          "required": false,
+          "type": "choices"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "linux-ad-adidnsdump",
+      "title": "Linux AD ADIDNSDump",
+      "target": [
+        "addomain"
+      ],
+      "description": "Enumerates DNS records in Active Directory-integrated DNS zones using ADIDNSDump tool in a containerized Linux environment. This tool queries domain controllers for DNS records stored in Active Directory and provides a comprehensive list that can be used for security assessments and network mapping.",
+      "category": "recon,ad,dns",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Server",
+          "description": "Domain controller IP address or hostname",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "freeze_webapp",
+      "title": "Web Application Burp Freeze",
+      "target": [
+        "webapplication"
+      ],
+      "description": "Pause (or delete) a Burp Enterprise site to mirror a WebApplication's frozen/deleted state. Clears the site's schedule and adds the hostname to folder-wide out_of_scope_url_prefixes to stop cross-site scan spillover.",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "template-refinement",
+      "title": "Nuclei Template Refinement",
+      "target": [
+        "noinput"
+      ],
+      "description": "Refine Nuclei security templates using AI assistance with multi-agent pipeline",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "template_yaml",
+          "description": "Template YAML content to refine",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "user_message",
+          "description": "Refinement instructions from user",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "target_host",
+          "description": "Target host for template testing",
+          "default": "example.com",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "verbose",
+          "description": "Enable verbose logging",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        }
+      ],
+      "async": false,
+      "largeArtifact": true
+    },
+    {
+      "name": "anon-ftp",
+      "title": "Anonymous FTP",
+      "target": [
+        "port"
+      ],
+      "description": "Checks FTP servers for anonymous access and weak credentials.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "HOME",
+          "description": "Home environment variable for Ruby",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "dependency-confusion-scanner",
+      "title": "Dependency Confusion",
+      "target": [
+        "repository"
+      ],
+      "description": "Scans GitHub repositories for dependency confusion vulnerabilities",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "outfile",
+          "description": "The file to write the scan results to",
+          "default": "confused_results.txt",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "CONFUSED_PATH",
+          "description": "Path to the confused binary",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "GH_TOKEN",
+          "description": "GitHub token to use for enumeration",
+          "default": "from_env",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "java-jdwp-enum",
+      "title": "Java JDWP Enum Scanner (NSE)",
+      "target": [
+        "port"
+      ],
+      "description": "Integration of a Java Debug Wire Protocol (JDWP) detection capability using Nmap's jdwp-version NSE script to identify exposed Java debugging services, enabling organizations to discover potentially vulnerable Java applications that could allow remote code execution.",
+      "version": "",
+      "executor": "janus",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "linux-network-dnsx",
+      "title": "Linux Network dnsx DNS Resolver",
+      "target": [
+        "asset"
+      ],
+      "description": "Performs DNS resolution using dnsx, a multi-purpose DNS toolkit from ProjectDiscovery. Supports reverse DNS (PTR) for IP-to-hostname mapping and forward lookups (A, AAAA, CNAME, MX, NS, TXT) for domain reconnaissance. Uses the host's DNS resolvers by default for internal network compatibility.",
+      "category": "recon,network,dns",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Mode",
+          "description": "Execution mode",
+          "default": "dnsx",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "QueryType",
+          "description": "DNS record type to query",
+          "default": "PTR",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "Resolvers",
+          "description": "(Optional) Comma-separated list of custom DNS resolvers. If empty, uses system resolvers from /etc/resolv.conf.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Rate",
+          "description": "DNS queries per second rate limit",
+          "default": "150",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ExtraArgs",
+          "description": "(Optional) Additional dnsx arguments",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "linux-ad-umber-collect",
+      "title": "Linux Umber AD Collect",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs comprehensive Active Directory enumeration and data collection using Umber. Implements a SharpHound-style collection engine that enumerates all AD objects (users, computers, groups, GPOs, OUs, etc.) and collects their properties and relationships. Supports LDAP-only collection or extended collection including network sessions, local group membership, and user rights assignments via RPC.",
+      "category": "recon,ad",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Domain",
+          "description": "Domain where user credentials are valid. If empty, defaults to TargetDomain.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Username",
+          "description": "Username for authentication.",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Password for authentication.",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Server",
+          "description": "Domain controller address. If empty, auto-discovered via DNS.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Threads",
+          "description": "Number of concurrent collection threads",
+          "default": "25",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "CollectAll",
+          "description": "Enable all computer collection methods (sessions, local groups, user rights via RPC). If false, only LDAP collection is performed.",
+          "default": "false",
+          "required": false,
+          "type": "choices"
+        }
+      ],
+      "async": true,
+      "largeArtifact": true
+    },
+    {
+      "name": "linux-network-segmentation-test",
+      "title": "Linux Network Segmentation Test",
+      "target": [
+        "asset"
+      ],
+      "description": "Tests network segmentation by scanning specified IP addresses or CIDR ranges to identify accessible services. Used to validate network isolation and firewall rules by checking if services are reachable from the scanning host. Supports quick scanning (top 100 ports, reports only if services are accessible) and comprehensive scanning (top 1000 ports). All scans use -Pn to skip host discovery and focus on port scanning.",
+      "category": "recon,network",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "scan_mode",
+          "description": "Scan mode: 'quick' (top 100 ports, only reports if accessible services found), 'comprehensive' (top 1000 ports, reports all results), or 'custom' (use custom_ports parameter)",
+          "default": "quick",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "custom_ports",
+          "description": "Custom ports to scan (only used when scan_mode is 'custom'). Examples: '80,443', '1-1000', '22,80-90,443', or '-' for all ports",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "scan_flags",
+          "description": "Additional nmap flags for scanning options",
+          "default": "-Pn",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "windows-ad-sharphound",
+      "title": "Windows AD Sharphound",
+      "target": [
+        "addomain"
+      ],
+      "description": "Performs Active Directory data collection using Sharphound, the official data collector for BloodHound. Supports running with the current computer/user context (no credentials required on domain-joined machines) or with explicit credentials. Enumerates domain users, groups, computers, sessions, local admin rights, group memberships, ACLs, and trust relationships to identify potential attack paths and privilege escalation opportunities within Active Directory environments.",
+      "category": "recon,ad",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username for authentication. If empty, uses the current computer/user context.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password. Required only if Username is specified.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "CollectionMethod",
+          "description": "Data collection method to use",
+          "default": "All",
+          "required": false,
+          "type": "choices"
+        }
+      ],
+      "async": true,
+      "largeArtifact": true
+    },
+    {
+      "name": "collect-analytics",
+      "title": "Analytics Lookup",
+      "target": [
+        "port"
+      ],
+      "description": "collects analytics tracking codes from web pages",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "hadrian",
+      "title": "Hadrian API Security Testing",
+      "target": [
+        "webapplication"
+      ],
+      "description": "OWASP API security testing against web applications",
+      "version": "",
+      "executor": "chariot",
+      "surface": "application",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "timeout",
+          "description": "Scan timeout in minutes",
+          "default": "30",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "rate_limit",
+          "description": "Requests per second rate limit",
+          "default": "5.0",
+          "required": false,
+          "type": "float"
+        },
+        {
+          "name": "categories",
+          "description": "Comma-separated test categories to run (e.g. 'bola,bfla' or 'all')",
+          "default": "all",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "templates",
+          "description": "Comma-separated template names to run (empty for all)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "openapi_file",
+          "description": "OpenAPI spec file (overrides auto-discovered spec)",
+          "required": false,
+          "type": "file"
+        },
+        {
+          "name": "roles_file",
+          "description": "Roles YAML file (overrides default anonymous role)",
+          "required": false,
+          "type": "file"
+        },
+        {
+          "name": "template_file",
+          "description": "Template file (overrides embedded templates)",
+          "required": false,
+          "type": "file"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "ssh",
+      "title": "SSH",
+      "target": [
+        "port"
+      ],
+      "description": "checks SSH servers for known vulnerabilities",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "aurelian-azure-configuration-scan",
+      "title": "Azure Configuration Scan",
+      "target": [
+        "azureresource"
+      ],
+      "description": "Detects Azure configuration issues including weak authentication, disabled RBAC, privilege escalation paths, and overly permissive access rules via Azure Resource Graph.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "subscription-ids",
+          "description": "Azure subscription ID(s) or 'all' to enumerate all accessible subscriptions",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "template-dir",
+          "description": "Optional directory with additional YAML query templates",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "10",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "enricher-timeout",
+          "description": "Per-resource enricher timeout in seconds",
+          "default": "120",
+          "required": false,
+          "type": "int"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "red-team",
+      "title": "Red Team Terraform Operations",
+      "target": [
+        "noinput"
+      ],
+      "description": "Run Red Team infrastructure terraform plan and apply operations",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "aurelian-aws-find-secrets",
+      "title": "AWS Find Secrets",
+      "target": [
+        "awsresource"
+      ],
+      "description": "Enumerates AWS resources via Cloud Control, extracts content likely to contain hardcoded secrets (EC2 user data, Lambda code, CloudFormation templates, CloudWatch logs, ECS task definitions, SSM documents, Step Functions executions), and scans with Titus.",
+      "version": "",
+      "executor": "aurelian",
+      "surface": "cloud",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "output-dir",
+          "description": "Base output directory",
+          "default": "aurelian-output",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile",
+          "description": "AWS profile to use",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "profile-dir",
+          "description": "Set to override the default AWS profile directory",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "opsec_level",
+          "description": "Operational security level for AWS operations",
+          "default": "none",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Maximum concurrent API requests",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "regions",
+          "description": "AWS regions to scan",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "resource-type",
+          "description": "AWS Cloud Control resource type",
+          "default": "[all]",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "resource-arn",
+          "description": "AWS target resource ARN",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "db-path",
+          "description": "Path for Titus SQLite database",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "disabled-titus-rules",
+          "description": "Rule IDs to exclude from scanning",
+          "required": false,
+          "type": "[]string"
+        },
+        {
+          "name": "validate",
+          "description": "Validate detected secrets against their source APIs",
+          "default": "false",
+          "required": false,
+          "type": "bool"
+        },
+        {
+          "name": "ignore-file",
+          "description": "Path to gitignore-style file for skipping paths; when empty uses a default list",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ruleset",
+          "description": "Titus ruleset to apply; empty string disables ruleset filtering",
+          "default": "default",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "max-events",
+          "description": "Max log events per log group",
+          "default": "10000",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "max-streams",
+          "description": "Max streams to sample per log group",
+          "default": "10",
+          "required": false,
+          "type": "int"
+        }
+      ],
+      "async": false,
+      "bulk": true
+    },
+    {
+      "name": "seneca-agent",
+      "title": "CVE Research Orchestrator",
+      "target": [
+        "risk"
+      ],
+      "description": "Specialized agent that orchestrates CVE research capabilities to validate and enrich CVE-based triage findings with exploit intelligence, template generation, and severity assessment",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "hunt",
+      "title": "Hunter",
+      "target": [
+        "hunt"
+      ],
+      "description": "Continuous attack-surface hunt. Selects the next most interesting target, expands the surface when needed, delegates the actual exploit to a scoped subagent, and files the resulting findings.",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "azuread-discovery",
+      "title": "Azure AD Discovery",
+      "target": [
+        "asset"
+      ],
+      "description": "discovers Azure AD domains and tenants associated with a domain",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "resolver",
+      "title": "Resolver",
+      "target": [
+        "asset"
+      ],
+      "description": "resolves IP addresses for a domain",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "windows-database-powerupsql-domain-discovery",
+      "title": "Windows Database PowerUpSQL Domain Discovery",
+      "target": [
+        "addomain"
+      ],
+      "description": "Automatically discovers SQL Server instances within Active Directory environments using PowerUpSQL. Queries domain controllers and LDAP to identify registered SQL Server services, instances, and database assets across the client's AD infrastructure, providing comprehensive database inventory for security assessment.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username for authentication (optional)",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Domain user password (optional)",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "DomainController",
+          "description": "Specific domain controller to query (optional)",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "pius-discovery",
+      "title": "pius-discovery",
+      "target": [
+        "preseed",
+        "asset"
+      ],
+      "description": "discovers domains and CIDRs for an organization using Pius multi-plugin pipeline",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "mode",
+          "description": "Plugin mode filter: passive, active, or all",
+          "default": "passive",
+          "required": false,
+          "type": "string",
+          "options": [
+            "passive",
+            "active",
+            "all"
+          ]
+        },
+        {
+          "name": "plugins",
+          "description": "Comma-separated plugin whitelist (empty = all applicable)",
+          "required": false,
+          "type": "string",
+          "options": [
+            "crt-sh",
+            "apollo",
+            "github-org",
+            "gleif",
+            "passive-dns",
+            "reverse-whois",
+            "whois",
+            "urlscan",
+            "wayback",
+            "wikidata",
+            "google-dorks",
+            "reverse-ip",
+            "otx-alienvault",
+            "dns-brute",
+            "dns-zone-transfer",
+            "doh-enum",
+            "dns-permutation",
+            "favicon-hash",
+            "asn-bgp",
+            "reverse-rir",
+            "edgar",
+            "arin",
+            "ripe",
+            "lacnic",
+            "apnic",
+            "afrinic",
+            "shodan",
+            "dnsdb",
+            "crunchbase",
+            "opencorporates",
+            "proxycurl",
+            "diffbot",
+            "securitytrails",
+            "virustotal",
+            "binaryedge",
+            "censys",
+            "viewdns"
+          ]
+        },
+        {
+          "name": "disable",
+          "description": "Comma-separated plugin blacklist",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "concurrency",
+          "description": "Max concurrent plugins",
+          "default": "5",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "shodan_api_key",
+          "description": "Shodan API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "dnsdb_api_key",
+          "description": "DNSDB API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "crunchbase_api_key",
+          "description": "Crunchbase API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "opencorporates_api_key",
+          "description": "OpenCorporates API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "proxycurl_api_key",
+          "description": "Proxycurl API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "diffbot_api_key",
+          "description": "Diffbot API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "securitytrails_api_key",
+          "description": "SecurityTrails API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "virustotal_api_key",
+          "description": "VirusTotal API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "binaryedge_api_key",
+          "description": "BinaryEdge API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "apollo_api_key",
+          "description": "Apollo.io API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "censys_api_key",
+          "description": "Censys API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "censys_api_token",
+          "description": "Censys Platform API token (Personal Access Token)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "censys_org_id",
+          "description": "Censys organization ID",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "viewdns_api_key",
+          "description": "ViewDNS API key",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "doh_servers",
+          "description": "Comma-separated DoH resolver URLs (default: Cloudflare, Google, AdGuard)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "doh_gateways",
+          "description": "Comma-separated pre-deployed gateway URLs for DoH enumeration",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "doh_deploy_gateways",
+          "description": "Deploy AWS API Gateways as DoH proxies (true/false)",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "dns_brute_concurrency",
+          "description": "Max concurrent DNS queries for dns-brute (default: 50)",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "google_dorks_max_subsidiaries",
+          "description": "Max subsidiaries to resolve via Google dorks (default: 30)",
+          "required": false,
+          "type": "int"
+        },
+        {
+          "name": "github_token",
+          "description": "GitHub personal access token for improved rate limits",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": false
+    },
+    {
+      "name": "risk-scoring",
+      "title": "Risk Scoring",
+      "target": [
+        "noinput"
+      ],
+      "description": "Bulk-compute asset risk scores using single graph queries per user",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "windows-ad-scriptsentry",
+      "title": "Windows AD ScriptSentry",
+      "target": [
+        "addomain"
+      ],
+      "description": "Analyzes Active Directory logon scripts for security vulnerabilities and misconfigurations. ScriptSentry identifies dangerous logon scripts with excessive permissions, hardcoded credentials, insecure storage locations, and potential privilege escalation vectors within the client's AD environment, helping prevent script-based attacks and credential exposure.",
+      "category": "recon",
+      "runs_on": "windows",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Username",
+          "description": "Domain username (without domain, e.g., 'brandon.stark')",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "Password",
+          "description": "Password for the specified username",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "confluence-secrets",
+      "title": "Confluence Secrets",
+      "target": [
+        "asset"
+      ],
+      "description": "scans Confluence page versions for exposed secrets",
+      "version": "",
+      "executor": "chariot",
+      "surface": "application",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "linux-network-recon",
+      "title": "Linux Network Recon",
+      "target": [
+        "asset"
+      ],
+      "description": "Performs comprehensive network reconnaissance by chaining port scanning (naabu), service fingerprinting (nerva), and DNS resolution (dnsx). Discovers open ports, identifies running services, and enriches assets with reverse DNS hostnames in a single pipeline.",
+      "category": "recon,network",
+      "runs_on": "linux",
+      "version": "1.0.0",
+      "executor": "aegis",
+      "surface": "internal",
+      "integration": false,
+      "parameters": [
+        {
+          "name": "Mode",
+          "description": "Execution mode",
+          "default": "network-recon",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Ports",
+          "description": "Port selection mode",
+          "default": "Top100",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "CustomPorts",
+          "description": "Custom port specification when Ports is set to 'Custom'. Examples: '80,443', '1-1000', '22,80-90,443'",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "Rate",
+          "description": "Packets per second rate limit",
+          "default": "1000",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "ServiceDetect",
+          "description": "Run service fingerprinting on discovered ports using nerva",
+          "default": "true",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "DnsResolve",
+          "description": "Run reverse DNS (PTR) lookups on discovered IPs using dnsx to enrich assets with hostnames",
+          "default": "true",
+          "required": false,
+          "type": "choices"
+        },
+        {
+          "name": "ExtraArgs",
+          "description": "(Optional) Additional arguments for the active tool",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "async": true
+    },
+    {
+      "name": "executive-summary",
+      "title": "Executive Summary Generator",
+      "target": [
+        "noinput"
+      ],
+      "description": "Generates a tenant-level executive summary PDF with risk posture, asset inventory, and key findings",
+      "version": "",
+      "executor": "agent",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "email-security",
+      "title": "Email Security",
+      "target": [
+        "asset"
+      ],
+      "description": "checks for missing SPF and DMARC records on apex domains",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    },
+    {
+      "name": "fingerprint",
+      "title": "Nerva",
+      "target": [
+        "port"
+      ],
+      "description": "Fingerprints an exposed port to enumerate services and CPEs using Nerva",
+      "version": "",
+      "executor": "chariot",
+      "surface": "external",
+      "integration": false,
+      "async": false
+    }
+  ]
+}

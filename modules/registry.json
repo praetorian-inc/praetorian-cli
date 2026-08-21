@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "modules": {
+    "brutus": {
+      "repo": "praetorian-inc/brutus",
+      "binary_pattern": "brutus-{os}-{arch}*",
+      "plugin": "brutus"
+    },
+    "julius": {
+      "repo": "praetorian-inc/julius",
+      "binary_pattern": "julius-{os}-{arch}*",
+      "plugin": "julius"
+    },
+    "augustus": {
+      "repo": "praetorian-inc/augustus",
+      "binary_pattern": "augustus-{os}-{arch}*",
+      "plugin": "augustus"
+    },
+    "titus": {
+      "repo": "praetorian-inc/titus",
+      "binary_pattern": "titus-{os}-{arch}*",
+      "plugin": "titus",
+      "local_only": true
+    },
+    "trajan": {
+      "repo": "praetorian-inc/trajan",
+      "binary_pattern": "trajan-{os}-{arch}*",
+      "plugin": "trajan"
+    },
+    "cato": {
+      "repo": "praetorian-inc/cato",
+      "binary_pattern": "cato-{os}-{arch}*",
+      "plugin": "cato",
+      "local_only": true
+    },
+    "nerva": {
+      "repo": "praetorian-inc/nerva",
+      "binary_pattern": "nerva-{os}-{arch}*",
+      "plugin": "nerva",
+      "local_only": true
+    },
+    "vespasian": {
+      "repo": "praetorian-inc/vespasian",
+      "binary_pattern": "vespasian-{os}-{arch}*",
+      "plugin": "vespasian"
+    },
+    "nuclei": {
+      "repo": "praetorian-inc/nuclei",
+      "binary_pattern": "nuclei-{os}-{arch}*",
+      "plugin": "nuclei"
+    },
+    "gato": {
+      "repo": "praetorian-inc/gato",
+      "binary_pattern": "gato-{os}-{arch}*",
+      "plugin": "gato",
+      "local_only": true
+    },
+    "constantine": {
+      "repo": "praetorian-inc/constantine",
+      "binary_pattern": "constantine-{os}-{arch}*",
+      "plugin": "constantine"
+    },
+    "aurelian": {
+      "repo": "praetorian-inc/aurelian",
+      "binary_pattern": "aurelian-{os}-{arch}*",
+      "local_only": true
+    },
+    "pius": {
+      "repo": "praetorian-inc/pius",
+      "binary_pattern": "pius-{os}-{arch}*",
+      "capability": "pius_discovery"
+    },
+    "florian": {
+      "repo": "praetorian-inc/florian",
+      "binary_pattern": "florian-{os}-{arch}*",
+      "plugin": "florian",
+      "local_only": true
+    },
+    "caligula": {
+      "repo": "praetorian-inc/caligula",
+      "binary_pattern": "caligula-{os}-{arch}*",
+      "plugin": "caligula"
+    },
+    "hadrian": {
+      "repo": "praetorian-inc/hadrian",
+      "binary_pattern": "hadrian-{os}-{arch}*",
+      "plugin": "hadrian"
+    },
+    "nero": {
+      "repo": "praetorian-inc/nero",
+      "binary_pattern": "nero-{os}-{arch}*",
+      "plugin": "nero",
+      "local_only": true
+    }
+  }
+}
