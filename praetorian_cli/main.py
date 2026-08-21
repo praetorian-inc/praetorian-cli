@@ -27,7 +27,6 @@ import praetorian_cli.handlers.run
 import praetorian_cli.handlers.schedule
 import praetorian_cli.handlers.module
 import praetorian_cli.handlers.imports
-import praetorian_cli.handlers.leaderboard
 import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
 import praetorian_cli.handlers.purge
