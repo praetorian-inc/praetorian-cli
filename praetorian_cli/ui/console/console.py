@@ -5,6 +5,8 @@ import os
 import shlex
 from typing import Optional
 
+import click
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.formatted_text import HTML
@@ -48,9 +50,10 @@ CONSOLE_COMMANDS = [
     'ask', 'marcus',
     'critfinder', 'research', 'hunt',
     'upload', 'import',
+    'ad', 'bulk', 'purge', 'schedule', 'tenant',
     'aegis',
     'configure', 'login',
-    'help', 'history', 'clear', 'quit', 'exit',
+    'help', 'clear', 'quit', 'exit',
 ]
 
 
@@ -259,6 +262,8 @@ class GuardConsole(
                 raise
             except Exception as e:
                 self.console.print(f'[error]Error: {e}[/error]')
+        elif self._try_cli_passthrough(cmd, args):
+            pass
         elif self.context.active_tool:
             # When a tool is selected, treat unknown input as "set target + execute"
             target_input = user_input.strip()
@@ -280,6 +285,73 @@ class GuardConsole(
                 self.console.print(f'[error]{e}[/error]')
         else:
             self.console.print(f'[dim]Unknown command: {cmd}. Type "help" for available commands.[/dim]')
+
+    # -- CLI passthrough -----------------------------------------------------
+
+    def _try_cli_passthrough(self, cmd, args):
+        """Route unrecognized commands through the Click CLI in-process.
+
+        Commands are invoked directly via chariot_cli.main(...,
+        standalone_mode=False) rather than click.testing.CliRunner.
+        CliRunner replaces sys.stdin/sys.stdout with captured streams, which
+        means interactive confirmation prompts (e.g. `purge` without
+        --force, `tenant delete`, `schedule delete` without --force) can
+        never read a real answer and always auto-abort. Invoking the group
+        directly leaves stdin/stdout untouched, so click.confirm() and
+        click.prompt() work against the console's real terminal, and the
+        user can actually answer the prompt.
+
+        With standalone_mode=False, click re-raises click.exceptions.Abort
+        (user declined / EOF on a confirmation) and click.ClickException
+        (usage errors) instead of calling sys.exit(), so we catch those
+        here. Some handler code still calls the legacy error() helper
+        (sys.exit(1)) directly for validation failures; SystemExit is also
+        caught below so a stray hard-exit cannot kill the whole console
+        session.
+        """
+        from praetorian_cli.handlers.chariot import chariot as chariot_cli
+
+        import praetorian_cli.handlers.ad        # noqa: F401
+        import praetorian_cli.handlers.bulk      # noqa: F401
+        import praetorian_cli.handlers.purge     # noqa: F401
+        import praetorian_cli.handlers.schedule  # noqa: F401
+        import praetorian_cli.handlers.tenant    # noqa: F401
+
+        if cmd not in (chariot_cli.commands or {}):
+            return False
+
+        from unittest.mock import patch as _patch, MagicMock
+
+        # praetorian_cli/main.py normally sets this global debug flag on the
+        # `chariot` group before any command runs. The console bypasses
+        # main.py, so without this the first generic (non-Click) exception
+        # raised by a handler would itself blow up on `chariot.is_debug`
+        # inside handle_error's except-Exception branch.
+        if not hasattr(chariot_cli, 'is_debug'):
+            chariot_cli.is_debug = False
+
+        try:
+            with _patch('praetorian_cli.sdk.chariot.Chariot', return_value=self.sdk):
+                chariot_cli.main(
+                    args=[cmd] + args,
+                    prog_name='guard',
+                    obj={'keychain': MagicMock(), 'proxy': ''},
+                    standalone_mode=False,
+                )
+        except click.exceptions.Abort:
+            self.console.print('[dim]Aborted.[/dim]')
+        except click.exceptions.ClickException as e:
+            self.console.print(f'[error]{e.format_message()}[/error]')
+        except SystemExit:
+            # Legacy validation paths that still call sys.exit() directly;
+            # the error message has already been printed to stderr by the
+            # time this is raised, so just avoid tearing down the console.
+            pass
+        except (EOFError, KeyboardInterrupt):
+            raise
+        except Exception as e:
+            self.console.print(f'[error]{e}[/error]')
+        return True
 
     # -- Aegis ---------------------------------------------------------------
 
@@ -392,6 +464,32 @@ class GuardConsole(
         help_table.add_row('import seeds <csv|json>', 'Bulk-add seeds from file')
         help_table.add_row('import assets <csv|json>', 'Bulk-add assets from file')
         help_table.add_row('import risks <csv|json>', 'Bulk-add risks from file')
+
+        help_table.add_row('', '')
+        help_table.add_row('[section]AD / BloodHound[/section]', '')
+        help_table.add_row('ad list-objects User', 'List AD objects by type')
+        help_table.add_row('ad get-object --key <key>', 'Get specific AD object')
+        help_table.add_row('ad find-attack-path --source .. --target ..', 'Find attack path')
+        help_table.add_row('ad who-can GenericAll --target <key>', 'Who has a right over target')
+        help_table.add_row('ad kerberoastable-users', 'Find Kerberoastable users')
+        help_table.add_row('ad domains', 'List all AD domains')
+
+        help_table.add_row('', '')
+        help_table.add_row('[section]Bulk & Schedule[/section]', '')
+        help_table.add_row('bulk add asset -f <file>', 'Bulk add assets from JSON/JSONL')
+        help_table.add_row('bulk add risk -f <file>', 'Bulk add risks from JSON/JSONL')
+        help_table.add_row('bulk add attribute -f <file>', 'Bulk add attributes from JSON/JSONL')
+        help_table.add_row('schedule create --capability .. --days ..', 'Create capability schedule')
+        help_table.add_row('schedule update <id> --days .. --time ..', 'Update capability schedule')
+        help_table.add_row('schedule delete <id>', 'Delete capability schedule')
+
+        help_table.add_row('', '')
+        help_table.add_row('[section]Purge & Tenant[/section]', '')
+        help_table.add_row('purge asset --filter <f> --force', 'Purge assets matching filter')
+        help_table.add_row('purge risk --filter <f> --force', 'Purge risks matching filter')
+        help_table.add_row('purge seed --filter <f> --force', 'Purge seeds matching filter')
+        help_table.add_row('tenant delete --email <e> --confirm-name <n>', 'Delete tenant account')
+        help_table.add_row('tenant status <deletion_id>', 'Check tenant deletion status')
 
         help_table.add_row('', '')
         help_table.add_row('[section]Other[/section]', '')

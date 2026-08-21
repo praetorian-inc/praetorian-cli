@@ -6,9 +6,11 @@ truststore.inject_into_ssl()
 import click
 
 import praetorian_cli.handlers.access
+import praetorian_cli.handlers.ad
 import praetorian_cli.handlers.add
 import praetorian_cli.handlers.aegis
 import praetorian_cli.handlers.agent
+import praetorian_cli.handlers.bulk
 import praetorian_cli.handlers.critfinder
 import praetorian_cli.handlers.delete
 import praetorian_cli.handlers.enrich
@@ -18,10 +20,13 @@ import praetorian_cli.handlers.export
 import praetorian_cli.handlers.get
 import praetorian_cli.handlers.hunt
 import praetorian_cli.handlers.run
+import praetorian_cli.handlers.schedule
 import praetorian_cli.handlers.imports
 import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
+import praetorian_cli.handlers.purge
 import praetorian_cli.handlers.query
+import praetorian_cli.handlers.tenant
 import praetorian_cli.handlers.report
 import praetorian_cli.handlers.script
 import praetorian_cli.handlers.search
