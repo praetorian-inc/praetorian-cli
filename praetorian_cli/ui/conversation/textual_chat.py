@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import time
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -37,9 +38,50 @@ class ChatMessage(Static):
             yield Static("🎯 Processing job completion...", classes="system-message")
 
 
+_MAX_SKILL_FILE_SIZE = 1024 * 1024  # 1 MB
+
+_SENSITIVE_FILENAME_PATTERNS = (
+    '.env', 'id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa', 'credentials',
+    '.pem', '.key', '.pfx', '.p12', '.npmrc', '.netrc', 'shadow',
+    'htpasswd', 'secret', '.aws',
+)
+
+
+def _load_skill_files(paths):
+    """Read skill file contents and format as XML context blocks.
+
+    Returns a tuple of (formatted content, list of warning strings) so
+    callers can surface credential-filename warnings in the chat UI.
+    """
+    parts = []
+    warnings = []
+    for path in paths:
+        resolved = os.path.realpath(os.path.expanduser(path))
+        if not os.path.isfile(resolved):
+            raise FileNotFoundError(f"Skill file not found: {path}")
+
+        lower_name = os.path.basename(resolved).lower()
+        if any(pattern in lower_name for pattern in _SENSITIVE_FILENAME_PATTERNS):
+            warnings.append(
+                f'Warning: "{path}" looks like it may contain credentials or secrets. '
+                f'Its contents will be sent to the AI agent.'
+            )
+
+        size = os.path.getsize(resolved)
+        if size > _MAX_SKILL_FILE_SIZE:
+            raise ValueError(
+                f'Skill file too large ({size} bytes, max {_MAX_SKILL_FILE_SIZE} bytes): {path}'
+            )
+
+        with open(resolved, 'r') as f:
+            content = f.read()
+        parts.append(f'<skill source="{os.path.basename(path)}">\n{content}\n</skill>')
+    return '\n\n'.join(parts), warnings
+
+
 class ConversationApp(App):
     """Textual-based conversation interface with separate chat log and input"""
-    
+
     CSS = """
     Screen {
         layout: vertical;
@@ -123,13 +165,14 @@ class ConversationApp(App):
     last_message_key: reactive[str] = reactive("")
     mode: reactive[str] = reactive("query")
     
-    def __init__(self, sdk: Chariot):
+    def __init__(self, sdk: Chariot, skills: Optional[List[str]] = None):
         super().__init__()
         self.sdk = sdk
         self.user_email, self.username = self.sdk.get_current_user()
         self.polling_task: Optional[asyncio.Task] = None
         self._selecting_conversation = False
         self._available_conversations = []
+        self._skills: List[str] = list(skills or [])
         
     def compose(self) -> ComposeResult:
         """Compose the UI layout"""
@@ -150,12 +193,23 @@ class ConversationApp(App):
     
     def on_mount(self) -> None:
         """Called when app starts"""
+        # Validate startup skills early so missing --skill paths are surfaced
+        # immediately rather than silently deferred to the first message send.
+        valid_skills = []
+        for path in self._skills:
+            resolved = os.path.realpath(os.path.expanduser(path))
+            if os.path.isfile(resolved):
+                valid_skills.append(resolved)
+            else:
+                self.add_system_message(f"Skill file not found (skipped): {path}")
+        self._skills = valid_skills
+
         # Start background polling for job completion events
         self.polling_task = asyncio.create_task(self.background_poll())
-        
+
         # Focus the input
         self.query_one("#message-input").focus()
-        
+
         # Show welcome message
         self.add_system_message("Welcome to Guard AI Assistant! Type 'help' for commands or ask about your security data.")
     
@@ -195,7 +249,42 @@ class ConversationApp(App):
         elif message.lower() == 'jobs':
             await self.show_job_status()
             return
-        
+        elif message.lower().startswith('skill '):
+            path = message[6:].strip()
+            resolved = os.path.realpath(os.path.expanduser(path))
+            if os.path.isfile(resolved):
+                if resolved not in self._skills:
+                    self._skills.append(resolved)
+                self.add_system_message(f"Loaded skill: {os.path.basename(resolved)}")
+            else:
+                self.add_system_message(f"Skill file not found: {path}")
+            return
+        elif message.lower() == 'skills':
+            if self._skills:
+                names = ', '.join(os.path.basename(s) for s in self._skills)
+                self.add_system_message(f"Active skills: {names}")
+            else:
+                self.add_system_message("No skills loaded. Use 'skill <path>' to load one.")
+            return
+        elif message.lower().startswith('unskill '):
+            name = message[8:].strip()
+            resolved = os.path.realpath(os.path.expanduser(name))
+            removed = False
+            if resolved in self._skills:
+                self._skills.remove(resolved)
+                removed = True
+            else:
+                for s in self._skills:
+                    if os.path.basename(s) == name:
+                        self._skills.remove(s)
+                        removed = True
+                        break
+            if removed:
+                self.add_system_message(f"Unloaded skill: {name}")
+            else:
+                self.add_system_message(f"Skill not found: {name}")
+            return
+
         # Handle conversation selection
         if self._selecting_conversation:
             await self.handle_conversation_selection(message)
@@ -341,6 +430,12 @@ class ConversationApp(App):
     
     def call_conversation_api(self, message: str) -> Dict:
         """Call the Chariot conversation API"""
+        if self._skills:
+            skill_context, warnings = _load_skill_files(self._skills)
+            for warning in warnings:
+                self.add_system_message(warning)
+            if skill_context:
+                message = skill_context + '\n\n' + message
         url = self.sdk.url("/planner")
         payload = {"message": message, "mode": self.mode}
         
@@ -373,6 +468,9 @@ class ConversationApp(App):
 - `resume` - Resume existing conversation
 - `query` - Switch to Query Mode (data discovery only)
 - `agent` - Switch to Agent Mode (full security operations)
+- `skill <path>` - Load a local skill/prompt file as context
+- `skills` - Show loaded skills
+- `unskill <name>` - Unload a skill
 - `jobs` - Show running jobs
 - `quit` - Exit
 
@@ -616,7 +714,7 @@ class ConversationApp(App):
             self.add_system_message(f"Failed to get job status: {e}")
 
 
-def run_textual_conversation(sdk: Chariot) -> None:
+def run_textual_conversation(sdk: Chariot, skills=None) -> None:
     """Run the Textual-based conversation interface"""
-    app = ConversationApp(sdk)
+    app = ConversationApp(sdk, skills=skills)
     app.run()
