@@ -59,6 +59,7 @@ class Filter:
         DOMAIN = 'domain'
         LABEL = 'label'
         TAGS = 'tags'
+        GUID = 'guid'
         SAMACCOUNTNAME = 'samaccountname'
         DISPLAYNAME = 'displayname'
         DESCRIPTION = 'description'
