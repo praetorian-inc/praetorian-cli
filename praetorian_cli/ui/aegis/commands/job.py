@@ -59,6 +59,9 @@ def list_jobs(menu):
         menu.pause()
         return
 
+    if not ensure_v1_agent(menu, 'job list'):
+        return
+
     hostname = menu.selected_agent.hostname
 
     try:

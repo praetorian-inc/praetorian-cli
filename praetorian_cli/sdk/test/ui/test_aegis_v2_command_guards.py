@@ -44,6 +44,7 @@ class Menu(MockMenuBase):
         ("cp", handle_cp, ["./local.txt", ":/tmp/remote.txt"]),
         ("proxy", handle_proxy, ["1080"]),
         ("schedule add", lambda menu, _args: add_schedule(menu), []),
+        ("job list", handle_job, ["list"]),
         ("job run", handle_job, ["run", "portscan"]),
         ("job capabilities", handle_job, ["capabilities"]),
     ],
