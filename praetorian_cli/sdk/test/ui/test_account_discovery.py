@@ -76,13 +76,14 @@ def _account(name, member='operator@praetorian.com', config=None):
     }
 
 
-def _mock_requests_get(agents_by_account, metadata=None):
+def _mock_requests_get(agents_by_account, metadata=None, endpoints_by_account=None):
     """Create a mock for requests.get that simulates API endpoints.
 
     metadata keys: types, subscriptions, frozen, display_names
     Each maps email -> value for allTenants bulk responses.
     """
     metadata = metadata or {}
+    endpoints_by_account = endpoints_by_account or {}
     types = metadata.get('types', {})
     subscriptions = metadata.get('subscriptions', {})
     frozen = metadata.get('frozen', {})
@@ -115,6 +116,9 @@ def _mock_requests_get(agents_by_account, metadata=None):
                     records.append({'username': email, 'name': 'display-name', 'value': dname})
             resp.status_code = 200
             resp.json.return_value = {'configurations': records}
+        elif '/my' in url and params.get('key') == '#endpoint#':
+            resp.status_code = 200
+            resp.json.return_value = {'endpoints': endpoints_by_account.get(account_email, [])}
         else:
             resp.status_code = 404
             resp.json.return_value = {}
@@ -146,6 +150,30 @@ class TestDiscoverAegisAccounts:
 
         assert len(result) == 1
         assert result[0]['account_email'] == 'acme@praetorian.com'
+
+    @patch('praetorian_cli.sdk.entities.account_discovery.requests')
+    def test_returns_accounts_with_v2_endpoints(self, mock_requests):
+        from praetorian_cli.sdk.entities.account_discovery import discover_aegis_accounts
+
+        accounts = [
+            _account('endpoint@praetorian.com'),
+            _account('empty@praetorian.com'),
+        ]
+        agents_map = {'endpoint@praetorian.com': [], 'empty@praetorian.com': []}
+        endpoints_map = {
+            'endpoint@praetorian.com': [
+                {'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'},
+            ],
+            'empty@praetorian.com': [],
+        }
+        sdk = _make_sdk(accounts, agents_map)
+        mock_requests.get.side_effect = _mock_requests_get(agents_map, {}, endpoints_map)
+
+        result = discover_aegis_accounts(sdk)
+
+        assert len(result) == 1
+        assert result[0]['account_email'] == 'endpoint@praetorian.com'
+        assert result[0]['agent_count'] == 1
 
     @patch('praetorian_cli.sdk.entities.account_discovery.requests')
     def test_account_metadata_extraction(self, mock_requests):
@@ -291,6 +319,31 @@ class TestLoadAgentsForAccounts:
         # Results are now sorted deterministically by account name, hostname
         assert result[0][1]['display_name'] == 'Acme'
         assert result[2][1]['display_name'] == 'Beta'
+
+    @patch('praetorian_cli.sdk.entities.account_discovery.requests')
+    def test_loads_v2_endpoints_from_multiple_accounts(self, mock_requests):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        agents_map = {'acme@praetorian.com': []}
+        endpoints_map = {
+            'acme@praetorian.com': [
+                {'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'},
+            ],
+        }
+        sdk = _make_sdk([], agents_map)
+        mock_requests.get.side_effect = _mock_requests_get(agents_map, {}, endpoints_map)
+
+        selected = [
+            {'account_email': 'acme@praetorian.com', 'display_name': 'Acme', 'status': 'Active'},
+        ]
+        result, failed = load_agents_for_accounts(sdk, selected)
+
+        assert failed == []
+        assert len(result) == 1
+        agent, account = result[0]
+        assert account['display_name'] == 'Acme'
+        assert agent.version == 'v2'
+        assert agent.endpoint_id == 'endpoint-1'
 
     @patch('praetorian_cli.sdk.entities.account_discovery.requests')
     def test_loads_schedules_from_multiple_accounts(self, mock_requests):

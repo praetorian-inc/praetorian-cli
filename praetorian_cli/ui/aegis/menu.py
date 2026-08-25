@@ -33,7 +33,7 @@ from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accoun
 from .theme import AEGIS_RICH_THEME, AEGIS_COLORS
 from .utils import (
     relative_time, format_os_display,
-    compute_agent_groups, get_agent_display_style
+    compute_agent_groups, get_agent_display_style, agent_display_id
 )
 
 # Command handlers
@@ -573,6 +573,7 @@ class AegisMenu:
             table.add_column("ACCT STATUS", width=12, no_wrap=True)
 
         table.add_column("", style=f"{self.colors['dim']}", width=4, justify="right", no_wrap=True)
+        table.add_column("VERSION", style=f"{self.colors['dim']}", width=7, no_wrap=True)
         table.add_column("HOSTNAME", style="white", min_width=25, no_wrap=False)
         table.add_column("OS", style=f"{self.colors['dim']}", width=16, no_wrap=True)
         table.add_column("STATUS", width=8, justify="left", no_wrap=True)
@@ -606,7 +607,7 @@ class AegisMenu:
             
             row_cells = []
             if self.multi_account_mode:
-                acct_info = self.agent_account_map.get(agent.client_id, {})
+                acct_info = self.agent_account_map.get(agent_display_id(agent), {})
                 acct_name = truncate_email(acct_info.get('display_name', ''), 19)
                 acct_status = acct_info.get('status', '')
                 acct_status_style = self.colors['success'] if acct_status.upper() == 'ACTIVE' else self.colors['dim']
@@ -615,6 +616,7 @@ class AegisMenu:
 
             row_cells.extend([
                 Text(str(i), style=idx_style),
+                Text(getattr(agent, 'version', 'v1'), style=f"{self.colors['dim']}"),
                 Text(hostname, style=hostname_style),
                 os_display,
                 status,
@@ -705,12 +707,13 @@ class AegisMenu:
                     for agent, acct_info in agent_tuples:
                         self.agents.append(agent)
                         agent._account_info = acct_info
-                        if agent.client_id and agent.client_id != 'N/A':
-                            self.agent_account_map[agent.client_id] = acct_info
-                        if agent.client_id:
-                            self.agent_os_lookup[agent.client_id] = agent.os
+                        identifier = agent_display_id(agent)
+                        if identifier and identifier != 'N/A':
+                            self.agent_account_map[identifier] = acct_info
+                        if identifier:
+                            self.agent_os_lookup[identifier] = agent.os
                             if agent.hostname:
-                                self.agent_lookup[agent.client_id] = agent.hostname
+                                self.agent_lookup[identifier] = agent.hostname
                 finally:
                     status.stop()
 
@@ -729,10 +732,11 @@ class AegisMenu:
                 self.agent_lookup = {}
                 self.agent_os_lookup = {}
                 for agent in self.agents:
-                    if agent.client_id:
-                        self.agent_os_lookup[agent.client_id] = agent.os
+                    identifier = agent_display_id(agent)
+                    if identifier:
+                        self.agent_os_lookup[identifier] = agent.os
                         if agent.hostname:
-                            self.agent_lookup[agent.client_id] = agent.hostname
+                            self.agent_lookup[identifier] = agent.hostname
 
             if self.verbose or not self.agents:
                 agent_count = len(self.agents)

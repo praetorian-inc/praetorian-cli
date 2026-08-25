@@ -1,8 +1,10 @@
 """Tests for multi-account agent and schedule table rendering."""
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from io import StringIO
 from rich.console import Console
+from praetorian_cli.sdk.model.aegis import Agent
 from praetorian_cli.ui.aegis.theme import AEGIS_RICH_THEME, AEGIS_COLORS
 
 
@@ -98,6 +100,37 @@ class TestMultiAccountAgentTable:
         assert 'dc01.internal' in text
         # Display name truncated to 19 chars: "Cushman & Wakefie..."
         assert 'Cushman & Wakefie' in text
+
+    def test_agent_table_has_version_column_for_mixed_agents(self):
+        """The Aegis table distinguishes legacy v1 agents from v2 endpoints."""
+        from praetorian_cli.ui.aegis.menu import AegisMenu
+
+        sdk = MagicMock()
+        sdk.keychain.account = 'acme@p.com'
+        sdk.get_current_user.return_value = ('op@p.com', 'op')
+
+        menu = AegisMenu(sdk)
+        legacy = _make_agent('legacy-host')
+        legacy.version = 'v1'
+        endpoint = Agent.from_endpoint_dict({
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'hostname': 'sensor-1',
+            'os': 'linux',
+            'lastHeartbeat': datetime.now(timezone.utc).isoformat(),
+        })
+        menu.agents = [legacy, endpoint]
+
+        output = StringIO()
+        menu.console = Console(file=output, force_terminal=True, width=150, theme=AEGIS_RICH_THEME)
+        menu.show_agents_list(show_offline=True)
+        text = output.getvalue()
+
+        assert 'VERSION' in text
+        assert 'v1' in text
+        assert 'v2' in text
+        assert 'legacy-host' in text
+        assert 'sensor-1' in text
 
 
 class TestMultiAccountScheduleTable:
