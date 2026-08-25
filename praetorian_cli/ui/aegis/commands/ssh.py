@@ -1,5 +1,6 @@
 from praetorian_cli.handlers.ssh_utils import SSHArgumentParser
 from ..constants import DEFAULT_COLORS
+from ..utils import ensure_v1_agent
 
 def _print_help(menu):
     help_text = """
@@ -42,6 +43,9 @@ def handle_ssh(menu, args):
     if any(a in ('-h', '--help') for a in args):
         _print_help(menu)
         menu.pause()
+        return
+
+    if not ensure_v1_agent(menu, 'ssh'):
         return
     
     parser = SSHArgumentParser(console=menu.console)

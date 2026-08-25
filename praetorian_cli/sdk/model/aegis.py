@@ -9,6 +9,19 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
+def is_v2_agent(agent: object) -> bool:
+    """Return whether an agent row represents an Aegis v2 endpoint."""
+    if agent is None:
+        return False
+
+    version = getattr(agent, 'version', 'v1')
+    if isinstance(version, str) and version.lower() == 'v2':
+        return True
+
+    endpoint_id = getattr(agent, 'endpoint_id', None)
+    return isinstance(endpoint_id, str) and endpoint_id not in ('', 'N/A')
+
+
 @dataclass
 class NetworkInterface:
     """Represents a network interface on an agent"""
@@ -146,14 +159,21 @@ class Agent:
         last_seen_seconds = (self.last_seen_at / 1000000 
                            if self.last_seen_at > 1000000000000 
                            else self.last_seen_at)
-        online_window_seconds = 90 if self.version == 'v2' else 60
+        online_window_seconds = 90 if is_v2_agent(self) else 60
         
         return (current_time - last_seen_seconds) < online_window_seconds
 
     @property
     def display_id(self) -> str:
         """Return the operator-facing identifier for the endpoint row."""
-        return self.endpoint_id or self.client_id or 'N/A'
+        if self.endpoint_id and self.endpoint_id != 'N/A':
+            return self.endpoint_id
+        return self.client_id or 'N/A'
+
+    @property
+    def is_v2(self) -> bool:
+        """Return whether this row represents an Aegis v2 endpoint."""
+        return is_v2_agent(self)
     
     @property 
     def ip_addresses(self) -> List[str]:
@@ -223,8 +243,16 @@ def validate_agent_for_ssh(agent: Agent) -> tuple[bool, str]:
     if not agent:
         return False, "No agent specified"
     
-    client_id = agent.client_id
     hostname = agent.hostname or 'Unknown'
+    if is_v2_agent(agent):
+        display_id = getattr(agent, 'endpoint_id', None) or 'N/A'
+        return (
+            False,
+            "SSH is only supported for Aegis v1 agents; "
+            f"{hostname} is an Aegis v2 endpoint ({display_id})",
+        )
+
+    client_id = agent.client_id
     has_tunnel = agent.has_tunnel
     
     if not client_id:

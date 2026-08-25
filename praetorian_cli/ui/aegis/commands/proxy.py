@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from threading import Thread, Event
 
 from ..constants import DEFAULT_COLORS
+from ..utils import ensure_v1_agent
 
 
 @dataclass
@@ -50,6 +51,9 @@ def _handle_start(menu, args):
     if not menu.selected_agent:
         menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
+        return
+
+    if not ensure_v1_agent(menu, 'proxy'):
         return
 
     agent = menu.selected_agent
