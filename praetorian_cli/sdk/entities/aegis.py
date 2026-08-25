@@ -26,6 +26,39 @@ def _is_aegis_endpoint(value) -> bool:
     return isinstance(value, dict) and str(value.get('kind', '')).lower() == 'aegis'
 
 
+ENROLLMENT_INSPECT_PATH = 'endpoint/enrollment/inspect'
+ENROLLMENT_APPROVE_PATH = 'endpoint/enrollment/approve'
+
+
+def _enrollment_user_code_payload(user_code: str) -> dict:
+    code = str(user_code or '').strip()
+    if not code:
+        raise ValueError('enrollment user code is required')
+    return {'userCode': code}
+
+
+def normalize_pending_enrollment(pending: dict) -> dict:
+    """Return only safe enrollment review fields from an inspect response."""
+    if not isinstance(pending, dict):
+        return {}
+
+    metadata = pending.get('metadata') or pending.get('Metadata') or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    return {
+        'endpoint_id': pending.get('endpointId') or pending.get('endpoint_id') or '',
+        'account': pending.get('account') or pending.get('Account') or '',
+        'kind': pending.get('kind') or pending.get('Kind') or '',
+        'version': metadata.get('version') or metadata.get('Version') or '',
+        'hostname': metadata.get('hostname') or metadata.get('Hostname') or '',
+        'os': metadata.get('os') or metadata.get('OS') or '',
+        'arch': metadata.get('arch') or metadata.get('Arch') or '',
+        'created_at': pending.get('createdAt') or pending.get('created_at') or '',
+        'expires_at': pending.get('expiresAt') or pending.get('expires_at') or '',
+    }
+
+
 class Aegis:
     """ The methods in this class are to be accessed from sdk.aegis, where sdk
     is an instance of Chariot. """
@@ -116,6 +149,18 @@ class Aegis:
         except Exception as e:
             raise Exception(f"Failed to get agent {client_id}: {e}")
     
+    def inspect_enrollment(self, user_code: str) -> dict:
+        """Inspect safe pending Aegis v2 enrollment details for a user code."""
+        response = self.api.post(ENROLLMENT_INSPECT_PATH, _enrollment_user_code_payload(user_code))
+        return normalize_pending_enrollment(response)
+
+    def approve_enrollment(self, user_code: str) -> dict:
+        """Approve a pending Aegis v2 enrollment user code."""
+        response = self.api.post(ENROLLMENT_APPROVE_PATH, _enrollment_user_code_payload(user_code))
+        if not isinstance(response, dict):
+            return {'status': 'approved'}
+        return {'status': response.get('status') or response.get('Status') or 'approved'}
+
     def get_capabilities(self, surface_filter: str = None, agent_os: str = None) -> List[dict]:
         """
         Get Aegis capabilities with optional filtering.
