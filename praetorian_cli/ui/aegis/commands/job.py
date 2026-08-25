@@ -2,7 +2,7 @@ import json
 from rich.table import Table
 from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
-from ..utils import format_timestamp, format_job_status
+from ..utils import ensure_v1_agent, format_timestamp, format_job_status
 from ..constants import DEFAULT_COLORS
 from .job_helpers import (
     interactive_capability_picker as _interactive_capability_picker,
@@ -38,16 +38,16 @@ def show_job_help(menu):
   Job Commands
 
   job list                  List recent jobs for selected agent
-  job run [capability]      Run a capability on selected agent (interactive picker)
-  job capabilities          List available capabilities (alias: caps)
+  job run [capability]      Run a capability on selected v1 agent (interactive picker)
+  job capabilities          List available v1 capabilities (alias: caps)
                            [--details] Show full descriptions
   
   Examples:
     job list                 # List recent jobs
-    job capabilities         # List capabilities with brief descriptions
-    job caps --details       # List capabilities with full descriptions  
+    job capabilities         # List v1 capabilities with brief descriptions
+    job caps --details       # List v1 capabilities with full descriptions
     job run                  # Interactive capability picker
-    job run windows-enum     # Run specific capability with confirmation
+    job run windows-enum     # Run v1 capability with confirmation
 """
     menu.console.print(help_text)
     menu.pause()
@@ -117,6 +117,9 @@ def run_job(menu, args):
     if not menu.selected_agent:
         menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
+        return
+
+    if not ensure_v1_agent(menu, 'job run'):
         return
 
     hostname = menu.selected_agent.hostname or 'Unknown'
@@ -233,7 +236,11 @@ def list_capabilities(menu, args):
         menu.pause()
         return
 
+    if not ensure_v1_agent(menu, 'job capabilities'):
+        return
+
     show_details = '--details' in args or '-d' in args
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
     try:
         result = menu.sdk.aegis.run_job(
@@ -242,7 +249,6 @@ def list_capabilities(menu, args):
             config=None
         )
 
-        colors = getattr(menu, 'colors', DEFAULT_COLORS)
         if 'capabilities' in result:
             capabilities_table = Table(
                 show_header=True,

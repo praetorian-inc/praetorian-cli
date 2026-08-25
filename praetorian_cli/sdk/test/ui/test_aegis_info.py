@@ -45,6 +45,51 @@ def test_info_prints_detail():
     assert menu.paused is True
 
 
+def test_info_prints_v2_endpoint_identity_and_account():
+    agent = MockAgent(hostname="sensor")
+    agent.version = "v2"
+    agent.endpoint_id = "endpoint-1"
+    agent.client_id = "N/A"
+    agent._account_info = {"display_name": "Gladiator"}
+    menu = Menu(agent=agent)
+
+    handle_info(menu, [])
+
+    output = "\n".join(menu.console.lines)
+    assert "Version:      v2" in output
+    assert "Endpoint ID:  endpoint-1" in output
+    assert "Account:      Gladiator" in output
+    assert "Client ID:" not in output
+    assert menu.paused is True
+
+
+def test_info_v2_endpoint_does_not_read_legacy_client_id():
+    class V2Endpoint:
+        hostname = "sensor"
+        endpoint_id = "endpoint-1"
+        version = "v2"
+        os = "linux"
+        os_version = ""
+        architecture = "amd64"
+        fqdn = "sensor"
+        last_seen_at = 0
+        network_interfaces = []
+        health_check = None
+
+        @property
+        def client_id(self):
+            raise AssertionError("v2 info must not inspect legacy client_id")
+
+    menu = Menu(agent=V2Endpoint())
+
+    handle_info(menu, [])
+
+    output = "\n".join(menu.console.lines)
+    assert "Endpoint ID:  endpoint-1" in output
+    assert "Error getting agent info" not in output
+    assert menu.paused is True
+
+
 def test_info_error_path():
     agent = ErrorAgent("irrelevant")
     menu = Menu(agent=agent)

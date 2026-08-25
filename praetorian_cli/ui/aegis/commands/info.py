@@ -1,4 +1,5 @@
 from ..constants import DEFAULT_COLORS
+from ..utils import agent_account_info, agent_display_id, is_v2_agent
 
 
 def handle_info(menu, args):
@@ -50,7 +51,8 @@ def _show_agent_info(menu, agent, raw=False):
     os_version = agent.os_version or ''
     architecture = agent.architecture or 'Unknown'
     fqdn = agent.fqdn or 'N/A'
-    client_id = agent.client_id or 'N/A'
+    display_id = agent_display_id(agent) or 'N/A'
+    version = getattr(agent, 'version', 'v1')
     last_seen = agent.last_seen_at or 0
     health = agent.health_check
     cf_status = health.cloudflared_status if health else None
@@ -81,7 +83,8 @@ def _show_agent_info(menu, agent, raw=False):
     current_time = datetime.now().timestamp()
     if last_seen > 0:
         last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
-        is_online = (current_time - last_seen_seconds) < 60
+        online_window_seconds = 90 if is_v2_agent(agent) else 60
+        is_online = (current_time - last_seen_seconds) < online_window_seconds
         last_seen_str = datetime.fromtimestamp(last_seen_seconds).strftime("%Y-%m-%d %H:%M:%S")
         if is_online:
             status_text = f"[{colors['success']}]● online[/{colors['success']}]"
@@ -108,7 +111,17 @@ def _show_agent_info(menu, agent, raw=False):
             menu.console.print(f"    IPs:          {ip_info[0]}")
             for ip in ip_info[1:]:
                 menu.console.print(f"                  {ip}")
-    menu.console.print(f"    Client ID:    {client_id[:40]}...")
+    if is_v2_agent(agent):
+        menu.console.print(f"    Version:      {version}")
+        menu.console.print(f"    Endpoint ID:  {display_id}")
+        acct_info = agent_account_info(agent, getattr(menu, 'agent_account_map', {}))
+        if acct_info:
+            account_name = acct_info.get('display_name') or acct_info.get('account_email')
+            if account_name:
+                menu.console.print(f"    Account:      {account_name}")
+    else:
+        client_id = agent.client_id or 'N/A'
+        menu.console.print(f"    Client ID:    {client_id[:40]}...")
     menu.console.print(f"    Last seen:    {last_seen_str}")
     menu.console.print()
     
