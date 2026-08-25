@@ -186,6 +186,7 @@ def _fetch_account_agents(base_url: str, headers: dict) -> Optional[List[dict]]:
 def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict]]:
     endpoints = []
     params = {'key': '#endpoint#'}
+    seen_offsets = set()
 
     while True:
         resp = requests.get(
@@ -203,7 +204,12 @@ def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict
         offset = body.get('offset') if isinstance(body, dict) else None
         if not offset:
             return endpoints
-        params = {'key': '#endpoint#', 'offset': json.dumps(offset)}
+        serialized_offset = json.dumps(offset)
+        if serialized_offset in seen_offsets:
+            logger.debug('Endpoint fetch repeated pagination offset: %s', serialized_offset)
+            return None
+        seen_offsets.add(serialized_offset)
+        params = {'key': '#endpoint#', 'offset': serialized_offset}
 
 
 def _fetch_account_records(base_url: str, headers: dict) -> Optional[tuple[List[dict], List[dict]]]:
