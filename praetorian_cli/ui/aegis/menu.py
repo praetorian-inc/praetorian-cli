@@ -48,7 +48,7 @@ from .commands.list import handle_list as cmd_handle_list
 from .commands.ssh import handle_ssh as cmd_handle_ssh
 from .commands.cp import handle_cp as cmd_handle_cp
 from .commands.info import handle_info as cmd_handle_info
-from .commands.job import handle_job as cmd_handle_job
+from .commands.job import complete as cmd_complete_job, handle_job as cmd_handle_job
 from .commands.schedule import handle_schedule as cmd_handle_schedule
 from .commands.proxy import handle_proxy as cmd_handle_proxy, stop_all_proxies
 
@@ -164,6 +164,10 @@ class MenuCompleter(Completer):
                 for sub in subcommands:
                     if sub.startswith(prefix):
                         yield Completion(sub, start_position=-len(prefix))
+            else:
+                tokens = ['job'] + words
+                for completion in cmd_complete_job(self.menu, current_word, tokens):
+                    yield Completion(completion, start_position=-len(current_word))
 
     def _get_schedule_completions(self, prefix):
         """Get schedule ID completions with metadata (cached to avoid per-keystroke API calls)."""

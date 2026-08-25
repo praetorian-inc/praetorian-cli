@@ -65,15 +65,18 @@ def format_os_display(os_info: str, os_version: str = "", max_length: int = 18) 
 
 
 
-def format_timestamp(timestamp: float, format_str: str = "%m/%d %H:%M") -> str:
+def format_timestamp(timestamp: float | str, format_str: str = "%m/%d %H:%M") -> str:
     """Format timestamp for display"""
     if not timestamp:
         return "—"
-    
+
     try:
-        dt = datetime.fromtimestamp(timestamp)
+        if isinstance(timestamp, str):
+            dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        else:
+            dt = datetime.fromtimestamp(timestamp)
         return dt.strftime(format_str)
-    except (ValueError, OSError):
+    except (TypeError, ValueError, OSError, OverflowError):
         return "—"
 
 

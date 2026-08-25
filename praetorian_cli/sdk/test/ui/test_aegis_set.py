@@ -1,4 +1,5 @@
 import pytest
+from rich.console import Console
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
@@ -83,6 +84,16 @@ def test_set_by_endpoint_id_selects_v2_agent():
 
     assert menu.selected_agent is v2_agent
     assert any("[v2] (endpoint-1)" in l for l in menu.console.lines)
+
+
+def test_set_v2_label_renders_literal_version_in_rich_console():
+    v2_agent = MockAgent("sensor", "N/A", endpoint_id="endpoint-1")
+    menu = Menu([v2_agent])
+    menu.console = Console(record=True, force_terminal=False, width=80)
+
+    handle_set(menu, ["endpoint-1"])
+
+    assert "Selected: sensor [v2] (endpoint-1)" in menu.console.export_text()
 
 
 def test_set_by_index_selects_v2_agent():

@@ -2,8 +2,9 @@ import json
 from rich.table import Table
 from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
-from ..utils import ensure_v1_agent, format_timestamp, format_job_status
+from ..utils import ensure_v1_agent, is_v2_agent
 from ..constants import DEFAULT_COLORS
+from . import job_v2
 from .job_helpers import (
     interactive_capability_picker as _interactive_capability_picker,
     select_domain as _select_domain,
@@ -34,7 +35,11 @@ def handle_job(menu, args):
 
 
 def show_job_help(menu):
-    help_text = f"""
+    if is_v2_agent(getattr(menu, 'selected_agent', None)):
+        job_v2.show_job_help(menu)
+        return
+
+    help_text = """
   Job Commands
 
   job list                  List recent jobs for selected agent
@@ -59,9 +64,14 @@ def list_jobs(menu):
         menu.pause()
         return
 
+    if is_v2_agent(menu.selected_agent):
+        job_v2.list_jobs(menu)
+        return
+
     if not ensure_v1_agent(menu, 'job list'):
         return
 
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
     hostname = menu.selected_agent.hostname
 
     try:
@@ -72,41 +82,7 @@ def list_jobs(menu):
             menu.pause()
             return
 
-        jobs.sort(key=lambda j: j.get('created', 0), reverse=True)
-
-        colors = getattr(menu, 'colors', DEFAULT_COLORS)
-        jobs_table = Table(
-            show_header=True,
-            header_style=f"bold {colors['primary']}",
-            border_style=colors['dim'],
-            box=MINIMAL,
-            show_lines=False,
-            padding=(0, 2),
-            pad_edge=False
-        )
-
-        jobs_table.add_column("JOB ID", style=f"bold {colors['accent']}", width=12, no_wrap=True)
-        jobs_table.add_column("CAPABILITY", style="white", min_width=20, no_wrap=True)
-        jobs_table.add_column("STATUS", width=10, justify="center", no_wrap=True)
-        jobs_table.add_column("CREATED", style=f"{colors['dim']}", width=12, justify="right", no_wrap=True)
-
-        menu.console.print()
-        menu.console.print(f"  Recent Jobs for {hostname}")
-        menu.console.print()
-
-        for job in jobs[:10]:
-            capability = job.get('capabilities', ['unknown'])[0] if job.get('capabilities') else 'unknown'
-            status = job.get('status', 'unknown')
-            job_id = job.get('key', '').split('#')[-1][:10]
-            created = job.get('created', 0)
-
-            created_str = format_timestamp(created)
-            status_display = format_job_status(status, colors)
-
-            jobs_table.add_row(job_id, capability, status_display, created_str)
-
-        menu.console.print(jobs_table)
-        menu.console.print()
+        job_v2.show_jobs_table(menu, jobs, f"  Recent Jobs for {hostname}")
         menu.pause()
 
     except Exception as e:
@@ -120,6 +96,10 @@ def run_job(menu, args):
     if not menu.selected_agent:
         menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
+        return
+
+    if is_v2_agent(menu.selected_agent):
+        job_v2.run_job(menu, args)
         return
 
     if not ensure_v1_agent(menu, 'job run'):
@@ -239,6 +219,10 @@ def list_capabilities(menu, args):
         menu.pause()
         return
 
+    if is_v2_agent(menu.selected_agent):
+        job_v2.list_capabilities(menu, args)
+        return
+
     if not ensure_v1_agent(menu, 'job capabilities'):
         return
 
@@ -292,8 +276,17 @@ def list_capabilities(menu, args):
 
 
 def complete(menu, text, tokens):
+    if is_v2_agent(getattr(menu, 'selected_agent', None)) and len(tokens) >= 2 and tokens[1] == 'run':
+        v2_suggestions = job_v2.complete(menu, text, tokens)
+        if v2_suggestions:
+            return v2_suggestions
+
     sub = ['list', 'run', 'capabilities', 'caps']
     if len(tokens) <= 2:
         return [s for s in sub if s.startswith(text)]
-    # Could extend to capability names later
+
+    v2_suggestions = job_v2.complete(menu, text, tokens)
+    if v2_suggestions:
+        return v2_suggestions
+
     return []

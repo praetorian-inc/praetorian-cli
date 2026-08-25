@@ -3,7 +3,6 @@ import pytest
 from praetorian_cli.sdk.model.aegis import validate_agent_for_ssh
 from praetorian_cli.sdk.test.ui_mocks import MockMenuBase, MockSDK
 from praetorian_cli.ui.aegis.commands.cp import handle_cp
-from praetorian_cli.ui.aegis.commands.job import handle_job
 from praetorian_cli.ui.aegis.commands.proxy import handle_proxy
 from praetorian_cli.ui.aegis.commands.schedule import add_schedule
 from praetorian_cli.ui.aegis.commands.ssh import handle_ssh
@@ -44,9 +43,6 @@ class Menu(MockMenuBase):
         ("cp", handle_cp, ["./local.txt", ":/tmp/remote.txt"]),
         ("proxy", handle_proxy, ["1080"]),
         ("schedule add", lambda menu, _args: add_schedule(menu), []),
-        ("job list", handle_job, ["list"]),
-        ("job run", handle_job, ["run", "portscan"]),
-        ("job capabilities", handle_job, ["capabilities"]),
     ],
 )
 def test_v1_only_commands_fail_fast_for_v2_without_legacy_access(command, handler, args):
