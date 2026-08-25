@@ -66,12 +66,9 @@ class Aegis:
             - has_tunnel: Boolean indicating if Cloudflare tunnel is active
             - is_online: Boolean indicating if agent is currently online
         """
-        try:
-            agents = self._list_legacy_agents()
-            agents.extend(self._list_endpoint_agents())
-            return agents, None
-        except Exception as e:
-            raise Exception(f"Failed to list Aegis agents: {e}")
+        agents = self._list_legacy_agents()
+        agents.extend(self._list_endpoint_agents())
+        return agents, None
 
     def _list_legacy_agents(self) -> List[Agent]:
         agents_data = self.api.get('/agent/enhanced')
@@ -80,7 +77,10 @@ class Aegis:
     def _list_endpoint_agents(self) -> List[Agent]:
         if not hasattr(self.api, 'search'):
             return []
-        endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
+        try:
+            endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
+        except Exception:
+            return []
         endpoints = normalize_to_list(
             endpoints_data,
             ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
@@ -110,7 +110,7 @@ class Aegis:
         try:
             agents_data, _ = self.list()
             for agent in agents_data:
-                if agent.client_id == client_id:
+                if agent.display_id == client_id:
                     return agent
             return None
         except Exception as e:
