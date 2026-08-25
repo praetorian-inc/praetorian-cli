@@ -61,10 +61,16 @@ class Agent:
     os: str = 'unknown'
     os_version: str = ''
     architecture: str = 'Unknown'
-    last_seen_at: Optional[int] = None
+    last_seen_at: Optional[float] = None
     network_interfaces: List[NetworkInterface] = None
     health_check: Optional[HealthCheck] = None
     key: Optional[str] = None
+    endpoint_id: Optional[str] = None
+    version: str = 'v1'
+    kind: str = 'aegis'
+    agent_version: str = ''
+    runtime: Optional[Dict[str, Any]] = None
+    running_container_count: int = 0
     
     def __post_init__(self):
         if self.network_interfaces is None:
@@ -91,9 +97,37 @@ class Agent:
             last_seen_at=data.get('last_seen_at'),
             network_interfaces=network_interfaces,
             health_check=health_check,
-            key=data.get('key')
+            key=data.get('key'),
+            version='v1',
+            agent_version=data.get('version', '')
         )
-    
+
+    @classmethod
+    def from_endpoint_dict(cls, data: Dict[str, Any]) -> 'Agent':
+        """Create an Agent-shaped row from a Guard endpoint registry record."""
+        endpoint_id = data.get('endpointId') or data.get('endpoint_id') or ''
+        hostname = data.get('hostname') or 'Unknown'
+        return cls(
+            client_id='N/A',
+            hostname=hostname,
+            fqdn=hostname,
+            os=data.get('os', 'unknown'),
+            architecture=data.get('arch') or data.get('architecture') or 'Unknown',
+            last_seen_at=parse_timestamp_seconds(
+                data.get('lastHeartbeat') or data.get('last_heartbeat')
+            ),
+            network_interfaces=[],
+            health_check=None,
+            key=data.get('key'),
+            endpoint_id=endpoint_id,
+            version='v2',
+            kind=data.get('kind', 'aegis'),
+            agent_version=data.get('version', ''),
+            runtime=data.get('runtime') or {},
+            running_container_count=(
+                data.get('runningContainerCount') or data.get('running_container_count') or 0
+            ),
+        )
     
     @property
     def has_tunnel(self) -> bool:
@@ -104,7 +138,7 @@ class Agent:
     
     @property
     def is_online(self) -> bool:
-        """Check if agent is currently online (last seen within 60 seconds)"""
+        """Check if agent is currently online."""
         if not self.last_seen_at:
             return False
         
@@ -112,8 +146,14 @@ class Agent:
         last_seen_seconds = (self.last_seen_at / 1000000 
                            if self.last_seen_at > 1000000000000 
                            else self.last_seen_at)
+        online_window_seconds = 90 if self.version == 'v2' else 60
         
-        return (current_time - last_seen_seconds) < 60
+        return (current_time - last_seen_seconds) < online_window_seconds
+
+    @property
+    def display_id(self) -> str:
+        """Return the operator-facing identifier for the endpoint row."""
+        return self.endpoint_id or self.client_id or 'N/A'
     
     @property 
     def ip_addresses(self) -> List[str]:
@@ -127,18 +167,23 @@ class Agent:
     def __str__(self) -> str:
         """Return a simple string representation of the agent"""
         status = "🔗" if self.has_tunnel else "○"
-        return f"{status} {self.hostname} ({self.client_id})"
+        return f"{status} [{self.version}] {self.hostname} ({self.display_id})"
     
     def to_detailed_string(self) -> str:
         """Return a detailed string representation of the agent"""
         os_info = f"{self.os} {self.os_version}".strip()
         
         lines = [
-            f"\n{self.hostname} ({self.client_id})",
+            f"\n{self.hostname} ({self.display_id})",
+            f"  Version: {self.version}",
             f"  OS: {os_info}",
             f"  Architecture: {self.architecture}",
             f"  FQDN: {self.fqdn}"
         ]
+        if self.endpoint_id:
+            lines.append(f"  Endpoint ID: {self.endpoint_id}")
+        else:
+            lines.append(f"  Client ID: {self.client_id}")
         
         if self.has_tunnel:
             cf_status = self.health_check.cloudflared_status
@@ -154,6 +199,20 @@ class Agent:
             lines.append(f"  IP addresses: {', '.join(ips)}")
         
         return '\n'.join(lines)
+
+
+def parse_timestamp_seconds(value: Any) -> Optional[float]:
+    """Normalize API timestamp values to epoch seconds."""
+    if value is None or value == '':
+        return None
+    if isinstance(value, (int, float)):
+        return value / 1000000 if value > 1000000000000 else float(value)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+        except ValueError:
+            return None
+    return None
 
 
 def validate_agent_for_ssh(agent: Agent) -> tuple[bool, str]:

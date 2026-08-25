@@ -132,6 +132,15 @@ def get_agent_display_style(group: str, colors: dict) -> dict:
         }
 
 
+def agent_display_id(agent: Agent) -> str:
+    """Return the stable UI identifier for v1 agents and v2 endpoints."""
+    endpoint_id = getattr(agent, 'endpoint_id', None)
+    if isinstance(endpoint_id, str) and endpoint_id:
+        return endpoint_id
+    client_id = getattr(agent, 'client_id', '')
+    return client_id if isinstance(client_id, str) else ''
+
+
 def parse_agent_identifier(identifier: str, displayed_agents: List[Agent], all_agents: Optional[List[Agent]] = None) -> Optional[Agent]:
     """Parse agent identifier and return matching agent
     """
@@ -145,7 +154,7 @@ def parse_agent_identifier(identifier: str, displayed_agents: List[Agent], all_a
         agent_num = int(identifier)
         if 1 <= agent_num <= len(displayed_agents):
             return displayed_agents[agent_num - 1]
-    
+
     for agent in search_agents:
         try:
             if agent.client_id and agent.client_id.lower() == identifier.lower():
