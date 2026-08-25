@@ -1,4 +1,6 @@
 import logging
+from rich.text import Text
+
 from ..utils import (
     agent_account_info,
     agent_display_id,
@@ -59,17 +61,18 @@ def handle_set(menu, args):
             setattr(selected_agent, '_account_info', acct_info)
 
         menu.selected_agent = selected_agent
-        selected_label = f"\n  Selected: {hostname}"
+        selected_label = Text(f"\n  Selected: {hostname}")
         if is_v2_agent(selected_agent):
             display_id = agent_display_id(selected_agent)
-            selected_label += f" [v2] ({display_id})"
+            selected_label.append(f" [v2] ({display_id})")
             acct_info = agent_account_info(selected_agent, agent_account_map)
             account_name = None
             if acct_info:
                 account_name = acct_info.get('display_name') or acct_info.get('account_email')
             if account_name:
-                selected_label += f" — {account_name}"
-        menu.console.print(f"{selected_label}\n")
+                selected_label.append(f" — {account_name}")
+        selected_label.append("\n")
+        menu.console.print(selected_label)
         # Pre-fetch home directory listing so cp tab-completion is instant
         if hasattr(menu, 'prefetch_agent_home'):
             menu.prefetch_agent_home(selected_agent)

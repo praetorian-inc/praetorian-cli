@@ -3,7 +3,8 @@ import json
 import pytest
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
-from praetorian_cli.ui.aegis.commands.job import handle_job
+from rich.console import Console
+from praetorian_cli.ui.aegis.commands.job import complete as complete_job, handle_job
 from praetorian_cli.ui.aegis.commands.job_helpers import CapabilityCompleter, extract_target_type
 from rich.prompt import Confirm
 from praetorian_cli.sdk.test.ui_mocks import MockMenuBase, MockSDK, MockAgent
@@ -16,6 +17,42 @@ class Menu(MockMenuBase):
         super().__init__()
         self.sdk = MockSDK(responses=responses)
         self.selected_agent = MockAgent()
+
+
+class V2Endpoint:
+    hostname = "sensor"
+    endpoint_id = "endpoint-1"
+    version = "v2"
+    kind = "aegis"
+    os = "linux"
+
+    @property
+    def client_id(self):
+        raise AssertionError("v2 jobs must not inspect legacy client_id")
+
+    @property
+    def has_tunnel(self):
+        raise AssertionError("v2 jobs must not inspect legacy tunnel state")
+
+    @property
+    def health_check(self):
+        raise AssertionError("v2 jobs must not inspect legacy tunnel state")
+
+
+def _select_v2_endpoint(menu):
+    menu.selected_agent = V2Endpoint()
+
+
+def _endpoint_capabilities(*names, target='asset'):
+    return [
+        {
+            'name': name,
+            'target': [target],
+            'description': f'{name} endpoint capability',
+            'executor': 'chariot',
+        }
+        for name in names
+    ]
 
 
 def test_job_capabilities_lists_caps():
@@ -33,6 +70,211 @@ def test_job_capabilities_lists_caps():
     calls = menu.sdk.aegis.calls
     assert len(calls) == 1
     assert calls[0]['capabilities'] is None
+
+
+def test_v2_job_capabilities_lists_guard_endpoint_catalog_without_legacy_calls():
+    responses = {'endpoint_capabilities': _endpoint_capabilities('dynamic-scan', 'portscan')}
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+
+    handle_job(menu, ['capabilities'])
+
+    output = menu.console.export_text()
+    assert 'Aegis v2 Endpoint Capabilities' in output
+    assert 'dynamic-scan' in output
+    assert 'portscan' in output
+    assert menu.sdk.capabilities.calls == [{
+        'method': 'list',
+        'name': '',
+        'target': '',
+        'executor': '',
+        'surface': '',
+        'endpoint_kind': 'aegis',
+    }]
+    assert menu.sdk.aegis.calls == []
+    assert menu.sdk.jobs.calls == []
+    assert menu.paused is True
+
+
+def test_v2_job_run_completion_uses_guard_endpoint_catalog():
+    responses = {'endpoint_capabilities': _endpoint_capabilities('dynamic-scan', 'other-scan')}
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+
+    assert complete_job(menu, 'dyn', ['job', 'run']) == ['dynamic-scan']
+    assert complete_job(menu, 'oth', ['job', 'run']) == ['other-scan']
+    assert menu.sdk.capabilities.calls == [{
+        'method': 'list',
+        'name': '',
+        'target': '',
+        'executor': '',
+        'surface': '',
+        'endpoint_kind': 'aegis',
+    }]
+
+
+def test_v2_job_run_help_does_not_use_v1_guard_or_create_job():
+    menu = Menu()
+    _select_v2_endpoint(menu)
+
+    handle_job(menu, ['run', 'portscan', '--help'])
+
+    output = "\n".join(menu.console.lines)
+    assert 'Aegis v2 Job Run' in output
+    assert 'only supported for Aegis v1' not in output
+    assert menu.sdk.aegis.calls == []
+    assert menu.sdk.assets.calls == []
+    assert menu.sdk.jobs.calls == []
+    assert menu.paused is True
+
+
+def test_v2_job_run_portscan_uses_existing_asset_and_endpoint_config():
+    responses = {
+        'endpoint_capabilities': _endpoint_capabilities('portscan'),
+        'asset': {
+            'key': '#asset#10.0.0.7#10.0.0.7',
+            'dns': '10.0.0.7',
+            'name': '10.0.0.7',
+            'status': 'A',
+        }
+    }
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+
+    handle_job(menu, ['run', 'portscan', '10.0.0.7', '--yes'])
+
+    assert menu.sdk.aegis.calls == []
+    assert menu.sdk.assets.calls == [{
+        'method': 'get',
+        'key': '#asset#10.0.0.7#10.0.0.7',
+        'details': False,
+    }]
+    assert len(menu.sdk.jobs.calls) == 1
+    job_call = menu.sdk.jobs.calls[0]
+    assert job_call['target_key'] == '#asset#10.0.0.7#10.0.0.7'
+    assert job_call['capabilities'] == ['portscan']
+    assert json.loads(job_call['config']) == {'endpoint_agent_id': 'endpoint-1'}
+    assert job_call['credentials'] is None
+    assert menu.paused is True
+
+
+def test_v2_job_run_portscan_requires_existing_asset_without_auto_create():
+    menu = Menu(responses={'endpoint_capabilities': _endpoint_capabilities('portscan')})
+    _select_v2_endpoint(menu)
+
+    handle_job(menu, ['run', 'portscan', '10.0.0.7', '--yes'])
+
+    output = "\n".join(menu.console.lines)
+    assert 'No existing asset found for 10.0.0.7' in output
+    assert menu.sdk.assets.calls == [{
+        'method': 'get',
+        'key': '#asset#10.0.0.7#10.0.0.7',
+        'details': False,
+    }]
+    assert menu.sdk.jobs.calls == []
+    assert menu.paused is True
+
+
+def test_v2_job_run_cancel_does_not_add_asset_or_job(monkeypatch):
+    responses = {
+        'endpoint_capabilities': _endpoint_capabilities('portscan'),
+        'asset': {
+            'key': '#asset#10.0.0.7#10.0.0.7',
+            'dns': '10.0.0.7',
+            'name': '10.0.0.7',
+            'status': 'A',
+        }
+    }
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+    monkeypatch.setattr('praetorian_cli.ui.aegis.commands.job_v2.Confirm.ask', lambda *a, **k: False)
+
+    handle_job(menu, ['run', 'portscan', '10.0.0.7'])
+
+    output = "\n".join(menu.console.lines)
+    assert 'Cancelled' in output
+    assert menu.sdk.assets.calls == [{
+        'method': 'get',
+        'key': '#asset#10.0.0.7#10.0.0.7',
+        'details': False,
+    }]
+    assert menu.sdk.jobs.calls == []
+    assert menu.paused is True
+
+
+def test_v2_job_run_rejects_unsupported_capability_without_side_effects():
+    menu = Menu(responses={'endpoint_capabilities': _endpoint_capabilities('portscan')})
+    _select_v2_endpoint(menu)
+
+    handle_job(menu, ['run', 'windows-smb', '10.0.0.7', '--yes'])
+
+    output = "\n".join(menu.console.lines)
+    assert "Invalid Aegis v2 capability: 'windows-smb'" in output
+    assert menu.sdk.aegis.calls == []
+    assert menu.sdk.assets.calls == []
+    assert menu.sdk.jobs.calls == []
+    assert menu.paused is True
+
+
+def test_v2_job_run_rejects_legacy_config_without_side_effects():
+    menu = Menu(responses={'endpoint_capabilities': _endpoint_capabilities('portscan')})
+    _select_v2_endpoint(menu)
+
+    handle_job(menu, ['run', 'portscan', '10.0.0.7', '--config', '{"client_id":"C.1"}', '--yes'])
+
+    output = "\n".join(menu.console.lines)
+    assert 'legacy config keys: client_id' in output
+    assert menu.sdk.aegis.calls == []
+    assert menu.sdk.assets.calls == []
+    assert menu.sdk.jobs.calls == []
+    assert menu.paused is True
+
+
+def test_v2_job_list_filters_recent_jobs_by_endpoint_config():
+    responses = {
+        'jobs': [
+            {
+                'key': '#job#10.0.0.7#10.0.0.7#portscan#old',
+                'status': 'JQ#1',
+                'created': 9,
+                'capabilities': ['portscan'],
+                'config': {'endpoint_agent_id': 'endpoint-1'},
+            },
+            {
+                'key': '#job#10.0.0.8#10.0.0.8#portscan#other',
+                'status': 'JQ#1',
+                'created': '2026-08-25T11:09:06Z',
+                'capabilities': ['portscan'],
+                'config': {'endpoint_agent_id': 'other-endpoint'},
+            },
+            {
+                'key': '#job#10.0.0.9#10.0.0.9#portscan#new',
+                'status': 'JQ#1',
+                'created': 10,
+                'capabilities': ['portscan'],
+                'config': {'endpoint_agent_id': 'endpoint-1'},
+            },
+        ],
+    }
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+
+    handle_job(menu, ['list'])
+
+    output = menu.console.export_text()
+    assert 'Recent Jobs for endpoint endpoint-1' in output
+    assert 'portscan' in output
+    assert output.find('new') < output.find('old')
+    assert menu.sdk.jobs.calls == [{
+        'method': 'list',
+        'prefix_filter': '',
+        'offset': None,
+        'pages': 1,
+    }]
+    assert menu.sdk.aegis.calls == []
+    assert menu.paused is True
 
 
 def test_capability_completer_accepts_list_target():

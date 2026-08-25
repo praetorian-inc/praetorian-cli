@@ -2,6 +2,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from rich.console import Console
 
 from praetorian_cli.ui.console.commands.tools import ToolCommands
 from praetorian_cli.sdk.test.ui_mocks import MockConsole as _BaseMockConsole
@@ -31,6 +32,10 @@ class _Harness(ToolCommands):
     def __init__(self, sdk=None):
         self.console = MockConsole()
         self.sdk = sdk or MagicMock()
+        if sdk is None:
+            self.sdk.capabilities.list.return_value = [
+                {'name': 'brutus', 'target': ['asset'], 'description': 'creds', 'executor': 'chariot'},
+            ]
         self.context = _FakeContext()
         self.colors = {
             'primary': 'cyan', 'accent': 'magenta', 'dim': 'dim',
@@ -43,6 +48,20 @@ class _Harness(ToolCommands):
 
     def _wait_for_job(self, *a, **kw):
         pass
+
+
+def test_run_catalog_keeps_friendly_names_and_guard_capabilities():
+    h = _Harness()
+    h.console = Console(record=True, force_terminal=False, width=120)
+    h.sdk.capabilities.list.return_value = [
+        {'name': 'dynamic-scan', 'target': ['asset'], 'description': 'dynamic', 'executor': 'chariot'},
+    ]
+
+    h._cmd_run([])
+
+    output = h.console.export_text()
+    assert 'brutus' in output
+    assert 'dynamic-scan' in output
 
 
 def test_run_with_passthrough_executes_locally_when_installed():

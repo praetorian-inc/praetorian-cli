@@ -6,6 +6,13 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from praetorian_cli.sdk.entities.capabilities import (
+    capability_description,
+    capability_name,
+    capability_target_type,
+    normalize_capabilities_response,
+)
+
 
 class ContextCommands:
     """Context-related console commands. Mixed into GuardConsole."""
@@ -304,20 +311,19 @@ class ContextCommands:
             self.console.print(f'[dim]Target type: {alias["target_type"]}. Use "show targets" to see valid targets.[/dim]')
             return
 
-        # Try resolving as a backend capability name (any of the 141 capabilities)
+        # Try resolving as a backend capability name.
         cap_info = self._resolve_backend_capability(tool_name)
         if cap_info:
-            self.context.active_tool = tool_name
+            cap_name = capability_name(cap_info) or tool_name
+            target_type = capability_target_type(cap_info)
+            desc = capability_description(cap_info)[:60]
+            self.context.active_tool = cap_name.lower()
             self.context.active_tool_config = {}
-            target_type = cap_info.get('target', 'asset')
-            if isinstance(target_type, list):
-                target_type = target_type[0] if target_type else 'asset'
-            desc = cap_info.get('description', '')[:60]
-            self.console.print(f'[info]Using {tool_name} -- {desc}[/info]')
+            self.console.print(f'[info]Using {cap_name} -- {desc}[/info]')
             self.console.print(f'[dim]Target type: {target_type}. Use "show targets" to see valid targets.[/dim]')
             # Dynamically add to TOOL_ALIASES for this session so execute/run work
-            TOOL_ALIASES[tool_name] = {
-                'capability': tool_name,
+            TOOL_ALIASES[cap_name.lower()] = {
+                'capability': cap_name,
                 'agent': None,
                 'target_type': target_type,
                 'description': desc,
@@ -325,21 +331,23 @@ class ContextCommands:
             return
 
         available = ', '.join(sorted(k for k in TOOL_ALIASES if k != 'secrets'))
-        self.console.print(f'[error]Unknown: {tool_name}. Named tools: {available}[/error]')
-        self.console.print(f'[dim]Or use any backend capability name -- run "capabilities" to see all 141.[/dim]')
+        if available:
+            self.console.print(f'[error]Unknown: {tool_name}. Friendly/cached tools: {available}[/error]')
+        else:
+            self.console.print(f'[error]Unknown: {tool_name}.[/error]')
+        self.console.print('[dim]Run "capabilities" to list Guard-reported capabilities.[/dim]')
 
     def _resolve_backend_capability(self, name):
         """Check if a name matches a backend capability. Returns cap dict or None."""
         if not hasattr(self, '_capabilities_cache'):
             try:
                 result = self.sdk.capabilities.list(name='')
-                if isinstance(result, list):
-                    self._capabilities_cache = {c.get('name', '').lower(): c for c in result}
-                elif isinstance(result, dict):
-                    caps = result.get('capabilities', result.get('data', []))
-                    self._capabilities_cache = {c.get('name', '').lower(): c for c in caps}
-                else:
-                    self._capabilities_cache = {}
+                caps = normalize_capabilities_response(result)
+                self._capabilities_cache = {
+                    capability_name(cap).lower(): cap
+                    for cap in caps
+                    if capability_name(cap)
+                }
             except Exception:
                 self._capabilities_cache = {}
         return self._capabilities_cache.get(name.lower())
