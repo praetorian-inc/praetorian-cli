@@ -87,8 +87,9 @@ def compute_agent_groups(agents: List[Agent], current_time: float) -> dict:
     
     for i, agent in enumerate(agents):
         # Compute relative time string
-        if agent.last_seen_at > 0 and agent.is_online:
-            last_seen_str = relative_time(agent.last_seen_at / 1000000 if agent.last_seen_at > 1000000000000 else agent.last_seen_at, current_time)
+        last_seen_at = agent.last_seen_at or 0
+        if last_seen_at > 0 and agent.is_online:
+            last_seen_str = relative_time(last_seen_at / 1000000 if last_seen_at > 1000000000000 else last_seen_at, current_time)
         else:
             last_seen_str = "—"
         
@@ -155,9 +156,10 @@ def parse_agent_identifier(identifier: str, displayed_agents: List[Agent], all_a
         if 1 <= agent_num <= len(displayed_agents):
             return displayed_agents[agent_num - 1]
 
+    identifier_lower = identifier.lower()
     for agent in search_agents:
         try:
-            if agent.client_id and agent.client_id.lower() == identifier.lower():
+            if agent_display_id(agent).lower() == identifier_lower:
                 return agent
         except AttributeError:
             continue

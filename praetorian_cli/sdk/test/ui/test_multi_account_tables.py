@@ -132,6 +132,22 @@ class TestMultiAccountAgentTable:
         assert 'legacy-host' in text
         assert 'sensor-1' in text
 
+    def test_endpoint_without_heartbeat_renders_as_offline(self):
+        """Endpoint rows without heartbeat metadata should not crash grouping."""
+        from praetorian_cli.ui.aegis.utils import compute_agent_groups
+
+        endpoint = Agent.from_endpoint_dict({
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'hostname': 'sensor-1',
+        })
+
+        groups = compute_agent_groups([endpoint], datetime.now().timestamp())
+
+        assert groups['active_tunnel'] == []
+        assert groups['online'] == []
+        assert groups['offline'][0][1] is endpoint
+
 
 class TestMultiAccountScheduleTable:
     def test_schedule_table_has_account_columns(self):

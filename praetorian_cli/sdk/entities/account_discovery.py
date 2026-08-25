@@ -4,6 +4,7 @@ Fetches account metadata in bulk via allTenants API calls, then concurrently
 checks each account for aegis agents to build enriched account info.
 """
 
+import json
 import logging
 import threading
 import time
@@ -66,13 +67,17 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
             headers = dict(auth_headers)
             headers['account'] = account_email
 
-            agents_data = _fetch_account_agents(base_url, headers)
-            endpoints_data = _fetch_account_endpoints(base_url, headers)
-            if agents_data is None and endpoints_data is None:
+            records = None
+            for attempt in range(2):
+                records = _fetch_account_records(base_url, headers)
+                if records is not None:
+                    break
+                if attempt == 0:
+                    time.sleep(1)
+            if records is None:
                 return _PROBE_FAILED
 
-            agents_data = agents_data or []
-            endpoints_data = endpoints_data or []
+            agents_data, endpoints_data = records
             if not agents_data and not endpoints_data:
                 return None  # Genuinely empty — no agents or endpoints
 
@@ -179,16 +184,34 @@ def _fetch_account_agents(base_url: str, headers: dict) -> Optional[List[dict]]:
 
 
 def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict]]:
-    resp = requests.get(
-        f'{base_url}/my',
-        headers=headers,
-        params={'key': '#endpoint#'},
-        timeout=30,
-    )
-    if resp.status_code != 200:
-        logger.debug('Endpoint fetch returned status %d', resp.status_code)
+    endpoints = []
+    params = {'key': '#endpoint#'}
+
+    while True:
+        resp = requests.get(
+            f'{base_url}/my',
+            headers=headers,
+            params=params,
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            logger.debug('Endpoint fetch returned status %d', resp.status_code)
+            return None
+
+        body = resp.json()
+        endpoints.extend(_aegis_endpoint_rows(_flatten_response(body)))
+        offset = body.get('offset') if isinstance(body, dict) else None
+        if not offset:
+            return endpoints
+        params = {'key': '#endpoint#', 'offset': json.dumps(offset)}
+
+
+def _fetch_account_records(base_url: str, headers: dict) -> Optional[tuple[List[dict], List[dict]]]:
+    agents_data = _fetch_account_agents(base_url, headers)
+    endpoints_data = _fetch_account_endpoints(base_url, headers)
+    if agents_data is None or endpoints_data is None:
         return None
-    return _aegis_endpoint_rows(_flatten_response(resp.json()))
+    return agents_data, endpoints_data
 
 
 def _aegis_endpoint_rows(rows: List[dict]) -> List[dict]:
@@ -219,6 +242,8 @@ def _flatten_response(data) -> List[dict]:
     """
     if isinstance(data, list):
         return data
+    if not isinstance(data, dict):
+        return []
     records = []
     for value in data.values():
         if isinstance(value, list):
@@ -346,14 +371,14 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
         try:
             headers = dict(auth_headers)
             headers['account'] = email
-            agents_data = _fetch_account_agents(base_url, headers)
-            endpoints_data = _fetch_account_endpoints(base_url, headers)
-            if agents_data is None and endpoints_data is None:
+            records = _fetch_account_records(base_url, headers)
+            if records is None:
                 logger.debug('Agent load for %s failed (attempt %d)', email, attempt)
                 return None  # Signal failure (distinct from empty account)
-            agents = [(Agent.from_dict(d), acct) for d in (agents_data or [])]
+            agents_data, endpoints_data = records
+            agents = [(Agent.from_dict(d), acct) for d in agents_data]
             agents.extend(
-                (Agent.from_endpoint_dict(d), acct) for d in (endpoints_data or [])
+                (Agent.from_endpoint_dict(d), acct) for d in endpoints_data
             )
             return agents
         except Exception as e:

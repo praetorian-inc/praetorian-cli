@@ -1,4 +1,5 @@
 """Tests for account discovery with aegis agent filtering."""
+import json
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -175,6 +176,42 @@ class TestDiscoverAegisAccounts:
         assert result[0]['account_email'] == 'endpoint@praetorian.com'
         assert result[0]['agent_count'] == 1
 
+    def test_retries_transient_endpoint_failure_before_marking_account_empty(self, monkeypatch):
+        from praetorian_cli.sdk.entities.account_discovery import discover_aegis_accounts
+
+        accounts = [_account('endpoint@praetorian.com')]
+        sdk = _make_sdk(accounts, {'endpoint@praetorian.com': []})
+        calls = {'endpoint': 0}
+
+        def mock_get(url, headers=None, params=None, timeout=None):
+            params = params or {}
+            resp = MagicMock()
+            if '/agent/enhanced' in url:
+                resp.status_code = 200
+                resp.json.return_value = []
+            elif '/my' in url and params.get('allTenants') == 'true':
+                resp.status_code = 200
+                resp.json.return_value = {}
+            elif '/my' in url and params.get('key') == '#endpoint#':
+                calls['endpoint'] += 1
+                resp.status_code = 503 if calls['endpoint'] == 1 else 200
+                resp.json.return_value = {'endpoints': [
+                    {'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'},
+                ]}
+            return resp
+
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = mock_get
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.time.sleep', lambda _seconds: None)
+
+        result = discover_aegis_accounts(sdk)
+
+        assert calls['endpoint'] == 2
+        assert len(result) == 1
+        assert result[0]['account_email'] == 'endpoint@praetorian.com'
+        assert result[0]['agent_count'] == 1
+
     @patch('praetorian_cli.sdk.entities.account_discovery.requests')
     def test_account_metadata_extraction(self, mock_requests):
         from praetorian_cli.sdk.entities.account_discovery import discover_aegis_accounts
@@ -345,6 +382,41 @@ class TestLoadAgentsForAccounts:
         assert agent.version == 'v2'
         assert agent.endpoint_id == 'endpoint-1'
 
+    def test_retries_load_when_endpoint_probe_fails_after_empty_agent_probe(self, monkeypatch):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        sdk = _make_sdk([], {'endpoint@praetorian.com': []})
+        calls = {'endpoint': 0}
+
+        def mock_get(url, headers=None, params=None, timeout=None):
+            params = params or {}
+            resp = MagicMock()
+            if '/agent/enhanced' in url:
+                resp.status_code = 200
+                resp.json.return_value = []
+            elif '/my' in url and params.get('key') == '#endpoint#':
+                calls['endpoint'] += 1
+                resp.status_code = 503 if calls['endpoint'] == 1 else 200
+                resp.json.return_value = {'endpoints': [
+                    {'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'},
+                ]}
+            return resp
+
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = mock_get
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.time.sleep', lambda _seconds: None)
+
+        selected = [
+            {'account_email': 'endpoint@praetorian.com', 'display_name': 'Endpoint', 'status': 'Active'},
+        ]
+        result, failed = load_agents_for_accounts(sdk, selected)
+
+        assert failed == []
+        assert calls['endpoint'] == 2
+        assert len(result) == 1
+        assert result[0][0].endpoint_id == 'endpoint-1'
+
     @patch('praetorian_cli.sdk.entities.account_discovery.requests')
     def test_loads_schedules_from_multiple_accounts(self, mock_requests):
         from praetorian_cli.sdk.entities.account_discovery import load_schedules_for_accounts
@@ -408,6 +480,51 @@ class TestFriendlyNameFromEmail:
         assert _friendly_name_from_email('noname@praetorian.com') == 'Noname'
 
 
+class TestFetchAccountEndpoints:
+    def test_follows_paginated_offsets(self, monkeypatch):
+        from praetorian_cli.sdk.entities.account_discovery import _fetch_account_endpoints
+
+        calls = []
+
+        def mock_get(url, headers=None, params=None, timeout=None):
+            calls.append(dict(params or {}))
+            resp = MagicMock()
+            resp.status_code = 200
+            if 'offset' not in (params or {}):
+                resp.json.return_value = {
+                    'endpoints': [{'endpointId': 'endpoint-1', 'kind': 'aegis'}],
+                    'offset': {'next': 'page-2'},
+                }
+            else:
+                assert json.loads(params['offset']) == {'next': 'page-2'}
+                resp.json.return_value = {'endpoints': [{'endpointId': 'endpoint-2', 'kind': 'aegis'}]}
+            return resp
+
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = mock_get
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
+
+        endpoints = _fetch_account_endpoints('https://api.example.com', {'Authorization': 'Bearer token'})
+
+        assert [endpoint['endpointId'] for endpoint in endpoints] == ['endpoint-1', 'endpoint-2']
+        assert calls == [
+            {'key': '#endpoint#'},
+            {'key': '#endpoint#', 'offset': json.dumps({'next': 'page-2'})},
+        ]
+
+    def test_handles_null_body_as_empty_page(self, monkeypatch):
+        from praetorian_cli.sdk.entities.account_discovery import _fetch_account_endpoints
+
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = None
+        requests_mock = MagicMock()
+        requests_mock.get.return_value = resp
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
+
+        assert _fetch_account_endpoints('https://api.example.com', {}) == []
+
+
 class TestFlattenResponse:
     def test_flattens_dict_of_lists(self):
         from praetorian_cli.sdk.entities.account_discovery import _flatten_response
@@ -420,6 +537,11 @@ class TestFlattenResponse:
         from praetorian_cli.sdk.entities.account_discovery import _flatten_response
         data = [{'name': 'a'}]
         assert _flatten_response(data) == data
+
+    @pytest.mark.parametrize('data', [None, '', 0])
+    def test_non_collection_body_is_empty(self, data):
+        from praetorian_cli.sdk.entities.account_discovery import _flatten_response
+        assert _flatten_response(data) == []
 
 
 class TestExtractEmail:
