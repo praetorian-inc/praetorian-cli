@@ -98,6 +98,65 @@ class MockAegis:
             raise error
         return self._responses.get('approved_enrollment', {'status': 'approved'})
 
+    def create_cloudflare_tunnel(self, endpoint_id):
+        self.calls.append({
+            'method': 'create_cloudflare_tunnel',
+            'endpoint_id': endpoint_id,
+        })
+        error = (self._responses.get('tunnel_errors') or {}).get('create')
+        if error:
+            raise error
+        return self._responses.get('created_tunnel', {
+            'installTaskId': 'task-create',
+            'hostname': 'endpoint.example.com',
+            'tunnelInfo': {'tunnelName': 'endpoint-tunnel'},
+            'message': 'created',
+        })
+
+    def remove_cloudflare_tunnel(self, endpoint_id):
+        self.calls.append({
+            'method': 'remove_cloudflare_tunnel',
+            'endpoint_id': endpoint_id,
+        })
+        error = (self._responses.get('tunnel_errors') or {}).get('remove')
+        if error:
+            raise error
+        return self._responses.get('removed_tunnel', {
+            'taskId': 'task-remove',
+            'message': 'removed',
+        })
+
+    def add_system_user(self, endpoint_id, username):
+        self.calls.append({
+            'method': 'add_system_user',
+            'endpoint_id': endpoint_id,
+            'username': username,
+        })
+        error = (self._responses.get('user_errors') or {}).get('add')
+        if error:
+            raise error
+        return self._responses.get('added_user', {
+            'taskId': 'task-add-user',
+            'status': 'AMT_RUNNING',
+            'message': 'queued',
+        })
+
+    def remove_system_user(self, endpoint_id, username, remove_home=False):
+        self.calls.append({
+            'method': 'remove_system_user',
+            'endpoint_id': endpoint_id,
+            'username': username,
+            'remove_home': remove_home,
+        })
+        error = (self._responses.get('user_errors') or {}).get('remove')
+        if error:
+            raise error
+        return self._responses.get('removed_user', {
+            'taskId': 'task-remove-user',
+            'status': 'AMT_RUNNING',
+            'message': 'queued',
+        })
+
 
 class MockCredentials:
     def __init__(self, responses=None):

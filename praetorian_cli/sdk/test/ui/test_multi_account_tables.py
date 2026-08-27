@@ -67,6 +67,36 @@ class TestMultiAccountAgentLoading:
         assert menu.agent_account_map[agent1.client_id]['status'] == 'ACTIVE'
         assert menu.agent_account_map[agent3.client_id]['status'] == 'COMPLETED'
 
+    def test_load_agents_rebinds_selected_agent_with_matching_account(self):
+        """A selected agent with a duplicate ID should refresh within its account."""
+        from praetorian_cli.ui.aegis.menu import AegisMenu
+
+        sdk = MagicMock()
+        sdk.keychain.account = None
+        sdk.get_current_user.return_value = ('op@p.com', 'op')
+
+        acme = _make_account_info('acme@p.com', 'Acme', 'ACTIVE')
+        beta = _make_account_info('beta@p.com', 'Beta', 'ACTIVE')
+        menu = AegisMenu(sdk)
+        menu.multi_account_mode = True
+        menu.selected_accounts = [acme, beta]
+
+        stale_beta_agent = _make_agent('old-beta', client_id='C.same', has_tunnel=False)
+        stale_beta_agent._account_info = beta
+        fresh_acme_agent = _make_agent('acme-host', client_id='C.same', has_tunnel=False)
+        fresh_beta_agent = _make_agent('beta-host', client_id='C.same', has_tunnel=True)
+        menu.selected_agent = stale_beta_agent
+
+        with patch('praetorian_cli.ui.aegis.menu.load_agents_for_accounts') as mock_load:
+            mock_load.return_value = ([
+                (fresh_acme_agent, acme),
+                (fresh_beta_agent, beta),
+            ], [])
+            menu.load_agents()
+
+        assert menu.selected_agent is fresh_beta_agent
+        assert menu.selected_agent.has_tunnel is True
+
 
 class TestMultiAccountAgentTable:
     def test_agent_table_has_account_columns(self):

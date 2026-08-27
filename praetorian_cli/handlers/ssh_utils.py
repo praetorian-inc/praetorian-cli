@@ -31,13 +31,29 @@ class SSHArgumentParser:
         while i < len(args):
             arg = args[i]
             
-            if arg in ['-L', '-l', '--local-forward']:
+            if arg in ['-L', '--local-forward']:
                 if i + 1 >= len(args):
                     self._print_error("Error: -L requires a port forwarding specification")
                     self._print_error("Example: ssh -L 8080:localhost:80", dim=True)
                     return None
                 options['local_forward'].append(args[i + 1])
                 i += 2
+
+            elif arg.startswith('--local-forward='):
+                options['local_forward'].append(arg.split('=', 1)[1])
+                i += 1
+
+            elif arg in ['-l', '--login-name']:
+                if i + 1 >= len(args):
+                    self._print_error("Error: -l requires a username")
+                    self._print_error("Example: ssh -l root", dim=True)
+                    return None
+                options['user'] = args[i + 1]
+                i += 2
+
+            elif arg.startswith('-l') and len(arg) > 2:
+                options['user'] = arg[2:]
+                i += 1
                 
             elif arg in ['-R', '-r', '--remote-forward']:
                 if i + 1 >= len(args):
@@ -78,6 +94,10 @@ class SSHArgumentParser:
                     return None
                 options['user'] = args[i + 1]
                 i += 2
+
+            elif arg.startswith('--user='):
+                options['user'] = arg.split('=', 1)[1]
+                i += 1
                 
             elif arg.startswith('-'):
                 # Collect unknown options and their arguments if any

@@ -34,6 +34,20 @@ class MockSDK:
         return 'operator@praetorian.com', 'operator'
 
 
+class ListingAegis:
+    def __init__(self, agents):
+        self.agents = agents
+
+    def list(self):
+        return self.agents, None
+
+
+class ListingSDK(MockSDK):
+    def __init__(self, agents):
+        super().__init__()
+        self.aegis = ListingAegis(agents)
+
+
 class Menu(MockMenuBase):
     def __init__(self, agents):
         super().__init__()
@@ -185,3 +199,19 @@ def test_set_not_found_shows_error_and_pauses():
     handle_set(menu, ["missing"])
     assert any("Agent not found" in l for l in menu.console.lines)
     assert menu.paused is True
+
+
+def test_load_agents_rebinds_selected_v2_agent_to_fresh_state():
+    stale_agent = MockAgent("sensor", "N/A", endpoint_id="endpoint-1")
+    stale_agent.has_tunnel = False
+    fresh_agent = MockAgent("sensor", "N/A", endpoint_id="endpoint-1")
+    fresh_agent.has_tunnel = True
+    fresh_agent.os = "linux"
+
+    menu = AegisMenu(ListingSDK([fresh_agent]))
+    menu.selected_agent = stale_agent
+
+    menu.load_agents()
+
+    assert menu.selected_agent is fresh_agent
+    assert menu.selected_agent.has_tunnel is True

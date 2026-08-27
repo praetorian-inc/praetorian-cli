@@ -28,6 +28,12 @@ def _is_aegis_endpoint(value) -> bool:
 
 ENROLLMENT_INSPECT_PATH = 'endpoint/enrollment/inspect'
 ENROLLMENT_APPROVE_PATH = 'endpoint/enrollment/approve'
+AEGIS_MANAGEMENT_TASKS_PATH = 'aegis/management/tasks'
+CLOUDFLARE_TUNNEL_CREATE_PATH = 'aegis/management/cloudflare/tunnel/create'
+CLOUDFLARE_TUNNEL_REMOVE_PATH = 'aegis/management/cloudflare/tunnel/remove'
+ENDPOINT_PIN_CONFIG_KEY = 'endpoint_agent_id'
+LINUX_SYSTEM_ADDUSER = 'linux-system-adduser'
+LINUX_SYSTEM_DELUSER = 'linux-system-deluser'
 
 
 def _enrollment_user_code_payload(user_code: str) -> dict:
@@ -35,6 +41,33 @@ def _enrollment_user_code_payload(user_code: str) -> dict:
     if not code:
         raise ValueError('enrollment user code is required')
     return {'userCode': code}
+
+
+def _required_endpoint_id(endpoint_id: str) -> str:
+    endpoint_id = str(endpoint_id or '').strip()
+    if not endpoint_id:
+        raise ValueError('endpoint ID is required')
+    return endpoint_id
+
+
+def _required_username(username: str) -> str:
+    username = str(username or '').strip()
+    if not username:
+        raise ValueError('username is required')
+    return username
+
+
+def _endpoint_tunnel_payload(endpoint_id: str) -> dict:
+    return {'endpointAgentId': _required_endpoint_id(endpoint_id)}
+
+
+def _endpoint_management_task_payload(capability: str, endpoint_id: str, parameters: dict = None) -> dict:
+    task_parameters = dict(parameters or {})
+    task_parameters[ENDPOINT_PIN_CONFIG_KEY] = _required_endpoint_id(endpoint_id)
+    return {
+        'aegisManagementCapability': capability,
+        'parameters': task_parameters,
+    }
 
 
 def normalize_pending_enrollment(pending: dict) -> dict:
@@ -160,6 +193,40 @@ class Aegis:
         if not isinstance(response, dict):
             return {'status': 'approved'}
         return {'status': response.get('status') or response.get('Status') or 'approved'}
+
+    def create_cloudflare_tunnel(self, endpoint_id: str) -> dict:
+        """Create and install a Cloudflare tunnel on an Aegis v2 endpoint."""
+        return self.api.post(CLOUDFLARE_TUNNEL_CREATE_PATH, _endpoint_tunnel_payload(endpoint_id))
+
+    def remove_cloudflare_tunnel(self, endpoint_id: str) -> dict:
+        """Remove Cloudflare tunnel configuration from an Aegis v2 endpoint."""
+        return self.api.post(CLOUDFLARE_TUNNEL_REMOVE_PATH, _endpoint_tunnel_payload(endpoint_id))
+
+    def add_system_user(self, endpoint_id: str, username: str) -> dict:
+        """Add a Linux user through Aegis v2 systemcontrol management."""
+        return self.api.post(
+            AEGIS_MANAGEMENT_TASKS_PATH,
+            _endpoint_management_task_payload(
+                LINUX_SYSTEM_ADDUSER,
+                endpoint_id,
+                {'username': _required_username(username)},
+            ),
+        )
+
+    def remove_system_user(self, endpoint_id: str, username: str, remove_home: bool = False) -> dict:
+        """Remove a Linux user through Aegis v2 systemcontrol management."""
+        remove_home_value = '--remove-home' if remove_home else ''
+        return self.api.post(
+            AEGIS_MANAGEMENT_TASKS_PATH,
+            _endpoint_management_task_payload(
+                LINUX_SYSTEM_DELUSER,
+                endpoint_id,
+                {
+                    'username': _required_username(username),
+                    'remove_home': remove_home_value,
+                },
+            ),
+        )
 
     def get_capabilities(self, surface_filter: str = None, agent_os: str = None) -> List[dict]:
         """
@@ -355,7 +422,7 @@ class Aegis:
             raise Exception(f"Failed to get available domains: {e}")
     
     def ssh_to_agent(self, agent: Agent, options: List[str] = None, user: str = None, display_info: bool = True) -> int:
-        """SSH to an Aegis agent using Cloudflare tunnel."""
+        """SSH to an Aegis agent or v2 endpoint using its Cloudflare tunnel."""
 
         options = options or []
         
@@ -438,6 +505,8 @@ class Aegis:
         :return: Process exit code
         """
         ssh_options = ssh_options or []
+        if is_v2_agent(agent):
+            raise Exception("Aegis v2 endpoint file copy is not supported")
 
         is_valid, error_msg = validate_agent_for_ssh(agent)
         if not is_valid:
