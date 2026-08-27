@@ -52,6 +52,8 @@ from .commands.job import complete as cmd_complete_job, handle_job as cmd_handle
 from .commands.enrollment import complete as cmd_complete_enrollment, handle_enrollment as cmd_handle_enrollment
 from .commands.schedule import handle_schedule as cmd_handle_schedule
 from .commands.proxy import handle_proxy as cmd_handle_proxy, stop_all_proxies
+from .commands.tunnel import complete as cmd_complete_tunnel, handle_tunnel as cmd_handle_tunnel
+from .commands.user import complete as cmd_complete_user, handle_user as cmd_handle_user
 
 from .commands.schedule_helpers import get_cached_schedules
 from .constants import DEFAULT_COLORS
@@ -169,6 +171,16 @@ class MenuCompleter(Completer):
                 tokens = ['job'] + words
                 for completion in cmd_complete_job(self.menu, current_word, tokens):
                     yield Completion(completion, start_position=-len(current_word))
+
+        elif cmd == 'tunnel':
+            tokens = ['tunnel'] + words
+            for completion in cmd_complete_tunnel(self.menu, current_word, tokens):
+                yield Completion(completion, start_position=-len(current_word))
+
+        elif cmd == 'user':
+            tokens = ['user'] + words
+            for completion in cmd_complete_user(self.menu, current_word, tokens):
+                yield Completion(completion, start_position=-len(current_word))
 
         elif cmd in ('enrollment', 'enroll'):
             tokens = [cmd] + words
@@ -405,7 +417,7 @@ class AegisMenu:
         self.agent_account_map: dict = {}  # display_id -> account_info dict
 
         self.commands = [
-            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'enrollment', 'enroll',
+            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'user', 'tunnel', 'enrollment', 'enroll',
             'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
 
@@ -505,6 +517,12 @@ class AegisMenu:
         elif command == 'job':
             cmd_handle_job(self, cmd_args)
 
+        elif command == 'user':
+            cmd_handle_user(self, cmd_args)
+
+        elif command == 'tunnel':
+            cmd_handle_tunnel(self, cmd_args)
+
         elif command in ['enrollment', 'enroll']:
             cmd_handle_enrollment(self, cmd_args)
 
@@ -531,6 +549,13 @@ class AegisMenu:
         
         if self.verbose and self.agents:
             self.console.print(f"[{self.colors['success']}]Loaded {len(self.agents)} agents successfully[/{self.colors['success']}]")
+
+    def refresh_selected_agent(self) -> Optional[Agent]:
+        """Reload agents and rebind the current selection to fresh agent data."""
+        if not self.selected_agent:
+            return None
+        self.load_agents()
+        return self.selected_agent
         
     
     def _compute_agent_status(self) -> None:
@@ -783,6 +808,8 @@ class AegisMenu:
                         if agent.hostname:
                             self.agent_lookup[identifier] = agent.hostname
 
+            self._rebind_selected_agent()
+
             if self.verbose or not self.agents:
                 agent_count = len(self.agents)
                 if agent_count > 0:
@@ -796,6 +823,55 @@ class AegisMenu:
             self.agent_lookup = {}
             self.agent_os_lookup = {}
             self.agent_account_map = {}
+
+    def _rebind_selected_agent(self) -> None:
+        """Replace selected_agent with the matching object from the latest load."""
+        if not self.selected_agent:
+            return
+        replacement = self._find_selected_agent_replacement(self.selected_agent)
+        if replacement is None:
+            return
+        self.selected_agent = replacement
+
+    def _find_selected_agent_replacement(self, selected_agent: Agent) -> Optional[Agent]:
+        selected_id = agent_display_id(selected_agent)
+        selected_account_email = self._agent_account_email(selected_agent)
+        replacement = self._match_agent_by_id(selected_id, selected_account_email)
+        if replacement is not None:
+            return replacement
+
+        selected_hostname = (getattr(selected_agent, 'hostname', '') or '').lower()
+        return self._match_agent_by_hostname(selected_hostname, selected_account_email)
+
+    def _match_agent_by_id(self, selected_id: str, selected_account_email: str) -> Optional[Agent]:
+        if not selected_id:
+            return None
+        candidates = [agent for agent in self.agents if agent_display_id(agent) == selected_id]
+        return self._select_unique_or_account_match(candidates, selected_account_email)
+
+    def _match_agent_by_hostname(self, selected_hostname: str, selected_account_email: str) -> Optional[Agent]:
+        if not selected_hostname:
+            return None
+        candidates = [
+            agent for agent in self.agents
+            if (getattr(agent, 'hostname', '') or '').lower() == selected_hostname
+        ]
+        return self._select_unique_or_account_match(candidates, selected_account_email)
+
+    def _select_unique_or_account_match(self, candidates: List[Agent], account_email: str) -> Optional[Agent]:
+        if len(candidates) == 1:
+            return candidates[0]
+        if not account_email:
+            return None
+        for agent in candidates:
+            if self._agent_account_email(agent) == account_email:
+                return agent
+        return None
+
+    def _agent_account_email(self, agent: Agent) -> str:
+        account = agent_account_info(agent, self.agent_account_map)
+        email = account.get('account_email') if account else ''
+        return email or ''
     
     def pause(self):
         """Professional pause with styling"""
