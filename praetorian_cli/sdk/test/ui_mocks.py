@@ -98,10 +98,11 @@ class MockAegis:
             raise error
         return self._responses.get('approved_enrollment', {'status': 'approved'})
 
-    def create_cloudflare_tunnel(self, endpoint_id):
+    def create_cloudflare_tunnel(self, endpoint_id, *, legacy=False):
         self.calls.append({
             'method': 'create_cloudflare_tunnel',
             'endpoint_id': endpoint_id,
+            'legacy': legacy,
         })
         error = (self._responses.get('tunnel_errors') or {}).get('create')
         if error:
@@ -113,10 +114,11 @@ class MockAegis:
             'message': 'created',
         })
 
-    def remove_cloudflare_tunnel(self, endpoint_id):
+    def remove_cloudflare_tunnel(self, endpoint_id, *, legacy=False):
         self.calls.append({
             'method': 'remove_cloudflare_tunnel',
             'endpoint_id': endpoint_id,
+            'legacy': legacy,
         })
         error = (self._responses.get('tunnel_errors') or {}).get('remove')
         if error:
@@ -126,11 +128,12 @@ class MockAegis:
             'message': 'removed',
         })
 
-    def add_system_user(self, endpoint_id, username):
+    def add_system_user(self, endpoint_id, username, *, legacy=False):
         self.calls.append({
             'method': 'add_system_user',
             'endpoint_id': endpoint_id,
             'username': username,
+            'legacy': legacy,
         })
         error = (self._responses.get('user_errors') or {}).get('add')
         if error:
@@ -141,12 +144,13 @@ class MockAegis:
             'message': 'queued',
         })
 
-    def remove_system_user(self, endpoint_id, username, remove_home=False):
+    def remove_system_user(self, endpoint_id, username, remove_home=False, *, legacy=False):
         self.calls.append({
             'method': 'remove_system_user',
             'endpoint_id': endpoint_id,
             'username': username,
             'remove_home': remove_home,
+            'legacy': legacy,
         })
         error = (self._responses.get('user_errors') or {}).get('remove')
         if error:

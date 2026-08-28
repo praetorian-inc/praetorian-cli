@@ -48,10 +48,11 @@ def test_user_add_uses_selected_v2_endpoint_uuid_without_legacy_access(username)
         'method': 'add_system_user',
         'endpoint_id': 'endpoint-1',
         'username': username,
+        'legacy': False,
     }]
     output = '\n'.join(menu.console.lines)
     assert 'User add queued' in output
-    assert 'Endpoint: endpoint-1' in output
+    assert 'Agent: endpoint-1' in output
     assert f'Username: {username}' in output
     assert menu.paused is True
 
@@ -66,10 +67,11 @@ def test_user_remove_uses_selected_v2_endpoint_uuid_without_legacy_access():
         'endpoint_id': 'endpoint-1',
         'username': 'pentester',
         'remove_home': True,
+        'legacy': False,
     }]
     output = '\n'.join(menu.console.lines)
     assert 'User removal queued' in output
-    assert 'Endpoint: endpoint-1' in output
+    assert 'Agent: endpoint-1' in output
     assert 'Username: pentester' in output
     assert menu.paused is True
 
@@ -85,14 +87,27 @@ def test_user_cancel_does_not_call_api(monkeypatch):
     assert menu.paused is True
 
 
-@pytest.mark.parametrize('selected_agent', [None, V1Agent()])
-def test_user_requires_selected_v2_endpoint(selected_agent):
-    menu = Menu(selected_agent)
+def test_user_add_uses_selected_v1_client_id():
+    menu = Menu(V1Agent())
+
+    handle_user(menu, ['add', 'pentester', '--yes'])
+
+    assert menu.sdk.aegis.calls == [{
+        'method': 'add_system_user',
+        'endpoint_id': 'C.1',
+        'username': 'pentester',
+        'legacy': True,
+    }]
+    assert 'Agent: C.1' in '\n'.join(menu.console.lines)
+
+
+def test_user_requires_selected_agent():
+    menu = Menu()
 
     handle_user(menu, ['add', 'pentester', '--yes'])
 
     assert menu.sdk.aegis.calls == []
-    assert 'No Aegis v2 endpoint selected' in '\n'.join(menu.console.lines)
+    assert 'No Aegis agent selected' in '\n'.join(menu.console.lines)
     assert menu.paused is True
 
 
@@ -106,7 +121,7 @@ def test_user_rejects_invalid_username_before_api_call():
     assert menu.paused is True
 
 
-def test_user_completion_only_for_selected_v2_endpoint():
+def test_user_completion_for_v1_and_v2_agents():
     assert complete(Menu(V2Endpoint()), 'ad', ['user']) == ['add']
     assert complete(Menu(V2Endpoint()), '--', ['user', 'remove', 'pentester']) == ['--remove-home', '--yes', '--help']
-    assert complete(Menu(V1Agent()), 'ad', ['user']) == []
+    assert complete(Menu(V1Agent()), 'ad', ['user']) == ['add']

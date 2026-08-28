@@ -57,17 +57,22 @@ def _required_username(username: str) -> str:
     return username
 
 
-def _endpoint_tunnel_payload(endpoint_id: str) -> dict:
-    return {'endpointAgentId': _required_endpoint_id(endpoint_id)}
+def _endpoint_tunnel_payload(agent_id: str, legacy: bool = False) -> dict:
+    key = 'aegisClientId' if legacy else 'endpointAgentId'
+    return {key: _required_endpoint_id(agent_id)}
 
 
-def _endpoint_management_task_payload(capability: str, endpoint_id: str, parameters: dict = None) -> dict:
+def _endpoint_management_task_payload(capability: str, agent_id: str, parameters: dict = None, legacy: bool = False) -> dict:
     task_parameters = dict(parameters or {})
-    task_parameters[ENDPOINT_PIN_CONFIG_KEY] = _required_endpoint_id(endpoint_id)
-    return {
+    payload = {
         'aegisManagementCapability': capability,
         'parameters': task_parameters,
     }
+    if legacy:
+        payload['aegisClientId'] = _required_endpoint_id(agent_id)
+    else:
+        task_parameters[ENDPOINT_PIN_CONFIG_KEY] = _required_endpoint_id(agent_id)
+    return payload
 
 
 def normalize_pending_enrollment(pending: dict) -> dict:
@@ -194,37 +199,39 @@ class Aegis:
             return {'status': 'approved'}
         return {'status': response.get('status') or response.get('Status') or 'approved'}
 
-    def create_cloudflare_tunnel(self, endpoint_id: str) -> dict:
-        """Create and install a Cloudflare tunnel on an Aegis v2 endpoint."""
-        return self.api.post(CLOUDFLARE_TUNNEL_CREATE_PATH, _endpoint_tunnel_payload(endpoint_id))
+    def create_cloudflare_tunnel(self, agent_id: str, *, legacy: bool = False) -> dict:
+        """Create and install a Cloudflare tunnel on a selected Aegis agent."""
+        return self.api.post(CLOUDFLARE_TUNNEL_CREATE_PATH, _endpoint_tunnel_payload(agent_id, legacy))
 
-    def remove_cloudflare_tunnel(self, endpoint_id: str) -> dict:
-        """Remove Cloudflare tunnel configuration from an Aegis v2 endpoint."""
-        return self.api.post(CLOUDFLARE_TUNNEL_REMOVE_PATH, _endpoint_tunnel_payload(endpoint_id))
+    def remove_cloudflare_tunnel(self, agent_id: str, *, legacy: bool = False) -> dict:
+        """Remove Cloudflare tunnel configuration from a selected Aegis agent."""
+        return self.api.post(CLOUDFLARE_TUNNEL_REMOVE_PATH, _endpoint_tunnel_payload(agent_id, legacy))
 
-    def add_system_user(self, endpoint_id: str, username: str) -> dict:
-        """Add a Linux user through Aegis v2 systemcontrol management."""
+    def add_system_user(self, agent_id: str, username: str, *, legacy: bool = False) -> dict:
+        """Add a Linux user through Aegis management."""
         return self.api.post(
             AEGIS_MANAGEMENT_TASKS_PATH,
             _endpoint_management_task_payload(
                 LINUX_SYSTEM_ADDUSER,
-                endpoint_id,
+                agent_id,
                 {'username': _required_username(username)},
+                legacy,
             ),
         )
 
-    def remove_system_user(self, endpoint_id: str, username: str, remove_home: bool = False) -> dict:
-        """Remove a Linux user through Aegis v2 systemcontrol management."""
+    def remove_system_user(self, agent_id: str, username: str, remove_home: bool = False, *, legacy: bool = False) -> dict:
+        """Remove a Linux user through Aegis management."""
         remove_home_value = '--remove-home' if remove_home else ''
         return self.api.post(
             AEGIS_MANAGEMENT_TASKS_PATH,
             _endpoint_management_task_payload(
                 LINUX_SYSTEM_DELUSER,
-                endpoint_id,
+                agent_id,
                 {
                     'username': _required_username(username),
                     'remove_home': remove_home_value,
                 },
+                legacy,
             ),
         )
 

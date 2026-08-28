@@ -12,7 +12,7 @@ USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_.-]{0,31}$")
 
 
 def handle_user(menu, args):
-    """Add or remove Linux users through management systemcontrol on the selected v2 endpoint."""
+    """Add or remove Linux users through management on the selected Aegis agent."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
     try:
@@ -26,9 +26,9 @@ def handle_user(menu, args):
         show_user_help(menu)
         return
 
-    endpoint_id = _selected_endpoint_id(menu)
-    if not endpoint_id:
-        menu.console.print("\n  No Aegis v2 endpoint selected. Use 'set <id>' to select one.\n")
+    agent_id, legacy = _selected_agent_target(menu)
+    if not agent_id:
+        menu.console.print("\n  No Aegis agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
         return
 
@@ -42,18 +42,23 @@ def handle_user(menu, args):
     action_label = 'add' if action == 'add' else 'remove'
     if not parsed['yes']:
         remove_home_note = ' and remove home directory' if parsed['remove_home'] else ''
-        if not Confirm.ask(f"\n  {action_label.title()} user '{username}' on endpoint {endpoint_id}{remove_home_note}?"):
+        if not Confirm.ask(f"\n  {action_label.title()} user '{username}' on agent {agent_id}{remove_home_note}?"):
             menu.console.print('  Cancelled\n')
             menu.pause()
             return
 
     try:
         if action == 'add':
-            response = menu.sdk.aegis.add_system_user(endpoint_id, username)
-            _print_result(menu, 'User add queued', endpoint_id, username, response)
+            response = menu.sdk.aegis.add_system_user(agent_id, username, legacy=legacy)
+            _print_result(menu, 'User add queued', agent_id, username, response)
         else:
-            response = menu.sdk.aegis.remove_system_user(endpoint_id, username, remove_home=parsed['remove_home'])
-            _print_result(menu, 'User removal queued', endpoint_id, username, response)
+            response = menu.sdk.aegis.remove_system_user(
+                agent_id,
+                username,
+                remove_home=parsed['remove_home'],
+                legacy=legacy,
+            )
+            _print_result(menu, 'User removal queued', agent_id, username, response)
     except Exception as exc:
         menu.console.print(f"\n[{colors['error']}]User {action_label} error: {exc}[/{colors['error']}]")
 
@@ -63,12 +68,12 @@ def handle_user(menu, args):
 
 def show_user_help(menu):
     help_text = """
-  Aegis v2 User Commands
+  Aegis User Commands
 
-  user add <username> [--yes]                    Add a Linux user on the selected endpoint
-  user remove <username> [--remove-home] [--yes] Remove a Linux user from the selected endpoint
+  user add <username> [--yes]                    Add a Linux user on the selected agent
+  user remove <username> [--remove-home] [--yes] Remove a Linux user from the selected agent
 
-  The selected Aegis v2 endpoint supplies the endpoint UUID automatically.
+  Aegis v1 uses its Velociraptor client ID; Aegis v2 uses its endpoint UUID.
 
   Examples:
     set 1
@@ -80,7 +85,7 @@ def show_user_help(menu):
 
 
 def complete(menu, text, tokens):
-    if not is_v2_agent(getattr(menu, 'selected_agent', None)):
+    if getattr(menu, 'selected_agent', None) is None:
         return []
     if len(tokens) <= 1:
         return [action for action in ACTIONS if action.startswith(text)]
@@ -119,11 +124,11 @@ def _parse_args(args):
     return parsed
 
 
-def _selected_endpoint_id(menu):
+def _selected_agent_target(menu):
     agent = getattr(menu, 'selected_agent', None)
-    if not agent or not is_v2_agent(agent):
-        return ''
-    return agent_display_id(agent).strip()
+    if not agent:
+        return '', False
+    return agent_display_id(agent).strip(), not is_v2_agent(agent)
 
 
 def _print_result(menu, label, endpoint_id, username, response):
@@ -131,7 +136,7 @@ def _print_result(menu, label, endpoint_id, username, response):
     response = response if isinstance(response, dict) else {}
 
     menu.console.print(f"\n[{colors['success']}]✓ {label}[/{colors['success']}]")
-    menu.console.print(f"  Endpoint: {endpoint_id}")
+    menu.console.print(f"  Agent: {endpoint_id}")
     menu.console.print(f"  Username: {username}")
     if response.get('taskId'):
         menu.console.print(f"  Task ID: {response['taskId']}")

@@ -9,7 +9,7 @@ ALIASES = {"delete": "remove", "rm": "remove"}
 
 
 def handle_tunnel(menu, args):
-    """Create or remove Cloudflare tunnel configuration for the selected v2 endpoint."""
+    """Create or remove Cloudflare tunnel configuration for the selected Aegis agent."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
     try:
@@ -23,25 +23,25 @@ def handle_tunnel(menu, args):
         show_tunnel_help(menu)
         return
 
-    endpoint_id = _selected_endpoint_id(menu)
-    if not endpoint_id:
-        menu.console.print("\n  No Aegis v2 endpoint selected. Use 'set <id>' to select one.\n")
+    agent_id, legacy = _selected_agent_target(menu)
+    if not agent_id:
+        menu.console.print("\n  No Aegis agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
         return
 
     action = parsed['action']
-    if not parsed['yes'] and not Confirm.ask(f"\n  {action.title()} Cloudflare tunnel on endpoint {endpoint_id}?"):
+    if not parsed['yes'] and not Confirm.ask(f"\n  {action.title()} Cloudflare tunnel on agent {agent_id}?"):
         menu.console.print('  Cancelled\n')
         menu.pause()
         return
 
     try:
         if action == 'create':
-            response = menu.sdk.aegis.create_cloudflare_tunnel(endpoint_id)
-            _print_create_result(menu, endpoint_id, response)
+            response = menu.sdk.aegis.create_cloudflare_tunnel(agent_id, legacy=legacy)
+            _print_create_result(menu, agent_id, response)
         else:
-            response = menu.sdk.aegis.remove_cloudflare_tunnel(endpoint_id)
-            _print_remove_result(menu, endpoint_id, response)
+            response = menu.sdk.aegis.remove_cloudflare_tunnel(agent_id, legacy=legacy)
+            _print_remove_result(menu, agent_id, response)
     except Exception as exc:
         menu.console.print(f"\n[{colors['error']}]Tunnel {action} error: {exc}[/{colors['error']}]")
 
@@ -51,12 +51,12 @@ def handle_tunnel(menu, args):
 
 def show_tunnel_help(menu):
     help_text = """
-  Aegis v2 Tunnel Commands
+  Aegis Tunnel Commands
 
-  tunnel create [--yes]      Create and install a Cloudflare tunnel on the selected endpoint
-  tunnel remove [--yes]      Remove Cloudflare tunnel configuration from the selected endpoint
+  tunnel create [--yes]      Create and install a Cloudflare tunnel on the selected agent
+  tunnel remove [--yes]      Remove Cloudflare tunnel configuration from the selected agent
 
-  The selected Aegis v2 endpoint supplies the endpoint UUID automatically.
+  Aegis v1 uses its Velociraptor client ID; Aegis v2 uses its endpoint UUID.
 
   Examples:
     set 1
@@ -68,7 +68,7 @@ def show_tunnel_help(menu):
 
 
 def complete(menu, text, tokens):
-    if not is_v2_agent(getattr(menu, 'selected_agent', None)):
+    if getattr(menu, 'selected_agent', None) is None:
         return []
     if len(tokens) <= 1:
         return [action for action in ACTIONS if action.startswith(text)]
@@ -98,11 +98,11 @@ def _parse_args(args):
     return parsed
 
 
-def _selected_endpoint_id(menu):
+def _selected_agent_target(menu):
     agent = getattr(menu, 'selected_agent', None)
-    if not agent or not is_v2_agent(agent):
-        return ''
-    return agent_display_id(agent).strip()
+    if not agent:
+        return '', False
+    return agent_display_id(agent).strip(), not is_v2_agent(agent)
 
 
 def _print_create_result(menu, endpoint_id, response):
@@ -111,7 +111,7 @@ def _print_create_result(menu, endpoint_id, response):
     tunnel_info = response.get('tunnelInfo') or {}
 
     menu.console.print(f"\n[{colors['success']}]✓ Cloudflare tunnel install queued[/{colors['success']}]")
-    menu.console.print(f"  Endpoint: {endpoint_id}")
+    menu.console.print(f"  Agent: {endpoint_id}")
     if response.get('installTaskId'):
         menu.console.print(f"  Task ID: {response['installTaskId']}")
     if response.get('hostname'):
@@ -127,7 +127,7 @@ def _print_remove_result(menu, endpoint_id, response):
     response = response if isinstance(response, dict) else {}
 
     menu.console.print(f"\n[{colors['success']}]✓ Cloudflare tunnel removal queued[/{colors['success']}]")
-    menu.console.print(f"  Endpoint: {endpoint_id}")
+    menu.console.print(f"  Agent: {endpoint_id}")
     if response.get('taskId'):
         menu.console.print(f"  Task ID: {response['taskId']}")
     if response.get('message'):

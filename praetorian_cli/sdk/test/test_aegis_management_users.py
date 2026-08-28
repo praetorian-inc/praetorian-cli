@@ -31,6 +31,22 @@ def test_add_system_user_posts_endpoint_management_task_without_legacy_client_id
     assert 'aegisClientId' not in api.calls[0]['body']
 
 
+def test_add_system_user_posts_legacy_management_task():
+    api = FakeAPI()
+
+    Aegis(api).add_system_user(' C.legacy ', ' pentester ', legacy=True)
+
+    assert api.calls == [{
+        'path': 'aegis/management/tasks',
+        'body': {
+            'aegisManagementCapability': 'linux-system-adduser',
+            'aegisClientId': 'C.legacy',
+            'parameters': {'username': 'pentester'},
+        },
+    }]
+    assert 'endpoint_agent_id' not in api.calls[0]['body']['parameters']
+
+
 def test_remove_system_user_posts_endpoint_management_task_without_legacy_client_id():
     api = FakeAPI()
 
@@ -48,6 +64,25 @@ def test_remove_system_user_posts_endpoint_management_task_without_legacy_client
         },
     }]
     assert 'aegisClientId' not in api.calls[0]['body']
+
+
+def test_remove_system_user_posts_legacy_management_task():
+    api = FakeAPI()
+
+    Aegis(api).remove_system_user(' C.legacy ', ' pentester ', remove_home=True, legacy=True)
+
+    assert api.calls == [{
+        'path': 'aegis/management/tasks',
+        'body': {
+            'aegisManagementCapability': 'linux-system-deluser',
+            'aegisClientId': 'C.legacy',
+            'parameters': {
+                'username': 'pentester',
+                'remove_home': '--remove-home',
+            },
+        },
+    }]
+    assert 'endpoint_agent_id' not in api.calls[0]['body']['parameters']
 
 
 @pytest.mark.parametrize('method', ['add_system_user', 'remove_system_user'])
