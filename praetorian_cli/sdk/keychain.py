@@ -1,17 +1,20 @@
 import json
+import os
+import tempfile
 from configparser import ConfigParser
 from hashlib import sha256
+from ipaddress import ip_address
 from os import environ
-from os.path import join, split
+from os.path import join
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import time
+from urllib.parse import urlsplit
 
 import boto3
-import click
 import requests
 
-from praetorian_cli.handlers.utils import error
+from praetorian_cli.sdk.exceptions import AuthenticationError, ConfigurationError
 from praetorian_cli.sdk.model.globals import DEFAULT_HTTP_TIMEOUT
 
 DEFAULT_API = 'https://d0qcl2e18h.execute-api.us-east-2.amazonaws.com/chariot'
@@ -24,6 +27,61 @@ API_KEY_SECRET = 'api_key_secret'
 TOKEN_CACHE_FILENAME = 'token-cache.json'
 TOKEN_REFRESH_WINDOW = 5 * 60
 
+HTTP_LOOPBACK_OPT_IN_ENV = 'PRAETORIAN_CLI_ALLOW_HTTP_LOOPBACK'
+
+
+def _is_loopback_host(hostname):
+    """ True for localhost or a loopback IP address (127.0.0.0/8, ::1). """
+    if not hostname:
+        return False
+    if hostname.lower() == 'localhost':
+        return True
+    # DNS names other than localhost (e.g. localhost.example.com) resolve to
+    # arbitrary addresses, so only a literal loopback IP counts.
+    try:
+        return ip_address(hostname).is_loopback
+    except ValueError:
+        return False
+
+
+def _validated_backend_url(api):
+    """ Return `api` unchanged when it is safe to send credentials to; raise otherwise.
+        HTTPS only, except plaintext HTTP to a loopback endpoint (the local dev
+        emulator) under the explicit opt-in. """
+    try:
+        parsed = urlsplit(api or '')
+        # urlsplit defers port parsing; touching .port is what raises on a URL
+        # like https://host:not-a-port/x.
+        parsed.port
+    except ValueError:
+        raise ConfigurationError(
+            f'Invalid backend URL "{api}". Credentials are only sent over HTTPS; use an https:// URL.')
+
+    if parsed.scheme == 'https' and parsed.hostname:
+        return api
+
+    if parsed.scheme == 'http' and _is_loopback_host(parsed.hostname):
+        if environ.get(HTTP_LOOPBACK_OPT_IN_ENV) == '1':
+            return api
+        raise ConfigurationError(
+            f'Refusing to send credentials to the plaintext HTTP backend "{api}". Credentials are only '
+            f'sent over HTTPS. For local development against a loopback endpoint, set {HTTP_LOOPBACK_OPT_IN_ENV}=1.')
+
+    raise ConfigurationError(
+        f'Invalid backend URL "{api}". Credentials are only sent over HTTPS; use an https:// URL.')
+
+
+def _tighten_to_owner_only(path):
+    """ Repair a keychain file written group- or world-accessible by an older CLI. """
+    # Best-effort: the file is being read, not written, and configure() remains
+    # the authoritative enforcement point, so a keychain on a filesystem that
+    # refuses chmod must not brick every CLI command.
+    try:
+        if os.stat(path).st_mode & 0o077:
+            os.chmod(path, 0o600)
+    except OSError:
+        pass
+
 
 class Keychain:
 
@@ -33,6 +91,7 @@ class Keychain:
         self.data = data
         self.filepath = filepath
         self.config = None
+        self._loaded = False
         self.token_cache = None
         self.token_expiry = 0
 
@@ -46,7 +105,12 @@ class Keychain:
 
     def load(self):
         """ Loads backend and authentication data from the keychain file into this instance. """
-        if self.config:
+        # Gate on a load that finished, not on `self.config`: the parser is
+        # assigned below before any validation, and an empty ConfigParser is
+        # truthy (len 1 -- the DEFAULT section always counts, even with no
+        # sections), so testing it would cache a half-validated parser forever
+        # and never reread a keychain file the operator has since repaired.
+        if self._loaded:
             return self
 
         self.config = ConfigParser()
@@ -60,14 +124,16 @@ class Keychain:
                 self.config.set(DEFAULT_PROFILE, 'api', DEFAULT_API)
                 self.config.set(DEFAULT_PROFILE, 'client_id', DEFAULT_CLIENT_ID)
             else:
+                _tighten_to_owner_only(self.filepath)
                 self.config.read(self.filepath)
 
         if not self.config.sections():
-            error(
+            raise ConfigurationError(
                 f'Keychain file is corrupted. Run "praetorian configure" to configure your profile and credentials. Or, delete the corrupted keychain file at {self.filepath}')
 
         if self.profile not in self.config:
-            error(f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
+            raise ConfigurationError(
+                f'Could not find the "{self.profile}" profile in {self.filepath}. Run "praetorian configure" to fix.')
 
         profile = self.config[self.profile]
         
@@ -79,11 +145,13 @@ class Keychain:
         self.load_env('client_id', 'PRAETORIAN_CLI_CLIENT_ID', required=False)
         
         if 'api' not in profile or 'client_id' not in profile:
-            error(f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
+            raise ConfigurationError(
+                f'Keychain profile "{self.profile}" is corrupted or incomplete. Run "praetorian configure" to fix.')
 
         if self.account is None:
             self.account = self.config.get(self.profile, 'account', fallback=None)
 
+        self._loaded = True
         return self
 
     def load_env(self, config_name, env_name, required=True):
@@ -91,7 +159,10 @@ class Keychain:
             # environment variable takes precedence
             self.config.set(self.profile, config_name, environ[env_name])
         elif required and not self.config.get(self.profile, config_name, fallback=None):
-            error(
+            # The message below instructs a repair, so this instance must be able
+            # to see one: invalidate the cached load instead of answering from it.
+            self._loaded = False
+            raise ConfigurationError(
                 f'{config_name} not in keychain file or the {env_name} environment variable. Run "praetorian configure" to fix. Or set the environment variable.')
 
     def token(self):
@@ -111,17 +182,21 @@ class Keychain:
                     'X-GUARD-API-KEY-ID': self.api_key_id(),
                     'X-GUARD-API-KEY-SECRET': self.api_key_secret(),
                 },
+                allow_redirects=False,
                 timeout=DEFAULT_HTTP_TIMEOUT,
             )
             if response.status_code != 200:
-                error(f"API key authentication failed: {response.text}")
+                raise AuthenticationError(f"API key authentication failed: {response.text}")
 
             token_data = response.json()
             self.token_expiry = time() + token_data.get('expires_in', 3600)
             self.token_cache = token_data.get('token') or token_data.get('IdToken')
         else:
+            aws_endpoint_url = self.get_option('aws_endpoint_url')
+            if aws_endpoint_url is not None:
+                aws_endpoint_url = _validated_backend_url(aws_endpoint_url)
             cognito = boto3.client('cognito-idp', region_name='us-east-2',
-                                   endpoint_url=self.get_option('aws_endpoint_url'))
+                                   endpoint_url=aws_endpoint_url)
             response = cognito.initiate_auth(
                 AuthFlow='USER_PASSWORD_AUTH',
                 AuthParameters=dict(USERNAME=self.username(), PASSWORD=self.password()),
@@ -187,7 +262,7 @@ class Keychain:
 
     def base_url(self):
         """ Get the base URL for the backend. It is the "api" field in the keychain file. """
-        return self.get_option('api')
+        return _validated_backend_url(self.get_option('api'))
 
     def username(self):
         """ Get the username field from the keychain profile """
@@ -229,6 +304,9 @@ class Keychain:
                   account=None, api_key_id=None, api_key_secret=None):
         """ Update or insert a new profile to the keychain file at the default location.
             If the keychain file does not exist, create it. """
+        # Reject a plaintext backend before the keychain file is created or modified.
+        _validated_backend_url(api)
+
         new_profile = {
             'name': 'chariot',
             'client_id': client_id,
@@ -255,8 +333,25 @@ class Keychain:
 
         config[profile] = new_profile
 
-        Path(split(Path(DEFAULT_KEYCHAIN_FILEPATH))[0]).mkdir(exist_ok=True, parents=True)
-        with open(DEFAULT_KEYCHAIN_FILEPATH, 'w') as f:
-            config.write(f)
-
-        click.echo(f'\nKeychain data written to {DEFAULT_KEYCHAIN_FILEPATH}')
+        keychain_dir = Path(DEFAULT_KEYCHAIN_FILEPATH).parent
+        # mkdir's mode leaves a pre-existing directory alone; a new one is created
+        # owner-only to match the file it holds.
+        keychain_dir.mkdir(mode=0o700, exist_ok=True, parents=True)
+        # Write to a same-directory temp file (mkstemp creates it 0600 at the open
+        # syscall, regardless of umask) and atomically replace the keychain: a
+        # failure at any point leaves an existing keychain intact rather than
+        # truncated, and os.replace swaps out a symlink planted at the final path
+        # instead of following it.
+        fd, tmp_path = tempfile.mkstemp(dir=keychain_dir, prefix='.keychain.', suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w') as f:
+                config.write(f)
+                f.flush()
+                os.fsync(fd)
+            os.replace(tmp_path, DEFAULT_KEYCHAIN_FILEPATH)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass
+            raise
