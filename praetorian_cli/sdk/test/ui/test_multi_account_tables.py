@@ -113,7 +113,7 @@ class TestMultiAccountAgentTable:
             _make_account_info('chariot+cushwake@praetorian.com', 'Cushman & Wakefield', 'ACTIVE'),
         ]
 
-        agent = _make_agent('dc01.internal')
+        agent = _make_agent('dc01.example.test')
         menu.agents = [agent]
         menu.displayed_agents = [agent]
         menu.agent_account_map = {
@@ -127,7 +127,7 @@ class TestMultiAccountAgentTable:
 
         assert 'ACCOUNT' in text
         assert 'ACCT STATUS' in text
-        assert 'dc01.internal' in text
+        assert 'dc01.example.test' in text
         # Display name truncated to 19 chars: "Cushman & Wakefie..."
         assert 'Cushman & Wakefie' in text
 

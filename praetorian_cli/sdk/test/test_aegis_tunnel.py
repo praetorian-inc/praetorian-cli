@@ -26,6 +26,18 @@ def test_create_cloudflare_tunnel_posts_endpoint_uuid_only():
     assert 'aegisClientId' not in api.calls[0]['body']
 
 
+def test_create_cloudflare_tunnel_posts_legacy_client_id():
+    api = FakeAPI()
+
+    Aegis(api).create_cloudflare_tunnel(' C.legacy ', legacy=True)
+
+    assert api.calls == [{
+        'path': 'aegis/management/cloudflare/tunnel/create',
+        'body': {'aegisClientId': 'C.legacy'},
+    }]
+    assert 'endpointAgentId' not in api.calls[0]['body']
+
+
 def test_remove_cloudflare_tunnel_posts_endpoint_uuid_only():
     api = FakeAPI({'aegis/management/cloudflare/tunnel/remove': {'taskId': 'task-2'}})
 
@@ -37,6 +49,18 @@ def test_remove_cloudflare_tunnel_posts_endpoint_uuid_only():
         'body': {'endpointAgentId': 'endpoint-1'},
     }]
     assert 'aegisClientId' not in api.calls[0]['body']
+
+
+def test_remove_cloudflare_tunnel_posts_legacy_client_id():
+    api = FakeAPI()
+
+    Aegis(api).remove_cloudflare_tunnel(' C.legacy ', legacy=True)
+
+    assert api.calls == [{
+        'path': 'aegis/management/cloudflare/tunnel/remove',
+        'body': {'aegisClientId': 'C.legacy'},
+    }]
+    assert 'endpointAgentId' not in api.calls[0]['body']
 
 
 @pytest.mark.parametrize('method', ['create_cloudflare_tunnel', 'remove_cloudflare_tunnel'])

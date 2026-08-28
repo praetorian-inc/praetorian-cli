@@ -46,10 +46,11 @@ def test_tunnel_create_uses_selected_v2_endpoint_uuid_without_legacy_access():
     assert menu.sdk.aegis.calls == [{
         'method': 'create_cloudflare_tunnel',
         'endpoint_id': 'endpoint-1',
+        'legacy': False,
     }]
     output = '\n'.join(menu.console.lines)
     assert 'Cloudflare tunnel install queued' in output
-    assert 'Endpoint: endpoint-1' in output
+    assert 'Agent: endpoint-1' in output
     assert menu.paused is True
 
 
@@ -61,10 +62,11 @@ def test_tunnel_remove_uses_selected_v2_endpoint_uuid_without_legacy_access():
     assert menu.sdk.aegis.calls == [{
         'method': 'remove_cloudflare_tunnel',
         'endpoint_id': 'endpoint-1',
+        'legacy': False,
     }]
     output = '\n'.join(menu.console.lines)
     assert 'Cloudflare tunnel removal queued' in output
-    assert 'Endpoint: endpoint-1' in output
+    assert 'Agent: endpoint-1' in output
     assert menu.paused is True
 
 
@@ -79,18 +81,30 @@ def test_tunnel_cancel_does_not_call_api(monkeypatch):
     assert menu.paused is True
 
 
-@pytest.mark.parametrize('selected_agent', [None, V1Agent()])
-def test_tunnel_requires_selected_v2_endpoint(selected_agent):
-    menu = Menu(selected_agent)
+def test_tunnel_create_uses_selected_v1_client_id():
+    menu = Menu(V1Agent())
+
+    handle_tunnel(menu, ['create', '--yes'])
+
+    assert menu.sdk.aegis.calls == [{
+        'method': 'create_cloudflare_tunnel',
+        'endpoint_id': 'C.1',
+        'legacy': True,
+    }]
+    assert 'Agent: C.1' in '\n'.join(menu.console.lines)
+
+
+def test_tunnel_requires_selected_agent():
+    menu = Menu()
 
     handle_tunnel(menu, ['create', '--yes'])
 
     assert menu.sdk.aegis.calls == []
-    assert 'No Aegis v2 endpoint selected' in '\n'.join(menu.console.lines)
+    assert 'No Aegis agent selected' in '\n'.join(menu.console.lines)
     assert menu.paused is True
 
 
-def test_tunnel_completion_only_for_selected_v2_endpoint():
+def test_tunnel_completion_for_v1_and_v2_agents():
     assert complete(Menu(V2Endpoint()), 'cr', ['tunnel']) == ['create']
     assert complete(Menu(V2Endpoint()), '--', ['tunnel', 'create']) == ['--yes', '--help']
-    assert complete(Menu(V1Agent()), 'cr', ['tunnel']) == []
+    assert complete(Menu(V1Agent()), 'cr', ['tunnel']) == ['create']

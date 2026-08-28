@@ -11,7 +11,7 @@ class TestInferProtocol:
         assert _infer_protocol('host.example.com:3389') == 'rdp'
 
     def test_ftp_port(self):
-        assert _infer_protocol('192.168.1.1:21') == 'ftp'
+        assert _infer_protocol('192.0.2.21:21') == 'ftp'
 
     def test_smb_port(self):
         assert _infer_protocol('10.0.0.5:445') == 'smb'
