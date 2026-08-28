@@ -167,6 +167,114 @@ def test_v2_job_run_portscan_uses_existing_asset_and_endpoint_config():
     assert menu.paused is True
 
 
+def test_v2_smb_secrets_prompts_for_and_forwards_ad_credential(monkeypatch):
+    target_key = '#repository#smb://files.example.test/share#share'
+    responses = {
+        'endpoint_capabilities': _endpoint_capabilities('secrets', target='repository'),
+    }
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job_v2._select_credentials',
+        lambda _menu: (
+            '#credential#env-integration#active-directory#credential-1',
+            'AD Credential',
+        ),
+    )
+
+    handle_job(menu, ['run', 'secrets', '--key', target_key, '--yes'])
+
+    assert len(menu.sdk.jobs.calls) == 1
+    job_call = menu.sdk.jobs.calls[0]
+    assert job_call['target_key'] == target_key
+    assert job_call['capabilities'] == ['secrets']
+    assert job_call['credentials'] == ['credential-1']
+    assert json.loads(job_call['config']) == {'endpoint_agent_id': 'endpoint-1'}
+
+
+def test_v2_git_secrets_does_not_prompt_for_ad_credential(monkeypatch):
+    target_key = '#repository#https://github.com/example/project#project'
+    responses = {
+        'endpoint_capabilities': _endpoint_capabilities('secrets', target='repository'),
+    }
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job_v2._select_credentials',
+        lambda _menu: pytest.fail('Git repository credentials come from Repository.Secret'),
+    )
+
+    handle_job(menu, ['run', 'secrets', '--key', target_key, '--yes'])
+
+    assert menu.sdk.jobs.calls[0]['credentials'] is None
+
+
+def test_v2_umber_check_prompts_for_and_forwards_ad_credential(monkeypatch):
+    target_key = '#addomain#foobar.local#S-1-5-21-3022298462-3966147958-3640882514'
+    responses = {
+        'endpoint_capabilities': _endpoint_capabilities(
+            'linux-ad-umber-check',
+            target='addomain',
+        ),
+    }
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job_v2._select_credentials',
+        lambda _menu: (
+            '#credential#env-integration#active-directory#credential-1',
+            'AD Credential',
+        ),
+    )
+
+    handle_job(menu, ['run', 'linux-ad-umber-check', '--key', target_key, '--yes'])
+
+    assert len(menu.sdk.jobs.calls) == 1
+    job_call = menu.sdk.jobs.calls[0]
+    assert job_call['target_key'] == target_key
+    assert job_call['capabilities'] == ['linux-ad-umber-check']
+    assert json.loads(job_call['config']) == {'endpoint_agent_id': 'endpoint-1'}
+    assert job_call['credentials'] == ['credential-1']
+    assert menu.paused is True
+
+
+def test_v2_umber_collect_accepts_explicit_ad_credential(monkeypatch):
+    target_key = '#addomain#foobar.local#S-1-5-21-3022298462-3966147958-3640882514'
+    responses = {
+        'endpoint_capabilities': _endpoint_capabilities(
+            'linux-ad-umber-collect',
+            target='addomain',
+        ),
+    }
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job_v2._select_credentials',
+        lambda _menu: pytest.fail('explicit credential must skip the picker'),
+    )
+
+    handle_job(menu, [
+        'run',
+        'linux-ad-umber-collect',
+        '--key',
+        target_key,
+        '--credential',
+        'credential-1',
+        '--config',
+        '{"Server":"192.0.2.179","DNSServer":"192.0.2.179"}',
+        '--yes',
+    ])
+
+    assert len(menu.sdk.jobs.calls) == 1
+    job_call = menu.sdk.jobs.calls[0]
+    assert job_call['credentials'] == ['credential-1']
+    assert json.loads(job_call['config']) == {
+        'Server': '192.0.2.179',
+        'DNSServer': '192.0.2.179',
+        'endpoint_agent_id': 'endpoint-1',
+    }
+
+
 def test_v2_job_run_portscan_requires_existing_asset_without_auto_create():
     menu = Menu(responses={'endpoint_capabilities': _endpoint_capabilities('portscan')})
     _select_v2_endpoint(menu)
@@ -333,6 +441,44 @@ def test_job_run_success(monkeypatch):
     assert len(job_calls) == 1
     assert job_calls[0]['capabilities'] == ['windows-smb']
     assert job_calls[0]['target_key'].startswith('#asset#')
+
+
+def test_v1_smb_secrets_uses_repository_target_and_ad_credential(monkeypatch):
+    target_key = '#repository#smb://files.example.test/share#share'
+    responses = {
+        'capabilities': {
+            'secrets': {
+                'name': 'secrets',
+                'description': 'Titus SMB secret scan',
+                'target': 'repository',
+                'parameters': [],
+            },
+        },
+    }
+    menu = Menu(responses=responses)
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job._interactive_capability_picker',
+        lambda _menu, _suggested=None: 'secrets',
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job._select_credentials',
+        lambda _menu: (
+            '#credential#env-integration#active-directory#credential-1',
+            'AD Credential',
+        ),
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job.Confirm.ask',
+        lambda *args, **kwargs: True,
+    )
+
+    handle_job(menu, ['run', 'secrets', target_key])
+
+    assert len(menu.sdk.jobs.calls) == 1
+    job_call = menu.sdk.jobs.calls[0]
+    assert job_call['target_key'] == target_key
+    assert job_call['capabilities'] == ['secrets']
+    assert job_call['credentials'] == ['credential-1']
 
 
 def test_job_run_with_credential_attachment(monkeypatch):

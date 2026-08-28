@@ -13,6 +13,7 @@ from .job_helpers import (
     capability_needs_credentials as _capability_needs_credentials,
     resolve_addomain_target_key,
     extract_target_type,
+    is_network_share_target,
 )
 
 
@@ -140,24 +141,32 @@ def run_job(menu, args):
             return
 
         target_display = f"domain {domain}"
+    elif target_type == 'repository':
+        target_key = args[1].strip() if len(args) > 1 else Prompt.ask('  Repository target key').strip()
+        if not target_key.startswith('#repository#'):
+            menu.console.print(f"  [{colors['error']}]Repository capabilities require a #repository# target key.[/{colors['error']}]")
+            menu.pause()
+            return
+        target_display = target_key
     else:
         target_key = f"#asset#{hostname}#{hostname}"
         target_display = f"asset {hostname}"
-    
-    # Handle credentials for capabilities that need them
+
+    # Handle credentials for capabilities that need them.
     credentials = []
     credential_display_name = None
-    if _capability_needs_credentials(capability_info):
-        if Confirm.ask("  This capability may require credentials. Add them?"):
-            credential_key, credential_display_name = _select_credentials(menu)
-            if credential_key:
-                # Parse credential key to extract UUID
-                # Format: #credential#<category>#<type>#<credential_id>
-                parts = credential_key.split('#')
-                if len(parts) >= 5:
-                    credential_id = parts[-1]  # Last part is the UUID
-                    # Pass UUID to jobs.add() - API will retrieve values server-side
-                    credentials.append(credential_id)
+    network_share = is_network_share_target(target_key)
+    needs_optional_credentials = _capability_needs_credentials(capability_info)
+    if network_share or (needs_optional_credentials and Confirm.ask("  This capability may require credentials. Add them?")):
+        credential_key, credential_display_name = _select_credentials(menu)
+        if credential_key:
+            credential_id = credential_key.rsplit('#', 1)[-1].strip()
+            if credential_id:
+                credentials.append(credential_id)
+        if network_share and not credentials:
+            menu.console.print(f"  [{colors['error']}]SMB network shares require one Active Directory credential.[/{colors['error']}]")
+            menu.pause()
+            return
 
     # Create job configuration using SDK
     config = menu.sdk.aegis.create_job_config(menu.selected_agent, None)

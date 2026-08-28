@@ -11,7 +11,17 @@ from praetorian_cli.sdk.entities.capabilities import (
 )
 from ..constants import DEFAULT_COLORS
 from ..utils import agent_display_id, format_job_status, format_timestamp, is_v2_agent
-from .job_helpers import extract_target_type
+from .job_helpers import (
+    extract_target_type,
+    is_network_share_target,
+    select_credentials as _select_credentials,
+)
+
+
+_REQUIRED_AD_CREDENTIAL_CAPABILITIES = {
+    'linux-ad-umber-check',
+    'linux-ad-umber-collect',
+}
 
 
 def _endpoint_capabilities(menu):
@@ -151,6 +161,16 @@ def run_job(menu, args):
         menu.pause()
         return
 
+    try:
+        credentials = _job_credentials(menu, capability, parsed['credentials'], target_key)
+    except ValueError as e:
+        menu.console.print(f"[{colors['error']}]Error: {e}[/{colors['error']}]")
+        menu.pause()
+        return
+    if credentials is None:
+        menu.pause()
+        return
+
     if not parsed['yes']:
         if not Confirm.ask(f"\n  Run '{capability}' on {target_display} via endpoint {endpoint_id}?"):
             menu.console.print('  Cancelled\n')
@@ -158,7 +178,12 @@ def run_job(menu, args):
             return
 
     try:
-        jobs = menu.sdk.jobs.add(target_key, [capability], json.dumps(config))
+        jobs = menu.sdk.jobs.add(
+            target_key,
+            [capability],
+            json.dumps(config),
+            credentials=credentials or None,
+        )
         if jobs:
             _print_queued_job(menu, jobs[0] if isinstance(jobs, list) else jobs, capability, target_display, endpoint_id)
         else:
@@ -222,7 +247,7 @@ def complete(menu, text, tokens):
     if len(tokens) < 2 or tokens[1] != 'run':
         return []
     if text.startswith('-'):
-        opts = ['--target', '--key', '--target-key', '--asset-key', '--config', '--yes', '--help', '-t', '-k', '-y']
+        opts = ['--target', '--key', '--target-key', '--asset-key', '--config', '--credential', '--yes', '--help', '-t', '-k', '-s', '-y']
         return [option for option in opts if option.startswith(text)]
     if len(tokens) <= 3:
         try:
@@ -250,6 +275,7 @@ def _print_run_help(menu):
     job run <capability> --target <target> [--yes]
     job run <capability> --key <target-key> [--yes]
     job run <capability> --config '{{"param":"value"}}' [--yes]
+    job run <capability> --credential <credential-id> [--yes]
 
   Capabilities are loaded from Guard at runtime. Use 'job capabilities' to list them.
 
@@ -266,6 +292,7 @@ def _parse_run_args(args):
         'target': None,
         'target_key': None,
         'config': None,
+        'credentials': [],
         'yes': False,
         'help': False,
     }
@@ -290,6 +317,11 @@ def _parse_run_args(args):
             if i + 1 >= len(args):
                 raise ValueError('--config requires a JSON value')
             parsed['config'] = args[i + 1]
+            i += 2
+        elif arg in ('-s', '--credential'):
+            if i + 1 >= len(args):
+                raise ValueError(f'{arg} requires a credential ID')
+            parsed['credentials'].append(args[i + 1])
             i += 2
         elif arg.startswith('--config='):
             parsed['config'] = arg.split('=', 1)[1]
@@ -335,6 +367,40 @@ def _job_config(config_json, endpoint_id):
         raise ValueError('endpoint_agent_id must match the selected Aegis v2 endpoint')
     config['endpoint_agent_id'] = endpoint_id
     return config
+
+
+def _job_credentials(menu, capability, explicit_credentials, target_key=None):
+    credentials = [_credential_id(value) for value in explicit_credentials]
+    if any(not value for value in credentials):
+        raise ValueError('credential IDs must not be blank')
+
+    requires_ad_credential = (
+        capability in _REQUIRED_AD_CREDENTIAL_CAPABILITIES
+        or is_network_share_target(target_key)
+    )
+    if not requires_ad_credential:
+        return credentials
+    if len(credentials) > 1:
+        raise ValueError(f'{capability} requires exactly one Active Directory credential')
+    if len(credentials) == 1:
+        return credentials
+
+    credential_key, _ = _select_credentials(menu)
+    credential_id = _credential_id(credential_key)
+    if not credential_id:
+        colors = getattr(menu, 'colors', DEFAULT_COLORS)
+        menu.console.print(
+            f"  [{colors['error']}]{capability} requires one Active Directory credential.[/{colors['error']}]"
+        )
+        return None
+    return [credential_id]
+
+
+def _credential_id(value):
+    value = value.strip() if isinstance(value, str) else ''
+    if value.startswith('#credential#'):
+        return value.rsplit('#', 1)[-1].strip()
+    return value
 
 
 def _prompt_capability(menu, capabilities):
