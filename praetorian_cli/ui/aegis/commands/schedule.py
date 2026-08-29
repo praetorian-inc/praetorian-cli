@@ -25,6 +25,7 @@ from .job_helpers import (
     capability_needs_credentials,
     resolve_addomain_target_key,
     extract_target_type,
+    select_asset_target,
 )
 
 logger = logging.getLogger(__name__)
@@ -362,8 +363,11 @@ def add_schedule(menu):
 
         target_display = f"domain {domain}"
     else:
-        target_key = f"#asset#{hostname}#{hostname}"
-        target_display = f"asset {hostname}"
+        target_key, target_display = select_asset_target(menu, default_hostname=hostname)
+        if not target_key:
+            menu.console.print("  Cancelled\n")
+            menu.pause()
+            return
 
     menu.console.print(f"  Target: {target_display}")
 
