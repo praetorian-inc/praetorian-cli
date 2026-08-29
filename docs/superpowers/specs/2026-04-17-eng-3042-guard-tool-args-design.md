@@ -115,7 +115,7 @@ Verify each plugin whose current `_build()` uses `-t`, `-u`, or a `scan` sub-com
 | trajan | `scan <target>` | verify | — |
 | augustus | `scan -t <target>` | verify | fix if wrong |
 | gato | `enumerate -t <target>` | verify | fix if wrong |
-| cato/florian/hadrian | `scan -u <target>` | verify | fix if wrong |
+| probus/florian/hadrian | `scan -u <target>` | verify | fix if wrong |
 | vespasian/constantine/caligula | `scan <target>` | verify | fix if wrong |
 
 Audits that fail become small follow-up fixes within the same PR; if a binary isn't readily installable in the sandbox, document it in the plugin as *"verified against vX.Y help"* or flag it for a separate ticket.
