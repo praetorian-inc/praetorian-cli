@@ -73,7 +73,14 @@ def test_job_capabilities_lists_caps():
 
 
 def test_v2_job_capabilities_lists_guard_endpoint_catalog_without_legacy_calls():
-    responses = {'endpoint_capabilities': _endpoint_capabilities('dynamic-scan', 'portscan')}
+    responses = {
+        'endpoint_capabilities': _endpoint_capabilities('dynamic-scan', 'portscan'),
+        'list_caps': {
+            'capabilities': [
+                {'name': 'windows-smb', 'description': 'Legacy v1-only capability'},
+            ],
+        },
+    }
     menu = Menu(responses=responses)
     _select_v2_endpoint(menu)
     menu.console = Console(record=True, force_terminal=False, width=120)
@@ -84,6 +91,7 @@ def test_v2_job_capabilities_lists_guard_endpoint_catalog_without_legacy_calls()
     assert 'Aegis v2 Endpoint Capabilities' in output
     assert 'dynamic-scan' in output
     assert 'portscan' in output
+    assert 'windows-smb' not in output
     assert menu.sdk.capabilities.calls == [{
         'method': 'list',
         'name': '',
@@ -204,7 +212,12 @@ def test_v2_job_run_cancel_does_not_add_asset_or_job(monkeypatch):
 
 
 def test_v2_job_run_rejects_unsupported_capability_without_side_effects():
-    menu = Menu(responses={'endpoint_capabilities': _endpoint_capabilities('portscan')})
+    menu = Menu(responses={
+        'endpoint_capabilities': _endpoint_capabilities('portscan'),
+        'capabilities': {
+            'windows-smb': {'name': 'windows-smb', 'description': 'Legacy v1-only capability', 'target': 'asset'},
+        },
+    })
     _select_v2_endpoint(menu)
 
     handle_job(menu, ['run', 'windows-smb', '10.0.0.7', '--yes'])
