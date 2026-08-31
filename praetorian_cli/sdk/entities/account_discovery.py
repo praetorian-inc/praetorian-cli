@@ -204,7 +204,7 @@ def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict
         offset = body.get('offset') if isinstance(body, dict) else None
         if not offset:
             return endpoints
-        serialized_offset = json.dumps(offset)
+        serialized_offset = json.dumps(offset, sort_keys=True)
         if serialized_offset in seen_offsets:
             logger.debug('Endpoint fetch repeated pagination offset: %s', serialized_offset)
             return None

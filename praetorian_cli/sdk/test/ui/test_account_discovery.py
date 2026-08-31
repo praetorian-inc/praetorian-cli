@@ -552,6 +552,30 @@ class TestFetchAccountEndpoints:
             {'key': '#endpoint#', 'offset': json.dumps({'next': 'page-2'})},
         ]
 
+    def test_stops_on_reordered_repeated_offset(self, monkeypatch):
+        from praetorian_cli.sdk.entities.account_discovery import _fetch_account_endpoints
+
+        offsets = [
+            {'cursor': 'same', 'page': 2},
+            {'page': 2, 'cursor': 'same'},
+        ]
+        calls = 0
+
+        def mock_get(url, headers=None, params=None, timeout=None):
+            nonlocal calls
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.json.return_value = {'endpoints': [], 'offset': offsets[calls]}
+            calls += 1
+            return resp
+
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = mock_get
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
+
+        assert _fetch_account_endpoints('https://api.example.com', {}) is None
+        assert calls == 2
+
     def test_handles_null_body_as_empty_page(self, monkeypatch):
         from praetorian_cli.sdk.entities.account_discovery import _fetch_account_endpoints
 
