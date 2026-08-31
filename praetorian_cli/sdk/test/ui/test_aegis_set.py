@@ -215,3 +215,14 @@ def test_load_agents_rebinds_selected_v2_agent_to_fresh_state():
 
     assert menu.selected_agent is fresh_agent
     assert menu.selected_agent.has_tunnel is True
+
+
+def test_refresh_selected_agent_clears_selection_when_endpoint_disappears():
+    stale_agent = MockAgent("sensor", "N/A", endpoint_id="endpoint-1")
+    stale_agent.has_tunnel = True
+
+    menu = AegisMenu(ListingSDK([]))
+    menu.selected_agent = stale_agent
+
+    assert menu.refresh_selected_agent() is None
+    assert menu.selected_agent is None

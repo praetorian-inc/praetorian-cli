@@ -150,17 +150,17 @@ class Aegis:
             return []
         try:
             endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
+            endpoints = normalize_to_list(
+                endpoints_data,
+                ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
+            )
+            return [
+                Agent.from_endpoint_dict(endpoint)
+                for endpoint in endpoints
+                if _is_aegis_endpoint(endpoint)
+            ]
         except Exception:
             return []
-        endpoints = normalize_to_list(
-            endpoints_data,
-            ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
-        )
-        return [
-            Agent.from_endpoint_dict(endpoint)
-            for endpoint in endpoints
-            if _is_aegis_endpoint(endpoint)
-        ]
     
     def get_by_client_id(self, client_id: str) -> Optional[Agent]:
         """

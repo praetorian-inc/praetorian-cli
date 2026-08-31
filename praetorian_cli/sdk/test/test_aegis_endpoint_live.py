@@ -164,6 +164,24 @@ def test_aegis_list_retains_v1_agents_when_endpoint_listing_fails():
     ]
 
 
+def test_aegis_list_retains_v1_agents_when_endpoint_conversion_fails():
+    api = FakeAPI(
+        agents=[{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
+        endpoints=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'healthCheck': {'cloudflaredStatus': 'malformed'},
+        }],
+    )
+
+    agents, offset = Aegis(api).list()
+
+    assert offset is None
+    assert [(agent.version, agent.hostname, agent.display_id) for agent in agents] == [
+        ('v1', 'legacy-host', 'C.legacy'),
+    ]
+
+
 def test_get_by_client_id_accepts_v2_display_id():
     api = FakeAPI(endpoints=[{'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'}])
 
