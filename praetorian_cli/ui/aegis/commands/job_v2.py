@@ -383,6 +383,9 @@ def _job_credentials(menu, capability, explicit_credentials, target_key=None):
     if len(credentials) > 1:
         raise ValueError(f'{capability} requires exactly one Active Directory credential')
     if len(credentials) == 1:
+        credential_type = _credential_type(explicit_credentials[0])
+        if credential_type is not None and credential_type != 'active-directory':
+            raise ValueError(f'{capability} requires an Active Directory credential')
         return credentials
 
     credential_key, _ = _select_credentials(menu)
@@ -401,6 +404,14 @@ def _credential_id(value):
     if value.startswith('#credential#'):
         return value.rsplit('#', 1)[-1].strip()
     return value
+
+
+def _credential_type(value):
+    value = value.strip() if isinstance(value, str) else ''
+    if not value.startswith('#credential#'):
+        return None
+    parts = value.split('#', 4)
+    return parts[3].strip() if len(parts) == 5 else ''
 
 
 def _prompt_capability(menu, capabilities):
