@@ -212,6 +212,46 @@ class TestDiscoverAegisAccounts:
         assert result[0]['account_email'] == 'endpoint@praetorian.com'
         assert result[0]['agent_count'] == 1
 
+    def test_retries_repeated_endpoint_cursor_before_marking_account_empty(self, monkeypatch):
+        from praetorian_cli.sdk.entities.account_discovery import discover_aegis_accounts
+
+        accounts = [_account('endpoint@praetorian.com')]
+        sdk = _make_sdk(accounts, {'endpoint@praetorian.com': []})
+        calls = {'endpoint': 0}
+        repeated_offset = {'cursor': 'same'}
+
+        def mock_get(url, headers=None, params=None, timeout=None):
+            params = params or {}
+            resp = MagicMock()
+            if '/agent/enhanced' in url:
+                resp.status_code = 200
+                resp.json.return_value = []
+            elif '/my' in url and params.get('allTenants') == 'true':
+                resp.status_code = 200
+                resp.json.return_value = {}
+            elif '/my' in url and params.get('key') == '#endpoint#':
+                calls['endpoint'] += 1
+                resp.status_code = 200
+                if calls['endpoint'] <= 2:
+                    resp.json.return_value = {'endpoints': [], 'offset': repeated_offset}
+                else:
+                    resp.json.return_value = {'endpoints': [
+                        {'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'},
+                    ]}
+            return resp
+
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = mock_get
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.time.sleep', lambda _seconds: None)
+
+        result = discover_aegis_accounts(sdk)
+
+        assert calls['endpoint'] == 3
+        assert len(result) == 1
+        assert result[0]['account_email'] == 'endpoint@praetorian.com'
+        assert result[0]['agent_count'] == 1
+
     @patch('praetorian_cli.sdk.entities.account_discovery.requests')
     def test_account_metadata_extraction(self, mock_requests):
         from praetorian_cli.sdk.entities.account_discovery import discover_aegis_accounts
