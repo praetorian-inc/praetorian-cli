@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -115,6 +116,19 @@ def _invoke(fake_sdk, argv, input_text=''):
         return CliRunner().invoke(chariot, argv, obj=obj, input=input_text, catch_exceptions=False)
 
 
+def _invoke_debug(fake_sdk, argv):
+    @click.group()
+    @click.option('--debug', is_flag=True)
+    @click.pass_context
+    def root(ctx, debug):
+        ctx.obj = {'keychain': MagicMock(), 'proxy': ''}
+
+    root.add_command(chariot)
+    with patch('praetorian_cli.sdk.chariot.Chariot', return_value=fake_sdk), \
+         patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
+        return CliRunner().invoke(root, ['--debug', 'chariot', *argv])
+
+
 def test_cli_approve_enrollment_inspects_confirms_then_approves_without_leaking_material():
     fake_aegis = FakeAegis()
 
@@ -168,3 +182,21 @@ def test_cli_approval_error_maps_access_denied_to_actionable_message():
     assert result.exit_code != 0
     assert 'cannot be approved for this account' in result.output
     assert 'SHOULD_NOT_LEAK' not in result.output
+
+
+@pytest.mark.parametrize(
+    ('argv', 'error_field'),
+    [
+        (['aegis', 'enrollment', 'inspect', 'ABCD-EFGH'], 'inspect_error'),
+        (['aegis', 'enrollment', 'approve', 'ABCD-EFGH', '--yes'], 'approve_error'),
+    ],
+)
+def test_cli_enrollment_debug_preserves_original_exception(argv, error_field):
+    cause = RuntimeError(f'unexpected {error_field}')
+    fake_aegis = FakeAegis(**{error_field: cause})
+
+    result = _invoke_debug(FakeSDK(fake_aegis), argv)
+
+    assert result.exit_code == 1
+    assert result.exception is cause
+    assert 're-run with --debug for details' not in result.output
