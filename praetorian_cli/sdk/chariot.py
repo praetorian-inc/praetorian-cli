@@ -37,6 +37,7 @@ class Chariot:
 
     def __init__(self, keychain: Keychain, proxy: str=''):
         self.keychain = keychain
+        self.session = requests.Session()
         self.assets = Assets(self)
         self.seeds = Seeds(self)
         self.preseeds = Preseeds(self)
@@ -76,8 +77,8 @@ class Chariot:
 
     def chariot_request(self, method: str, url: str, headers: dict | None = None, **kwargs) -> requests.Response:
         """
-        Centralized wrapper around requests.request. Takes care of proxy and
-        supplies the authentication headers
+        Centralized HTTP wrapper. Takes care of proxy and supplies the
+        authentication headers.
         """
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
@@ -86,7 +87,7 @@ class Chariot:
         # Bound stalled connections; callers may override by passing timeout=.
         kwargs.setdefault('timeout', DEFAULT_HTTP_TIMEOUT)
 
-        return requests.request(method, url, headers=((headers or {}) | self.keychain.headers()), **kwargs)
+        return self.session.request(method, url, headers=((headers or {}) | self.keychain.headers()), **kwargs)
 
 
     def my(self, params: dict, pages=1) -> dict:
