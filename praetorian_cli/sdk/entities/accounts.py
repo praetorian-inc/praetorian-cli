@@ -43,6 +43,28 @@ class Accounts:
 
         return results, next_offset
 
+    def list_by_type(self, customer_type):
+        """
+        List accounts filtered by customer type.
+
+        :param customer_type: The customer type to filter by (e.g., ENGAGEMENT, MANAGED, BUG_BOUNTY)
+        :type customer_type: str
+        :return: A tuple containing (filtered list of account entities, None)
+        :rtype: tuple
+        """
+        from praetorian_cli.sdk.entities.account_discovery import _fetch_all_metadata
+
+        accounts, _ = self.list(pages=100000)
+
+        base_url = self.api.keychain.base_url()
+        headers = dict(self.api.keychain.headers())
+        headers.pop('account', None)
+
+        metadata = _fetch_all_metadata(base_url, headers)
+
+        filtered = [a for a in accounts if metadata['types'].get(a['name']) == customer_type]
+        return filtered, None
+
     def add_collaborator(self, collaborator_email, role=''):
         """
         Add a collaborator to the account of the current principal.

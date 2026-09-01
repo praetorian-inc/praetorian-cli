@@ -50,8 +50,10 @@ def risks(chariot, filter, details, offset, page, sort_by, desc):
 
 
 @list.command()
+@click.option('-t', '--type', 'account_type', type=click.Choice(['FREEMIUM', 'PILOT', 'ENGAGEMENT', 'MANAGED', 'SAAS', 'BUG_BOUNTY']),
+              default=None, help='Filter by customer type')
 @list_params('account email address')
-def accounts(chariot, filter, details, offset, page):
+def accounts(chariot, filter, details, account_type, offset, page):
     """ List accounts
 
 	Retrieve and display a list of your collaborators, as well as the accounts that
@@ -61,10 +63,14 @@ def accounts(chariot, filter, details, offset, page):
     Example usages:
         - guard list accounts
         - guard list accounts --filter john@praetorian.com
+        - guard list accounts --type ENGAGEMENT
         - guard list accounts --details
         - guard list accounts --page all
     """
-    render_list_results(chariot.accounts.list(filter, offset, pagination_size(page)), details)
+    if account_type:
+        render_list_results(chariot.accounts.list_by_type(account_type), details)
+    else:
+        render_list_results(chariot.accounts.list(filter, offset, pagination_size(page)), details)
 
 
 @list.command()
