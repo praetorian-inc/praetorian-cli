@@ -64,7 +64,8 @@ def accounts(chariot, filter, details, offset, page):
         - guard list accounts --details
         - guard list accounts --page all
     """
-    render_list_results(chariot.accounts.list(filter, offset, pagination_size(page)), details)
+    render_list_results(chariot.accounts.list(filter, offset, pagination_size(page),
+                                              enrich=details), details)
 
 
 @list.command()
