@@ -130,6 +130,58 @@ class TestCredentialsGet:
         })
 
 
+    def test_get_with_tenant_integration_sends_no_credential_id(self):
+        """tenant-integration: broker resolves the credential from the tenant's
+        integration account for the requested type. No CredentialID or
+        ResourceKey required from the caller."""
+        api = MagicMock()
+        api.post.return_value = {'credentialValue': {'github': 'ghs_xxx'}}
+        creds = Credentials(api=api)
+
+        creds.get(
+            credential_id='',
+            category='env-integration',
+            type='github',
+            format=['token'],
+            resolution='tenant-integration',
+        )
+
+        api.post.assert_called_once_with('broker', {
+            'Operation': 'get',
+            'CredentialID': '',
+            'Category': 'env-integration',
+            'Type': 'github',
+            'Format': ['token'],
+            'Resolution': 'tenant-integration',
+            'Parameters': {},
+        })
+
+    def test_get_with_global_sends_no_credential_id(self):
+        """global: broker synthesizes CredentialID from Type. No caller-supplied
+        fields required."""
+        api = MagicMock()
+        api.post.return_value = {'credentialValue': {'shodan': 'key123'}}
+        creds = Credentials(api=api)
+
+        creds.get(
+            credential_id='',
+            category='env-integration',
+            type='shodan',
+            format=['token'],
+            resolution='global',
+        )
+
+        api.post.assert_called_once_with('broker', {
+            'Operation': 'get',
+            'CredentialID': '',
+            'Category': 'env-integration',
+            'Type': 'shodan',
+            'Format': ['token'],
+            'Resolution': 'global',
+            'Parameters': {},
+        })
+
+
 class TestCredentialsDelete:
     def test_delete_builds_broker_request(self):
         api = MagicMock()
@@ -397,6 +449,30 @@ class TestGetCredentialCLI:
         assert result.exit_code != 0
         assert 'CREDENTIAL_ID' in result.output
         fake_sdk.credentials.get.assert_not_called()
+
+    def test_tenant_integration_does_not_require_credential_id(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential',
+            '--resolution', 'tenant-integration',
+            '--type', 'github',
+        ])
+        assert result.exit_code == 0, result.output
+        fake_sdk.credentials.get.assert_called_once_with(
+            '', 'env-integration', 'github', ['token'],
+            resolution='tenant-integration', resource_key=None,
+        )
+
+    def test_global_does_not_require_credential_id(self, runner, fake_sdk):
+        result = _invoke(runner, fake_sdk, [
+            'get', 'credential',
+            '--resolution', 'global',
+            '--type', 'shodan',
+        ])
+        assert result.exit_code == 0, result.output
+        fake_sdk.credentials.get.assert_called_once_with(
+            '', 'env-integration', 'shodan', ['token'],
+            resolution='global', resource_key=None,
+        )
 
     def test_invalid_resolution_value_is_rejected(self, runner, fake_sdk):
         result = _invoke(runner, fake_sdk, [
