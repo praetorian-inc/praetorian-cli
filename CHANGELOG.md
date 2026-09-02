@@ -1,5 +1,11 @@
 # Changelog
 
+# 2.5.0
+- [New Feature] Engineer VM `revive` — relaunch an archived VM from its own snapshot (`praetorian vm revive <id>`)
+- [Update] Renamed `vm terminate` to `vm archive`; archiving snapshots the data volume then terminates the instance, and is reversible via `revive`
+- [Update] Removed the `--mode` launch option and MODE column (single unified substrate; mode no longer exists server-side)
+- [Update] `vm list`/`status` now show the API's derived lifecycle phase (provisioning/running/stopped/snapshotted/…); fixed `extend` help to reflect the +7d default, RUNNING-only, 30-day ceiling
+
 # 2.4.8
 - [Update] Improved support for file uploads
 
