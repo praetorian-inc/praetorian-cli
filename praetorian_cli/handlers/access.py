@@ -1,4 +1,5 @@
 import os
+import shlex
 
 import click
 
@@ -210,68 +211,78 @@ def aws(sdk, account, prefix):
         click.echo(f'  {profile_name}')
 
 
-# Tokens minted by Guard's GitHub App installation flow start with `ghs_`.
-# Static PATs (`ghp_` classic, `github_pat_` fine-grained) are refused so the
-# CLI only ever surfaces 1-hour temporary tokens.
-GITHUB_APP_TOKEN_PREFIX = 'ghs_'
-
-
 @access.command()
 @cli_handler
-@click.option('--account', default=None,
-              help='Guard account email (also inherited from guard --account).')
+@click.option('--org', default=None,
+              help='GitHub organization to retrieve a token for. Required when the '
+                   'account has more than one GitHub integration.')
 @click.option('--format', 'output_format', default='token',
               type=click.Choice(['token', 'env']), show_default=True,
               help='Output shape. token: bare token on stdout. '
                    'env: export GITHUB_TOKEN / GH_TOKEN lines for `eval`.')
-def github(sdk, account, output_format):
+def github(sdk, org, output_format):
     """Retrieve a temporary GitHub App installation token.
 
     Looks up github integrations for the active account, asks the broker to
-    mint a 1-hour App installation token, and prints it. Only temporary App
-    installation tokens are returned — static PATs are refused via the `ghs_`
-    prefix check.
+    mint a 1-hour App installation token, and prints it. Guard only brokers
+    temporary App installation tokens; static PATs are refused server-side.
+
+    The account is inherited from the top-level guard --account flag.
 
     \b
     Example usages:
         - guard access github
-        - guard access github --format env
+        - guard --account chariot+client@praetorian.com access github --org acme-inc
         - eval "$(guard access github --format env)" && gh auth status
     """
-    if account is None:
-        account = sdk.keychain.account
-    if account is None:
-        # error() raises SystemExit(1), bypassing the broad `except Exception`
-        # in cli_decorators.handle_error that would otherwise swallow a
-        # ClickException and let the process exit 0.
-        error('--account is required. Provide it here or as guard --account.')
-    sdk.keychain.assume_role(account)
+    account = sdk.keychain.account
 
     integrations, _ = sdk.integrations.list(name_filter='github')
     if not integrations:
-        click.echo(f'No GitHub integrations found for account {account}', err=True)
-        return
+        error(f'No GitHub integrations found for account {account}')
 
-    printed = 0
-    for integration in integrations:
-        resource_key = integration.get('key', '')
-        target = integration.get('value') or resource_key
-        token = _fetch_github_app_token(sdk, resource_key, target)
-        if token is None:
-            continue
-        if not token.startswith(GITHUB_APP_TOKEN_PREFIX):
-            click.echo(
-                f'Refusing token from {target}: prefix is not '
-                f'{GITHUB_APP_TOKEN_PREFIX!r}; this looks like a static PAT '
-                'rather than a 1-hour App installation token.',
-                err=True,
-            )
-            continue
-        _print_github_token(token, output_format)
-        printed += 1
+    integration = _select_github_integration(integrations, org)
+    target = integration.get('value') or integration.get('key', '')
 
-    if not printed:
-        error('No temporary GitHub App installation tokens were retrieved.')
+    token = _fetch_github_app_token(sdk, integration.get('key', ''), target)
+    if not token:
+        error(f'No GitHub App installation token was retrieved for {target}.')
+
+    _print_github_token(token, output_format)
+
+
+def _select_github_integration(integrations, org):
+    """Pick the one integration to mint a token for.
+
+    A single integration is used as-is. With several, --org disambiguates by
+    matching the integration value (a repo/org URL) or its trailing path
+    segment; ambiguity without --org is an error rather than a guess.
+    """
+    if org:
+        matches = [i for i in integrations if _matches_org(i, org)]
+        if not matches:
+            error(f'No GitHub integration matching --org {org!r}. Available:\n'
+                  + _integration_list(integrations))
+        if len(matches) > 1:
+            error(f'--org {org!r} matches more than one GitHub integration:\n'
+                  + _integration_list(matches))
+        return matches[0]
+
+    if len(integrations) > 1:
+        error('This account has more than one GitHub integration. '
+              'Select one with --org:\n' + _integration_list(integrations))
+
+    return integrations[0]
+
+
+def _matches_org(integration, org):
+    value = (integration.get('value') or '').rstrip('/')
+    org = org.strip().rstrip('/').lower()
+    return value.lower() == org or value.rsplit('/', 1)[-1].lower() == org
+
+
+def _integration_list(integrations):
+    return '\n'.join(f'  {i.get("value") or i.get("key", "")}' for i in integrations)
 
 
 def _fetch_github_app_token(sdk, integration_key, target):
@@ -298,25 +309,26 @@ def _fetch_github_app_token(sdk, integration_key, target):
         msg = str(e)
         if '[403]' in msg or 'unauthorized' in msg.lower():
             click.echo(
-                f'Skipping {target}: Guard denied the request. End-user '
-                'retrieval of GitHub App installation tokens may not be '
-                'enabled on this deployment yet.',
+                f'{target}: Guard denied the request. End-user retrieval of '
+                'GitHub App installation tokens may not be enabled on this '
+                'deployment yet.',
                 err=True,
             )
         else:
-            click.echo(f'Skipping {target}: {msg.splitlines()[0]}', err=True)
+            click.echo(f'{target}: {msg.splitlines()[0]}', err=True)
         return None
 
     token = (result or {}).get('credentialValue', {}).get('github')
-    if not token:
-        click.echo(f'Skipping {target}: broker returned no token', err=True)
+    if not isinstance(token, str) or not token:
+        click.echo(f'{target}: broker returned no token', err=True)
         return None
     return token
 
 
 def _print_github_token(token, output_format):
     if output_format == 'env':
-        click.echo(f'export GITHUB_TOKEN={token}')
-        click.echo(f'export GH_TOKEN={token}')
+        quoted = shlex.quote(token)
+        click.echo(f'export GITHUB_TOKEN={quoted}')
+        click.echo(f'export GH_TOKEN={quoted}')
     else:
         click.echo(token)
