@@ -275,6 +275,33 @@ def test_v2_umber_collect_accepts_explicit_ad_credential(monkeypatch):
     }
 
 
+def test_v2_umber_collect_rejects_explicit_non_ad_credential():
+    target_key = '#addomain#foobar.local#S-1-5-21-3022298462-3966147958-3640882514'
+    responses = {
+        'endpoint_capabilities': _endpoint_capabilities(
+            'linux-ad-umber-collect',
+            target='addomain',
+        ),
+    }
+    menu = Menu(responses=responses)
+    _select_v2_endpoint(menu)
+
+    handle_job(menu, [
+        'run',
+        'linux-ad-umber-collect',
+        '--key',
+        target_key,
+        '--credential',
+        '#credential#cloud#aws#credential-1',
+        '--yes',
+    ])
+
+    output = "\n".join(menu.console.lines)
+    assert 'requires an Active Directory credential' in output
+    assert menu.sdk.jobs.calls == []
+    assert menu.paused is True
+
+
 def test_v2_job_run_portscan_requires_existing_asset_without_auto_create():
     menu = Menu(responses={'endpoint_capabilities': _endpoint_capabilities('portscan')})
     _select_v2_endpoint(menu)
