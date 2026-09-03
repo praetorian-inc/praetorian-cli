@@ -1,5 +1,10 @@
 # Changelog
 
+# 2.4.9
+- [New Feature] Added retest command
+- [New Feature] Added additional metadata to the `list accounts --details` result
+- [Performance] Reuse HTTP Request Sessions for paginated queries and cache auth tokens between commands
+
 # 2.4.8
 - [Update] Improved support for file uploads
 
