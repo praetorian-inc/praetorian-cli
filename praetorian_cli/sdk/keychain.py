@@ -1,10 +1,13 @@
+import json
 import os
 import tempfile
 from configparser import ConfigParser
+from hashlib import sha256
 from ipaddress import ip_address
 from os import environ
 from os.path import join
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from time import time
 from urllib.parse import urlsplit
 
@@ -21,6 +24,8 @@ DEFAULT_KEYCHAIN_FILEPATH = join(Path.home(), '.praetorian', 'keychain.ini')
 
 API_KEY_ID = 'api_key_id'
 API_KEY_SECRET = 'api_key_secret'
+TOKEN_CACHE_FILENAME = 'token-cache.json'
+TOKEN_REFRESH_WINDOW = 5 * 60
 
 HTTP_LOOPBACK_OPT_IN_ENV = 'PRAETORIAN_CLI_ALLOW_HTTP_LOOPBACK'
 
@@ -161,48 +166,99 @@ class Keychain:
                 f'{config_name} not in keychain file or the {env_name} environment variable. Run "praetorian configure" to fix. Or set the environment variable.')
 
     def token(self):
-        """ Authenticate using API key or AWS Cognito and get the token. Cache the token until expiry. """
-        if not self.token_cache or time() >= (self.token_expiry - 10):
-            if self.has_api_key():
-                # requests preserves custom headers across redirects (only the
-                # standard Authorization header is stripped), so following a
-                # redirect off the validated HTTPS URL could leak the key
-                # headers. With redirects disabled, a redirect response lands
-                # in the fail-closed status_code check below.
-                response = requests.get(
-                    f"{self.base_url()}/token",
-                    headers={
-                        'X-GUARD-API-KEY-ID': self.api_key_id(),
-                        'X-GUARD-API-KEY-SECRET': self.api_key_secret(),
-                    },
-                    allow_redirects=False,
-                    timeout=DEFAULT_HTTP_TIMEOUT,
-                )
-                if response.status_code != 200:
-                    raise AuthenticationError(f"API key authentication failed: {response.text}")
-                
-                token_data = response.json()
-                self.token_expiry = time() + 3600
-                self.token_cache = token_data.get('token') or token_data.get('IdToken')
-            else:
-                # aws_endpoint_url points Cognito at a local emulator (Floci/
-                # LocalStack) for local dev; None (unset) uses real AWS.
-                # USER_PASSWORD_AUTH is an unsigned Cognito operation, so no AWS
-                # credentials are needed for either endpoint.
-                aws_endpoint_url = self.get_option('aws_endpoint_url')
-                if aws_endpoint_url is not None:
-                    # Same transport policy as base_url(): initiate_auth below
-                    # sends the password, which must not cross plaintext HTTP.
-                    aws_endpoint_url = _validated_backend_url(aws_endpoint_url)
-                cognito = boto3.client('cognito-idp', region_name='us-east-2',
-                                       endpoint_url=aws_endpoint_url)
-                response = cognito.initiate_auth(
-                    AuthFlow='USER_PASSWORD_AUTH',
-                    AuthParameters=dict(USERNAME=self.username(), PASSWORD=self.password()),
-                    ClientId=self.client_id())
-                self.token_expiry = time() + response['AuthenticationResult']['ExpiresIn']
-                self.token_cache = response['AuthenticationResult']['IdToken']
+        """Authenticate using API key or AWS Cognito, reusing tokens until shortly before expiry."""
+        self.load()
+        if self._token_is_valid():
+            return self.token_cache
+
+        self._load_cached_token()
+        if self._token_is_valid():
+            return self.token_cache
+
+        if self.has_api_key():
+            response = requests.get(
+                f"{self.base_url()}/token",
+                headers={
+                    'X-GUARD-API-KEY-ID': self.api_key_id(),
+                    'X-GUARD-API-KEY-SECRET': self.api_key_secret(),
+                },
+                allow_redirects=False,
+                timeout=DEFAULT_HTTP_TIMEOUT,
+            )
+            if response.status_code != 200:
+                raise AuthenticationError(f"API key authentication failed: {response.text}")
+
+            token_data = response.json()
+            self.token_expiry = time() + token_data.get('expires_in', 3600)
+            self.token_cache = token_data.get('token') or token_data.get('IdToken')
+        else:
+            aws_endpoint_url = self.get_option('aws_endpoint_url')
+            if aws_endpoint_url is not None:
+                aws_endpoint_url = _validated_backend_url(aws_endpoint_url)
+            cognito = boto3.client('cognito-idp', region_name='us-east-2',
+                                   endpoint_url=aws_endpoint_url)
+            response = cognito.initiate_auth(
+                AuthFlow='USER_PASSWORD_AUTH',
+                AuthParameters=dict(USERNAME=self.username(), PASSWORD=self.password()),
+                ClientId=self.client_id())
+            self.token_expiry = time() + response['AuthenticationResult']['ExpiresIn']
+            self.token_cache = response['AuthenticationResult']['IdToken']
+
+        self._save_cached_token()
         return self.token_cache
+
+    def _token_is_valid(self):
+        return self.token_cache and time() < self.token_expiry - TOKEN_REFRESH_WINDOW
+
+    def _load_cached_token(self):
+        if self.data is not None:
+            return
+
+        cached = self._read_token_cache().get(self._token_cache_key(), {})
+        try:
+            self.token_cache = cached.get('token')
+            self.token_expiry = float(cached.get('expires_at', 0))
+        except (AttributeError, TypeError, ValueError):
+            return
+
+    def _save_cached_token(self):
+        if self.data is not None or not self.token_cache:
+            return
+
+        cache_path = self._token_cache_path()
+        temporary_path = None
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache = self._read_token_cache()
+            cache[self._token_cache_key()] = {
+                'token': self.token_cache,
+                'expires_at': self.token_expiry,
+            }
+            with NamedTemporaryFile('w', dir=cache_path.parent, delete=False) as temporary:
+                temporary_path = Path(temporary.name)
+                json.dump(cache, temporary)
+            temporary_path.chmod(0o600)
+            temporary_path.replace(cache_path)
+        except OSError:
+            if temporary_path:
+                temporary_path.unlink(missing_ok=True)
+
+    def _read_token_cache(self):
+        try:
+            cache = json.loads(self._token_cache_path().read_text())
+            return cache if isinstance(cache, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _token_cache_key(self):
+        has_api_key = self.has_api_key()
+        auth_type = 'api-key' if has_api_key else 'password'
+        principal = self.api_key_id() if has_api_key else self.username()
+        identity = '\0'.join((self.profile, self.base_url(), self.client_id(), auth_type, principal or ''))
+        return sha256(identity.encode()).hexdigest()
+
+    def _token_cache_path(self):
+        return Path(self.filepath).parent / TOKEN_CACHE_FILENAME
 
     def base_url(self):
         """ Get the base URL for the backend. It is the "api" field in the keychain file. """

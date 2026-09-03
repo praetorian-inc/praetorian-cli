@@ -7,6 +7,11 @@ from praetorian_cli.ui.aegis.commands.enrollment import (
 )
 
 
+def _enrollment_debug_enabled():
+    ctx = click.get_current_context()
+    return bool(ctx.find_root().params.get('debug', False))
+
+
 @chariot.group(invoke_without_command=True)
 @cli_handler
 @click.pass_context
@@ -139,6 +144,8 @@ def inspect_enrollment(sdk, user_code):
     try:
         pending = sdk.aegis.inspect_enrollment(user_code)
     except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
         raise click.ClickException(enrollment_error_message(exc)) from exc
 
     click.echo('Pending Aegis v2 enrollment:')
@@ -155,6 +162,8 @@ def approve_enrollment(sdk, user_code, yes):
     try:
         pending = sdk.aegis.inspect_enrollment(user_code)
     except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
         raise click.ClickException(enrollment_error_message(exc)) from exc
 
     click.echo('Pending Aegis v2 enrollment:')
@@ -168,6 +177,8 @@ def approve_enrollment(sdk, user_code, yes):
     try:
         result = sdk.aegis.approve_enrollment(user_code)
     except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
         raise click.ClickException(enrollment_error_message(exc)) from exc
     status = result.get('status', 'approved') if isinstance(result, dict) else 'approved'
     click.echo(f'Enrollment {status}')

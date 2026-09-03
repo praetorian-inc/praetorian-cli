@@ -829,8 +829,6 @@ class AegisMenu:
         if not self.selected_agent:
             return
         replacement = self._find_selected_agent_replacement(self.selected_agent)
-        if replacement is None:
-            return
         self.selected_agent = replacement
 
     def _find_selected_agent_replacement(self, selected_agent: Agent) -> Optional[Agent]:
