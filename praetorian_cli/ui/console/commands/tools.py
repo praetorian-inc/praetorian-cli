@@ -10,6 +10,12 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from praetorian_cli.sdk.entities.capabilities import (
+    capability_description,
+    capability_name,
+    normalize_capabilities_response,
+)
+
 
 class ToolCommands:
     """Security tool and operation console commands. Mixed into GuardConsole."""
@@ -52,10 +58,14 @@ class ToolCommands:
             return
 
         tool_name = args[0].lower()
-        alias = TOOL_ALIASES.get(tool_name)
+        alias = self._resolve_tool_alias(tool_name)
         if not alias:
             available = ', '.join(sorted(k for k in TOOL_ALIASES if k != 'secrets'))
-            self.console.print(f'[error]Unknown tool: {tool_name}. Available: {available}[/error]')
+            if available:
+                self.console.print(f'[error]Unknown tool: {tool_name}. Friendly/cached tools: {available}[/error]')
+            else:
+                self.console.print(f'[error]Unknown tool: {tool_name}.[/error]')
+                self.console.print('[dim]Run "capabilities" to list Guard-reported capabilities.[/dim]')
             return
 
         rest = args[1:]
@@ -140,26 +150,39 @@ class ToolCommands:
             if wait:
                 self._wait_for_job(target_key, capability)
 
-    def _print_tool_catalog(self, TOOL_ALIASES):
+    def _resolve_tool_alias(self, tool_name):
+        from praetorian_cli.handlers.run import TOOL_ALIASES, resolve_capability
+
+        alias = TOOL_ALIASES.get(tool_name)
+        if alias:
+            return alias
+
+        cap_info = resolve_capability(self.sdk, tool_name)
+        if not cap_info:
+            return None
+
+        alias = {
+            'capability': cap_info['capability'],
+            'agent': None,
+            'target_type': cap_info['target_type'],
+            'description': cap_info.get('description', ''),
+            'default_config': {},
+        }
+        TOOL_ALIASES[tool_name] = alias
+        return alias
+
+    def _print_tool_catalog(self, tool_aliases):
         """Render the agents/capabilities catalog shown when `run` is called bare."""
-        agents = {k: v for k, v in TOOL_ALIASES.items() if v.get('agent') and k != 'secrets'}
-        table = Table(title='Agents', border_style=self.colors['primary'])
-        table.add_column('Agent', style=f'bold {self.colors["primary"]}', min_width=16)
-        table.add_column('Description')
-        for name, info in sorted(agents.items()):
-            table.add_row(name, info['description'])
-        self.console.print(table)
+        agents = {k: v for k, v in tool_aliases.items() if v.get('agent') and k != 'secrets'}
+        if agents:
+            table = Table(title='Agents', border_style=self.colors['primary'])
+            table.add_column('Agent', style=f'bold {self.colors["primary"]}', min_width=16)
+            table.add_column('Description')
+            for name, info in sorted(agents.items()):
+                table.add_row(name, info['description'])
+            self.console.print(table)
 
-        caps = {k: v for k, v in TOOL_ALIASES.items() if not v.get('agent') and k != 'secrets'}
-        if caps:
-            table2 = Table(title='Capabilities', border_style=self.colors['dim'])
-            table2.add_column('Capability', style=f'bold {self.colors["primary"]}', min_width=16)
-            table2.add_column('Target', style=self.colors['accent'])
-            table2.add_column('Description')
-            for name, info in sorted(caps.items()):
-                table2.add_row(name, info['target_type'], info['description'])
-            self.console.print(table2)
-
+        self._cmd_capabilities([])
         self.console.print(f'\n[dim]Usage: use <name> or <name> <target_key>[/dim]')
 
     def _print_tool_help(self, tool_name):
@@ -509,16 +532,9 @@ class ToolCommands:
         name_filter = args[0] if args else ''
         try:
             result = self.sdk.capabilities.list(name=name_filter)
-            if isinstance(result, list):
-                caps = result
-            elif isinstance(result, dict):
-                caps = result.get('capabilities', result.get('data', []))
-            elif isinstance(result, tuple):
-                caps = result[0] if result[0] else []
-            else:
-                caps = []
+            caps = normalize_capabilities_response(result)
 
-            if isinstance(caps, list) and caps:
+            if caps:
                 table = Table(title=f'Capabilities ({len(caps)})', border_style=self.colors['primary'])
                 table.add_column('#', style=self.colors['dim'], width=4)
                 table.add_column('Name', style=f'bold {self.colors["primary"]}')
@@ -528,15 +544,14 @@ class ToolCommands:
 
                 self._capability_list = []
                 for i, cap in enumerate(caps, 1):
-                    if isinstance(cap, dict):
-                        name = str(cap.get('name', cap.get('Name', '')))
-                        target = cap.get('target', cap.get('Target', ''))
-                        if isinstance(target, list):
-                            target = ','.join(target)
-                        desc = str(cap.get('description', cap.get('Description', '')))[:50]
-                        executor = str(cap.get('executor', ''))
-                        table.add_row(str(i), name, str(target), executor, desc)
-                        self._capability_list.append(name)
+                    name = capability_name(cap)
+                    target = cap.get('target', cap.get('Target', ''))
+                    if isinstance(target, list):
+                        target = ','.join(target)
+                    desc = capability_description(cap)[:50]
+                    executor = str(cap.get('executor') or cap.get('Executor', ''))
+                    table.add_row(str(i), name, str(target), executor, desc)
+                    self._capability_list.append(name)
                 self.console.print(table)
                 self.console.print(f'\n[dim]Use "use <#>" or "use <name>" to select a capability.[/dim]')
             else:
