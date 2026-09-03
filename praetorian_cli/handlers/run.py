@@ -124,6 +124,40 @@ def run():
     pass
 
 
+RETEST_CAPABILITY = 'cato-agent'
+RETEST_SOURCE = 'customer-retest'
+
+
+@chariot.command('retest')
+@cli_handler
+@click.argument('risk_key')
+@click.option('--wait', is_flag=True, default=False, help='Wait for job completion and show results')
+def retest(sdk, risk_key, wait):
+    """ Queue a remediation retest for a risk
+
+    Mirrors the Retest button in the Guard UI (and POST /api/v1/retests):
+    queues the cato-agent finding validator against the risk with the
+    customer-retest source, so Cato re-validates the finding and applies
+    the resulting status.
+
+    \b
+    RISK_KEY must be a full Guard risk key (#risk#<dns>#<name>). Friendly
+    names are not accepted: a risk name such as a CVE ID usually exists on
+    many assets, so a name cannot identify the single risk to retest.
+
+    \b
+    Example usages:
+        guard retest "#risk#example.com#cve-2024-1234"
+        guard retest "#risk#example.com#cve-2024-1234" --wait
+    """
+    if not risk_key.startswith('#risk#'):
+        error(f'Retest requires a full risk key (#risk#<dns>#<name>), got "{risk_key}". '
+              'Use "guard list risks" to find it.')
+
+    cap = {'capability': RETEST_CAPABILITY, 'target_type': 'risk'}
+    _run_direct(sdk, cap, risk_key, json.dumps({'source': RETEST_SOURCE}), [], wait)
+
+
 @run.command(
     'tool',
     context_settings={'ignore_unknown_options': True, 'allow_extra_args': True},
