@@ -2,14 +2,15 @@ import pytest
 import json
 
 from praetorian_cli.sdk.model.utils import asset_key
-from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
+from praetorian_cli.sdk.test.utils import selected_test_target, make_test_values, clean_test_entities, setup_chariot
 
 
 @pytest.mark.coherence
 class TestJob:
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        profile, account = selected_test_target()
+        self.sdk = setup_chariot(profile, account)
         make_test_values(self)
 
         self.was_frozen = False

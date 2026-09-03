@@ -1,4 +1,4 @@
-from praetorian_cli.handlers.utils import error
+from praetorian_cli.sdk.exceptions import NotFoundError
 
 
 class Preseeds:
@@ -105,7 +105,7 @@ class Preseeds:
         :type comment: str or None
         :return: The updated preseed object with new status
         :rtype: dict
-        :raises: Prints error message if preseed with the specified key is not found
+        :raises NotFoundError: if no preseed with the specified key exists
 
         **Example Usage:**
 
@@ -143,7 +143,7 @@ class Preseeds:
 
             return self.api.update('preseed', update_payload)
         else:
-            error(f'Pre-seed {key} is not found.')
+            raise NotFoundError(f'Pre-seed {key} is not found.')
 
     def delete(self, key):
         """Delete a preseed from the Chariot database.
