@@ -133,84 +133,29 @@ def test_remote_and_ask_conflict(runner, fake_sdk):
 RISK_KEY = '#risk#example.com#cve-2024-1234'
 
 
-def test_retest_full_risk_key_queues_priscus_job(runner, fake_sdk):
-    """A full #risk# key passes straight through to the job system, no search."""
+def test_retest_full_risk_key_queues_cato_retest_job(runner, fake_sdk):
+    """A full #risk# key queues cato-agent with the customer-retest source, no search."""
     result = _invoke(runner, fake_sdk, ['retest', RISK_KEY])
     assert result.exit_code == 0
-    fake_sdk.jobs.add.assert_called_once_with(RISK_KEY, ['priscus'], None, None)
+    fake_sdk.jobs.add.assert_called_once_with(
+        RISK_KEY, ['cato-agent'], '{"source": "customer-retest"}', None)
     fake_sdk.search.fulltext.assert_not_called()
     assert RISK_KEY in result.output
 
 
-def test_retest_friendly_name_resolves_unique_risk(runner, fake_sdk):
-    """A friendly name matching exactly one risk queues the job against its key."""
-    fake_sdk.search.fulltext.return_value = (
-        [{'key': RISK_KEY, 'name': 'cve-2024-1234'}], None)
-    result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
-    assert result.exit_code == 0
-    fake_sdk.jobs.add.assert_called_once_with(RISK_KEY, ['priscus'], None, None)
-
-
-def test_retest_ambiguous_friendly_name_errors_and_lists_keys(runner, fake_sdk):
-    """A name matching multiple risks fails instead of silently picking one."""
-    other_key = '#risk#other.example.com#cve-2024-1234'
-    fake_sdk.search.fulltext.return_value = (
-        [{'key': RISK_KEY, 'name': 'cve-2024-1234'},
-         {'key': other_key, 'name': 'cve-2024-1234'}], None)
+def test_retest_rejects_friendly_name(runner, fake_sdk):
+    """A friendly name is refused outright: CVE names exist on many assets."""
     result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
     assert result.exit_code != 0
-    assert 'multiple' in result.output.lower()
-    assert RISK_KEY in result.output
-    assert other_key in result.output
+    assert 'full risk key' in result.output
+    assert 'cve-2024-1234' in result.output
     fake_sdk.jobs.add.assert_not_called()
+    fake_sdk.search.fulltext.assert_not_called()
 
 
-def test_retest_non_risk_resolution_errors(runner, fake_sdk):
-    """Input resolving to an asset key is rejected — retest needs a risk."""
-    asset_key = '#asset#example.com#example.com'
-    fake_sdk.search.fulltext.return_value = (
-        [{'key': asset_key, 'name': 'example.com'}], None)
-    result = _invoke(runner, fake_sdk, ['retest', 'example.com'])
+def test_retest_rejects_non_risk_key(runner, fake_sdk):
+    """A full key of another entity type is refused; retest needs a #risk# key."""
+    result = _invoke(runner, fake_sdk, ['retest', '#asset#example.com#example.com'])
     assert result.exit_code != 0
-    assert 'not a risk' in result.output
-    assert asset_key in result.output
-    fake_sdk.jobs.add.assert_not_called()
-
-
-def test_retest_ambiguity_warning_truncates_long_candidate_lists(runner, fake_sdk):
-    """A large ambiguous match set shows the first 10 keys plus a count, not all of them."""
-    results = [{'key': f'#risk#host{i}.example.com#cve-2024-1234', 'name': 'cve-2024-1234'}
-               for i in range(12)]
-    fake_sdk.search.fulltext.return_value = (results, None)
-    result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
-    assert result.exit_code != 0
-    assert results[9]['key'] in result.output
-    assert results[10]['key'] not in result.output
-    assert '...and 2 more' in result.output
-    fake_sdk.jobs.add.assert_not_called()
-
-
-def test_retest_ambiguous_prefix_fallback_errors(runner, fake_sdk):
-    """The by_key_prefix fallback path also refuses ambiguous matches."""
-    other_key = '#risk#other.example.com#cve-2024-1234'
-    fake_sdk.search.fulltext.return_value = ([], None)
-    fake_sdk.search.by_key_prefix.return_value = (
-        [{'key': RISK_KEY}, {'key': other_key}], None)
-    result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
-    assert result.exit_code != 0
-    assert 'multiple' in result.output.lower()
-    assert RISK_KEY in result.output
-    assert other_key in result.output
-    fake_sdk.jobs.add.assert_not_called()
-
-
-def test_retest_unresolvable_name_errors(runner, fake_sdk):
-    """Name matching nothing anywhere (fulltext + fallbacks) fails cleanly."""
-    fake_sdk.search.fulltext.return_value = ([], None)
-    fake_sdk.search.by_key_prefix.return_value = ([], None)
-    fake_sdk.search.by_term.return_value = ([], None)
-    result = _invoke(runner, fake_sdk, ['retest', 'no-such-risk'])
-    assert result.exit_code != 0
-    assert 'Could not resolve' in result.output
-    assert 'no-such-risk' in result.output
+    assert 'full risk key' in result.output
     fake_sdk.jobs.add.assert_not_called()

@@ -67,22 +67,10 @@ def resolve_capability(sdk, name):
     return None
 
 
-def _ambiguity_warning(target_input, expected_type, results, max_shown=10):
-    """Build the failure message for an input that matches multiple entities."""
-    shown = results[:max_shown]
-    keys = '\n'.join(r['key'] for r in shown)
-    if len(results) > len(shown):
-        keys += f'\n...and {len(results) - len(shown)} more'
-    return (f'"{target_input}" matches multiple {expected_type} entities:\n{keys}\n'
-            f'Pass a full #{expected_type}#... key to disambiguate.')
-
-
-def resolve_target(sdk, target_input, expected_type, require_unique=False):
+def resolve_target(sdk, target_input, expected_type):
     """Resolve a friendly target (domain, IP, URL) to a Guard entity key.
 
     Uses sdk.search.fulltext() for resolution. Returns (key, warning) tuple.
-    When require_unique is True, an input matching multiple entities returns
-    (None, warning) instead of picking the first match.
     """
     if target_input.startswith('#'):
         return target_input, None
@@ -91,13 +79,11 @@ def resolve_target(sdk, target_input, expected_type, require_unique=False):
     try:
         results, _ = sdk.search.fulltext(target_input, kind=expected_type, limit=10)
         if results:
-            # Exact match on dns/name, falling back to all results
-            exact = [r for r in results
-                     if r.get('dns', '') == target_input or r.get('name', '') == target_input]
-            candidates = exact or results
-            if require_unique and len(candidates) > 1:
-                return None, _ambiguity_warning(target_input, expected_type, candidates)
-            return candidates[0]['key'], None
+            # Exact match on dns/name
+            for r in results:
+                if r.get('dns', '') == target_input or r.get('name', '') == target_input:
+                    return r['key'], None
+            return results[0]['key'], None
     except Exception:
         pass
 
@@ -111,8 +97,6 @@ def resolve_target(sdk, target_input, expected_type, require_unique=False):
     try:
         results, _ = sdk.search.by_key_prefix(f'#{vtype}#{target_input}', pages=1)
         if results:
-            if require_unique and len(results) > 1:
-                return None, _ambiguity_warning(target_input, expected_type, results)
             return results[0]['key'], None
     except Exception:
         pass
@@ -122,8 +106,6 @@ def resolve_target(sdk, target_input, expected_type, require_unique=False):
         try:
             results, _ = sdk.search.by_term(f'{field}:{target_input}', expected_type, pages=1)
             if results:
-                if require_unique and len(results) > 1:
-                    return None, _ambiguity_warning(target_input, expected_type, results)
                 return results[0]['key'], None
         except Exception:
             pass
@@ -142,33 +124,38 @@ def run():
     pass
 
 
+RETEST_CAPABILITY = 'cato-agent'
+RETEST_SOURCE = 'customer-retest'
+
+
 @chariot.command('retest')
 @cli_handler
-@click.argument('risk')
+@click.argument('risk_key')
 @click.option('--wait', is_flag=True, default=False, help='Wait for job completion and show results')
-def retest(sdk, risk, wait):
+def retest(sdk, risk_key, wait):
     """ Queue a remediation retest for a risk
 
-    Runs the priscus remediation retesting agent against the given risk.
-    Shorthand for "guard run tool priscus <risk_key> --remote".
+    Mirrors the Retest button in the Guard UI (and POST /api/v1/retests):
+    queues the cato-agent finding validator against the risk with the
+    customer-retest source, so Cato re-validates the finding and applies
+    the resulting status.
 
     \b
-    RISK can be a full Guard risk key (#risk#example.com#cve-2024-1234)
-    or a friendly name that resolves to a single risk.
+    RISK_KEY must be a full Guard risk key (#risk#<dns>#<name>). Friendly
+    names are not accepted: a risk name such as a CVE ID usually exists on
+    many assets, so a name cannot identify the single risk to retest.
 
     \b
     Example usages:
         guard retest "#risk#example.com#cve-2024-1234"
-        guard retest cve-2024-1234 --wait
+        guard retest "#risk#example.com#cve-2024-1234" --wait
     """
-    risk_key, warning = resolve_target(sdk, risk, 'risk', require_unique=True)
-    if not risk_key:
-        error(warning)
     if not risk_key.startswith('#risk#'):
-        error(f'"{risk}" resolved to {risk_key}, which is not a risk. Retest requires a risk key (#risk#...).')
+        error(f'Retest requires a full risk key (#risk#<dns>#<name>), got "{risk_key}". '
+              'Use "guard list risks" to find it.')
 
-    cap = resolve_capability(sdk, 'priscus') or TOOL_ALIASES['priscus']
-    _run_direct(sdk, cap, risk_key, '', [], wait)
+    cap = {'capability': RETEST_CAPABILITY, 'target_type': 'risk'}
+    _run_direct(sdk, cap, risk_key, json.dumps({'source': RETEST_SOURCE}), [], wait)
 
 
 @run.command(
