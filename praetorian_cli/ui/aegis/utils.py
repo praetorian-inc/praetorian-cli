@@ -87,8 +87,9 @@ def compute_agent_groups(agents: List[Agent], current_time: float) -> dict:
     
     for i, agent in enumerate(agents):
         # Compute relative time string
-        if agent.last_seen_at > 0 and agent.is_online:
-            last_seen_str = relative_time(agent.last_seen_at / 1000000 if agent.last_seen_at > 1000000000000 else agent.last_seen_at, current_time)
+        last_seen_at = agent.last_seen_at or 0
+        if last_seen_at > 0 and agent.is_online:
+            last_seen_str = relative_time(last_seen_at / 1000000 if last_seen_at > 1000000000000 else last_seen_at, current_time)
         else:
             last_seen_str = "—"
         
@@ -132,6 +133,15 @@ def get_agent_display_style(group: str, colors: dict) -> dict:
         }
 
 
+def agent_display_id(agent: Agent) -> str:
+    """Return the stable UI identifier for v1 agents and v2 endpoints."""
+    endpoint_id = getattr(agent, 'endpoint_id', None)
+    if isinstance(endpoint_id, str) and endpoint_id:
+        return endpoint_id
+    client_id = getattr(agent, 'client_id', '')
+    return client_id if isinstance(client_id, str) else ''
+
+
 def parse_agent_identifier(identifier: str, displayed_agents: List[Agent], all_agents: Optional[List[Agent]] = None) -> Optional[Agent]:
     """Parse agent identifier and return matching agent
     """
@@ -145,10 +155,11 @@ def parse_agent_identifier(identifier: str, displayed_agents: List[Agent], all_a
         agent_num = int(identifier)
         if 1 <= agent_num <= len(displayed_agents):
             return displayed_agents[agent_num - 1]
-    
+
+    identifier_lower = identifier.lower()
     for agent in search_agents:
         try:
-            if agent.client_id and agent.client_id.lower() == identifier.lower():
+            if agent_display_id(agent).lower() == identifier_lower:
                 return agent
         except AttributeError:
             continue

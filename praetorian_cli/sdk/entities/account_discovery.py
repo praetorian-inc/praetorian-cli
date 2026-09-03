@@ -4,6 +4,7 @@ Fetches account metadata in bulk via allTenants API calls, then concurrently
 checks each account for aegis agents to build enriched account info.
 """
 
+import json
 import logging
 import threading
 import time
@@ -66,23 +67,26 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
             headers = dict(auth_headers)
             headers['account'] = account_email
 
-            resp = requests.get(
-                f'{base_url}/agent/enhanced',
-                headers=headers,
-                timeout=30,
-            )
-            if resp.status_code != 200:
-                logger.debug('Agent check for %s returned status %d', account_email, resp.status_code)
+            records = None
+            for attempt in range(2):
+                records = _fetch_account_records(base_url, headers)
+                if records is not None:
+                    break
+                if attempt == 0:
+                    time.sleep(1)
+            if records is None:
                 return _PROBE_FAILED
 
-            agents_data = resp.json()
-            if not agents_data:
-                return None  # Genuinely empty — no agents
+            agents_data, endpoints_data = records
+            if not agents_data and not endpoints_data:
+                return None  # Genuinely empty — no agents or endpoints
 
-            online_count = _count_online_agents(agents_data)
+            online_count = (
+                _count_online_agents(agents_data) + _count_online_endpoints(endpoints_data)
+            )
             return _build_account_info(
                 account_email,
-                len(agents_data),
+                len(agents_data) + len(endpoints_data),
                 online_count,
                 metadata,
             )
@@ -167,6 +171,62 @@ def _fetch_all_metadata(base_url: str, auth_headers: dict) -> dict:
     return result
 
 
+def _fetch_account_agents(base_url: str, headers: dict) -> Optional[List[dict]]:
+    resp = requests.get(
+        f'{base_url}/agent/enhanced',
+        headers=headers,
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        logger.debug('Agent fetch returned status %d', resp.status_code)
+        return None
+    return resp.json() or []
+
+
+def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict]]:
+    endpoints = []
+    params = {'key': '#endpoint#'}
+    seen_offsets = set()
+
+    while True:
+        resp = requests.get(
+            f'{base_url}/my',
+            headers=headers,
+            params=params,
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            logger.debug('Endpoint fetch returned status %d', resp.status_code)
+            return None
+
+        body = resp.json()
+        endpoints.extend(_aegis_endpoint_rows(_flatten_response(body)))
+        offset = body.get('offset') if isinstance(body, dict) else None
+        if not offset:
+            return endpoints
+        serialized_offset = json.dumps(offset, sort_keys=True)
+        if serialized_offset in seen_offsets:
+            logger.debug('Endpoint fetch repeated pagination offset: %s', serialized_offset)
+            return None
+        seen_offsets.add(serialized_offset)
+        params = {'key': '#endpoint#', 'offset': serialized_offset}
+
+
+def _fetch_account_records(base_url: str, headers: dict) -> Optional[tuple[List[dict], List[dict]]]:
+    agents_data = _fetch_account_agents(base_url, headers)
+    endpoints_data = _fetch_account_endpoints(base_url, headers)
+    if agents_data is None or endpoints_data is None:
+        return None
+    return agents_data, endpoints_data
+
+
+def _aegis_endpoint_rows(rows: List[dict]) -> List[dict]:
+    return [
+        row for row in rows
+        if isinstance(row, dict) and str(row.get('kind', '')).lower() == 'aegis'
+    ]
+
+
 def _extract_email(item: dict) -> Optional[str]:
     """Extract the tenant email from an allTenants API response item."""
     email = item.get('username')
@@ -188,6 +248,8 @@ def _flatten_response(data) -> List[dict]:
     """
     if isinstance(data, list):
         return data
+    if not isinstance(data, dict):
+        return []
     records = []
     for value in data.values():
         if isinstance(value, list):
@@ -247,6 +309,11 @@ def _count_online_agents(agents_data: list) -> int:
         if (now - last_seen) < 60:
             count += 1
     return count
+
+
+def _count_online_endpoints(endpoints_data: list) -> int:
+    """Count v2 endpoints that are online according to the endpoint TTL window."""
+    return sum(1 for endpoint in endpoints_data if Agent.from_endpoint_dict(endpoint).is_online)
 
 
 def _build_account_info(email: str, agent_count: int, online_count: int, metadata: dict) -> dict:
@@ -310,15 +377,16 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
         try:
             headers = dict(auth_headers)
             headers['account'] = email
-            resp = requests.get(
-                f'{base_url}/agent/enhanced',
-                headers=headers,
-                timeout=30,
+            records = _fetch_account_records(base_url, headers)
+            if records is None:
+                logger.debug('Agent load for %s failed (attempt %d)', email, attempt)
+                return None  # Signal failure (distinct from empty account)
+            agents_data, endpoints_data = records
+            agents = [(Agent.from_dict(d), acct) for d in agents_data]
+            agents.extend(
+                (Agent.from_endpoint_dict(d), acct) for d in endpoints_data
             )
-            if resp.status_code == 200:
-                return [(Agent.from_dict(d), acct) for d in resp.json()]
-            logger.debug('Agent load for %s returned status %d (attempt %d)', email, resp.status_code, attempt)
-            return None  # Signal failure (distinct from empty account)
+            return agents
         except Exception as e:
             logger.debug('Agent load failed for %s: %s (attempt %d)', email, e, attempt)
             return None
