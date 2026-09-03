@@ -18,6 +18,11 @@ def extract_target_type(capability_info: dict) -> str:
     return capability_target_type(capability_info)
 
 
+def is_network_share_target(target_key: str) -> bool:
+    """Return whether a Repository key identifies an SMB network share."""
+    return isinstance(target_key, str) and target_key.lower().startswith('#repository#smb://')
+
+
 # ---------------------------------------------------------------------------
 # Capability helpers
 # ---------------------------------------------------------------------------
