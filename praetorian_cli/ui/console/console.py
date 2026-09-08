@@ -41,9 +41,7 @@ CONSOLE_COMMANDS = [
     'next', 'n', 'prev', 'p', 'page',
     'scan', 'tag',
     'run', 'status', 'download', 'install', 'installed',
-    'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
-    'trajan', 'cato', 'priscus', 'seneca', 'titus',
-    'nuclei', 'portscan', 'subdomain', 'crawler', 'capabilities',
+    'capabilities',
     'evidence', 'report',
     'ask', 'marcus',
     'critfinder', 'research', 'hunt',
@@ -241,7 +239,7 @@ class GuardConsole(
             'exit': self._cmd_quit_or_back,
         }
 
-        # Direct tool name aliases: "brutus <key>" -> "run brutus <key>"
+        # Direct capability names are resolved from Guard on demand.
         if cmd in TOOL_ALIASES:
             try:
                 self._cmd_run([cmd] + args)
@@ -255,6 +253,13 @@ class GuardConsole(
         if handler:
             try:
                 handler(args)
+            except (EOFError, KeyboardInterrupt):
+                raise
+            except Exception as e:
+                self.console.print(f'[error]Error: {e}[/error]')
+        elif self._resolve_tool_alias(cmd):
+            try:
+                self._cmd_run([cmd] + args)
             except (EOFError, KeyboardInterrupt):
                 raise
             except Exception as e:
@@ -337,7 +342,7 @@ class GuardConsole(
 
         help_table.add_row('', '')
         help_table.add_row('[section]Security Tools (Metasploit-style)[/section]', '')
-        help_table.add_row('use <tool>', 'Select a tool (brutus, nuclei, julius, etc.)')
+        help_table.add_row('use <tool>', 'Select a Guard-reported capability')
         help_table.add_row('show targets', 'Show valid targets for active tool')
         help_table.add_row('set target <key|#>', 'Set target (key or number from list)')
         help_table.add_row('options', 'Show current tool options')
@@ -345,18 +350,8 @@ class GuardConsole(
         help_table.add_row('back', 'Deselect current tool')
         help_table.add_row('', '')
         help_table.add_row('[section]Agents & Capabilities[/section]', '')
-        help_table.add_row('asset-analyzer <key>', 'Deep-dive recon & risk mapping')
-        help_table.add_row('brutus <port_key>', 'Credential attacks (SSH, RDP, FTP, SMB)')
-        help_table.add_row('julius <port_key>', 'LLM/AI service fingerprinting')
-        help_table.add_row('augustus <webpage_key>', 'LLM jailbreak & injection attacks')
-        help_table.add_row('aurelius <asset_key>', 'Cloud infrastructure discovery')
-        help_table.add_row('trajan <asset_key>', 'CI/CD pipeline security scanning')
-        help_table.add_row('priscus <risk_key>', 'Remediation retesting')
-        help_table.add_row('seneca <risk_key>', 'CVE research & exploit intelligence')
-        help_table.add_row('titus <repo_key>', 'Secret scanning & credential leak detection')
-        help_table.add_row('nuclei <asset_key>', 'Vulnerability scanner')
-        help_table.add_row('portscan <asset_key>', 'Port scanning')
-        help_table.add_row('capabilities [name]', 'List all backend capabilities')
+        help_table.add_row('<capability> <target_key>', 'Run any Guard-reported capability directly')
+        help_table.add_row('capabilities [name]', 'List Guard-reported capabilities')
         help_table.add_row('install <tool|all>', 'Install binary from GitHub')
         help_table.add_row('installed', 'List locally installed binaries')
 

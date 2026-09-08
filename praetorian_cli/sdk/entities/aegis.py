@@ -3,7 +3,7 @@ import shlex
 import shutil
 import subprocess
 import time
-from praetorian_cli.sdk.model.aegis import Agent, validate_agent_for_ssh
+from praetorian_cli.sdk.model.aegis import Agent, is_v2_agent, validate_agent_for_ssh
 
 
 def normalize_to_list(value, item_keys: List[str] = None) -> List:
@@ -230,6 +230,12 @@ class Aegis:
             >>> creds = {"Username": "admin", "Password": "secret"}
             >>> config = sdk.aegis.create_job_config(agent, creds)
         """
+        if is_v2_agent(agent):
+            raise Exception(
+                "Aegis v2 endpoint job execution is not supported by the legacy "
+                "Aegis job path; refusing to create aegis/client_id config"
+            )
+
         config = {
             "aegis": "true",
             "client_id": agent.client_id or '',
@@ -308,13 +314,13 @@ class Aegis:
 
         options = options or []
         
-        # Determine SSH username using the centralized method
-        if not user:
-            _, user = self.api.get_current_user()
-        
         is_valid, error_msg = validate_agent_for_ssh(agent)
         if not is_valid:
             raise Exception(error_msg)
+
+        # Determine SSH username using the centralized method
+        if not user:
+            _, user = self.api.get_current_user()
         
         hostname = agent.hostname or 'Unknown'
         cf_status = agent.health_check.cloudflared_status
@@ -388,12 +394,12 @@ class Aegis:
         """
         ssh_options = ssh_options or []
 
-        if not user:
-            _, user = self.api.get_current_user()
-
         is_valid, error_msg = validate_agent_for_ssh(agent)
         if not is_valid:
             raise Exception(error_msg)
+
+        if not user:
+            _, user = self.api.get_current_user()
 
         hostname = agent.hostname or 'Unknown'
         cf_status = agent.health_check.cloudflared_status
@@ -533,6 +539,12 @@ class Aegis:
         the 'capabilities' key. When capabilities are provided, returns a dict
         with keys: 'success', 'job_id', 'job_key', 'status'. Errors raise.
         """
+        if is_v2_agent(agent):
+            raise Exception(
+                "Aegis v2 endpoint job execution is not supported by the legacy "
+                "Aegis job path; refusing to run without endpoint_agent_id"
+            )
+
         if not capabilities:
             caps = self.get_capabilities(surface_filter='internal')
             return {
@@ -588,10 +600,12 @@ class Aegis:
         
         if filter_text:
             filter_lower = filter_text.lower()
-            agents_data = [agent for agent in agents_data 
-                            if filter_lower in agent.hostname.lower() or
-                                filter_lower in agent.client_id.lower() or
-                                filter_lower in agent.os.lower()]
+            agents_data = [
+                agent for agent in agents_data
+                if filter_lower in (agent.hostname or '').lower()
+                or filter_lower in (agent.display_id or '').lower()
+                or filter_lower in (agent.os or '').lower()
+            ]
 
         if not agents_data:
             return f"No agents found matching filter: {filter_text}"

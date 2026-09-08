@@ -9,6 +9,7 @@ from rich.text import Text
 from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
 from ..constants import DEFAULT_COLORS
+from ..utils import ensure_v1_agent
 from praetorian_cli.sdk.entities.account_discovery import load_schedules_for_accounts, truncate_email
 from .schedule_helpers import (
     DAYS, DAY_ABBREVS,
@@ -326,6 +327,9 @@ def add_schedule(menu):
     if not menu.selected_agent:
         menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
+        return
+
+    if not ensure_v1_agent(menu, 'schedule add'):
         return
 
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
