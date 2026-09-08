@@ -24,6 +24,49 @@ class FakeAPI:
         return {'status': 'answered'}
 
 
+class TreeAPI:
+    def __init__(self):
+        self.calls = []
+        self.children = {
+            ('root', True): [{'uuid': 'user-child'}],
+            ('root', False): [{'uuid': 'tenant-child'}],
+            ('user-child', True): [{'uuid': 'grandchild'}],
+        }
+        self.interactions = {
+            'root': [{
+                'key': '#interaction#root#4',
+                'timestamp': '2026-01-01T00:00:04Z',
+                'status': 'answered',
+            }],
+            'user-child': [{
+                'key': '#interaction#user-child#2',
+                'timestamp': '2026-01-01T00:00:02Z',
+                'status': 'pending',
+            }],
+            'tenant-child': [{
+                'key': '#interaction#tenant-child#3',
+                'timestamp': '2026-01-01T00:00:03Z',
+                'status': 'pending',
+            }],
+            'grandchild': [{
+                'key': '#interaction#grandchild#1',
+                'timestamp': '2026-01-01T00:00:01Z',
+                'status': 'pending',
+            }],
+        }
+
+    def get(self, path, params):
+        assert path == 'my'
+        self.calls.append({'params': dict(params)})
+        parent_id = params['key'].split(':', 1)[1]
+        partition = params.get('user') == 'true'
+        return {'conversations': self.children.get((parent_id, partition), [])}
+
+    def my(self, params, pages=1):
+        self.calls.append({'params': dict(params), 'pages': pages})
+        return {'interactions': self.interactions.get(params['convId'], [])}
+
+
 def test_list_interactions_routes_through_conversation_partition_and_sorts():
     api = FakeAPI([
         {'key': '#interaction#conversation-1#2', 'kind': 'future-kind', 'status': 'pending'},
@@ -44,6 +87,46 @@ def test_list_interactions_routes_through_conversation_partition_and_sorts():
         },
         'pages': 100000,
     }]
+
+
+def test_list_interactions_includes_user_and_tenant_descendants():
+    api = TreeAPI()
+
+    interactions = Conversations(api).list_interactions(
+        'root', status='pending', include_descendants=True
+    )
+
+    assert [interaction['key'] for interaction in interactions] == [
+        '#interaction#grandchild#1',
+        '#interaction#user-child#2',
+        '#interaction#tenant-child#3',
+    ]
+    root_child_queries = [
+        call['params'] for call in api.calls
+        if call['params']['key'] == 'parent_id:root'
+    ]
+    assert root_child_queries == [
+        {'key': 'parent_id:root', 'label': 'conversation', 'user': 'true'},
+        {'key': 'parent_id:root', 'label': 'conversation'},
+    ]
+    routed_ids = [
+        call['params']['convId'] for call in api.calls
+        if call['params']['key'].startswith('#interaction#')
+    ]
+    assert routed_ids == ['root', 'user-child', 'tenant-child', 'grandchild']
+
+
+def test_tree_ids_reuses_recent_descendant_discovery():
+    api = TreeAPI()
+    conversations = Conversations(api)
+
+    first = conversations.tree_ids('root')
+    child_query_count = len(api.calls)
+    second = conversations.tree_ids('root')
+
+    assert first == ['root', 'user-child', 'tenant-child', 'grandchild']
+    assert second == first
+    assert len(api.calls) == child_query_count
 
 
 def test_list_interactions_filters_by_status_without_filtering_kind():
