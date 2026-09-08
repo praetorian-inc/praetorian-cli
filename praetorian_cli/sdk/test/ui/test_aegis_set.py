@@ -6,9 +6,10 @@ pytestmark = pytest.mark.tui
 
 
 class MockAgent:
-    def __init__(self, hostname, client_id):
+    def __init__(self, hostname, client_id, endpoint_id=None):
         self.hostname = hostname
         self.client_id = client_id
+        self.endpoint_id = endpoint_id
 
 
 class Menu(MockMenuBase):
@@ -49,6 +50,15 @@ def test_set_by_client_id_selects_agent():
     menu = Menu([a1, a2])
     handle_set(menu, ["C.1"])
     assert menu.selected_agent is a1
+
+
+def test_set_by_endpoint_id_selects_v2_agent():
+    v2_agent = MockAgent("sensor", "N/A", endpoint_id="endpoint-1")
+    menu = Menu([v2_agent])
+
+    handle_set(menu, ["endpoint-1"])
+
+    assert menu.selected_agent is v2_agent
 
 
 def test_set_not_found_shows_error_and_pauses():
