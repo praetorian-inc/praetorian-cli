@@ -55,6 +55,38 @@ class Conversations:
             raise ValueError(f'No conversation found for id: {conversation_id}')
         return _transcript(conversation_id, meta[0] if meta else {}, records)
 
+    def list_interactions(self, conversation_id, status=None) -> list:
+        """List durable interactions for a conversation.
+
+        The ``convId`` parameter lets Guard resolve private and hunt/public
+        conversation partitions server-side. Unknown interaction kinds are
+        returned unchanged.
+        """
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        if status is not None:
+            status = _required_string(status, 'interaction status')
+
+        interactions = self._routed(
+            f'#interaction#{conversation_id}#', conversation_id
+        )
+        if status is not None:
+            interactions = [
+                interaction for interaction in interactions
+                if interaction.get('status') == status
+            ]
+        return sorted(interactions, key=lambda interaction: interaction.get('key', ''))
+
+    def answer_interaction(self, conversation_id, request_id, response) -> dict:
+        """Answer one durable conversation interaction."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        request_id = _required_string(request_id, 'request ID')
+        response = _required_string(response, 'interaction response', strip=False)
+        return self.api.post('planner/interaction', {
+            'conversationId': conversation_id,
+            'requestId': request_id,
+            'response': response,
+        })
+
     def _shared(self, offset=None, pages=100000) -> tuple:
         # The tenant partition (no user flag) mixes shared conversations in with
         # other tenant records; keep only the public and hunt-owned ones.
@@ -65,6 +97,12 @@ class Conversations:
         results = self.api.my({'key': key, 'convId': conversation_id}, pages=100000)
         results.pop('offset', None)
         return flatten_results(results)
+
+
+def _required_string(value, name, strip=True):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f'{name} is required')
+    return value.strip() if strip else value
 
 
 def _transcript(uuid, meta, records) -> dict:
