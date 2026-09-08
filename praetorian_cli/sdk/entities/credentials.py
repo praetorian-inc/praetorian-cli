@@ -94,8 +94,10 @@ class Credentials:
         :param format: The format of the credential response ('token', 'file', 'env')
         :type format: str or list
         :param resolution: How the broker should locate the credential. One of
-            'by-target' (use credential_id as-is; default) or 'from-parent'
-            (walk DISCOVERED ancestors of resource_key).
+            'by-target' (use credential_id as-is; default), 'from-parent'
+            (walk DISCOVERED ancestors of resource_key), 'tenant-integration'
+            (resolve from the tenant's integration account for this type), or
+            'global' (resolve a platform-wide credential by type).
         :type resolution: str
         :param resource_key: Asset/resource key the credential is scoped to.
             Required when resolution='from-parent'.
