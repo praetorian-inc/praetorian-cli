@@ -5,6 +5,7 @@ import json
 from rich.prompt import Prompt, Confirm
 from prompt_toolkit import prompt as pt_prompt
 from prompt_toolkit.completion import Completer, Completion, FuzzyCompleter
+from praetorian_cli.sdk.entities.capabilities import capability_target_type
 from ..constants import DEFAULT_COLORS
 
 
@@ -14,16 +15,7 @@ from ..constants import DEFAULT_COLORS
 
 def extract_target_type(capability_info: dict) -> str:
     """Extract the target type from capability info, handling list or string values."""
-    target_raw = capability_info.get('target', 'asset')
-
-    if isinstance(target_raw, str):
-        return target_raw.lower()
-
-    if isinstance(target_raw, list):
-        normalized = [str(item).lower() for item in target_raw]
-        return normalized[0] if normalized else 'asset'
-
-    return str(target_raw).lower()
+    return capability_target_type(capability_info)
 
 
 # ---------------------------------------------------------------------------

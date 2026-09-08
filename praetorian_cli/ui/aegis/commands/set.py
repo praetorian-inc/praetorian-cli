@@ -1,12 +1,20 @@
 import logging
-from ..utils import parse_agent_identifier
+from rich.text import Text
+
+from ..utils import (
+    agent_account_info,
+    agent_display_id,
+    is_v2_agent,
+    matching_agent_hostnames,
+    parse_agent_identifier,
+)
 from ..constants import DEFAULT_COLORS
 
 logger = logging.getLogger(__name__)
 
 
 def handle_set(menu, args):
-    """Select an agent by index, client_id, or hostname."""
+    """Select an agent by index, client_id, endpoint ID, or hostname."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
     multi_account_mode = getattr(menu, 'multi_account_mode', False)
     agent_account_map = getattr(menu, 'agent_account_map', {})
@@ -26,31 +34,66 @@ def handle_set(menu, args):
         # calls (asset search, domain lookup, etc.) target the right tenant.
         # Must succeed before we commit to the selection.
         if multi_account_mode:
-            # Prefer account info attached directly to agent (avoids client_id collisions)
-            acct_info = getattr(selected_agent, '_account_info', None) or agent_account_map.get(selected_agent.client_id, {})
+            # Prefer account info attached directly to agent (avoids identifier collisions)
+            display_id = agent_display_id(selected_agent)
+            acct_info = agent_account_info(selected_agent, agent_account_map)
             acct_email = acct_info.get('account_email') if acct_info else None
             if not acct_email:
-                logger.warning('No account email resolved for agent %s (client_id=%s)', hostname, selected_agent.client_id)
-                menu.console.print(f"[{colors['error']}]  Could not resolve an account for {hostname}.[/{colors['error']}]")
+                logger.warning(
+                    'No account email resolved for agent %s (id=%s)',
+                    hostname,
+                    display_id,
+                )
+                menu.console.print(
+                    f"[{colors['error']}]  Could not resolve an account for {hostname}.[/{colors['error']}]"
+                )
                 menu.pause()
                 return
             try:
                 menu.sdk.accounts.assume_role(acct_email)
             except Exception as e:
                 logger.error('Failed to assume role for %s: %s', acct_email, e)
-                menu.console.print(f"[{colors['error']}]  Failed to assume account {acct_email}: {e}[/{colors['error']}]")
+                menu.console.print(
+                    f"[{colors['error']}]  Failed to assume account {acct_email}: {e}[/{colors['error']}]"
+                )
                 menu.pause()
                 return
+            setattr(selected_agent, '_account_info', acct_info)
 
         menu.selected_agent = selected_agent
-        menu.console.print(f"\n  Selected: {hostname}\n")
+        selected_label = Text(f"\n  Selected: {hostname}")
+        if is_v2_agent(selected_agent):
+            display_id = agent_display_id(selected_agent)
+            selected_label.append(f" [v2] ({display_id})")
+            acct_info = agent_account_info(selected_agent, agent_account_map)
+            account_name = None
+            if acct_info:
+                account_name = acct_info.get('display_name') or acct_info.get('account_email')
+            if account_name:
+                selected_label.append(f" — {account_name}")
+        selected_label.append("\n")
+        menu.console.print(selected_label)
         # Pre-fetch home directory listing so cp tab-completion is instant
         if hasattr(menu, 'prefetch_agent_home'):
             menu.prefetch_agent_home(selected_agent)
     else:
         displayed_count = len(menu.displayed_agents)
-        menu.console.print(f"\n[{colors['error']}]  Agent not found:[/{colors['error']}] {selection}")
-        menu.console.print(f"[{colors['dim']}]  Use agent number (1-{displayed_count}), client ID, or hostname[/{colors['dim']}]\n")
+        if len(matching_agent_hostnames(selection, menu.agents)) > 1:
+            menu.console.print(
+                f"\n[{colors['error']}]  Multiple agents match hostname:[/{colors['error']}] {selection}"
+            )
+            menu.console.print(
+                f"[{colors['dim']}]  Use agent number (1-{displayed_count}), "
+                f"client ID, or endpoint ID[/{colors['dim']}]\n"
+            )
+        else:
+            menu.console.print(
+                f"\n[{colors['error']}]  Agent not found:[/{colors['error']}] {selection}"
+            )
+            menu.console.print(
+                f"[{colors['dim']}]  Use agent number (1-{displayed_count}), "
+                f"client ID, endpoint ID, or hostname[/{colors['dim']}]\n"
+            )
         menu.pause()
 
 
@@ -60,6 +103,7 @@ def complete(menu, text, tokens):
         suggestions.append(str(idx))
         if agent.hostname:
             suggestions.append(agent.hostname)
-        if agent.client_id:
-            suggestions.append(agent.client_id)
+        display_id = agent_display_id(agent)
+        if display_id:
+            suggestions.append(display_id)
     return [s for s in suggestions if s.startswith(text)]

@@ -1,3 +1,53 @@
+CAPABILITY_ITEM_KEYS = ('capabilities', 'data', 'items')
+
+
+def normalize_capabilities_response(result, item_keys=None):
+    """Return capability dictionaries from Guard/list-compatible responses."""
+    keys = item_keys or CAPABILITY_ITEM_KEYS
+    if result is None:
+        return []
+    if isinstance(result, tuple):
+        result = result[0] if result else []
+    if isinstance(result, dict):
+        for key in keys:
+            value = result.get(key)
+            if isinstance(value, list):
+                result = value
+                break
+            if isinstance(value, dict):
+                result = list(value.values())
+                break
+        else:
+            return []
+    if not isinstance(result, list):
+        return []
+    return [capability for capability in result if isinstance(capability, dict)]
+
+
+def capability_name(capability):
+    if not isinstance(capability, dict):
+        return ''
+    return str(capability.get('name') or capability.get('Name') or '').strip()
+
+
+def capability_description(capability):
+    if not isinstance(capability, dict):
+        return ''
+    return str(capability.get('description') or capability.get('Description') or '')
+
+
+def capability_target_type(capability, default='asset'):
+    if not isinstance(capability, dict):
+        return default
+    target = capability.get('target', capability.get('Target', default))
+    if isinstance(target, str):
+        return target.lower()
+    if isinstance(target, list):
+        normalized = [str(item).lower() for item in target]
+        return normalized[0] if normalized else default
+    return str(target).lower()
+
+
 class Capabilities:
     """ The methods in this class are to be assessed from sdk.capabilities, where sdk is an instance
     of Chariot. """
@@ -5,9 +55,9 @@ class Capabilities:
     def __init__(self, api):
         self.api = api
 
-    def list(self, name='', target='', executor='') -> tuple:
+    def list(self, name='', target='', executor='', endpoint_kind='') -> tuple:
         """
-        List available capabilities, optionally filtered by name, target, and/or executor.
+        List available capabilities, optionally filtered by name, target, executor, and/or endpoint kind.
 
         Capabilities are security scanning tools and integrations available in Chariot.
         Each capability can target specific entity types (assets, attributes, preseeds, etc.)
@@ -19,6 +69,8 @@ class Capabilities:
         :type target: str
         :param executor: Filter capabilities by executor (partial match: chariot, aegis, janus)
         :type executor: str
+        :param endpoint_kind: Filter capabilities to those carried by an endpoint kind (e.g. aegis)
+        :type endpoint_kind: str
         :return: A tuple containing (list of matching capabilities, next page offset)
         :rtype: tuple
 
@@ -53,6 +105,10 @@ class Capabilities:
         **Valid Filter Values:**
             - target: 'asset', 'attribute', 'preseed', 'webpage', 'repository', 'integration'
             - executor: 'chariot', 'aegis', 'janus'
+            - endpoint_kind: 'aegis'
             - name: Any string (partial matching)
         """
-        return self.api.get('capabilities', {'name': name, 'target': target, 'executor': executor})
+        params = {'name': name, 'target': target, 'executor': executor}
+        if endpoint_kind:
+            params['endpoint_kind'] = endpoint_kind
+        return self.api.get('capabilities', params)
