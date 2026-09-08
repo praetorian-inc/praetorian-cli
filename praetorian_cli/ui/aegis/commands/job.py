@@ -12,6 +12,7 @@ from .job_helpers import (
     capability_needs_credentials as _capability_needs_credentials,
     resolve_addomain_target_key,
     extract_target_type,
+    select_asset_target,
 )
 
 
@@ -155,8 +156,9 @@ def run_job(menu, args):
 
         target_display = f"domain {domain}"
     else:
-        target_key = f"#asset#{hostname}#{hostname}"
-        target_display = f"asset {hostname}"
+        target_key, target_display = select_asset_target(menu, default_hostname=hostname)
+        if not target_key:
+            return  # cancelled or no target selected
     
     # Handle credentials for capabilities that need them
     credentials = []
