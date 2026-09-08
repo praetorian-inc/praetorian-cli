@@ -42,7 +42,7 @@ CONSOLE_COMMANDS = [
     'scan', 'tag',
     'run', 'status', 'download', 'install', 'installed',
     'asset-analyzer', 'brutus', 'julius', 'augustus', 'aurelius',
-    'trajan', 'cato', 'priscus', 'seneca', 'titus',
+    'trajan', 'probus', 'priscus', 'seneca', 'titus',
     'nuclei', 'portscan', 'subdomain', 'crawler', 'capabilities',
     'evidence', 'report',
     'ask', 'marcus',

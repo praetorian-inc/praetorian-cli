@@ -19,7 +19,7 @@ INSTALLABLE_TOOLS = {
     'augustus':     {'repo': 'praetorian-inc/augustus',     'description': 'LLM security testing (190+ probes)'},
     'titus':       {'repo': 'praetorian-inc/titus',       'description': 'Secrets scanner (487 rules)'},
     'trajan':      {'repo': 'praetorian-inc/trajan',      'description': 'CI/CD vulnerability scanner'},
-    'cato':        {'repo': 'praetorian-inc/cato',        'description': 'Injection scanner (SQLi, SSRF, SSTI, XXE)'},
+    'probus':      {'repo': 'praetorian-inc/probus',      'description': 'Injection scanner (SQLi, SSRF, SSTI, XXE)'},
     'nerva':       {'repo': 'praetorian-inc/nerva',       'description': 'Service fingerprinting (120+ protocols)'},
     'vespasian':   {'repo': 'praetorian-inc/vespasian',   'description': 'API discovery from traffic'},
     'nuclei':      {'repo': 'praetorian-inc/nuclei',      'description': 'Vulnerability scanner templates'},
@@ -356,7 +356,7 @@ class ScanTargetPlugin(ToolPlugin):
 # - julius/nerva/nero: use -t <target>; unverified against each binary's --help
 # - titus/trajan/vespasian/constantine/caligula: `scan <target>` — unverified
 # - augustus/gato: `scan -t <target>` / `enumerate -t <target>` — unverified
-# - cato/florian/hadrian: `scan -u <target>` — unverified
+# - probus/florian/hadrian: `scan -u <target>` — unverified
 # Users can always override via `guard run tool <tool> <target> -- <raw args>`.
 TOOL_PLUGINS = {
     'brutus':      BrutusPlugin(),
@@ -367,7 +367,7 @@ TOOL_PLUGINS = {
     'augustus':     AugustusPlugin(),
     'nerva':       NervaPlugin(),
     'gato':        GatoPlugin(),
-    'cato':        UrlTargetPlugin(),
+    'probus':      UrlTargetPlugin(),
     'vespasian':   ScanTargetPlugin(),
     'constantine': ScanTargetPlugin(),
     'florian':     UrlTargetPlugin(),
