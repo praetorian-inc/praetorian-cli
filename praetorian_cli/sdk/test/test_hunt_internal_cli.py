@@ -14,6 +14,7 @@ class FakeHunts:
     def __init__(self):
         self.create_calls = []
         self.hunt = None
+        self.endpoint_status = {'sessions': [], 'tasks': []}
 
     def create(self, **kwargs):
         self.create_calls.append(kwargs)
@@ -21,6 +22,9 @@ class FakeHunts:
 
     def get(self, _uuid):
         return self.hunt
+
+    def endpoint_execution_status(self, _hunt):
+        return self.endpoint_status
 
 
 class FakeAegis:
@@ -196,6 +200,19 @@ def test_hunt_status_includes_internal_execution_placement():
         'endpointId': ENDPOINT_ID,
         'currentWorkflowRunId': 'workflow-1',
     }
+    sdk.hunts.endpoint_status = {
+        'sessions': [],
+        'tasks': [{
+            'endpointId': ENDPOINT_ID,
+            'taskId': 'task-1',
+            'jobKey': '#job#1',
+            'capability': 'portscan',
+            'target': SCOPE,
+            'state': 'Ready',
+            'phase': 'waiting_for_endpoint',
+            'endpointConnectionState': 'not_connected',
+        }],
+    }
 
     result = CliRunner().invoke(hunt, ['status', 'hunt-1'], obj=sdk)
 
@@ -203,3 +220,4 @@ def test_hunt_status_includes_internal_execution_placement():
     assert '"endpointRequired": true' in result.output
     assert f'"endpointId": "{ENDPOINT_ID}"' in result.output
     assert '"currentWorkflowRunId": "workflow-1"' in result.output
+    assert 'Waiting for assigned endpoint (no compute fallback)' in result.output

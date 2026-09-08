@@ -118,6 +118,13 @@ class Conversations:
         )
         return conversation_ids
 
+    def stop(self, conversation_id) -> dict:
+        """Stop a conversation and its Guard-correlated child work."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        return self.api.post('planner/stop', {
+            'conversationId': conversation_id,
+        })
+
     def answer_interaction(self, conversation_id, request_id, response) -> dict:
         """Answer one durable conversation interaction."""
         conversation_id = _required_string(conversation_id, 'conversation ID')

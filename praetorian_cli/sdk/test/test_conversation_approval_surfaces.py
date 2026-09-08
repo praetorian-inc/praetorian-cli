@@ -61,9 +61,18 @@ class FakeConversations:
         return {'status': 'answered'}
 
 
+class FakeEndpointExecutions:
+    def __init__(self):
+        self.status = {'sessions': [], 'tasks': []}
+
+    def conversation_status(self, _conversation_id):
+        return self.status
+
+
 class FakeSDK:
     def __init__(self, interactions):
         self.conversations = FakeConversations(interactions)
+        self.endpoint_executions = FakeEndpointExecutions()
 
     def get_current_user(self):
         return 'user@example.com', 'user'
@@ -210,6 +219,72 @@ def test_textual_chat_never_allows_incomplete_approval():
     asyncio.run(app.answer_pending_approval('deny'))
 
     assert sdk.conversations.answers == [('conversation-1', 'request-1', 'false')]
+
+
+def test_textual_chat_renders_endpoint_status_without_output_tails():
+    sdk = FakeSDK([])
+    sdk.endpoint_executions.status = {
+        'sessions': [{
+            'sessionId': 'session-1',
+            'endpointId': 'endpoint-1',
+            'taskId': 'bootstrap-1',
+            'state': 'Ready',
+            'phase': 'executing_tool',
+            'connection': {'state': 'connected'},
+            'sandbox': {'health': 'healthy'},
+            'operationCount': 1,
+            'activeOperationCount': 1,
+            'activeOperations': [{
+                'operationId': 'operation-1',
+                'tool': 'command',
+                'state': 'Running',
+                'stdout': 'SECRET_OUTPUT',
+            }],
+        }],
+        'tasks': [],
+    }
+    app = ConversationApp(sdk)
+    app.conversation_id = 'conversation-1'
+    messages = []
+    app.add_system_message = messages.append
+
+    asyncio.run(app.check_endpoint_status())
+    asyncio.run(app.check_endpoint_status(force=True))
+
+    assert len(messages) == 1
+    assert 'Executing endpoint tool' in messages[0]
+    assert 'SECRET_OUTPUT' not in messages[0]
+
+
+def test_console_renders_only_changed_endpoint_status():
+    sdk = FakeSDK([])
+    sdk.endpoint_executions.status = {
+        'sessions': [],
+        'tasks': [{
+            'endpointId': 'endpoint-1',
+            'taskId': 'task-1',
+            'jobKey': '#job#1',
+            'capability': 'portscan',
+            'target': '#asset#internal#10.0.0.5',
+            'state': 'Claimed',
+            'phase': 'running',
+            'endpointConnectionState': 'online',
+        }],
+    }
+    command = object.__new__(MarcusCommands)
+    command.sdk = sdk
+    command.context = SimpleNamespace(conversation_id='conversation-1')
+    output = []
+    command.console = SimpleNamespace(
+        print=lambda *args, **_kwargs: output.append(args)
+    )
+
+    fingerprint = command._show_endpoint_status(None)
+    command._show_endpoint_status(fingerprint)
+
+    rendered = '\n'.join(str(value) for call in output for value in call)
+    assert 'Running on endpoint' in rendered
+    assert rendered.count('Running on endpoint') == 1
 
 
 def test_textual_chat_clears_approval_resolved_elsewhere():

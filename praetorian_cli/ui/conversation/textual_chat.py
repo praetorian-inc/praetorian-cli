@@ -21,6 +21,11 @@ from praetorian_cli.ui.conversation.approvals import (
     format_endpoint_approval,
     parse_endpoint_approval,
 )
+from praetorian_cli.ui.conversation.endpoint_status import (
+    ENDPOINT_STATUS_POLL_INTERVAL_SECONDS,
+    endpoint_status_fingerprint,
+    format_endpoint_execution_status,
+)
 
 
 class ChatMessage(Static):
@@ -142,6 +147,8 @@ class ConversationApp(App):
         self._shown_approval_ids = set()
         self._approval_lock = asyncio.Lock()
         self._next_approval_poll = 0
+        self._next_endpoint_status_poll = 0
+        self._last_endpoint_status = None
         
     def compose(self) -> ComposeResult:
         """Compose the UI layout"""
@@ -284,7 +291,8 @@ class ConversationApp(App):
         """Check for new messages and display them"""
         if not self.conversation_id:
             return
-            
+
+        await self.check_endpoint_status()
         try:
             # Load all messages for this conversation
             all_messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}#", user=True)
@@ -320,6 +328,30 @@ class ConversationApp(App):
             pass
 
         await self.check_for_pending_approval()
+
+    async def check_endpoint_status(self, force=False) -> None:
+        """Render endpoint session/task changes without exposing output tails."""
+        now = time.monotonic()
+        if not force and now < self._next_endpoint_status_poll:
+            return
+        self._next_endpoint_status_poll = (
+            now + ENDPOINT_STATUS_POLL_INTERVAL_SECONDS
+        )
+        try:
+            status = await asyncio.to_thread(
+                self.sdk.endpoint_executions.conversation_status,
+                self.conversation_id,
+            )
+        except Exception:
+            return
+
+        fingerprint = endpoint_status_fingerprint(status)
+        if fingerprint == self._last_endpoint_status:
+            return
+        self._last_endpoint_status = fingerprint
+        rendered = format_endpoint_execution_status(status)
+        if rendered:
+            self.add_system_message(escape(rendered))
 
     async def check_for_pending_approval(self, force=False) -> None:
         """Show the next pending endpoint approval at most once."""
@@ -547,6 +579,8 @@ class ConversationApp(App):
         self._pending_approval_context = None
         self._shown_approval_ids.clear()
         self._next_approval_poll = 0
+        self._next_endpoint_status_poll = 0
+        self._last_endpoint_status = None
         await self.clear_chat()
         self.add_system_message("Started new conversation")
         self.update_status("Ready")
@@ -632,6 +666,8 @@ class ConversationApp(App):
                 self._pending_approval_context = None
                 self._shown_approval_ids.clear()
                 self._next_approval_poll = 0
+                self._next_endpoint_status_poll = 0
+                self._last_endpoint_status = None
                 self._selecting_conversation = False
                 self._available_conversations = []
                 

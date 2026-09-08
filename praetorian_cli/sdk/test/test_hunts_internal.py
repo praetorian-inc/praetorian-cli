@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from praetorian_cli.sdk.entities.aegis import Aegis
@@ -108,6 +110,51 @@ def test_invalid_endpoint_placement_fails_before_request(kwargs, message):
         Hunts(api).create('test', **kwargs)
 
     assert api.calls == []
+
+
+def test_hunt_endpoint_status_uses_current_workflow_conversations():
+    class Search:
+        def by_exact_key(self, key):
+            assert key == '#workflow_run#workflow-1'
+            return {'steps': [
+                {'conversation_id': 'conversation-1'},
+                {'conversation_id': 'conversation-1'},
+                {'conversation_id': 'conversation-2'},
+            ]}
+
+    class Executions:
+        def __init__(self):
+            self.calls = []
+
+        def conversation_status(self, conversation_id, include_descendants=True):
+            self.calls.append((conversation_id, include_descendants))
+            return {
+                'sessions': [{
+                    'sessionId': f'session-{conversation_id}',
+                }],
+                'tasks': [{
+                    'endpointId': 'endpoint-1',
+                    'taskId': 'task-1',
+                }],
+            }
+
+    executions = Executions()
+    api = SimpleNamespace(search=Search(), endpoint_executions=executions)
+
+    status = Hunts(api).endpoint_execution_status({
+        'endpointRequired': True,
+        'currentWorkflowRunId': 'workflow-1',
+    })
+
+    assert executions.calls == [
+        ('conversation-1', False),
+        ('conversation-2', False),
+    ]
+    assert len(status['sessions']) == 2
+    assert status['tasks'] == [{
+        'endpointId': 'endpoint-1',
+        'taskId': 'task-1',
+    }]
 
 
 def test_internal_hunt_api_failure_is_propagated():

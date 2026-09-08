@@ -118,6 +118,39 @@ class Hunts:
         key = f'#hunt#{_strip_hunt_prefix(uuid)}'
         return self.api.search.by_exact_key(key)
 
+    def endpoint_execution_status(self, hunt):
+        """Return endpoint status for conversations in the hunt's current run."""
+        if not isinstance(hunt, dict) or not hunt.get('endpointRequired'):
+            return {'sessions': [], 'tasks': []}
+        run_id = hunt.get('currentWorkflowRunId')
+        if not run_id:
+            return {'sessions': [], 'tasks': []}
+        run = self.api.search.by_exact_key(f'#workflow_run#{run_id}')
+        if not run:
+            return {'sessions': [], 'tasks': []}
+
+        conversation_ids = []
+        for step in run.get('steps', []):
+            conversation_id = step.get('conversation_id')
+            if conversation_id and conversation_id not in conversation_ids:
+                conversation_ids.append(conversation_id)
+
+        sessions = {}
+        tasks = {}
+        for conversation_id in conversation_ids:
+            status = self.api.endpoint_executions.conversation_status(
+                conversation_id,
+                include_descendants=False,
+            )
+            for session in status['sessions']:
+                sessions[session.get('sessionId')] = session
+            for task in status['tasks']:
+                tasks[(task.get('endpointId'), task.get('taskId'))] = task
+        return {
+            'sessions': list(sessions.values()),
+            'tasks': list(tasks.values()),
+        }
+
     def stop(self, uuid):
         """Stop a running hunt permanently."""
         return self._update_status(uuid, 'stopped')

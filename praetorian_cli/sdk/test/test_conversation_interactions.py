@@ -141,6 +141,18 @@ def test_list_interactions_filters_by_status_without_filtering_kind():
     assert [interaction['kind'] for interaction in interactions] == ['approval', 'future-kind']
 
 
+def test_stop_conversation_posts_authoritative_guard_contract():
+    api = FakeAPI()
+
+    result = Conversations(api).stop(' conversation-1 ')
+
+    assert result == {'status': 'answered'}
+    assert api.post_calls == [{
+        'path': 'planner/stop',
+        'body': {'conversationId': 'conversation-1'},
+    }]
+
+
 def test_answer_interaction_posts_exact_guard_contract_and_preserves_response():
     api = FakeAPI()
 

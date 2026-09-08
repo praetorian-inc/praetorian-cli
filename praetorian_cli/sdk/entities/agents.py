@@ -1,13 +1,16 @@
-import json
 import os
 from time import monotonic, sleep, time
 import asyncio
 
+from praetorian_cli.sdk.entities.endpoint_executions import (
+    endpoint_status_fingerprint,
+)
 from praetorian_cli.sdk.model.globals import AgentType
 from praetorian_cli.sdk.mcp_server import MCPServer
 
 
 INTERACTION_POLL_INTERVAL_SECONDS = 5
+ENDPOINT_STATUS_POLL_INTERVAL_SECONDS = 3
 
 
 class Agents:
@@ -43,7 +46,7 @@ class Agents:
         return self.api.files.get_utf8(self.affiliation_filename(AgentType.AFFILIATION.value, key))
 
     def ask(self, message, mode='agent', conversation_id=None, new=False,
-            timeout=180, interaction_handler=None):
+            timeout=180, interaction_handler=None, endpoint_status_handler=None):
         """
         Send a message to the Guard AI assistant and poll for the response.
 
@@ -62,6 +65,8 @@ class Agents:
         :type timeout: int
         :param interaction_handler: Optional callback for each pending interaction
         :type interaction_handler: callable or None
+        :param endpoint_status_handler: Optional callback for endpoint status changes
+        :type endpoint_status_handler: callable or None
         :return: Dict with response, conversation_id, and tool_calls
         :rtype: dict
         """
@@ -100,6 +105,8 @@ class Agents:
         tool_calls = []
         handled_interactions = set()
         next_interaction_poll = monotonic()
+        next_endpoint_status_poll = monotonic()
+        last_endpoint_status = None
 
         while monotonic() < deadline:
             try:
@@ -139,6 +146,17 @@ class Agents:
                 next_interaction_poll = (
                     interaction_finished + INTERACTION_POLL_INTERVAL_SECONDS
                 )
+
+            now = monotonic()
+            if endpoint_status_handler and now >= next_endpoint_status_poll:
+                last_endpoint_status = self._handle_endpoint_status(
+                    conversation_id,
+                    endpoint_status_handler,
+                    last_endpoint_status,
+                )
+                next_endpoint_status_poll = (
+                    monotonic() + ENDPOINT_STATUS_POLL_INTERVAL_SECONDS
+                )
             sleep(1)
 
         raise Exception(f'Timeout waiting for AI response ({timeout}s)')
@@ -159,6 +177,18 @@ class Agents:
                 continue
             handled.add(request_id)
             handler(interaction)
+
+    def _handle_endpoint_status(self, conversation_id, handler, previous):
+        try:
+            status = self.api.endpoint_executions.conversation_status(
+                conversation_id
+            )
+        except Exception:
+            return previous
+        fingerprint = endpoint_status_fingerprint(status)
+        if fingerprint != previous and (status['sessions'] or status['tasks']):
+            handler(status)
+        return fingerprint
 
     @property
     def conversation_id(self):
@@ -239,10 +269,21 @@ class Agents:
                     # Include tool progress in response stream
                     pass
 
-            return {
+            result = {
                 'response': '\n'.join(response_parts),
                 'status': status,
             }
+            try:
+                endpoint_status = self.api.endpoint_executions.conversation_status(
+                    conversation_id
+                )
+            except Exception:
+                endpoint_status = None
+            if endpoint_status and (
+                endpoint_status['sessions'] or endpoint_status['tasks']
+            ):
+                result['endpoint_execution'] = endpoint_status
+            return result
         except Exception as e:
             return {
                 'response': '',
