@@ -658,6 +658,8 @@ class AegisMenu:
             styles = get_agent_display_style(group, self.colors)
             status = styles['status']
             tunnel = styles['tunnel']
+            if agent.has_tunnel:
+                tunnel = Text('active', style=self.colors['accent'])
             idx_style = styles['idx_style']
             hostname_style = styles['hostname_style']
             

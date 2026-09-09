@@ -94,11 +94,15 @@ def test_list_renders_persisted_v2_tunnel_state():
 def test_list_all_renders_offline_v2_endpoint_from_durable_identity():
     class Search:
         def by_key_prefix(self, key):
-            if key in (
-                '#endpoint#',
-                '#endpointaegistunnelstate#',
-                '#endpointaegisstatus#',
-            ):
+            if key == '#endpointaegistunnelstate#':
+                return [{
+                    'endpointId': 'endpoint-offline',
+                    'cloudflaredStatus': {
+                        'status': 'configured',
+                        'hostname': 'sensor.example.com',
+                    },
+                }], None
+            if key in ('#endpoint#', '#endpointaegisstatus#'):
                 return [], None
             raise AssertionError(f'unexpected key: {key}')
 
@@ -137,3 +141,4 @@ def test_list_all_renders_offline_v2_endpoint_from_durable_identity():
     assert 'v2' in output
     assert 'linux' in output
     assert 'offline' in output
+    assert 'active' in output

@@ -9,7 +9,11 @@ import pytest
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.entities.aegis import Aegis, merge_aegis_endpoint_rows
 from praetorian_cli.sdk.keychain import DEFAULT_API, DEFAULT_CLIENT_ID, Keychain
-from praetorian_cli.sdk.model.aegis import AEGIS_V2_ONLINE_WINDOW_SECONDS, Agent
+from praetorian_cli.sdk.model.aegis import (
+    AEGIS_V2_ONLINE_WINDOW_SECONDS,
+    Agent,
+    validate_agent_for_ssh,
+)
 from praetorian_cli.sdk.test.utils import selected_test_target, setup_chariot
 
 
@@ -273,9 +277,10 @@ def test_aegis_list_adds_persisted_cloudflare_tunnel_state():
         'sensor-tunnel'
     )
     assert agents[0].health_check.cloudflared_status.status == 'configured'
+    assert validate_agent_for_ssh(agents[0]) == (True, '')
 
 
-def test_endpoint_reported_stopped_tunnel_is_not_active():
+def test_endpoint_health_does_not_hide_persisted_tunnel_configuration():
     rows = merge_aegis_endpoint_rows(
         [{
             'endpointId': 'endpoint-1',
@@ -296,7 +301,7 @@ def test_endpoint_reported_stopped_tunnel_is_not_active():
         }],
     )
 
-    assert Agent.from_endpoint_dict(rows[0]).has_tunnel is False
+    assert Agent.from_endpoint_dict(rows[0]).has_tunnel is True
 
 
 def test_aegis_list_uses_durable_identities_when_live_listing_fails():

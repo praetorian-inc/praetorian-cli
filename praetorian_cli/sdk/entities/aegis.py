@@ -74,10 +74,12 @@ def merge_aegis_endpoint_rows(
         if endpoint_id not in merged or not isinstance(observed, dict):
             continue
         tunnel = merged[endpoint_id].get('cloudflaredStatus')
-        tunnel = dict(tunnel) if isinstance(tunnel, dict) else {}
+        if isinstance(tunnel, dict):
+            continue
         if observed.get('state'):
-            tunnel['status'] = observed['state']
-        merged[endpoint_id]['cloudflaredStatus'] = tunnel
+            merged[endpoint_id]['cloudflaredStatus'] = {
+                'status': observed['state'],
+            }
 
     return [merged[endpoint_id] for endpoint_id in order]
 
