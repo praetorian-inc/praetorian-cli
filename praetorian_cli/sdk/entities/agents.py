@@ -1,10 +1,13 @@
 import json
 import os
-from time import sleep, time
+from time import monotonic, sleep, time
 import asyncio
 
 from praetorian_cli.sdk.model.globals import AgentType
 from praetorian_cli.sdk.mcp_server import MCPServer
+
+
+INTERACTION_POLL_INTERVAL_SECONDS = 5
 
 
 class Agents:
@@ -39,7 +42,8 @@ class Agents:
     def affiliation_result(self, key: str) -> dict:
         return self.api.files.get_utf8(self.affiliation_filename(AgentType.AFFILIATION.value, key))
 
-    def ask(self, message, mode='agent', conversation_id=None, new=False, timeout=180):
+    def ask(self, message, mode='agent', conversation_id=None, new=False,
+            timeout=180, interaction_handler=None):
         """
         Send a message to the Guard AI assistant and poll for the response.
 
@@ -56,6 +60,8 @@ class Agents:
         :type new: bool
         :param timeout: Maximum seconds to wait for response
         :type timeout: int
+        :param interaction_handler: Optional callback for each pending interaction
+        :type interaction_handler: callable or None
         :return: Dict with response, conversation_id, and tool_calls
         :rtype: dict
         """
@@ -90,10 +96,12 @@ class Agents:
             pass
 
         # Poll for AI response
-        start_time = time()
+        deadline = monotonic() + timeout
         tool_calls = []
+        handled_interactions = set()
+        next_interaction_poll = monotonic()
 
-        while time() - start_time < timeout:
+        while monotonic() < deadline:
             try:
                 messages, _ = self.api.search.by_key_prefix(
                     f'#message#{conversation_id}#', user=True
@@ -117,9 +125,40 @@ class Agents:
                         tool_calls.append({'role': role, 'content': content})
             except Exception:
                 pass
+
+            now = monotonic()
+            if interaction_handler and now >= next_interaction_poll:
+                interaction_started = monotonic()
+                self._handle_pending_interactions(
+                    conversation_id,
+                    interaction_handler,
+                    handled_interactions,
+                )
+                interaction_finished = monotonic()
+                deadline += interaction_finished - interaction_started
+                next_interaction_poll = (
+                    interaction_finished + INTERACTION_POLL_INTERVAL_SECONDS
+                )
             sleep(1)
 
         raise Exception(f'Timeout waiting for AI response ({timeout}s)')
+
+    def _handle_pending_interactions(self, conversation_id, handler, handled):
+        try:
+            interactions = self.api.conversations.list_interactions(
+                conversation_id,
+                status='pending',
+                include_descendants=True,
+            )
+        except Exception:
+            return
+
+        for interaction in interactions:
+            request_id = interaction.get('requestId')
+            if not request_id or request_id in handled:
+                continue
+            handled.add(request_id)
+            handler(interaction)
 
     @property
     def conversation_id(self):

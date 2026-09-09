@@ -8,8 +8,13 @@ from typing import Optional
 from prompt_toolkit.formatted_text import HTML
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.prompt import Confirm
 
 from praetorian_cli.ui.aegis.theme import PRIMARY_RED, COMPLEMENTARY_GOLD
+from praetorian_cli.ui.conversation.approvals import (
+    APPROVAL_POLL_INTERVAL_SECONDS,
+    prompt_endpoint_approval,
+)
 
 
 class MarcusCommands:
@@ -153,15 +158,17 @@ class MarcusCommands:
 
         # Poll for response -- show tool calls live
         max_wait = 180
-        start_time = time.time()
+        deadline = time.monotonic() + max_wait
         pending_tool = None
         tool_log = []  # Store all tool calls/responses for this interaction
         seen_tool_keys = set()  # Track which tool messages we displayed live
+        handled_interactions = set()
+        next_interaction_poll = time.monotonic()
 
         acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
         self.console.print(f'[dim]Thinking...[/dim]{acct_label}', end='')
 
-        while time.time() - start_time < max_wait:
+        while time.monotonic() < deadline:
             try:
                 messages, _ = self.sdk.search.by_key_prefix(
                     f'#message#{self.context.conversation_id}#', user=True
@@ -223,11 +230,56 @@ class MarcusCommands:
             except Exception:
                 pass
 
+            now = time.monotonic()
+            if now >= next_interaction_poll:
+                interaction_started = time.monotonic()
+                self._handle_pending_approvals(handled_interactions)
+                interaction_finished = time.monotonic()
+                deadline += interaction_finished - interaction_started
+                next_interaction_poll = (
+                    interaction_finished + APPROVAL_POLL_INTERVAL_SECONDS
+                )
             time.sleep(1)
 
         self._last_tool_log = tool_log
         self.console.print('\n[warning]Timed out waiting for response[/warning]')
         return None
+
+    def _handle_pending_approvals(self, handled):
+        try:
+            interactions = self.sdk.conversations.list_interactions(
+                self.context.conversation_id,
+                status='pending',
+                include_descendants=True,
+            )
+        except Exception:
+            return
+
+        for interaction in interactions:
+            if interaction.get('kind') != 'approval':
+                continue
+            request_id = interaction.get('requestId')
+            if not request_id or request_id in handled:
+                continue
+            handled.add(request_id)
+            self.console.print()
+            try:
+                prompt_endpoint_approval(
+                    self.sdk,
+                    interaction,
+                    echo=lambda message: self.console.print(
+                        message, markup=False
+                    ),
+                    confirm=lambda message, default: Confirm.ask(
+                        message, default=default, console=self.console
+                    ),
+                    interactive=True,
+                )
+            except Exception as exc:
+                self.console.print(
+                    f'Endpoint approval failed: {exc}',
+                    markup=False,
+                )
 
     def _parse_tool_name(self, content: str, msg: dict = None) -> str:
         """Extract a human-readable tool name from a tool call message."""

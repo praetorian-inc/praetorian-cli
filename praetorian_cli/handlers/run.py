@@ -3,6 +3,7 @@ import time
 
 import click
 
+from praetorian_cli.handlers.agent import _ask_with_approvals
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, error
@@ -430,7 +431,7 @@ def _run_via_agent(sdk, cap, target_key):
     click.echo(f'Asking Marcus...')
 
     try:
-        result = sdk.agents.ask(message, mode='agent')
+        result = _ask_with_approvals(sdk, message, mode='agent')
         click.echo(result['response'])
     except Exception as e:
         error(str(e))
