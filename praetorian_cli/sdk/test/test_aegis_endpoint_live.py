@@ -90,7 +90,11 @@ def test_agent_from_endpoint_dict_maps_aegis_v2_fields():
         'os': 'linux',
         'arch': 'amd64',
         'runtime': {'name': 'docker'},
-        'cloudflaredStatus': {'hostname': 'sensor.example.com', 'tunnelName': 'sensor-tunnel'},
+        'cloudflaredStatus': {
+            'status': 'running',
+            'hostname': 'sensor.example.com',
+            'tunnelName': 'sensor-tunnel',
+        },
         'runningContainerCount': 2,
         'lastHeartbeat': last_heartbeat,
     })
