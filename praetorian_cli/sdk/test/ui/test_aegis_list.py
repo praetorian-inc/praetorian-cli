@@ -58,10 +58,7 @@ def test_list_renders_persisted_v2_tunnel_state():
                     },
                 }], None
             if key == '#endpointaegisstatus#':
-                return [{
-                    'endpointId': 'endpoint-1',
-                    'cloudflared': {'state': 'running'},
-                }], None
+                return [], None
             raise AssertionError(f'unexpected key: {key}')
 
     class API:
