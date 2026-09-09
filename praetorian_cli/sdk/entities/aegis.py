@@ -162,6 +162,12 @@ class Aegis:
         except Exception:
             return []
     
+    def list_hunt_endpoints(self) -> List[Agent]:
+        """List active tenant-owned Aegis v2 identities for Internal Hunts."""
+        endpoint_data = self.api.get('endpoint')
+        endpoints = normalize_to_list(endpoint_data, ['endpoints', 'data', 'items'])
+        return [Agent.from_endpoint_dict(endpoint) for endpoint in endpoints]
+
     def get_by_client_id(self, client_id: str) -> Optional[Agent]:
         """
         Get a specific Aegis agent by client ID.
