@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.5.0
+- [New Feature] Added the `vm` command group for ad-hoc Engineer VM cloud workspaces (Praetorian engineers only): `launch`, `list`, `status`, `pause`, `resume`, `extend`, `archive`, `revive`, plus `ssh` and `code-server` access
+
 # 2.4.9
 - [New Feature] Added retest command
 - [New Feature] Added additional metadata to the `list accounts --details` result
