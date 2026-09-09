@@ -1,5 +1,5 @@
 import click
-from praetorian_cli.sdk.keychain import Keychain, DEFAULT_API, DEFAULT_CLIENT_ID, DEFAULT_PROFILE
+from praetorian_cli.sdk.keychain import Keychain, DEFAULT_API, DEFAULT_CLIENT_ID, DEFAULT_KEYCHAIN_FILEPATH, DEFAULT_PROFILE
 
 
 @click.command()
@@ -25,3 +25,5 @@ def configure(click_context):
         api_key_id=api_key_id,
         api_key_secret=api_key_secret
     )
+
+    click.echo(f'\nKeychain data written to {DEFAULT_KEYCHAIN_FILEPATH}')

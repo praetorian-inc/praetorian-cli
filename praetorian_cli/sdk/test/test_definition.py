@@ -2,14 +2,15 @@ import os
 
 import pytest
 
-from praetorian_cli.sdk.test.utils import epoch_micro, random_ip, setup_chariot
+from praetorian_cli.sdk.test.utils import selected_test_target, epoch_micro, random_ip, setup_chariot
 
 
 @pytest.mark.coherence
 class TestDefinition:
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        profile, account = selected_test_target()
+        self.sdk = setup_chariot(profile, account)
         self.definition_name = f'test-definition-{epoch_micro()}'
         self.local_filepath = f'./{self.definition_name}.md'
         self.content = random_ip()

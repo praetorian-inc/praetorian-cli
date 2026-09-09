@@ -1,10 +1,12 @@
 # Changelog
 
 # 2.5.0
-- [New Feature] Engineer VM `revive` — relaunch an archived VM from its own snapshot (`praetorian vm revive <id>`)
-- [Update] Renamed `vm terminate` to `vm archive`; archiving snapshots the data volume then terminates the instance, and is reversible via `revive`
-- [Update] Removed the `--mode` launch option and MODE column (single unified substrate; mode no longer exists server-side)
-- [Update] `vm list`/`status` now show the API's derived lifecycle phase (provisioning/running/stopped/snapshotted/…); fixed `extend` help to reflect the +7d default, RUNNING-only, 30-day ceiling
+- [New Feature] Added the `vm` command group for ad-hoc Engineer VM cloud workspaces (Praetorian engineers only): `launch`, `list`, `status`, `pause`, `resume`, `extend`, `archive`, `revive`, plus `ssh` and `code-server` access
+
+# 2.4.9
+- [New Feature] Added retest command
+- [New Feature] Added additional metadata to the `list accounts --details` result
+- [Performance] Reuse HTTP Request Sessions for paginated queries and cache auth tokens between commands
 
 # 2.4.8
 - [Update] Improved support for file uploads

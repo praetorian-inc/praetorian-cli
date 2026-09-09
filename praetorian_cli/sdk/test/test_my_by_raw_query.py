@@ -1,6 +1,6 @@
 import inspect
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -94,22 +94,22 @@ class TestMyByRawQuery:
         sdk.proxy = ''
         sdk.keychain = MagicMock()
         sdk.keychain.headers.return_value = {}
+        sdk.session = MagicMock()
 
-        with patch('praetorian_cli.sdk.chariot.requests.request') as mock_request:
-            sdk.chariot_request('GET', 'https://example.test/my')
+        sdk.chariot_request('GET', 'https://example.test/my')
 
-        assert mock_request.call_args.kwargs['timeout'] == DEFAULT_HTTP_TIMEOUT
+        assert sdk.session.request.call_args.kwargs['timeout'] == DEFAULT_HTTP_TIMEOUT
 
     def test_chariot_request_explicit_timeout_overrides_default(self):
         sdk = Chariot.__new__(Chariot)
         sdk.proxy = ''
         sdk.keychain = MagicMock()
         sdk.keychain.headers.return_value = {}
+        sdk.session = MagicMock()
 
-        with patch('praetorian_cli.sdk.chariot.requests.request') as mock_request:
-            sdk.chariot_request('GET', 'https://example.test/my', timeout=5)
+        sdk.chariot_request('GET', 'https://example.test/my', timeout=5)
 
-        assert mock_request.call_args.kwargs['timeout'] == 5
+        assert sdk.session.request.call_args.kwargs['timeout'] == 5
 
     def test_delete_by_key_returns_api_response(self):
         # entity delete() methods `return self.api.delete_by_key(...)` and

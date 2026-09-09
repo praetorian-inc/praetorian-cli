@@ -154,3 +154,30 @@ class Agent:
             lines.append(f"  IP addresses: {', '.join(ips)}")
         
         return '\n'.join(lines)
+
+
+def validate_agent_for_ssh(agent: Agent) -> tuple[bool, str]:
+    """
+    Validate if an agent is ready for SSH connections
+    Returns (is_valid, error_message)
+    """
+    if not agent:
+        return False, "No agent specified"
+    
+    client_id = agent.client_id
+    hostname = agent.hostname or 'Unknown'
+    has_tunnel = agent.has_tunnel
+    
+    if not client_id:
+        return False, "Agent missing client_id"
+    
+    # Check if Cloudflare tunnel is available
+    if not has_tunnel:
+        return False, f"SSH not available for {hostname} - no active tunnel"
+    
+    # Check if tunnel has a public hostname
+    public_hostname = agent.health_check.cloudflared_status.hostname if has_tunnel else None
+    if not public_hostname:
+        return False, f"No public hostname found in tunnel configuration for {hostname}"
+    
+    return True, ""

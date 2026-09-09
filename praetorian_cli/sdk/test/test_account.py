@@ -1,13 +1,14 @@
 import pytest
 
-from praetorian_cli.sdk.test.utils import setup_chariot, email_address
+from praetorian_cli.sdk.test.utils import selected_test_target, setup_chariot, email_address
 
 
 @pytest.mark.coherence
 class TestAccount:
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        profile, account = selected_test_target()
+        self.sdk = setup_chariot(profile, account)
         self.collaborator_email = email_address()
 
     def test_add_collaborator(self):

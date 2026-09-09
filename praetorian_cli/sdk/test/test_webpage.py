@@ -1,6 +1,6 @@
 import pytest
 
-from praetorian_cli.sdk.test.utils import make_test_values, setup_chariot
+from praetorian_cli.sdk.test.utils import selected_test_target, make_test_values, setup_chariot
 
 
 @pytest.mark.coherence
@@ -8,7 +8,8 @@ class TestWebpage:
     """Test suite for the Webpage entity class."""
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        profile, account = selected_test_target()
+        self.sdk = setup_chariot(profile, account)
         make_test_values(self)
 
     def test_add_webpage(self):

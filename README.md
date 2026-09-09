@@ -20,6 +20,7 @@
     - [Signing up](#signing-up)
     - [Authentication](#authentication)
 - [Using the CLI](#using-the-cli)
+    - [Update checks](#update-checks)
 - [Operators](#operators)
     - [Interactive Console](#interactive-console)
     - [Install local security tools (optional)](#install-local-security-tools-optional)
@@ -28,6 +29,7 @@
 - [Developers](#developers)
     - [SDK](#sdk)
     - [Developing external scripts](#developing-external-scripts)
+    - [Running the test suite](#running-the-test-suite)
     - [Contributing](#contributing)
     - [Support](#support)
     - [License](#license)
@@ -122,6 +124,10 @@ export PRAETORIAN_CLI_API_KEY_ID=your-api-key-id-here
 export PRAETORIAN_CLI_API_KEY_SECRET=your-api-key-here
 ```
 
+The backend API URL and the Cognito emulator endpoint (`aws_endpoint_url`)
+must be HTTPS; the CLI refuses to send credentials over plaintext HTTP. For local development against a loopback endpoint (`localhost`,
+`127.0.0.1`, `::1`), set `PRAETORIAN_CLI_ALLOW_HTTP_LOOPBACK=1`.
+
 For more advanced configuration options or managing access in SSO organizations see
 [the documentation on configuration](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/configure.md).
 
@@ -149,6 +155,72 @@ To get detailed information about a specific asset, run:
 ```zsh
 guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
+
+## Update checks
+
+After a command finishes, the CLI may check PyPI for a newer release of
+`praetorian-cli` and print a three-line upgrade advisory to stderr. The check is
+deliberately quiet and infrequent:
+
+- **At most once every 24 hours.** Every attempt is recorded at
+  `${XDG_CACHE_HOME:-~/.cache}/praetorian-cli/update-check.json` *before* the
+  request is made, so a refresh that fails — offline, DNS, timeout, a malformed
+  response — is rate-limited exactly like one that succeeds, and keeps
+  advertising the last version it did learn. Between refreshes the check reads
+  that file and makes no network request at all — as long as the record is a
+  plain file that belongs to you and is no larger than 64 KiB. Anything else at
+  that path is ignored as though it were absent, so the next invocation refreshes
+  and replaces it rather than trusting what it found. Commands that start at the
+  same instant are excluded by a marker file created beside that record, so eight
+  concurrent invocations perform one refresh rather than eight — including when
+  the request fails instantly, since the attempt is recorded before it is made.
+  A process killed mid-refresh leaves the marker behind, which defers the next
+  refresh that is actually due rather than permitting an extra one — by up to a
+  minute, or up to two if the clock steps backwards in between, since a marker
+  counts as held while its age is within a minute in *either* direction. A
+  relative `XDG_CACHE_HOME` is
+  ignored in favour of `~/.cache`, as the base-directory spec requires —
+  honouring it would put a separate cache in every working directory and so
+  defeat the limit outright. If the cache directory cannot be written at all (a
+  read-only home, one owned by another user, or one reached through a symlink),
+  the check does not run: a probe whose rate we cannot limit is one we do not
+  send.
+- **Only when a human is watching.** It is skipped unless **both** stdout and
+  stderr are a terminal, and skipped when `CI` or `GITHUB_ACTIONS` is set or
+  `TERM=dumb`. Piping either stream — `guard list assets | jq` — turns it off.
+  A script you launch by hand from your own terminal inherits your terminal, so
+  treat the opt-out below, not this gate, as the way to guarantee silence.
+- **Never in place of your command's work.** A command that raises skips the
+  check, and a group that is only delegating to a subcommand leaves the check to
+  the subcommand that does the work. A command that reports an error but still
+  exits `0` is the one case where an advisory can follow a visible error.
+- **Not on the path you run day to day.** The daily refresh passes a 2-second
+  timeout to `requests`, which bounds how long the server may go without
+  sending data — not total wall-clock, so DNS, TLS, redirects and a slow trickle
+  are outside it. Ordinary failures are swallowed and cannot change your exit
+  code; `Ctrl-C` and process-control exceptions raised during the check still
+  propagate, by design, so that interrupting the CLI always works.
+
+### Disabling it
+
+```zsh
+export PRAETORIAN_CLI_DISABLE_UPDATE_CHECK=1
+```
+
+`1`, `true`, `yes` or `on` (any case). Nothing is read or written — no request,
+no cache file.
+
+### Privacy
+
+A refresh is an unauthenticated `GET` to `https://pypi.org/pypi/praetorian-cli/json`.
+It sends no account, profile, command, or argument — only what any HTTPS request
+inherently reveals to the server: your IP address and the fact that some
+`praetorian-cli` install asked for the package index at that moment. Because
+every attempt is recorded before it is made and concurrent attempts are
+excluded, that happens at most once per day per user account on the machine —
+several users each get their own cache — so your per-command usage cadence is
+not exposed. If contacting
+pypi.org at all is unacceptable in your environment, set the variable above.
 
 # Operators
 
@@ -344,6 +416,49 @@ guard --account guard+example@praetorian.com script --help
 
 For developing scripts, you can refer to
 this [readme file](https://github.com/praetorian-inc/praetorian-cli/blob/main/docs/script-development.md).
+
+
+## Running the test suite
+
+`guard test` runs the integration suites that ship with the package. **Some of
+those suites create, modify and delete real entities in whatever account the
+selected profile points at**, so the command is gated.
+
+Suites are selected with `-s`/`--suite`:
+
+| Suite | What it runs | Touches a live account? |
+| --- | --- | --- |
+| `safe` *(default)* | Local, offline unit tests | No |
+| `coherence` | End-to-end entity lifecycle tests | **Yes — creates and deletes assets, risks, settings, configurations** |
+| `cli` | CLI-level integration tests | **Yes — mutating** |
+| `tui` | Terminal UI tests | No |
+
+A bare `guard test` runs the `safe` suite only. It executes with a temporary
+`HOME` and with credential environment variables stripped, so it cannot reach
+your real credentials.
+
+The mutating suites additionally require:
+
+1. **An explicit profile and account.** Both must be given and non-empty —
+   `guard --profile <profile> --account <account> test --suite coherence`.
+   There is no fallback: an unset or blank value is an error, so the suite can
+   never quietly run against a default profile.
+2. **Interactive confirmation.** The command prints the suite, profile, account,
+   and whether the suite is live and mutating, then asks you to confirm.
+   Declining — or a non-interactive invocation, which cannot confirm — exits
+   non-zero without running any test.
+
+```zsh
+# Safe by default — no account is touched.
+guard test
+
+# Mutating suite: target must be explicit, and you must confirm.
+guard --profile "United States" --account guard+scratch@praetorian.com \
+    test --suite coherence
+```
+
+Never point a mutating suite at a production account. Use a dedicated scratch
+account whose contents you are willing to lose.
 
 
 ## Contributing

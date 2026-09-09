@@ -1,14 +1,15 @@
 import pytest
 
 from praetorian_cli.sdk.model.globals import Asset, Kind, Risk
-from praetorian_cli.sdk.test.utils import make_test_values, clean_test_entities, setup_chariot
+from praetorian_cli.sdk.test.utils import selected_test_target, make_test_values, clean_test_entities, setup_chariot
 
 
 @pytest.mark.coherence
 class TestSearch:
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        profile, account = selected_test_target()
+        self.sdk = setup_chariot(profile, account)
         make_test_values(self)
         self.sdk.assets.add(self.asset_dns, self.asset_name)
         self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value, self.comment)

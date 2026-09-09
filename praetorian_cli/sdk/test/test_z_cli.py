@@ -1,19 +1,21 @@
 import os
 import json
+import shlex
 from subprocess import run
 
 import pytest
 
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Risk, Seed, Preseed
 from praetorian_cli.sdk.model.utils import configuration_key
-from praetorian_cli.sdk.test.utils import epoch_micro, random_ip, make_test_values, clean_test_entities, setup_chariot
+from praetorian_cli.sdk.test.utils import selected_test_target, epoch_micro, random_ip, make_test_values, clean_test_entities, setup_chariot
 
 
 @pytest.mark.cli
 class TestZCli:
 
     def setup_class(self):
-        self.sdk = setup_chariot()
+        self._confirmed_profile, self._confirmed_account = selected_test_target()
+        self.sdk = setup_chariot(self._confirmed_profile, self._confirmed_account)
 
     def test_asset_cli(self):
         o = make_test_values(lambda: None)
@@ -452,15 +454,13 @@ class TestZCli:
 
     def run_json(self, command):
         """Run a CLI command and return parsed JSON output."""
-        result = run(f'guard --profile "{self.sdk.keychain.profile}" {command}', capture_output=True,
-                     text=True, shell=True)
+        result = run(self._guard_argv(command), capture_output=True, text=True)
         assert result.returncode == 0, f'CLI "{command}" failed with exit code {result.returncode}; stderr: {result.stderr}'
         assert len(result.stderr) == 0, f'CLI "{command}" should not have content in stderr; instead, got {result.stderr}'
         return json.loads(result.stdout)
 
     def verify(self, command, expected_stdout=[], expected_stderr=[], ignore_stdout=False):
-        result = run(f'guard --profile "{self.sdk.keychain.profile}" {command}', capture_output=True,
-                     text=True, shell=True)
+        result = run(self._guard_argv(command), capture_output=True, text=True)
         if expected_stdout:
             for out in expected_stdout:
                 assert out in result.stdout, f'CLI "{command}" does not contain {out} in stdout; instead, got {result.stdout}'
@@ -475,3 +475,17 @@ class TestZCli:
         else:
             assert len(result.stderr) == 0, \
                 f'CLI "{command}" should not have content in stderr; instead, got {result.stderr}'
+
+    def _guard_argv(self, command):
+        profile = getattr(self, '_confirmed_profile', None)
+        account = getattr(self, '_confirmed_account', None)
+        if (
+            not isinstance(profile, str)
+            or not profile
+            or profile != profile.strip()
+            or not isinstance(account, str)
+            or not account
+            or account != account.strip()
+        ):
+            raise ValueError('A confirmed profile and account are required for CLI tests.')
+        return ['guard', '--profile', profile, '--account', account, *shlex.split(command)]
