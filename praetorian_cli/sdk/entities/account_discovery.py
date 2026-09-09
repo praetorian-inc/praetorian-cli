@@ -195,10 +195,12 @@ def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict
     if identity_rows is None and live_rows is None:
         return None
     tunnel_rows = _fetch_account_tunnel_states(base_url, headers)
+    status_rows = _fetch_account_aegis_statuses(base_url, headers)
     return merge_aegis_endpoint_rows(
         identity_rows or [],
         live_rows or [],
         tunnel_rows or [],
+        status_rows or [],
     )
 
 
@@ -263,6 +265,14 @@ def _fetch_account_tunnel_states(base_url: str, headers: dict) -> Optional[List[
         base_url,
         headers,
         '#endpointaegistunnelstate#',
+    )
+
+
+def _fetch_account_aegis_statuses(base_url: str, headers: dict) -> Optional[List[dict]]:
+    return _fetch_account_my_rows(
+        base_url,
+        headers,
+        '#endpointaegisstatus#',
     )
 
 

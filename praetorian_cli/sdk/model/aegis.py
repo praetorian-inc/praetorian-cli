@@ -182,7 +182,8 @@ class Agent:
             return False
         cloudflared_status = self.health_check.cloudflared_status
         status = (getattr(cloudflared_status, 'status', '') or '').lower()
-        return bool(cloudflared_status.hostname) and status != 'not_found'
+        inactive_states = {'not_found', 'not_installed', 'stopped', 'unknown'}
+        return bool(cloudflared_status.hostname) and status not in inactive_states
     
     @property
     def is_online(self) -> bool:
