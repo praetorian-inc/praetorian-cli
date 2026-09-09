@@ -57,6 +57,11 @@ def test_list_renders_persisted_v2_tunnel_state():
                         'tunnel_name': 'sensor-tunnel',
                     },
                 }], None
+            if key == '#endpointaegisstatus#':
+                return [{
+                    'endpointId': 'endpoint-1',
+                    'cloudflared': {'state': 'running'},
+                }], None
             raise AssertionError(f'unexpected key: {key}')
 
     class API:
@@ -92,7 +97,11 @@ def test_list_renders_persisted_v2_tunnel_state():
 def test_list_all_renders_offline_v2_endpoint_from_durable_identity():
     class Search:
         def by_key_prefix(self, key):
-            if key in ('#endpoint#', '#endpointaegistunnelstate#'):
+            if key in (
+                '#endpoint#',
+                '#endpointaegistunnelstate#',
+                '#endpointaegisstatus#',
+            ):
                 return [], None
             raise AssertionError(f'unexpected key: {key}')
 

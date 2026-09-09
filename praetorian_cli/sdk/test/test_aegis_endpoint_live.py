@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import pytest
 
 from praetorian_cli.sdk.chariot import Chariot
-from praetorian_cli.sdk.entities.aegis import Aegis
+from praetorian_cli.sdk.entities.aegis import Aegis, merge_aegis_endpoint_rows
 from praetorian_cli.sdk.keychain import DEFAULT_API, DEFAULT_CLIENT_ID, Keychain
 from praetorian_cli.sdk.model.aegis import AEGIS_V2_ONLINE_WINDOW_SECONDS, Agent
 from praetorian_cli.sdk.test.utils import selected_test_target, setup_chariot
@@ -27,10 +27,12 @@ LIVE_AEGIS_PORTSCAN_TARGET = os.environ.get('CHARIOT_TEST_AEGIS_PORTSCAN_TARGET'
 
 
 class FakeSearch:
-    def __init__(self, endpoints, error=None, tunnel_states=None):
+    def __init__(self, endpoints, error=None, tunnel_states=None,
+                 status_rows=None):
         self.endpoints = endpoints
         self.error = error
         self.tunnel_states = tunnel_states or []
+        self.status_rows = status_rows or []
         self.calls = []
 
     def by_key_prefix(self, key_prefix):
@@ -41,13 +43,15 @@ class FakeSearch:
             return self.endpoints, None
         if key_prefix == '#endpointaegistunnelstate#':
             return self.tunnel_states, None
+        if key_prefix == '#endpointaegisstatus#':
+            return self.status_rows, None
         raise AssertionError(f'unexpected key prefix: {key_prefix}')
 
 
 class FakeAPI:
     def __init__(self, agents=None, endpoints=None, endpoint_error=None,
                  identities=None, identity_error=None, inventory=None,
-                 inventory_error=None, tunnel_states=None):
+                 inventory_error=None, tunnel_states=None, status_rows=None):
         self.agents = agents or []
         self.identities = identities or []
         self.identity_error = identity_error
@@ -57,6 +61,7 @@ class FakeAPI:
             endpoints or [],
             endpoint_error,
             tunnel_states,
+            status_rows,
         )
 
     def get(self, path, params=None):
@@ -163,6 +168,7 @@ def test_aegis_list_combines_v1_agents_and_aegis_v2_endpoints():
     assert api.search.calls == [
         '#endpoint#',
         '#endpointaegistunnelstate#',
+        '#endpointaegisstatus#',
     ]
     assert [(agent.version, agent.hostname, agent.display_id) for agent in agents] == [
         ('v1', 'legacy-host', 'C.legacy'),
@@ -250,6 +256,10 @@ def test_aegis_list_adds_persisted_cloudflare_tunnel_state():
                 'tunnel_name': 'sensor-tunnel',
             },
         }],
+        status_rows=[{
+            'endpointId': 'endpoint-1',
+            'cloudflared': {'state': 'running'},
+        }],
     )
 
     agents, _ = Aegis(api).list()
@@ -262,6 +272,31 @@ def test_aegis_list_adds_persisted_cloudflare_tunnel_state():
     assert agents[0].health_check.cloudflared_status.tunnel_name == (
         'sensor-tunnel'
     )
+    assert agents[0].health_check.cloudflared_status.status == 'running'
+
+
+def test_endpoint_reported_stopped_tunnel_is_not_active():
+    rows = merge_aegis_endpoint_rows(
+        [{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'profile': {'hostname': 'sensor-1'},
+        }],
+        [],
+        [{
+            'endpointId': 'endpoint-1',
+            'cloudflaredStatus': {
+                'status': 'configured',
+                'hostname': 'sensor.example.com',
+            },
+        }],
+        [{
+            'endpointId': 'endpoint-1',
+            'cloudflared': {'state': 'stopped'},
+        }],
+    )
+
+    assert Agent.from_endpoint_dict(rows[0]).has_tunnel is False
 
 
 def test_aegis_list_uses_durable_identities_when_live_listing_fails():

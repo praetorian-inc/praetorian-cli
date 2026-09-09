@@ -559,13 +559,18 @@ class TestFetchAccountEndpoints:
                     'hostname': 'live',
                     'os': 'linux',
                 }]}
-            else:
+            elif (params or {}).get('key') == '#endpointaegistunnelstate#':
                 resp.json.return_value = {'tunnelStates': [{
                     'endpointId': 'endpoint-live',
                     'cloudflaredStatus': {
                         'status': 'configured',
                         'hostname': 'live.example.com',
                     },
+                }]}
+            else:
+                resp.json.return_value = {'endpointStatuses': [{
+                    'endpointId': 'endpoint-live',
+                    'cloudflared': {'state': 'running'},
                 }]}
             return resp
 
@@ -581,9 +586,10 @@ class TestFetchAccountEndpoints:
         ] == ['endpoint-offline', 'endpoint-live']
         assert endpoints[0]['profile']['os'] == 'linux'
         assert endpoints[1]['os'] == 'linux'
-        assert endpoints[1]['cloudflaredStatus']['hostname'] == (
-            'live.example.com'
-        )
+        assert endpoints[1]['cloudflaredStatus'] == {
+            'status': 'running',
+            'hostname': 'live.example.com',
+        }
 
     def test_inventory_follows_cursors_and_excludes_revoked_endpoints(
         self,

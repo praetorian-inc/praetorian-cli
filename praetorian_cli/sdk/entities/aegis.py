@@ -26,7 +26,12 @@ def _is_aegis_endpoint(value) -> bool:
     return isinstance(value, dict) and str(value.get('kind', '')).lower() == 'aegis'
 
 
-def merge_aegis_endpoint_rows(identity_rows, live_rows, tunnel_rows=None) -> List[dict]:
+def merge_aegis_endpoint_rows(
+    identity_rows,
+    live_rows,
+    tunnel_rows=None,
+    status_rows=None,
+) -> List[dict]:
     """Merge durable identities with live status and persisted tunnel state."""
     merged = {}
     order = []
@@ -59,7 +64,20 @@ def merge_aegis_endpoint_rows(identity_rows, live_rows, tunnel_rows=None) -> Lis
         endpoint_id = _endpoint_row_id(row)
         tunnel = row.get('cloudflaredStatus')
         if endpoint_id in merged and isinstance(tunnel, dict):
-            merged[endpoint_id]['cloudflaredStatus'] = tunnel
+            merged[endpoint_id]['cloudflaredStatus'] = dict(tunnel)
+
+    for row in status_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        observed = row.get('cloudflared')
+        if endpoint_id not in merged or not isinstance(observed, dict):
+            continue
+        tunnel = merged[endpoint_id].get('cloudflaredStatus')
+        tunnel = dict(tunnel) if isinstance(tunnel, dict) else {}
+        if observed.get('state'):
+            tunnel['status'] = observed['state']
+        merged[endpoint_id]['cloudflaredStatus'] = tunnel
 
     return [merged[endpoint_id] for endpoint_id in order]
 
@@ -215,6 +233,7 @@ class Aegis:
 
         live_rows = []
         tunnel_rows = []
+        status_rows = []
         if hasattr(self.api, 'search'):
             try:
                 endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
@@ -230,12 +249,19 @@ class Aegis:
                 )
             except Exception:
                 pass
+            try:
+                status_rows, _ = self.api.search.by_key_prefix(
+                    '#endpointaegisstatus#'
+                )
+            except Exception:
+                pass
 
         try:
             rows = merge_aegis_endpoint_rows(
                 identity_rows,
                 live_rows,
                 tunnel_rows,
+                status_rows,
             )
             return [Agent.from_endpoint_dict(endpoint) for endpoint in rows]
         except Exception:
