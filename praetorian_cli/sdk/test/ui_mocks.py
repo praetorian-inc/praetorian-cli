@@ -68,6 +68,99 @@ class MockAegis:
     def get_available_ad_domains(self):
         return self._responses.get('domains', ['example.local'])
 
+    def inspect_enrollment(self, user_code):
+        self.calls.append({
+            'method': 'inspect_enrollment',
+            'user_code': user_code,
+        })
+        error = (self._responses.get('enrollment_errors') or {}).get('inspect')
+        if error:
+            raise error
+        return self._responses.get('pending_enrollment', {
+            'endpoint_id': 'endpoint-1',
+            'account': 'customer@example.test',
+            'kind': 'aegis',
+            'version': '1.2.3',
+            'hostname': 'sensor-1',
+            'os': 'linux',
+            'arch': 'amd64',
+            'created_at': '2026-08-25T16:00:00Z',
+            'expires_at': '2026-08-25T16:10:00Z',
+        })
+
+    def approve_enrollment(self, user_code):
+        self.calls.append({
+            'method': 'approve_enrollment',
+            'user_code': user_code,
+        })
+        error = (self._responses.get('enrollment_errors') or {}).get('approve')
+        if error:
+            raise error
+        return self._responses.get('approved_enrollment', {'status': 'approved'})
+
+    def create_cloudflare_tunnel(self, endpoint_id, *, legacy=False):
+        self.calls.append({
+            'method': 'create_cloudflare_tunnel',
+            'endpoint_id': endpoint_id,
+            'legacy': legacy,
+        })
+        error = (self._responses.get('tunnel_errors') or {}).get('create')
+        if error:
+            raise error
+        return self._responses.get('created_tunnel', {
+            'installTaskId': 'task-create',
+            'hostname': 'endpoint.example.com',
+            'tunnelInfo': {'tunnelName': 'endpoint-tunnel'},
+            'message': 'created',
+        })
+
+    def remove_cloudflare_tunnel(self, endpoint_id, *, legacy=False):
+        self.calls.append({
+            'method': 'remove_cloudflare_tunnel',
+            'endpoint_id': endpoint_id,
+            'legacy': legacy,
+        })
+        error = (self._responses.get('tunnel_errors') or {}).get('remove')
+        if error:
+            raise error
+        return self._responses.get('removed_tunnel', {
+            'taskId': 'task-remove',
+            'message': 'removed',
+        })
+
+    def add_system_user(self, endpoint_id, username, *, legacy=False):
+        self.calls.append({
+            'method': 'add_system_user',
+            'endpoint_id': endpoint_id,
+            'username': username,
+            'legacy': legacy,
+        })
+        error = (self._responses.get('user_errors') or {}).get('add')
+        if error:
+            raise error
+        return self._responses.get('added_user', {
+            'taskId': 'task-add-user',
+            'status': 'AMT_RUNNING',
+            'message': 'queued',
+        })
+
+    def remove_system_user(self, endpoint_id, username, remove_home=False, *, legacy=False):
+        self.calls.append({
+            'method': 'remove_system_user',
+            'endpoint_id': endpoint_id,
+            'username': username,
+            'remove_home': remove_home,
+            'legacy': legacy,
+        })
+        error = (self._responses.get('user_errors') or {}).get('remove')
+        if error:
+            raise error
+        return self._responses.get('removed_user', {
+            'taskId': 'task-remove-user',
+            'status': 'AMT_RUNNING',
+            'message': 'queued',
+        })
+
 
 class MockCredentials:
     def __init__(self, responses=None):
@@ -103,10 +196,83 @@ class MockCredentials:
         })
 
 
+class MockCapabilities:
+    def __init__(self, responses=None):
+        self._responses = responses or {}
+        self.calls = []
+
+    def list(self, name='', target='', executor='', surface='', endpoint_kind=''):
+        self.calls.append({
+            'method': 'list',
+            'name': name,
+            'target': target,
+            'executor': executor,
+            'surface': surface,
+            'endpoint_kind': endpoint_kind,
+        })
+        caps = self._capabilities_for_scope(executor, endpoint_kind)
+        if name:
+            caps = [cap for cap in caps if name.lower() in cap.get('name', '').lower()]
+        if target:
+            caps = [cap for cap in caps if target.lower() in _capability_targets(cap)]
+        if surface:
+            caps = [cap for cap in caps if cap.get('surface', '').lower() == surface.lower()]
+        return caps, None
+
+    def _capabilities_for_scope(self, executor, endpoint_kind):
+        if endpoint_kind:
+            return list(self._responses.get('endpoint_capabilities', []))
+        if 'capabilities_list' in self._responses:
+            return list(self._responses.get('capabilities_list', []))
+        capabilities = self._responses.get('capabilities', [])
+        if isinstance(capabilities, dict):
+            return list(capabilities.values())
+        return list(capabilities or [])
+
+
+def _capability_targets(capability):
+    target = capability.get('target', [])
+    if isinstance(target, list):
+        return [str(item).lower() for item in target]
+    return [str(target).lower()]
+
+
 class MockAssets:
     def __init__(self, responses=None):
         self._responses = responses or {}
         self.calls = []
+
+    def add(self, group, identifier, type='asset', status='A', surface='', resource_type=''):
+        self.calls.append({
+            'method': 'add',
+            'group': group,
+            'identifier': identifier,
+            'type': type,
+            'status': status,
+            'surface': surface,
+            'resource_type': resource_type,
+        })
+        return self._responses.get('asset', {
+            'key': f'#asset#{group}#{identifier}',
+            'dns': group,
+            'name': identifier,
+            'type': type,
+            'status': status,
+        })
+
+    def get(self, key, details=False):
+        self.calls.append({
+            'method': 'get',
+            'key': key,
+            'details': details,
+        })
+        assets_by_key = self._responses.get('assets_by_key', {})
+        if key in assets_by_key:
+            return assets_by_key[key]
+        asset = self._responses.get('asset')
+        if asset and asset.get('key') == key:
+            return asset
+        return None
 
     def list(self, key_prefix='', asset_type='', pages=100000):
         self.calls.append({
@@ -125,6 +291,7 @@ class MockSDK:
         self.aegis = MockAegis(responses=responses)
         self.jobs = MockJobs(responses=responses)
         self.credentials = MockCredentials(responses=responses)
+        self.capabilities = MockCapabilities(responses=responses)
         self.assets = MockAssets(responses=responses)
 
 
@@ -147,7 +314,13 @@ class MockJobs:
             'status': 'queued',
         })]
 
-    def list(self, prefix_filter=None):
+    def list(self, prefix_filter='', offset=None, pages=100000):
+        self.calls.append({
+            'method': 'list',
+            'prefix_filter': prefix_filter,
+            'offset': offset,
+            'pages': pages,
+        })
         # Return (jobs, next_page_token)
         jobs = self._responses.get('jobs', [])
         return jobs, None
@@ -204,6 +377,7 @@ class MockMenuBase:
             'success': 'green',
             'warning': 'yellow',
             'error': 'red',
+            'info': 'blue',
         }
 
     def pause(self):

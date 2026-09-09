@@ -43,11 +43,15 @@ def handle_ssh(menu, args):
         _print_help(menu)
         menu.pause()
         return
-    
+
+    selected_agent = menu.selected_agent
+    if hasattr(menu, 'refresh_selected_agent'):
+        selected_agent = menu.refresh_selected_agent()
+
     parser = SSHArgumentParser(console=menu.console)
     
     # Validate agent first
-    if not parser.validate_agent_ssh_availability(menu.selected_agent):
+    if not parser.validate_agent_ssh_availability(selected_agent):
         menu.pause()
         return
     
@@ -73,7 +77,7 @@ def handle_ssh(menu, args):
     
     try:
         menu.sdk.aegis.ssh_to_agent(
-            agent=menu.selected_agent,
+            agent=selected_agent,
             options=options,
             user=parsed_options.get('user'),
             display_info=True

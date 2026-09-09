@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal, VerticalScroll
 from textual.widgets import Header, Footer, Input, Static, Markdown
@@ -14,6 +15,17 @@ from textual.reactive import reactive
 from textual import on
 
 from praetorian_cli.sdk.chariot import Chariot
+from praetorian_cli.ui.conversation.approvals import (
+    APPROVAL_POLL_INTERVAL_SECONDS,
+    ApprovalContextError,
+    format_endpoint_approval,
+    parse_endpoint_approval,
+)
+from praetorian_cli.ui.conversation.endpoint_status import (
+    ENDPOINT_STATUS_POLL_INTERVAL_SECONDS,
+    endpoint_status_fingerprint,
+    format_endpoint_execution_status,
+)
 
 
 class ChatMessage(Static):
@@ -130,6 +142,13 @@ class ConversationApp(App):
         self.polling_task: Optional[asyncio.Task] = None
         self._selecting_conversation = False
         self._available_conversations = []
+        self._pending_approval = None
+        self._pending_approval_context = None
+        self._shown_approval_ids = set()
+        self._approval_lock = asyncio.Lock()
+        self._next_approval_poll = 0
+        self._next_endpoint_status_poll = 0
+        self._last_endpoint_status = None
         
     def compose(self) -> ComposeResult:
         """Compose the UI layout"""
@@ -173,6 +192,9 @@ class ConversationApp(App):
         # Handle special commands
         if message.lower() in ['quit', 'exit', 'q']:
             self.exit()
+            return
+        elif self._pending_approval:
+            await self.answer_pending_approval(message)
             return
         elif message.lower() in ['clear', 'cls']:
             await self.clear_chat()
@@ -269,7 +291,8 @@ class ConversationApp(App):
         """Check for new messages and display them"""
         if not self.conversation_id:
             return
-            
+
+        await self.check_endpoint_status()
         try:
             # Load all messages for this conversation
             all_messages, _ = self.sdk.search.by_key_prefix(f"#message#{self.conversation_id}#", user=True)
@@ -301,8 +324,151 @@ class ConversationApp(App):
                 # Update last message key
                 self.last_message_key = messages[-1].get('key', '')
                 
-        except Exception as e:
+        except Exception:
             pass
+
+        await self.check_for_pending_approval()
+
+    async def check_endpoint_status(self, force=False) -> None:
+        """Render endpoint session/task changes without exposing output tails."""
+        now = time.monotonic()
+        if not force and now < self._next_endpoint_status_poll:
+            return
+        self._next_endpoint_status_poll = (
+            now + ENDPOINT_STATUS_POLL_INTERVAL_SECONDS
+        )
+        try:
+            status = await asyncio.to_thread(
+                self.sdk.endpoint_executions.conversation_status,
+                self.conversation_id,
+            )
+        except Exception:
+            return
+
+        fingerprint = endpoint_status_fingerprint(status)
+        if fingerprint == self._last_endpoint_status:
+            return
+        self._last_endpoint_status = fingerprint
+        rendered = format_endpoint_execution_status(status)
+        if rendered:
+            self.add_system_message(escape(rendered))
+
+    async def check_for_pending_approval(self, force=False) -> None:
+        """Show the next pending endpoint approval at most once."""
+        if not self.conversation_id:
+            return
+
+        if self._pending_approval:
+            now = time.monotonic()
+            if not force and now < self._next_approval_poll:
+                return
+            self._next_approval_poll = now + APPROVAL_POLL_INTERVAL_SECONDS
+            pending = self._pending_approval
+            if (
+                await self._approval_is_terminal(pending)
+                and self._pending_approval is pending
+            ):
+                await self._finish_pending_approval('resolved elsewhere')
+            return
+
+        async with self._approval_lock:
+            if self._pending_approval:
+                return
+            now = time.monotonic()
+            if not force and now < self._next_approval_poll:
+                return
+            self._next_approval_poll = now + APPROVAL_POLL_INTERVAL_SECONDS
+            try:
+                interactions = await asyncio.to_thread(
+                    self.sdk.conversations.list_interactions,
+                    self.conversation_id,
+                    status='pending',
+                    include_descendants=True,
+                )
+            except Exception:
+                return
+
+            for interaction in interactions:
+                if interaction.get('kind') != 'approval':
+                    continue
+                request_id = interaction.get('requestId')
+                if not request_id or request_id in self._shown_approval_ids:
+                    continue
+                self._shown_approval_ids.add(request_id)
+                self._pending_approval = interaction
+                try:
+                    context = parse_endpoint_approval(interaction)
+                except ApprovalContextError as exc:
+                    self._pending_approval_context = None
+                    self.add_system_message(
+                        f'Cannot safely allow endpoint work: {exc}\n'
+                        'Type "deny" to reject this request.'
+                    )
+                else:
+                    self._pending_approval_context = context
+                    self.add_system_message(escape(
+                        f'{format_endpoint_approval(context)}\n'
+                        'Type "allow" or "deny".'
+                    ))
+                self.update_status('Endpoint approval required')
+                return
+
+    async def answer_pending_approval(self, answer: str) -> None:
+        """Submit an explicit allow/deny response for the visible approval."""
+        decision = answer.strip().lower()
+        if decision not in ('allow', 'deny'):
+            choices = '"deny"' if self._pending_approval_context is None else '"allow" or "deny"'
+            self.add_system_message(f'Approval pending. Type {choices}.')
+            return
+        if decision == 'allow' and self._pending_approval_context is None:
+            self.add_system_message(
+                'This approval has incomplete server context and cannot be allowed. '
+                'Type "deny".'
+            )
+            return
+
+        interaction = self._pending_approval
+        response = 'true' if decision == 'allow' else 'false'
+        try:
+            await asyncio.to_thread(
+                self.sdk.conversations.answer_interaction,
+                interaction.get('conversationId'),
+                interaction.get('requestId'),
+                response,
+            )
+        except Exception as exc:
+            if await self._approval_is_terminal(interaction):
+                await self._finish_pending_approval('resolved elsewhere')
+                return
+            self.add_system_message(f'Failed to answer endpoint approval: {exc}')
+            return
+
+        outcome = 'allowed' if decision == 'allow' else 'denied'
+        await self._finish_pending_approval(outcome)
+
+    async def _approval_is_terminal(self, interaction) -> bool:
+        try:
+            current = await asyncio.to_thread(
+                self.sdk.conversations.list_interactions,
+                interaction.get('conversationId'),
+            )
+        except Exception:
+            return False
+        return any(
+            row.get('requestId') == interaction.get('requestId')
+            and row.get('status') in ('answered', 'expired')
+            for row in current
+        )
+
+    async def _finish_pending_approval(self, outcome) -> None:
+        request_id = self._pending_approval.get('requestId')
+        self._pending_approval = None
+        self._pending_approval_context = None
+        self.add_system_message(
+            f'Endpoint approval {request_id} {outcome}.'
+        )
+        self.update_status('Waiting for AI response...')
+        await self.check_for_pending_approval(force=True)
     
     def add_user_message(self, content: str) -> None:
         """Add user message to chat log"""
@@ -409,6 +575,12 @@ class ConversationApp(App):
         """Start a new conversation"""
         self.conversation_id = None
         self.last_message_key = ""
+        self._pending_approval = None
+        self._pending_approval_context = None
+        self._shown_approval_ids.clear()
+        self._next_approval_poll = 0
+        self._next_endpoint_status_poll = 0
+        self._last_endpoint_status = None
         await self.clear_chat()
         self.add_system_message("Started new conversation")
         self.update_status("Ready")
@@ -490,6 +662,12 @@ class ConversationApp(App):
                 selected_conv = self._available_conversations[conv_index]
                 self.conversation_id = selected_conv['uuid']
                 self.last_message_key = ""
+                self._pending_approval = None
+                self._pending_approval_context = None
+                self._shown_approval_ids.clear()
+                self._next_approval_poll = 0
+                self._next_endpoint_status_poll = 0
+                self._last_endpoint_status = None
                 self._selecting_conversation = False
                 self._available_conversations = []
                 

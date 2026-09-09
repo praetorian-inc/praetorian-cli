@@ -1,6 +1,10 @@
 import json
+from time import monotonic
 
 from praetorian_cli.sdk.entities.search import flatten_results
+
+
+TREE_CACHE_TTL_SECONDS = 10
 
 
 class Conversations:
@@ -10,6 +14,7 @@ class Conversations:
 
     def __init__(self, api):
         self.api = api
+        self._tree_cache = {}
 
     def list(self, scope='user', offset=None, pages=100000) -> tuple:
         """List conversations, most recent first.
@@ -55,6 +60,122 @@ class Conversations:
             raise ValueError(f'No conversation found for id: {conversation_id}')
         return _transcript(conversation_id, meta[0] if meta else {}, records)
 
+    def list_interactions(
+        self,
+        conversation_id,
+        status=None,
+        include_descendants=False,
+    ) -> list:
+        """List durable interactions for a conversation or conversation tree.
+
+        The ``convId`` parameter lets Guard resolve private and hunt/public
+        conversation partitions server-side. Unknown interaction kinds are
+        returned unchanged.
+        """
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        if status is not None:
+            status = _required_string(status, 'interaction status')
+
+        conversation_ids = (
+            self.tree_ids(conversation_id)
+            if include_descendants
+            else [conversation_id]
+        )
+
+        interactions = []
+        for current_id in conversation_ids:
+            interactions.extend(self._routed(
+                f'#interaction#{current_id}#', current_id
+            ))
+        if status is not None:
+            interactions = [
+                interaction for interaction in interactions
+                if interaction.get('status') == status
+            ]
+        return sorted(
+            interactions,
+            key=lambda interaction: (
+                interaction.get('timestamp', ''),
+                interaction.get('key', ''),
+            ),
+        )
+
+    def tree_ids(self, conversation_id) -> list:
+        """Return a cached, bounded conversation tree."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        now = monotonic()
+        cached = self._tree_cache.get(conversation_id)
+        if cached and cached[0] > now:
+            return list(cached[1])
+
+        conversation_ids = [
+            conversation_id,
+            *self._descendant_ids(conversation_id),
+        ]
+        self._tree_cache[conversation_id] = (
+            now + TREE_CACHE_TTL_SECONDS,
+            tuple(conversation_ids),
+        )
+        return conversation_ids
+
+    def stop(self, conversation_id) -> dict:
+        """Stop a conversation and its Guard-correlated child work."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        return self.api.post('planner/stop', {
+            'conversationId': conversation_id,
+        })
+
+    def answer_interaction(self, conversation_id, request_id, response) -> dict:
+        """Answer one durable conversation interaction."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        request_id = _required_string(request_id, 'request ID')
+        response = _required_string(response, 'interaction response', strip=False)
+        return self.api.post('planner/interaction', {
+            'conversationId': conversation_id,
+            'requestId': request_id,
+            'response': response,
+        })
+
+    def _descendant_ids(self, root_id, max_depth=5, max_ids=200):
+        descendants = []
+        seen = {root_id}
+        frontier = [root_id]
+        for _depth in range(max_depth):
+            next_frontier = []
+            for parent_id in frontier:
+                for user_partition in (True, False):
+                    children = self._children(parent_id, user_partition)
+                    for child in children:
+                        child_id = child.get('uuid') or child.get('id')
+                        if not child_id or child_id in seen:
+                            continue
+                        seen.add(child_id)
+                        descendants.append(child_id)
+                        next_frontier.append(child_id)
+                        if len(descendants) >= max_ids:
+                            return descendants
+            if not next_frontier:
+                break
+            frontier = next_frontier
+        return descendants
+
+    def _children(self, parent_id, user_partition):
+        params = {
+            'key': f'parent_id:{parent_id}',
+            'label': 'conversation',
+        }
+        if user_partition:
+            params['user'] = 'true'
+
+        children = []
+        while True:
+            results = self.api.get('my', params)
+            offset = results.pop('offset', None)
+            children.extend(flatten_results(results))
+            if not offset:
+                return children
+            params['offset'] = json.dumps(offset)
+
     def _shared(self, offset=None, pages=100000) -> tuple:
         # The tenant partition (no user flag) mixes shared conversations in with
         # other tenant records; keep only the public and hunt-owned ones.
@@ -65,6 +186,12 @@ class Conversations:
         results = self.api.my({'key': key, 'convId': conversation_id}, pages=100000)
         results.pop('offset', None)
         return flatten_results(results)
+
+
+def _required_string(value, name, strip=True):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f'{name} is required')
+    return value.strip() if strip else value
 
 
 def _transcript(uuid, meta, records) -> dict:

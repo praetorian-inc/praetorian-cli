@@ -11,6 +11,7 @@ from praetorian_cli.sdk.entities.configurations import Configurations
 from praetorian_cli.sdk.entities.conversations import Conversations
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
+from praetorian_cli.sdk.entities.endpoint_executions import EndpointExecutions
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.hunts import Hunts
 from praetorian_cli.sdk.entities.integrations import Integrations
@@ -58,6 +59,7 @@ class Chariot:
         self.aegis = Aegis(self)
         self.agents = Agents(self)
         self.conversations = Conversations(self)
+        self.endpoint_executions = EndpointExecutions(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
         self.keys = Keys(self)
