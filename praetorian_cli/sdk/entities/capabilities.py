@@ -39,7 +39,11 @@ def capability_description(capability):
 def capability_target_type(capability, default='asset'):
     if not isinstance(capability, dict):
         return default
-    target = capability.get('target', capability.get('Target', default))
+    target = capability.get('target')
+    if target is None:
+        target = capability.get('Target')
+    if target is None:
+        target = default
     if isinstance(target, str):
         return target.lower()
     if isinstance(target, list):

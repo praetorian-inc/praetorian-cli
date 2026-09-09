@@ -157,6 +157,28 @@ def test_endpoint_status_handler_receives_only_changed_nonempty_status():
     assert same == fingerprint
 
 
+def test_endpoint_status_handlers_allow_missing_sessions_or_tasks():
+    api = FakeAPI()
+    agent = Agents(api)
+    delivered = []
+
+    for status in ({'sessions': []}, {'tasks': []}, {}):
+        api.endpoint_executions.status = status
+        agent._handle_endpoint_status('conversation-1', delivered.append, None)
+
+    assert delivered == []
+
+
+def test_poll_allows_missing_endpoint_status_keys():
+    api = FakeAPI()
+    api.endpoint_executions.status = {'sessions': []}
+
+    result = Agents(api).poll('conversation-1')
+
+    assert result['status'] == 'pending'
+    assert 'error' not in result
+
+
 def test_ask_checks_for_completed_response_before_endpoint_status(monkeypatch):
     monkeypatch.setattr(agents_module, 'sleep', lambda _seconds: None)
     api = FakeAPI(complete_after=2)

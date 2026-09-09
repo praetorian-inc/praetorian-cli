@@ -7,9 +7,13 @@ from datetime import datetime, timezone
 import pytest
 
 from praetorian_cli.sdk.chariot import Chariot
-from praetorian_cli.sdk.entities.aegis import Aegis
+from praetorian_cli.sdk.entities.aegis import Aegis, merge_aegis_endpoint_rows
 from praetorian_cli.sdk.keychain import DEFAULT_API, DEFAULT_CLIENT_ID, Keychain
-from praetorian_cli.sdk.model.aegis import AEGIS_V2_ONLINE_WINDOW_SECONDS, Agent
+from praetorian_cli.sdk.model.aegis import (
+    AEGIS_V2_ONLINE_WINDOW_SECONDS,
+    Agent,
+    validate_agent_for_ssh,
+)
 from praetorian_cli.sdk.test.utils import selected_test_target, setup_chariot
 
 
@@ -27,26 +31,55 @@ LIVE_AEGIS_PORTSCAN_TARGET = os.environ.get('CHARIOT_TEST_AEGIS_PORTSCAN_TARGET'
 
 
 class FakeSearch:
-    def __init__(self, endpoints, error=None):
+    def __init__(self, endpoints, error=None, tunnel_states=None,
+                 status_rows=None):
         self.endpoints = endpoints
         self.error = error
+        self.tunnel_states = tunnel_states or []
+        self.status_rows = status_rows or []
         self.calls = []
 
     def by_key_prefix(self, key_prefix):
         self.calls.append(key_prefix)
         if self.error:
             raise self.error
-        return self.endpoints, None
+        if key_prefix == '#endpoint#':
+            return self.endpoints, None
+        if key_prefix == '#endpointaegistunnelstate#':
+            return self.tunnel_states, None
+        if key_prefix == '#endpointaegisstatus#':
+            return self.status_rows, None
+        raise AssertionError(f'unexpected key prefix: {key_prefix}')
 
 
 class FakeAPI:
-    def __init__(self, agents=None, endpoints=None, endpoint_error=None):
+    def __init__(self, agents=None, endpoints=None, endpoint_error=None,
+                 identities=None, identity_error=None, inventory=None,
+                 inventory_error=None, tunnel_states=None, status_rows=None):
         self.agents = agents or []
-        self.search = FakeSearch(endpoints or [], endpoint_error)
+        self.identities = identities or []
+        self.identity_error = identity_error
+        self.inventory = inventory or []
+        self.inventory_error = inventory_error
+        self.search = FakeSearch(
+            endpoints or [],
+            endpoint_error,
+            tunnel_states,
+            status_rows,
+        )
 
-    def get(self, path):
-        assert path == '/agent/enhanced'
-        return self.agents
+    def get(self, path, params=None):
+        if path == '/agent/enhanced':
+            return self.agents
+        if path == 'endpoint/list':
+            if self.inventory_error:
+                raise self.inventory_error
+            return {'endpoints': self.inventory}
+        if path == 'endpoint':
+            if self.identity_error:
+                raise self.identity_error
+            return self.identities
+        raise AssertionError(f'unexpected path: {path}')
 
 
 def test_agent_from_endpoint_dict_maps_aegis_v2_fields():
@@ -61,7 +94,11 @@ def test_agent_from_endpoint_dict_maps_aegis_v2_fields():
         'os': 'linux',
         'arch': 'amd64',
         'runtime': {'name': 'docker'},
-        'cloudflaredStatus': {'hostname': 'sensor.example.com', 'tunnelName': 'sensor-tunnel'},
+        'cloudflaredStatus': {
+            'status': 'running',
+            'hostname': 'sensor.example.com',
+            'tunnelName': 'sensor-tunnel',
+        },
         'runningContainerCount': 2,
         'lastHeartbeat': last_heartbeat,
     })
@@ -82,32 +119,25 @@ def test_agent_from_endpoint_dict_maps_aegis_v2_fields():
     assert agent.is_online is True
 
 
-def test_agent_from_endpoint_dict_accepts_pascal_fields_and_extended_liveness_window():
+def test_agent_from_endpoint_dict_maps_inventory_contract():
     agent = Agent.from_endpoint_dict({
-        'Key': '#endpoint#endpoint-1',
-        'ID': 'endpoint-1',
-        'Kind': 'aegis',
-        'Version': '1.2.3',
-        'Hostname': 'sensor-1',
-        'OS': 'linux',
-        'Arch': 'amd64',
-        'Runtime': {'name': 'docker'},
-        'CloudflaredStatus': {
-            'Hostname': 'sensor.example.com',
-            'TunnelName': 'sensor-tunnel',
-            'AuthorizedUsers': 'alice@example.com',
+        'endpointId': 'endpoint-1',
+        'kind': 'aegis',
+        'lastSeenAt': time.time() - (AEGIS_V2_ONLINE_WINDOW_SECONDS - 10),
+        'profile': {
+            'hostname': 'sensor-1',
+            'os': 'linux',
+            'arch': 'amd64',
+            'softwareVersion': '1.2.3',
         },
-        'RunningContainerCount': 2,
-        'LastHeartbeat': time.time() - (AEGIS_V2_ONLINE_WINDOW_SECONDS - 10),
     })
 
     assert agent.endpoint_id == 'endpoint-1'
     assert agent.kind == 'aegis'
+    assert agent.hostname == 'sensor-1'
+    assert agent.os == 'linux'
+    assert agent.architecture == 'amd64'
     assert agent.agent_version == '1.2.3'
-    assert agent.has_tunnel is True
-    assert agent.health_check.cloudflared_status.hostname == 'sensor.example.com'
-    assert agent.health_check.cloudflared_status.tunnel_name == 'sensor-tunnel'
-    assert agent.health_check.cloudflared_status.authorized_users == 'alice@example.com'
     assert agent.is_online is True
 
 
@@ -143,35 +173,157 @@ def test_aegis_list_combines_v1_agents_and_aegis_v2_endpoints():
     agents, offset = Aegis(api).list()
 
     assert offset is None
-    assert api.search.calls == ['#endpoint#']
+    assert api.search.calls == [
+        '#endpoint#',
+        '#endpointaegistunnelstate#',
+        '#endpointaegisstatus#',
+    ]
     assert [(agent.version, agent.hostname, agent.display_id) for agent in agents] == [
         ('v1', 'legacy-host', 'C.legacy'),
         ('v2', 'sensor-1', 'endpoint-1'),
     ]
 
 
+def test_aegis_list_includes_offline_v2_endpoint_identity_without_live_row():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-offline',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'connectionState': 'not_connected',
+            'profile': {
+                'hostname': 'offline-sensor',
+                'os': 'linux',
+                'arch': 'amd64',
+                'softwareVersion': '2.0.0',
+            },
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert [(
+        agent.version,
+        agent.hostname,
+        agent.display_id,
+        agent.os,
+        agent.architecture,
+        agent.agent_version,
+        agent.is_online,
+    ) for agent in agents] == [
+        (
+            'v2',
+            'offline-sensor',
+            'endpoint-offline',
+            'linux',
+            'amd64',
+            '2.0.0',
+            False,
+        ),
+    ]
+
+
+def test_aegis_list_enriches_durable_identity_with_live_endpoint_data():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'profile': {'hostname': 'sensor-1', 'os': 'unknown'},
+        }],
+        endpoints=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'hostname': 'sensor-1',
+            'os': 'linux',
+            'runtime': {'name': 'docker'},
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert len(agents) == 1
+    assert agents[0].os == 'linux'
+    assert agents[0].runtime == {'name': 'docker'}
+
+
+def test_aegis_list_adds_persisted_cloudflare_tunnel_state():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'lastSeenAt': datetime.now(timezone.utc).isoformat(),
+            'profile': {'hostname': 'sensor-1', 'os': 'linux'},
+        }],
+        tunnel_states=[{
+            'endpointId': 'endpoint-1',
+            'cloudflaredStatus': {
+                'status': 'configured',
+                'hostname': 'sensor.example.com',
+                'tunnel_name': 'sensor-tunnel',
+            },
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert len(agents) == 1
+    assert agents[0].has_tunnel is True
+    assert agents[0].health_check.cloudflared_status.hostname == (
+        'sensor.example.com'
+    )
+    assert agents[0].health_check.cloudflared_status.tunnel_name == (
+        'sensor-tunnel'
+    )
+    assert agents[0].health_check.cloudflared_status.status == 'configured'
+    assert validate_agent_for_ssh(agents[0]) == (True, '')
+
+
+def test_endpoint_health_does_not_hide_persisted_tunnel_configuration():
+    rows = merge_aegis_endpoint_rows(
+        [{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'profile': {'hostname': 'sensor-1'},
+        }],
+        [],
+        [{
+            'endpointId': 'endpoint-1',
+            'cloudflaredStatus': {
+                'status': 'configured',
+                'hostname': 'sensor.example.com',
+            },
+        }],
+        [{
+            'endpointId': 'endpoint-1',
+            'cloudflared': {'state': 'stopped'},
+        }],
+    )
+
+    assert Agent.from_endpoint_dict(rows[0]).has_tunnel is True
+
+
+def test_aegis_list_uses_durable_identities_when_live_listing_fails():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-offline',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'profile': {'hostname': 'offline-sensor'},
+        }],
+        endpoint_error=RuntimeError('live endpoint unavailable'),
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert [agent.display_id for agent in agents] == ['endpoint-offline']
+
+
 def test_aegis_list_retains_v1_agents_when_endpoint_listing_fails():
     api = FakeAPI(
         agents=[{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
         endpoint_error=RuntimeError('endpoint unavailable'),
-    )
-
-    agents, offset = Aegis(api).list()
-
-    assert offset is None
-    assert [(agent.version, agent.hostname, agent.display_id) for agent in agents] == [
-        ('v1', 'legacy-host', 'C.legacy'),
-    ]
-
-
-def test_aegis_list_retains_v1_agents_when_endpoint_conversion_fails():
-    api = FakeAPI(
-        agents=[{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
-        endpoints=[{
-            'endpointId': 'endpoint-1',
-            'kind': 'aegis',
-            'healthCheck': {'cloudflaredStatus': 'malformed'},
-        }],
     )
 
     agents, offset = Aegis(api).list()

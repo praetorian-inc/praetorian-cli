@@ -287,6 +287,19 @@ def test_console_renders_only_changed_endpoint_status():
     assert rendered.count('Running on endpoint') == 1
 
 
+def test_console_endpoint_status_allows_missing_status_keys():
+    sdk = FakeSDK([])
+    sdk.endpoint_executions.status = {'sessions': []}
+    command = object.__new__(MarcusCommands)
+    command.sdk = sdk
+    command.context = SimpleNamespace(conversation_id='conversation-1')
+    command.console = SimpleNamespace(print=lambda *_args, **_kwargs: None)
+
+    fingerprint = command._show_endpoint_status(None)
+
+    assert fingerprint is not None
+
+
 def test_textual_chat_clears_approval_resolved_elsewhere():
     terminal = {**_approval(), 'status': 'expired'}
     sdk = FakeSDK([terminal])
@@ -303,6 +316,23 @@ def test_textual_chat_clears_approval_resolved_elsewhere():
 
     assert app._pending_approval is None
     assert messages[-1] == 'Endpoint approval request-1 resolved elsewhere.'
+
+
+def test_stale_approval_completion_does_not_clear_new_pending_approval():
+    sdk = FakeSDK([])
+    app = ConversationApp(sdk)
+    old = _approval()
+    current = {**_approval(), 'requestId': 'request-2'}
+    app._pending_approval = current
+    app._pending_approval_context = object()
+    messages = []
+    app.add_system_message = messages.append
+    app.update_status = lambda _status: None
+
+    asyncio.run(app._finish_pending_approval(old, 'allowed'))
+
+    assert app._pending_approval is current
+    assert messages == []
 
 
 def test_textual_chat_handles_answer_race_without_reopening_approval():

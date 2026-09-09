@@ -9,7 +9,7 @@ from ..constants import DEFAULT_COLORS
 def handle_help(menu, args):
     """Show help for commands or a specific command."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
-    if args and args[0] in ['ssh', 'cp', 'list', 'info', 'job', 'user', 'tunnel', 'enrollment', 'enroll', 'schedule', 'set', 'proxy']:
+    if args and args[0] in ['ssh', 'cp', 'list', 'info', 'job', 'hunt', 'user', 'tunnel', 'enrollment', 'enroll', 'schedule', 'set', 'proxy']:
         menu.console.print(f"\nHelp for '{args[0]}' command - see main help for details\n")
         menu.pause()
         return
@@ -35,6 +35,9 @@ def handle_help(menu, args):
     commands_table.add_row("job list", "List recent jobs for selected agent")
     commands_table.add_row("job capabilities [--details]", "List capabilities for selected agent or endpoint")
     commands_table.add_row("job run <capability>", "Run capability on selected agent or endpoint")
+    commands_table.add_row("hunt launch", "Launch an AI Hunt through the selected Aegis v2 endpoint")
+    commands_table.add_row("hunt list/status", "Inspect AI Hunts for the selected Aegis v2 endpoint")
+    commands_table.add_row("hunt pause/resume/stop", "Control an AI Hunt assigned to the selected endpoint")
     commands_table.add_row("user add <username>", "Add Linux user on selected Aegis v2 endpoint")
     commands_table.add_row("user remove <username>", "Remove Linux user from selected Aegis v2 endpoint")
     commands_table.add_row("tunnel create", "Create Cloudflare tunnel for selected Aegis v2 endpoint")
@@ -82,6 +85,8 @@ def handle_help(menu, args):
     examples_table.add_row("job capabilities", "List available capabilities")
     examples_table.add_row("job caps --details", "Show full capability descriptions")
     examples_table.add_row("job run <capability>", "Run a capability on selected agent or endpoint")
+    examples_table.add_row("hunt launch --scope <key> --prompt <objective>", "Launch an endpoint-bound AI Hunt")
+    examples_table.add_row("hunt status <hunt-id>", "Show AI Hunt and endpoint execution status")
     examples_table.add_row("user add pentester --yes", "Queue Linux user creation on selected v2 endpoint")
     examples_table.add_row("user remove pentester --remove-home", "Queue Linux user removal on selected v2 endpoint")
     examples_table.add_row("tunnel create --yes", "Queue Cloudflare tunnel install on selected v2 endpoint")

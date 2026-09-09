@@ -31,7 +31,8 @@ class FakeResponse:
 
 
 class FakeAPI:
-    def __init__(self):
+    def __init__(self, proxy=''):
+        self.proxy = proxy
         self.search = SimpleNamespace(
             by_exact_key=lambda _key: (_ for _ in ()).throw(
                 AssertionError('verified downloads must not require file indexing')
@@ -54,8 +55,8 @@ def test_save_verified_streams_and_atomically_publishes_file(monkeypatch, tmp_pa
     api = FakeAPI()
     request_calls = []
 
-    def get(url, stream, timeout):
-        request_calls.append((url, stream, timeout))
+    def get(url, stream, timeout, **kwargs):
+        request_calls.append((url, stream, timeout, kwargs))
         return FakeResponse(chunks=[content[:5], content[5:]])
 
     monkeypatch.setattr(files_module.requests, 'get', get)
@@ -71,6 +72,30 @@ def test_save_verified_streams_and_atomically_publishes_file(monkeypatch, tmp_pa
     assert api.calls == [('GET', '/file', {'name': remote_path})]
     assert request_calls[0][0:2] == ('https://s3.example/proof', True)
     assert not list(tmp_path.glob('.praetorian-download-*'))
+
+
+def test_save_verified_uses_sdk_proxy_without_auth_headers(monkeypatch, tmp_path):
+    request = {}
+
+    def get(url, **kwargs):
+        request.update({'url': url, **kwargs})
+        return FakeResponse(chunks=[b'proof'])
+
+    monkeypatch.setattr(files_module.requests, 'get', get)
+
+    Files(FakeAPI(proxy='http://proxy.example:8080')).save_verified(
+        'proofs/endpoint-sessions/session/op/artifact/proof.txt',
+        5,
+        hashlib.sha256(b'proof').hexdigest(),
+        str(tmp_path),
+    )
+
+    assert request['proxies'] == {
+        'http': 'http://proxy.example:8080',
+        'https': 'http://proxy.example:8080',
+    }
+    assert request['verify'] is False
+    assert 'headers' not in request
 
 
 def test_save_verified_accepts_empty_artifact(monkeypatch, tmp_path):

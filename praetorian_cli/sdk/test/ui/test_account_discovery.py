@@ -117,6 +117,14 @@ def _mock_requests_get(agents_by_account, metadata=None, endpoints_by_account=No
                     records.append({'username': email, 'name': 'display-name', 'value': dname})
             resp.status_code = 200
             resp.json.return_value = {'configurations': records}
+        elif url.endswith('/endpoint/list'):
+            resp.status_code = 200
+            resp.json.return_value = {
+                'endpoints': endpoints_by_account.get(account_email, [])
+            }
+        elif url.endswith('/endpoint'):
+            resp.status_code = 200
+            resp.json.return_value = endpoints_by_account.get(account_email, [])
         elif '/my' in url and params.get('key') == '#endpoint#':
             resp.status_code = 200
             resp.json.return_value = {'endpoints': endpoints_by_account.get(account_email, [])}
@@ -521,8 +529,128 @@ class TestFriendlyNameFromEmail:
 
 
 class TestFetchAccountEndpoints:
-    def test_follows_paginated_offsets(self, monkeypatch):
+    def test_keeps_offline_identity_and_enriches_live_endpoint(self, monkeypatch):
         from praetorian_cli.sdk.entities.account_discovery import _fetch_account_endpoints
+
+        def mock_get(url, headers=None, params=None, timeout=None):
+            resp = MagicMock()
+            resp.status_code = 200
+            if url.endswith('/endpoint/list'):
+                resp.json.return_value = {'endpoints': [
+                    {
+                        'endpointId': 'endpoint-offline',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Active',
+                        'profile': {'hostname': 'offline', 'os': 'linux'},
+                    },
+                    {
+                        'endpointId': 'endpoint-live',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Active',
+                        'profile': {'hostname': 'live', 'os': 'unknown'},
+                    },
+                ]}
+            elif url.endswith('/endpoint'):
+                resp.json.return_value = []
+            elif (params or {}).get('key') == '#endpoint#':
+                resp.json.return_value = {'endpoints': [{
+                    'endpointId': 'endpoint-live',
+                    'kind': 'aegis',
+                    'hostname': 'live',
+                    'os': 'linux',
+                }]}
+            elif (params or {}).get('key') == '#endpointaegistunnelstate#':
+                resp.json.return_value = {'tunnelStates': [{
+                    'endpointId': 'endpoint-live',
+                    'cloudflaredStatus': {
+                        'status': 'configured',
+                        'hostname': 'live.example.com',
+                    },
+                }]}
+            else:
+                resp.json.return_value = {'endpointStatuses': [{
+                    'endpointId': 'endpoint-live',
+                    'cloudflared': {'state': 'running'},
+                }]}
+            return resp
+
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = mock_get
+        monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
+
+        endpoints = _fetch_account_endpoints('https://api.example.com', {})
+
+        assert [
+            endpoint.get('endpointId') or endpoint.get('endpoint_id')
+            for endpoint in endpoints
+        ] == ['endpoint-offline', 'endpoint-live']
+        assert endpoints[0]['profile']['os'] == 'linux'
+        assert endpoints[1]['os'] == 'linux'
+        assert endpoints[1]['cloudflaredStatus'] == {
+            'status': 'configured',
+            'hostname': 'live.example.com',
+        }
+
+    def test_inventory_follows_cursors_and_excludes_revoked_endpoints(
+        self,
+        monkeypatch,
+    ):
+        from praetorian_cli.sdk.entities.account_discovery import (
+            _fetch_account_endpoint_inventory,
+        )
+
+        calls = []
+
+        def mock_get(url, headers=None, params=None, timeout=None):
+            calls.append(dict(params or {}))
+            resp = MagicMock()
+            resp.status_code = 200
+            if not params:
+                resp.json.return_value = {
+                    'endpoints': [{
+                        'endpointId': 'endpoint-1',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Active',
+                    }],
+                    'cursor': 'next-page',
+                }
+            else:
+                resp.json.return_value = {'endpoints': [
+                    {
+                        'endpointId': 'endpoint-revoked',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Revoked',
+                    },
+                    {
+                        'endpointId': 'endpoint-2',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Active',
+                    },
+                ]}
+            return resp
+
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = mock_get
+        monkeypatch.setattr(
+            'praetorian_cli.sdk.entities.account_discovery.requests',
+            requests_mock,
+        )
+
+        endpoints = _fetch_account_endpoint_inventory(
+            'https://api.example.com',
+            {},
+        )
+
+        assert [endpoint['endpointId'] for endpoint in endpoints] == [
+            'endpoint-1',
+            'endpoint-2',
+        ]
+        assert calls == [{}, {'cursor': 'next-page'}]
+
+
+class TestFetchLiveAccountEndpoints:
+    def test_follows_paginated_offsets(self, monkeypatch):
+        from praetorian_cli.sdk.entities.account_discovery import _fetch_account_live_endpoints
 
         calls = []
 
@@ -544,7 +672,7 @@ class TestFetchAccountEndpoints:
         requests_mock.get.side_effect = mock_get
         monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
 
-        endpoints = _fetch_account_endpoints('https://api.example.com', {'Authorization': 'Bearer token'})
+        endpoints = _fetch_account_live_endpoints('https://api.example.com', {'Authorization': 'Bearer token'})
 
         assert [endpoint['endpointId'] for endpoint in endpoints] == ['endpoint-1', 'endpoint-2']
         assert calls == [
@@ -553,7 +681,7 @@ class TestFetchAccountEndpoints:
         ]
 
     def test_stops_on_reordered_repeated_offset(self, monkeypatch):
-        from praetorian_cli.sdk.entities.account_discovery import _fetch_account_endpoints
+        from praetorian_cli.sdk.entities.account_discovery import _fetch_account_live_endpoints
 
         offsets = [
             {'cursor': 'same', 'page': 2},
@@ -573,11 +701,11 @@ class TestFetchAccountEndpoints:
         requests_mock.get.side_effect = mock_get
         monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
 
-        assert _fetch_account_endpoints('https://api.example.com', {}) is None
+        assert _fetch_account_live_endpoints('https://api.example.com', {}) is None
         assert calls == 2
 
     def test_handles_null_body_as_empty_page(self, monkeypatch):
-        from praetorian_cli.sdk.entities.account_discovery import _fetch_account_endpoints
+        from praetorian_cli.sdk.entities.account_discovery import _fetch_account_live_endpoints
 
         resp = MagicMock()
         resp.status_code = 200
@@ -586,7 +714,7 @@ class TestFetchAccountEndpoints:
         requests_mock.get.return_value = resp
         monkeypatch.setattr('praetorian_cli.sdk.entities.account_discovery.requests', requests_mock)
 
-        assert _fetch_account_endpoints('https://api.example.com', {}) == []
+        assert _fetch_account_live_endpoints('https://api.example.com', {}) == []
 
 
 class TestFlattenResponse:
