@@ -260,10 +260,6 @@ def test_aegis_list_adds_persisted_cloudflare_tunnel_state():
                 'tunnel_name': 'sensor-tunnel',
             },
         }],
-        status_rows=[{
-            'endpointId': 'endpoint-1',
-            'cloudflared': {'state': 'running'},
-        }],
     )
 
     agents, _ = Aegis(api).list()
@@ -276,7 +272,7 @@ def test_aegis_list_adds_persisted_cloudflare_tunnel_state():
     assert agents[0].health_check.cloudflared_status.tunnel_name == (
         'sensor-tunnel'
     )
-    assert agents[0].health_check.cloudflared_status.status == 'running'
+    assert agents[0].health_check.cloudflared_status.status == 'configured'
 
 
 def test_endpoint_reported_stopped_tunnel_is_not_active():

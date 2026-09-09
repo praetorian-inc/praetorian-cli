@@ -183,7 +183,9 @@ class Agent:
         cloudflared_status = self.health_check.cloudflared_status
         status = (getattr(cloudflared_status, 'status', '') or '').lower()
         if is_v2_agent(self):
-            return status == 'running'
+            return status == 'running' or (
+                status == 'configured' and bool(cloudflared_status.hostname)
+            )
         return bool(cloudflared_status.hostname) and status != 'not_found'
     
     @property
