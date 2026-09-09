@@ -411,7 +411,9 @@ def _credential_type(value):
     if not value.startswith('#credential#'):
         return None
     parts = value.split('#', 4)
-    return parts[3].strip() if len(parts) == 5 else ''
+    if len(parts) != 5 or not all(part.strip() for part in parts[2:]):
+        return None
+    return parts[3].strip()
 
 
 def _prompt_capability(menu, capabilities):

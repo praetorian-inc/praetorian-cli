@@ -5,6 +5,7 @@ from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 from rich.console import Console
 from praetorian_cli.ui.aegis.commands.job import complete as complete_job, handle_job
+from praetorian_cli.ui.aegis.commands.job_v2 import _credential_type
 from praetorian_cli.ui.aegis.commands.job_helpers import CapabilityCompleter, extract_target_type
 from rich.prompt import Confirm
 from praetorian_cli.sdk.test.ui_mocks import MockMenuBase, MockSDK, MockAgent
@@ -165,6 +166,26 @@ def test_v2_job_run_portscan_uses_existing_asset_and_endpoint_config():
     assert json.loads(job_call['config']) == {'endpoint_agent_id': 'endpoint-1'}
     assert job_call['credentials'] is None
     assert menu.paused is True
+
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        '#credential#',
+        '#credential#category#type',
+        '#credential##type#id',
+        '#credential#category##id',
+        '#credential#category#type#',
+    ],
+)
+def test_v2_credential_type_rejects_incomplete_keys(value):
+    assert _credential_type(value) is None
+
+
+def test_v2_credential_type_returns_trimmed_type():
+    assert _credential_type(
+        '#credential#category# active-directory #credential-1'
+    ) == 'active-directory'
 
 
 def test_v2_smb_secrets_prompts_for_and_forwards_ad_credential(monkeypatch):

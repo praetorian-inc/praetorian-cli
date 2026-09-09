@@ -368,7 +368,10 @@ class ConversationApp(App):
                 await self._approval_is_terminal(pending)
                 and self._pending_approval is pending
             ):
-                await self._finish_pending_approval('resolved elsewhere')
+                await self._finish_pending_approval(
+                    pending,
+                    'resolved elsewhere',
+                )
             return
 
         async with self._approval_lock:
@@ -438,13 +441,16 @@ class ConversationApp(App):
             )
         except Exception as exc:
             if await self._approval_is_terminal(interaction):
-                await self._finish_pending_approval('resolved elsewhere')
+                await self._finish_pending_approval(
+                    interaction,
+                    'resolved elsewhere',
+                )
                 return
             self.add_system_message(f'Failed to answer endpoint approval: {exc}')
             return
 
         outcome = 'allowed' if decision == 'allow' else 'denied'
-        await self._finish_pending_approval(outcome)
+        await self._finish_pending_approval(interaction, outcome)
 
     async def _approval_is_terminal(self, interaction) -> bool:
         try:
@@ -460,8 +466,10 @@ class ConversationApp(App):
             for row in current
         )
 
-    async def _finish_pending_approval(self, outcome) -> None:
-        request_id = self._pending_approval.get('requestId')
+    async def _finish_pending_approval(self, interaction, outcome) -> None:
+        if interaction is None or self._pending_approval is not interaction:
+            return
+        request_id = interaction.get('requestId')
         self._pending_approval = None
         self._pending_approval_context = None
         self.add_system_message(
