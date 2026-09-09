@@ -1,3 +1,4 @@
+from praetorian_cli.sdk.model.aegis import online_window_seconds_for_agent
 from ..constants import DEFAULT_COLORS
 from ..utils import agent_account_info, agent_display_id, is_v2_agent
 
@@ -12,8 +13,12 @@ def handle_info(menu, args):
     # Check for raw flag
     raw = ('--raw' in args) or ('-r' in args)
 
+    selected_agent = menu.selected_agent
+    if hasattr(menu, 'refresh_selected_agent'):
+        selected_agent = menu.refresh_selected_agent()
+
     try:
-        _show_agent_info(menu, menu.selected_agent, raw=raw)
+        _show_agent_info(menu, selected_agent, raw=raw)
     except Exception as e:
         colors = getattr(menu, 'colors', DEFAULT_COLORS)
         menu.console.print(f"[{colors['error']}]Error getting agent info: {e}[/{colors['error']}]")
@@ -83,8 +88,8 @@ def _show_agent_info(menu, agent, raw=False):
     current_time = datetime.now().timestamp()
     if last_seen > 0:
         last_seen_seconds = last_seen / 1000000 if last_seen > 1000000000000 else last_seen
-        online_window_seconds = 90 if is_v2_agent(agent) else 60
-        is_online = (current_time - last_seen_seconds) < online_window_seconds
+        online_window_seconds = online_window_seconds_for_agent(agent)
+        is_online = abs(current_time - last_seen_seconds) < online_window_seconds
         last_seen_str = datetime.fromtimestamp(last_seen_seconds).strftime("%Y-%m-%d %H:%M:%S")
         if is_online:
             status_text = f"[{colors['success']}]● online[/{colors['success']}]"

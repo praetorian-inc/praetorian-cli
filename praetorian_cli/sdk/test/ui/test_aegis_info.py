@@ -29,6 +29,18 @@ class Menu(MockMenuBase):
         self.selected_agent = agent
 
 
+class RefreshingMenu(Menu):
+    def __init__(self, stale_agent, fresh_agent):
+        super().__init__(stale_agent)
+        self.fresh_agent = fresh_agent
+        self.refresh_calls = 0
+
+    def refresh_selected_agent(self):
+        self.refresh_calls += 1
+        self.selected_agent = self.fresh_agent
+        return self.selected_agent
+
+
 def test_info_no_selected_agent():
     menu = Menu(agent=None)
     handle_info(menu, [])
@@ -96,3 +108,25 @@ def test_info_error_path():
     handle_info(menu, [])
     assert any("Error getting agent info" in l for l in menu.console.lines)
     assert menu.paused is True
+
+
+def test_info_refreshes_selected_agent_before_rendering():
+    stale_agent = MockAgent(hostname="sensor")
+    stale_agent.version = "v2"
+    stale_agent.endpoint_id = "endpoint-1"
+    stale_agent.client_id = "N/A"
+    stale_agent.health_check = None
+
+    fresh_agent = MockAgent(hostname="sensor")
+    fresh_agent.version = "v2"
+    fresh_agent.endpoint_id = "endpoint-1"
+    fresh_agent.client_id = "N/A"
+
+    menu = RefreshingMenu(stale_agent, fresh_agent)
+
+    handle_info(menu, [])
+
+    output = "\n".join(menu.console.lines)
+    assert menu.refresh_calls == 1
+    assert "Tunnel active" in output
+    assert "No tunnel configured" not in output

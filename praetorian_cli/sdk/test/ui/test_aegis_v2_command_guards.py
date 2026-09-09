@@ -5,7 +5,6 @@ from praetorian_cli.sdk.test.ui_mocks import MockMenuBase, MockSDK
 from praetorian_cli.ui.aegis.commands.cp import handle_cp
 from praetorian_cli.ui.aegis.commands.proxy import handle_proxy
 from praetorian_cli.ui.aegis.commands.schedule import add_schedule
-from praetorian_cli.ui.aegis.commands.ssh import handle_ssh
 
 pytestmark = pytest.mark.tui
 
@@ -39,7 +38,6 @@ class Menu(MockMenuBase):
 @pytest.mark.parametrize(
     ("command", "handler", "args"),
     [
-        ("ssh", handle_ssh, []),
         ("cp", handle_cp, ["./local.txt", ":/tmp/remote.txt"]),
         ("proxy", handle_proxy, ["1080"]),
         ("schedule add", lambda menu, _args: add_schedule(menu), []),
@@ -59,8 +57,19 @@ def test_v1_only_commands_fail_fast_for_v2_without_legacy_access(command, handle
     assert menu.paused is True
 
 
-def test_validate_agent_for_ssh_rejects_v2_without_legacy_access():
-    ok, message = validate_agent_for_ssh(V2Endpoint())
+def test_validate_agent_for_ssh_allows_v2_without_legacy_client_id_access():
+    class EndpointWithTunnel(V2Endpoint):
+        has_tunnel = True
 
-    assert ok is False
-    assert "Aegis v2 endpoint (endpoint-1)" in message
+        class _Health:
+            class _Cloudflared:
+                hostname = 'endpoint.example.com'
+
+            cloudflared_status = _Cloudflared()
+
+        health_check = _Health()
+
+    ok, message = validate_agent_for_ssh(EndpointWithTunnel())
+
+    assert ok is True
+    assert message == ''

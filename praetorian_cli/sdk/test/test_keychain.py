@@ -171,7 +171,7 @@ def test_opt_in_allows_loopback_http(monkeypatch, api):
 
 @pytest.mark.parametrize('api', [
     'http://api.example.com/chariot',
-    'http://192.168.1.10:8000',
+    'http://192.0.2.10:8000',
     'http://localhost.example.com',
 ])
 def test_opt_in_never_allows_non_loopback_http(monkeypatch, api):
