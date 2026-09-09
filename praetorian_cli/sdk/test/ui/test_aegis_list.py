@@ -51,15 +51,22 @@ def test_list_all_renders_offline_v2_endpoint_from_durable_identity():
     class API:
         search = Search()
 
-        def get(self, path):
+        def get(self, path, params=None):
             if path == '/agent/enhanced':
                 return []
+            if path == 'endpoint/list':
+                return {'endpoints': [{
+                    'endpointId': 'endpoint-offline',
+                    'kind': 'aegis',
+                    'lifecycleState': 'Active',
+                    'connectionState': 'not_connected',
+                    'profile': {
+                        'hostname': 'offline-sensor',
+                        'os': 'linux',
+                    },
+                }]}
             if path == 'endpoint':
-                return [{
-                    'endpoint_id': 'endpoint-offline',
-                    'hostname': 'offline-sensor',
-                    'online': False,
-                }]
+                return []
             raise AssertionError(f'unexpected path: {path}')
 
     sdk = SimpleNamespace(
@@ -74,4 +81,5 @@ def test_list_all_renders_offline_v2_endpoint_from_durable_identity():
     output = menu.console.export_text()
     assert 'offline-sensor' in output
     assert 'v2' in output
+    assert 'linux' in output
     assert 'offline' in output

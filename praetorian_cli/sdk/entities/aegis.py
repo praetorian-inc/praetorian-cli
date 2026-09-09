@@ -56,6 +56,18 @@ def merge_aegis_endpoint_rows(identity_rows, live_rows) -> List[dict]:
     return [merged[endpoint_id] for endpoint_id in order]
 
 
+def is_active_aegis_inventory_row(row) -> bool:
+    if not _is_aegis_endpoint(row):
+        return False
+    state = str(
+        row.get('lifecycleState')
+        or row.get('lifecycle_state')
+        or row.get('LifecycleState')
+        or ''
+    ).lower()
+    return state != 'revoked'
+
+
 def _endpoint_row_id(row) -> str:
     return str(
         row.get('endpointId')
@@ -187,9 +199,12 @@ class Aegis:
 
     def _list_endpoint_agents(self) -> List[Agent]:
         try:
-            identity_rows = self._list_active_endpoint_rows()
+            identity_rows = self._list_endpoint_inventory_rows()
         except Exception:
-            identity_rows = []
+            try:
+                identity_rows = self._list_active_endpoint_rows()
+            except Exception:
+                identity_rows = []
 
         live_rows = []
         if hasattr(self.api, 'search'):
@@ -216,6 +231,25 @@ class Aegis:
             Agent.from_endpoint_dict(endpoint)
             for endpoint in self._list_active_endpoint_rows()
         ]
+
+    def _list_endpoint_inventory_rows(self) -> List[dict]:
+        endpoints = []
+        cursor = None
+        seen_cursors = set()
+        while True:
+            params = {'cursor': cursor} if cursor else {}
+            response = self.api.get('endpoint/list', params)
+            rows = normalize_to_list(response, ['endpoints', 'data', 'items'])
+            endpoints.extend(
+                endpoint for endpoint in rows
+                if is_active_aegis_inventory_row(endpoint)
+            )
+            cursor = response.get('cursor') if isinstance(response, dict) else None
+            if not cursor:
+                return endpoints
+            if cursor in seen_cursors:
+                raise ValueError('endpoint inventory returned a repeated cursor')
+            seen_cursors.add(cursor)
 
     def _list_active_endpoint_rows(self) -> List[dict]:
         endpoint_data = self.api.get('endpoint')
