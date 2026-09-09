@@ -305,7 +305,10 @@ class MarcusCommands:
         except Exception:
             return previous
         fingerprint = endpoint_status_fingerprint(status)
-        if fingerprint != previous and (status['sessions'] or status['tasks']):
+        has_endpoint_status = isinstance(status, dict) and (
+            status.get('sessions') or status.get('tasks')
+        )
+        if fingerprint != previous and has_endpoint_status:
             self.console.print()
             self.console.print(
                 format_endpoint_execution_status(status),

@@ -58,7 +58,7 @@ def handle_set(menu, args):
                 )
                 menu.pause()
                 return
-            setattr(selected_agent, '_account_info', acct_info)
+            selected_agent._account_info = acct_info
 
         menu.selected_agent = selected_agent
         selected_label = Text(f"\n  Selected: {hostname}")
