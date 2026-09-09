@@ -587,7 +587,7 @@ class TestFetchAccountEndpoints:
         assert endpoints[0]['profile']['os'] == 'linux'
         assert endpoints[1]['os'] == 'linux'
         assert endpoints[1]['cloudflaredStatus'] == {
-            'status': 'running',
+            'status': 'configured',
             'hostname': 'live.example.com',
         }
 
