@@ -40,13 +40,21 @@ class FakeSearch:
 
 
 class FakeAPI:
-    def __init__(self, agents=None, endpoints=None, endpoint_error=None):
+    def __init__(self, agents=None, endpoints=None, endpoint_error=None,
+                 identities=None, identity_error=None):
         self.agents = agents or []
+        self.identities = identities or []
+        self.identity_error = identity_error
         self.search = FakeSearch(endpoints or [], endpoint_error)
 
     def get(self, path):
-        assert path == '/agent/enhanced'
-        return self.agents
+        if path == '/agent/enhanced':
+            return self.agents
+        if path == 'endpoint':
+            if self.identity_error:
+                raise self.identity_error
+            return self.identities
+        raise AssertionError(f'unexpected path: {path}')
 
 
 def test_agent_from_endpoint_dict_maps_aegis_v2_fields():
@@ -148,6 +156,60 @@ def test_aegis_list_combines_v1_agents_and_aegis_v2_endpoints():
         ('v1', 'legacy-host', 'C.legacy'),
         ('v2', 'sensor-1', 'endpoint-1'),
     ]
+
+
+def test_aegis_list_includes_offline_v2_endpoint_identity_without_live_row():
+    api = FakeAPI(
+        identities=[{
+            'endpoint_id': 'endpoint-offline',
+            'hostname': 'offline-sensor',
+            'online': False,
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert [(agent.version, agent.hostname, agent.display_id, agent.is_online)
+            for agent in agents] == [
+        ('v2', 'offline-sensor', 'endpoint-offline', False),
+    ]
+
+
+def test_aegis_list_enriches_durable_identity_with_live_endpoint_data():
+    api = FakeAPI(
+        identities=[{
+            'endpoint_id': 'endpoint-1',
+            'hostname': 'sensor-1',
+            'online': True,
+        }],
+        endpoints=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'hostname': 'sensor-1',
+            'os': 'linux',
+            'runtime': {'name': 'docker'},
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert len(agents) == 1
+    assert agents[0].os == 'linux'
+    assert agents[0].runtime == {'name': 'docker'}
+
+
+def test_aegis_list_uses_durable_identities_when_live_listing_fails():
+    api = FakeAPI(
+        identities=[{
+            'endpoint_id': 'endpoint-offline',
+            'hostname': 'offline-sensor',
+        }],
+        endpoint_error=RuntimeError('live endpoint unavailable'),
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert [agent.display_id for agent in agents] == ['endpoint-offline']
 
 
 def test_aegis_list_retains_v1_agents_when_endpoint_listing_fails():

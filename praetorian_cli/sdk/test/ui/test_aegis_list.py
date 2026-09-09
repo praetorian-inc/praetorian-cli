@@ -1,6 +1,12 @@
+from types import SimpleNamespace
+
 import pytest
-from praetorian_cli.ui.aegis.commands.list import handle_list
+from rich.console import Console
+
+from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.test.ui_mocks import MockMenuBase
+from praetorian_cli.ui.aegis.commands.list import handle_list
+from praetorian_cli.ui.aegis.menu import AegisMenu
 
 pytestmark = pytest.mark.tui
 
@@ -34,3 +40,38 @@ def test_list_with_all_flag():
     assert menu.loaded is True  # always reloads for fresh last_seen_at
     assert menu.show_args == [True]
     assert menu.paused is True
+
+
+def test_list_all_renders_offline_v2_endpoint_from_durable_identity():
+    class Search:
+        def by_key_prefix(self, key):
+            assert key == '#endpoint#'
+            return [], None
+
+    class API:
+        search = Search()
+
+        def get(self, path):
+            if path == '/agent/enhanced':
+                return []
+            if path == 'endpoint':
+                return [{
+                    'endpoint_id': 'endpoint-offline',
+                    'hostname': 'offline-sensor',
+                    'online': False,
+                }]
+            raise AssertionError(f'unexpected path: {path}')
+
+    sdk = SimpleNamespace(
+        aegis=Aegis(API()),
+        get_current_user=lambda: ('user@example.com', 'user'),
+    )
+    menu = AegisMenu(sdk)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+
+    handle_list(menu, ['--all'])
+
+    output = menu.console.export_text()
+    assert 'offline-sensor' in output
+    assert 'v2' in output
+    assert 'offline' in output

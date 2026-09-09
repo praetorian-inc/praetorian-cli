@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 
 import requests
 
+from praetorian_cli.sdk.entities.aegis import merge_aegis_endpoint_rows
 from praetorian_cli.sdk.model.aegis import Agent
 
 logger = logging.getLogger(__name__)
@@ -184,6 +185,30 @@ def _fetch_account_agents(base_url: str, headers: dict) -> Optional[List[dict]]:
 
 
 def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict]]:
+    identity_rows = _fetch_account_endpoint_identities(base_url, headers)
+    live_rows = _fetch_account_live_endpoints(base_url, headers)
+    if identity_rows is None and live_rows is None:
+        return None
+    return merge_aegis_endpoint_rows(identity_rows or [], live_rows or [])
+
+
+def _fetch_account_endpoint_identities(base_url: str, headers: dict) -> Optional[List[dict]]:
+    resp = requests.get(
+        f'{base_url}/endpoint',
+        headers=headers,
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        logger.debug('Endpoint identity fetch returned status %d', resp.status_code)
+        return None
+    return [
+        {**endpoint, 'kind': endpoint.get('kind') or 'aegis'}
+        for endpoint in _flatten_response(resp.json())
+        if isinstance(endpoint, dict)
+    ]
+
+
+def _fetch_account_live_endpoints(base_url: str, headers: dict) -> Optional[List[dict]]:
     endpoints = []
     params = {'key': '#endpoint#'}
     seen_offsets = set()
@@ -196,7 +221,7 @@ def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict
             timeout=30,
         )
         if resp.status_code != 200:
-            logger.debug('Endpoint fetch returned status %d', resp.status_code)
+            logger.debug('Live endpoint fetch returned status %d', resp.status_code)
             return None
 
         body = resp.json()
@@ -206,7 +231,7 @@ def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict
             return endpoints
         serialized_offset = json.dumps(offset, sort_keys=True)
         if serialized_offset in seen_offsets:
-            logger.debug('Endpoint fetch repeated pagination offset: %s', serialized_offset)
+            logger.debug('Live endpoint fetch repeated pagination offset: %s', serialized_offset)
             return None
         seen_offsets.add(serialized_offset)
         params = {'key': '#endpoint#', 'offset': serialized_offset}
