@@ -9,7 +9,7 @@ from ..constants import DEFAULT_COLORS
 def handle_help(menu, args):
     """Show help for commands or a specific command."""
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
-    if args and args[0] in ['ssh', 'cp', 'list', 'info', 'job', 'schedule', 'set', 'proxy']:
+    if args and args[0] in ['ssh', 'cp', 'list', 'info', 'job', 'enrollment', 'enroll', 'schedule', 'set', 'proxy']:
         menu.console.print(f"\nHelp for '{args[0]}' command - see main help for details\n")
         menu.pause()
         return
@@ -35,6 +35,7 @@ def handle_help(menu, args):
     commands_table.add_row("job list", "List recent jobs for selected agent")
     commands_table.add_row("job capabilities [--details]", "List capabilities for selected agent or endpoint")
     commands_table.add_row("job run <capability>", "Run capability on selected agent or endpoint")
+    commands_table.add_row("enrollment approve <code>", "Approve an Aegis v2 endpoint enrollment code")
     commands_table.add_row("schedule list", "List scheduled jobs")
     commands_table.add_row("schedule add", "Create a new scheduled job")
     commands_table.add_row("schedule view <id>", "View schedule details")
@@ -77,6 +78,7 @@ def handle_help(menu, args):
     examples_table.add_row("job capabilities", "List available capabilities")
     examples_table.add_row("job caps --details", "Show full capability descriptions")
     examples_table.add_row("job run <capability>", "Run a capability on selected agent or endpoint")
+    examples_table.add_row("enrollment approve ABCD-EFGH", "Inspect and approve an endpoint enrollment")
     examples_table.add_row("schedule list", "List all scheduled jobs")
     examples_table.add_row("schedule add", "Create a new scheduled job")
     examples_table.add_row("schedule view abc123", "View schedule details")

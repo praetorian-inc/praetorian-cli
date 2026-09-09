@@ -68,6 +68,36 @@ class MockAegis:
     def get_available_ad_domains(self):
         return self._responses.get('domains', ['example.local'])
 
+    def inspect_enrollment(self, user_code):
+        self.calls.append({
+            'method': 'inspect_enrollment',
+            'user_code': user_code,
+        })
+        error = (self._responses.get('enrollment_errors') or {}).get('inspect')
+        if error:
+            raise error
+        return self._responses.get('pending_enrollment', {
+            'endpoint_id': 'endpoint-1',
+            'account': 'customer@example.test',
+            'kind': 'aegis',
+            'version': '1.2.3',
+            'hostname': 'sensor-1',
+            'os': 'linux',
+            'arch': 'amd64',
+            'created_at': '2026-08-25T16:00:00Z',
+            'expires_at': '2026-08-25T16:10:00Z',
+        })
+
+    def approve_enrollment(self, user_code):
+        self.calls.append({
+            'method': 'approve_enrollment',
+            'user_code': user_code,
+        })
+        error = (self._responses.get('enrollment_errors') or {}).get('approve')
+        if error:
+            raise error
+        return self._responses.get('approved_enrollment', {'status': 'approved'})
+
 
 class MockCredentials:
     def __init__(self, responses=None):
