@@ -3,12 +3,85 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, render_list_results, pagination_size
+from praetorian_cli.sdk.model.aegis import is_v2_agent
 
 
 @chariot.group()
 def hunt():
     """Manage Hannibal hunts — launch, monitor, and control automated vulnerability discovery."""
     pass
+
+
+def _internal_hunt_endpoint(
+    sdk,
+    endpoint_id,
+    internal_hunt,
+    agent,
+    scope,
+    confirm_endpoint,
+):
+    if not internal_hunt:
+        if endpoint_id or confirm_endpoint:
+            raise click.UsageError(
+                '--endpoint and --confirm-endpoint require --internal'
+            )
+        return None
+    if agent != 'hannibal':
+        raise click.UsageError(
+            '--internal requires the hannibal infrastructure agent'
+        )
+    if not scope:
+        raise click.UsageError('--internal requires at least one --scope')
+
+    endpoints = [
+        candidate for candidate in sdk.aegis.list_hunt_endpoints()
+        if is_v2_agent(candidate)
+        and str(getattr(candidate, 'kind', '')).lower() == 'aegis'
+    ]
+    if not endpoints:
+        raise click.ClickException(
+            'No authorized Aegis v2 endpoints are available for this account.'
+        )
+
+    requested = (endpoint_id or '').strip().lower()
+    if requested:
+        id_match = next(
+            (
+                endpoint for endpoint in endpoints
+                if endpoint.display_id.lower() == requested
+            ),
+            None,
+        )
+        if id_match:
+            return id_match
+
+        matches = [
+            endpoint for endpoint in endpoints
+            if (endpoint.hostname or '').lower() == requested
+        ]
+        if not matches:
+            raise click.ClickException(
+                f'Aegis v2 endpoint {endpoint_id!r} was not found.'
+            )
+        if len(matches) > 1:
+            raise click.ClickException(
+                f'Aegis v2 endpoint hostname {endpoint_id!r} is ambiguous; '
+                'use its endpoint ID.'
+            )
+        return matches[0]
+
+    click.echo('Authorized Aegis v2 endpoints:')
+    for index, endpoint in enumerate(endpoints, 1):
+        state = 'online' if endpoint.is_online else 'offline'
+        click.echo(
+            f'  {index}. {endpoint.hostname or "Unknown"} '
+            f'({endpoint.display_id}, {state})'
+        )
+    selection = click.prompt(
+        'Select endpoint',
+        type=click.IntRange(1, len(endpoints)),
+    )
+    return endpoints[selection - 1]
 
 
 @hunt.command()
@@ -22,14 +95,42 @@ def hunt():
 @click.option('--scope-level', type=click.Choice(['normal', 'strict']), default='normal', show_default=True)
 @click.option('--aggressiveness', type=click.Choice(['cautious', 'balanced', 'aggressive']),
               default='balanced', show_default=True)
-def launch(sdk, prompt, expires, agent, scope, scope_level, aggressiveness):
+@click.option('--internal', 'internal_hunt', is_flag=True, default=False,
+              help='Require all target-network work to use one Aegis v2 endpoint')
+@click.option('--endpoint', 'endpoint_id', default=None,
+              help='Aegis v2 endpoint ID or unique hostname for an Internal Hunt')
+@click.option('--confirm-endpoint', is_flag=True, default=False,
+              help='Confirm endpoint-only execution without an interactive prompt')
+def launch(sdk, prompt, expires, agent, scope, scope_level, aggressiveness,
+           internal_hunt, endpoint_id, confirm_endpoint):
     """Launch a new hunt against the current account.
 
     Example usages:
         guard hunt launch --prompt "Find XSS vulnerabilities in web applications"
         guard hunt launch --prompt "Test API endpoints" --agent hannibal-webapp --expires 24
         guard hunt launch --prompt "Cloud misconfigs" --agent hannibal-cloud --scope "#asset#example.com#1.2.3.4"
+        guard hunt launch --internal --endpoint <endpoint-id> --scope "#asset#internal#10.0.0.5" --prompt "Assess internal services"
     """
+    endpoint = _internal_hunt_endpoint(
+        sdk,
+        endpoint_id,
+        internal_hunt,
+        agent,
+        scope,
+        confirm_endpoint,
+    )
+    if endpoint and not confirm_endpoint:
+        endpoint_name = endpoint.hostname or endpoint.display_id
+        online = 'online' if endpoint.is_online else 'offline'
+        confirmed = click.confirm(
+            f'Run all target-network work for {len(scope)} internal scope '
+            f'item(s) through {endpoint_name} ({endpoint.display_id}, {online})? '
+            'If unavailable, the hunt waits without Guard compute fallback',
+            default=False,
+        )
+        if not confirmed:
+            raise click.Abort()
+
     result = sdk.hunts.create(
         prompt=prompt,
         expires_hours=expires,
@@ -37,6 +138,9 @@ def launch(sdk, prompt, expires, agent, scope, scope_level, aggressiveness):
         scope=list(scope) if scope else None,
         scope_level=scope_level,
         aggressiveness=aggressiveness,
+        endpoint_required=internal_hunt,
+        endpoint_id=endpoint.display_id if endpoint else None,
+        endpoint_confirmed=bool(endpoint),
     )
     print_json(result)
 
@@ -85,6 +189,12 @@ def status(sdk, uuid):
         'expires': result.get('expiresAt'),
         'lastError': result.get('lastError', ''),
     }
+    if result.get('endpointRequired'):
+        fields.update({
+            'endpointRequired': True,
+            'endpointId': result.get('endpointId'),
+            'currentWorkflowRunId': result.get('currentWorkflowRunId'),
+        })
     print_json(fields)
 
 
