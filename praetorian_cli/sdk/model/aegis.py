@@ -133,89 +133,46 @@ class Agent:
     @classmethod
     def from_endpoint_dict(cls, data: Dict[str, Any]) -> 'Agent':
         """Create an Agent-shaped row from a Guard endpoint registry record."""
-        runtime = data.get('runtime') or data.get('Runtime') or {}
-        profile = data.get('profile') or data.get('Profile') or {}
-        if not isinstance(profile, dict):
-            profile = {}
-        endpoint_id = data.get('endpointId') or data.get('endpoint_id') or data.get('EndpointID') or data.get('ID') or ''
-        hostname = (
-            data.get('hostname')
-            or data.get('Hostname')
-            or profile.get('hostname')
-            or profile.get('Hostname')
-            or 'Unknown'
+        runtime = data.get('runtime')
+        runtime = runtime if isinstance(runtime, dict) else {}
+        profile = data.get('profile')
+        profile = profile if isinstance(profile, dict) else {}
+        endpoint_id = data.get('endpointId') or ''
+        hostname = data.get('hostname') or profile.get('hostname') or 'Unknown'
+        cloudflared_data = data.get('cloudflaredStatus')
+        health_check = (
+            HealthCheck(
+                cloudflared_status=CloudflaredStatus.from_dict(cloudflared_data)
+            )
+            if isinstance(cloudflared_data, dict)
+            else None
         )
-        health_data = (
-            data.get('health_check')
-            or data.get('healthCheck')
-            or data.get('HealthCheck')
-        )
-        cloudflared_data = (
-            data.get('cloudflared_status')
-            or data.get('cloudflaredStatus')
-            or data.get('CloudflaredStatus')
-            or data.get('CloudFlaredStatus')
-            or (runtime if isinstance(runtime, dict) else {}).get('cloudflared_status')
-            or (runtime if isinstance(runtime, dict) else {}).get('cloudflaredStatus')
-            or (runtime if isinstance(runtime, dict) else {}).get('CloudflaredStatus')
-            or (runtime if isinstance(runtime, dict) else {}).get('CloudFlaredStatus')
-        )
-        if isinstance(health_data, dict):
-            health_check = HealthCheck.from_dict(health_data)
-        elif isinstance(cloudflared_data, dict):
-            health_check = HealthCheck(cloudflared_status=CloudflaredStatus.from_dict(cloudflared_data))
-        else:
-            health_check = None
         return cls(
             client_id='N/A',
             hostname=hostname,
             fqdn=hostname,
-            os=(
-                data.get('os')
-                or data.get('OS')
-                or profile.get('os')
-                or profile.get('OS')
-                or 'unknown'
-            ),
+            os=data.get('os') or profile.get('os') or 'unknown',
             architecture=(
                 data.get('arch')
-                or data.get('architecture')
-                or data.get('Arch')
-                or data.get('Architecture')
                 or profile.get('arch')
-                or profile.get('architecture')
-                or profile.get('Arch')
-                or profile.get('Architecture')
                 or 'Unknown'
             ),
             last_seen_at=parse_timestamp_seconds(
-                data.get('lastHeartbeat')
-                or data.get('last_heartbeat')
-                or data.get('LastHeartbeat')
-                or data.get('last_seen_at')
-                or data.get('lastSeenAt')
-                or data.get('LastSeenAt')
+                data.get('lastHeartbeat') or data.get('lastSeenAt')
             ),
             network_interfaces=[],
             health_check=health_check,
-            key=data.get('key') or data.get('Key'),
+            key=data.get('key'),
             endpoint_id=endpoint_id,
             version='v2',
-            kind=data.get('kind') or data.get('Kind') or 'aegis',
+            kind=data.get('kind') or 'aegis',
             agent_version=(
                 data.get('version')
-                or data.get('Version')
                 or profile.get('softwareVersion')
-                or profile.get('SoftwareVersion')
                 or ''
             ),
-            runtime=runtime if isinstance(runtime, dict) else {},
-            running_container_count=(
-                data.get('runningContainerCount')
-                or data.get('running_container_count')
-                or data.get('RunningContainerCount')
-                or 0
-            ),
+            runtime=runtime,
+            running_container_count=data.get('runningContainerCount') or 0,
         )
     
     @property

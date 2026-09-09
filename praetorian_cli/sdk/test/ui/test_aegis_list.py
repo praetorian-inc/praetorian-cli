@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -42,11 +43,58 @@ def test_list_with_all_flag():
     assert menu.paused is True
 
 
+def test_list_renders_persisted_v2_tunnel_state():
+    class Search:
+        def by_key_prefix(self, key):
+            if key == '#endpoint#':
+                return [], None
+            if key == '#endpointaegistunnelstate#':
+                return [{
+                    'endpointId': 'endpoint-1',
+                    'cloudflaredStatus': {
+                        'status': 'configured',
+                        'hostname': 'sensor.example.com',
+                        'tunnel_name': 'sensor-tunnel',
+                    },
+                }], None
+            raise AssertionError(f'unexpected key: {key}')
+
+    class API:
+        search = Search()
+
+        def get(self, path, params=None):
+            if path == '/agent/enhanced':
+                return []
+            if path == 'endpoint/list':
+                return {'endpoints': [{
+                    'endpointId': 'endpoint-1',
+                    'kind': 'aegis',
+                    'lifecycleState': 'Active',
+                    'lastSeenAt': datetime.now(timezone.utc).isoformat(),
+                    'profile': {'hostname': 'sensor-1', 'os': 'linux'},
+                }]}
+            raise AssertionError(f'unexpected path: {path}')
+
+    sdk = SimpleNamespace(
+        aegis=Aegis(API()),
+        get_current_user=lambda: ('user@example.com', 'user'),
+    )
+    menu = AegisMenu(sdk)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+
+    handle_list(menu, [])
+
+    output = menu.console.export_text()
+    assert 'sensor-1' in output
+    assert 'active' in output
+
+
 def test_list_all_renders_offline_v2_endpoint_from_durable_identity():
     class Search:
         def by_key_prefix(self, key):
-            assert key == '#endpoint#'
-            return [], None
+            if key in ('#endpoint#', '#endpointaegistunnelstate#'):
+                return [], None
+            raise AssertionError(f'unexpected key: {key}')
 
     class API:
         search = Search()
