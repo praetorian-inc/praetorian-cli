@@ -117,6 +117,11 @@ def _mock_requests_get(agents_by_account, metadata=None, endpoints_by_account=No
                     records.append({'username': email, 'name': 'display-name', 'value': dname})
             resp.status_code = 200
             resp.json.return_value = {'configurations': records}
+        elif url.endswith('/endpoint/list'):
+            resp.status_code = 200
+            resp.json.return_value = {
+                'endpoints': endpoints_by_account.get(account_email, [])
+            }
         elif url.endswith('/endpoint'):
             resp.status_code = 200
             resp.json.return_value = endpoints_by_account.get(account_email, [])
@@ -530,11 +535,23 @@ class TestFetchAccountEndpoints:
         def mock_get(url, headers=None, params=None, timeout=None):
             resp = MagicMock()
             resp.status_code = 200
-            if url.endswith('/endpoint'):
-                resp.json.return_value = [
-                    {'endpoint_id': 'endpoint-offline', 'hostname': 'offline'},
-                    {'endpoint_id': 'endpoint-live', 'hostname': 'live'},
-                ]
+            if url.endswith('/endpoint/list'):
+                resp.json.return_value = {'endpoints': [
+                    {
+                        'endpointId': 'endpoint-offline',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Active',
+                        'profile': {'hostname': 'offline', 'os': 'linux'},
+                    },
+                    {
+                        'endpointId': 'endpoint-live',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Active',
+                        'profile': {'hostname': 'live', 'os': 'unknown'},
+                    },
+                ]}
+            elif url.endswith('/endpoint'):
+                resp.json.return_value = []
             else:
                 resp.json.return_value = {'endpoints': [{
                     'endpointId': 'endpoint-live',
@@ -554,7 +571,64 @@ class TestFetchAccountEndpoints:
             endpoint.get('endpointId') or endpoint.get('endpoint_id')
             for endpoint in endpoints
         ] == ['endpoint-offline', 'endpoint-live']
+        assert endpoints[0]['profile']['os'] == 'linux'
         assert endpoints[1]['os'] == 'linux'
+
+    def test_inventory_follows_cursors_and_excludes_revoked_endpoints(
+        self,
+        monkeypatch,
+    ):
+        from praetorian_cli.sdk.entities.account_discovery import (
+            _fetch_account_endpoint_inventory,
+        )
+
+        calls = []
+
+        def mock_get(url, headers=None, params=None, timeout=None):
+            calls.append(dict(params or {}))
+            resp = MagicMock()
+            resp.status_code = 200
+            if not params:
+                resp.json.return_value = {
+                    'endpoints': [{
+                        'endpointId': 'endpoint-1',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Active',
+                    }],
+                    'cursor': 'next-page',
+                }
+            else:
+                resp.json.return_value = {'endpoints': [
+                    {
+                        'endpointId': 'endpoint-revoked',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Revoked',
+                    },
+                    {
+                        'endpointId': 'endpoint-2',
+                        'kind': 'aegis',
+                        'lifecycleState': 'Active',
+                    },
+                ]}
+            return resp
+
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = mock_get
+        monkeypatch.setattr(
+            'praetorian_cli.sdk.entities.account_discovery.requests',
+            requests_mock,
+        )
+
+        endpoints = _fetch_account_endpoint_inventory(
+            'https://api.example.com',
+            {},
+        )
+
+        assert [endpoint['endpointId'] for endpoint in endpoints] == [
+            'endpoint-1',
+            'endpoint-2',
+        ]
+        assert calls == [{}, {'cursor': 'next-page'}]
 
 
 class TestFetchLiveAccountEndpoints:

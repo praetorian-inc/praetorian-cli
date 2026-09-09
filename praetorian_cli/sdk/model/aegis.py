@@ -134,8 +134,17 @@ class Agent:
     def from_endpoint_dict(cls, data: Dict[str, Any]) -> 'Agent':
         """Create an Agent-shaped row from a Guard endpoint registry record."""
         runtime = data.get('runtime') or data.get('Runtime') or {}
+        profile = data.get('profile') or data.get('Profile') or {}
+        if not isinstance(profile, dict):
+            profile = {}
         endpoint_id = data.get('endpointId') or data.get('endpoint_id') or data.get('EndpointID') or data.get('ID') or ''
-        hostname = data.get('hostname') or data.get('Hostname') or 'Unknown'
+        hostname = (
+            data.get('hostname')
+            or data.get('Hostname')
+            or profile.get('hostname')
+            or profile.get('Hostname')
+            or 'Unknown'
+        )
         health_data = (
             data.get('health_check')
             or data.get('healthCheck')
@@ -161,13 +170,30 @@ class Agent:
             client_id='N/A',
             hostname=hostname,
             fqdn=hostname,
-            os=data.get('os') or data.get('OS') or 'unknown',
-            architecture=data.get('arch') or data.get('architecture') or data.get('Arch') or data.get('Architecture') or 'Unknown',
+            os=(
+                data.get('os')
+                or data.get('OS')
+                or profile.get('os')
+                or profile.get('OS')
+                or 'unknown'
+            ),
+            architecture=(
+                data.get('arch')
+                or data.get('architecture')
+                or data.get('Arch')
+                or data.get('Architecture')
+                or profile.get('arch')
+                or profile.get('architecture')
+                or profile.get('Arch')
+                or profile.get('Architecture')
+                or 'Unknown'
+            ),
             last_seen_at=parse_timestamp_seconds(
                 data.get('lastHeartbeat')
                 or data.get('last_heartbeat')
                 or data.get('LastHeartbeat')
                 or data.get('last_seen_at')
+                or data.get('lastSeenAt')
                 or data.get('LastSeenAt')
             ),
             network_interfaces=[],
@@ -176,7 +202,13 @@ class Agent:
             endpoint_id=endpoint_id,
             version='v2',
             kind=data.get('kind') or data.get('Kind') or 'aegis',
-            agent_version=data.get('version') or data.get('Version') or '',
+            agent_version=(
+                data.get('version')
+                or data.get('Version')
+                or profile.get('softwareVersion')
+                or profile.get('SoftwareVersion')
+                or ''
+            ),
             runtime=runtime if isinstance(runtime, dict) else {},
             running_container_count=(
                 data.get('runningContainerCount')

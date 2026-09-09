@@ -41,15 +41,22 @@ class FakeSearch:
 
 class FakeAPI:
     def __init__(self, agents=None, endpoints=None, endpoint_error=None,
-                 identities=None, identity_error=None):
+                 identities=None, identity_error=None, inventory=None,
+                 inventory_error=None):
         self.agents = agents or []
         self.identities = identities or []
         self.identity_error = identity_error
+        self.inventory = inventory or []
+        self.inventory_error = inventory_error
         self.search = FakeSearch(endpoints or [], endpoint_error)
 
-    def get(self, path):
+    def get(self, path, params=None):
         if path == '/agent/enhanced':
             return self.agents
+        if path == 'endpoint/list':
+            if self.inventory_error:
+                raise self.inventory_error
+            return {'endpoints': self.inventory}
         if path == 'endpoint':
             if self.identity_error:
                 raise self.identity_error
@@ -160,27 +167,50 @@ def test_aegis_list_combines_v1_agents_and_aegis_v2_endpoints():
 
 def test_aegis_list_includes_offline_v2_endpoint_identity_without_live_row():
     api = FakeAPI(
-        identities=[{
-            'endpoint_id': 'endpoint-offline',
-            'hostname': 'offline-sensor',
-            'online': False,
+        inventory=[{
+            'endpointId': 'endpoint-offline',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'connectionState': 'not_connected',
+            'profile': {
+                'hostname': 'offline-sensor',
+                'os': 'linux',
+                'arch': 'amd64',
+                'softwareVersion': '2.0.0',
+            },
         }],
     )
 
     agents, _ = Aegis(api).list()
 
-    assert [(agent.version, agent.hostname, agent.display_id, agent.is_online)
-            for agent in agents] == [
-        ('v2', 'offline-sensor', 'endpoint-offline', False),
+    assert [(
+        agent.version,
+        agent.hostname,
+        agent.display_id,
+        agent.os,
+        agent.architecture,
+        agent.agent_version,
+        agent.is_online,
+    ) for agent in agents] == [
+        (
+            'v2',
+            'offline-sensor',
+            'endpoint-offline',
+            'linux',
+            'amd64',
+            '2.0.0',
+            False,
+        ),
     ]
 
 
 def test_aegis_list_enriches_durable_identity_with_live_endpoint_data():
     api = FakeAPI(
-        identities=[{
-            'endpoint_id': 'endpoint-1',
-            'hostname': 'sensor-1',
-            'online': True,
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'profile': {'hostname': 'sensor-1', 'os': 'unknown'},
         }],
         endpoints=[{
             'endpointId': 'endpoint-1',
@@ -200,9 +230,11 @@ def test_aegis_list_enriches_durable_identity_with_live_endpoint_data():
 
 def test_aegis_list_uses_durable_identities_when_live_listing_fails():
     api = FakeAPI(
-        identities=[{
-            'endpoint_id': 'endpoint-offline',
-            'hostname': 'offline-sensor',
+        inventory=[{
+            'endpointId': 'endpoint-offline',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'profile': {'hostname': 'offline-sensor'},
         }],
         endpoint_error=RuntimeError('live endpoint unavailable'),
     )

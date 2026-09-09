@@ -14,7 +14,11 @@ from typing import Dict, List, Optional
 
 import requests
 
-from praetorian_cli.sdk.entities.aegis import merge_aegis_endpoint_rows
+from praetorian_cli.sdk.entities.aegis import (
+    is_active_aegis_inventory_row,
+    merge_aegis_endpoint_rows,
+    normalize_to_list,
+)
 from praetorian_cli.sdk.model.aegis import Agent
 
 logger = logging.getLogger(__name__)
@@ -193,6 +197,10 @@ def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict
 
 
 def _fetch_account_endpoint_identities(base_url: str, headers: dict) -> Optional[List[dict]]:
+    inventory_rows = _fetch_account_endpoint_inventory(base_url, headers)
+    if inventory_rows is not None:
+        return inventory_rows
+
     resp = requests.get(
         f'{base_url}/endpoint',
         headers=headers,
@@ -206,6 +214,37 @@ def _fetch_account_endpoint_identities(base_url: str, headers: dict) -> Optional
         for endpoint in _flatten_response(resp.json())
         if isinstance(endpoint, dict)
     ]
+
+
+def _fetch_account_endpoint_inventory(base_url: str, headers: dict) -> Optional[List[dict]]:
+    endpoints = []
+    cursor = None
+    seen_cursors = set()
+    while True:
+        params = {'cursor': cursor} if cursor else {}
+        resp = requests.get(
+            f'{base_url}/endpoint/list',
+            headers=headers,
+            params=params,
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            logger.debug('Endpoint inventory fetch returned status %d', resp.status_code)
+            return None
+
+        body = resp.json()
+        rows = normalize_to_list(body, ['endpoints', 'data', 'items'])
+        endpoints.extend(
+            endpoint for endpoint in rows
+            if is_active_aegis_inventory_row(endpoint)
+        )
+        cursor = body.get('cursor') if isinstance(body, dict) else None
+        if not cursor:
+            return endpoints
+        if cursor in seen_cursors:
+            logger.debug('Endpoint inventory returned repeated cursor: %s', cursor)
+            return None
+        seen_cursors.add(cursor)
 
 
 def _fetch_account_live_endpoints(base_url: str, headers: dict) -> Optional[List[dict]]:
