@@ -1,4 +1,10 @@
+import hashlib
 import os
+import tempfile
+
+import requests
+
+from praetorian_cli.sdk.model.globals import DEFAULT_HTTP_TIMEOUT
 
 
 class Files:
@@ -47,6 +53,67 @@ class Files:
             file.write(content)
 
         return download_path
+
+    def save_verified(self, chariot_filepath, expected_size, expected_sha256,
+                      download_directory=None):
+        """Stream a file to disk and atomically publish it after verification."""
+        if not isinstance(expected_size, int) or expected_size < 0:
+            raise ValueError('artifact size is invalid')
+        if not isinstance(expected_sha256, str) or len(expected_sha256) != 64:
+            raise ValueError('artifact SHA-256 is invalid')
+
+        from praetorian_cli.sdk.chariot import process_failure
+
+        presigned = self.api.chariot_request(
+            'GET',
+            self.api.url('/file'),
+            params={'name': chariot_filepath},
+        )
+        process_failure(presigned)
+        url = presigned.json().get('url')
+        if not url:
+            raise Exception('Download request failed: response missing URL')
+
+        directory = os.path.expanduser(download_directory or os.getcwd())
+        os.makedirs(directory, exist_ok=True)
+        destination = os.path.join(
+            directory, self.sanitize_filename(chariot_filepath)
+        )
+        descriptor, temporary_path = tempfile.mkstemp(
+            prefix='.praetorian-download-', dir=directory
+        )
+        digest = hashlib.sha256()
+        size = 0
+        try:
+            with os.fdopen(descriptor, 'wb') as output:
+                with requests.get(
+                    url,
+                    stream=True,
+                    timeout=DEFAULT_HTTP_TIMEOUT,
+                ) as response:
+                    process_failure(response)
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):
+                        if not chunk:
+                            continue
+                        size += len(chunk)
+                        if size > expected_size:
+                            raise ValueError(
+                                'downloaded artifact exceeded its expected size'
+                            )
+                        digest.update(chunk)
+                        output.write(chunk)
+            if size != expected_size or digest.hexdigest() != expected_sha256:
+                raise ValueError(
+                    'downloaded artifact failed size or SHA-256 verification'
+                )
+            os.replace(temporary_path, destination)
+        except Exception:
+            try:
+                os.remove(temporary_path)
+            except OSError:
+                pass
+            raise
+        return destination
 
     def get(self, chariot_filepath, _global=False) -> bytes:
         """

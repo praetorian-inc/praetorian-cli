@@ -4,6 +4,9 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, render_list_results, pagination_size
 from praetorian_cli.sdk.model.aegis import is_v2_agent
+from praetorian_cli.ui.conversation.endpoint_status import (
+    format_endpoint_execution_status,
+)
 
 
 @chariot.group()
@@ -195,6 +198,16 @@ def status(sdk, uuid):
             'endpointId': result.get('endpointId'),
             'currentWorkflowRunId': result.get('currentWorkflowRunId'),
         })
+        try:
+            endpoint_status = sdk.hunts.endpoint_execution_status(result)
+        except Exception:
+            fields['endpointExecution'] = [
+                'Endpoint execution status is temporarily unavailable.'
+            ]
+        else:
+            rendered_status = format_endpoint_execution_status(endpoint_status)
+            if rendered_status:
+                fields['endpointExecution'] = rendered_status.splitlines()
     print_json(fields)
 
 
