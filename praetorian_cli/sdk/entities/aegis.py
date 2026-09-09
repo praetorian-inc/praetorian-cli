@@ -26,6 +26,46 @@ def _is_aegis_endpoint(value) -> bool:
     return isinstance(value, dict) and str(value.get('kind', '')).lower() == 'aegis'
 
 
+def merge_aegis_endpoint_rows(identity_rows, live_rows) -> List[dict]:
+    """Merge durable endpoint identities with richer live registry rows."""
+    merged = {}
+    order = []
+
+    for row in identity_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        if not endpoint_id:
+            continue
+        normalized = dict(row)
+        normalized.setdefault('kind', 'aegis')
+        if endpoint_id not in merged:
+            order.append(endpoint_id)
+        merged[endpoint_id] = normalized
+
+    for row in live_rows or []:
+        if not _is_aegis_endpoint(row):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        if not endpoint_id:
+            continue
+        if endpoint_id not in merged:
+            order.append(endpoint_id)
+        merged[endpoint_id] = {**merged.get(endpoint_id, {}), **row}
+
+    return [merged[endpoint_id] for endpoint_id in order]
+
+
+def _endpoint_row_id(row) -> str:
+    return str(
+        row.get('endpointId')
+        or row.get('endpoint_id')
+        or row.get('EndpointID')
+        or row.get('ID')
+        or ''
+    )
+
+
 ENROLLMENT_INSPECT_PATH = 'endpoint/enrollment/inspect'
 ENROLLMENT_APPROVE_PATH = 'endpoint/enrollment/approve'
 AEGIS_MANAGEMENT_TASKS_PATH = 'aegis/management/tasks'
@@ -146,27 +186,45 @@ class Aegis:
         return [Agent.from_dict(agent_data) for agent_data in agents_data]
 
     def _list_endpoint_agents(self) -> List[Agent]:
-        if not hasattr(self.api, 'search'):
-            return []
         try:
-            endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
-            endpoints = normalize_to_list(
-                endpoints_data,
-                ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
-            )
+            identity_rows = self._list_active_endpoint_rows()
+        except Exception:
+            identity_rows = []
+
+        live_rows = []
+        if hasattr(self.api, 'search'):
+            try:
+                endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
+                live_rows = normalize_to_list(
+                    endpoints_data,
+                    ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
+                )
+            except Exception:
+                pass
+
+        try:
             return [
                 Agent.from_endpoint_dict(endpoint)
-                for endpoint in endpoints
-                if _is_aegis_endpoint(endpoint)
+                for endpoint in merge_aegis_endpoint_rows(identity_rows, live_rows)
             ]
         except Exception:
             return []
-    
+
     def list_hunt_endpoints(self) -> List[Agent]:
         """List active tenant-owned Aegis v2 identities for Internal Hunts."""
+        return [
+            Agent.from_endpoint_dict(endpoint)
+            for endpoint in self._list_active_endpoint_rows()
+        ]
+
+    def _list_active_endpoint_rows(self) -> List[dict]:
         endpoint_data = self.api.get('endpoint')
         endpoints = normalize_to_list(endpoint_data, ['endpoints', 'data', 'items'])
-        return [Agent.from_endpoint_dict(endpoint) for endpoint in endpoints]
+        return [
+            {**endpoint, 'kind': endpoint.get('kind') or 'aegis'}
+            for endpoint in endpoints
+            if isinstance(endpoint, dict)
+        ]
 
     def get_by_client_id(self, client_id: str) -> Optional[Agent]:
         """
