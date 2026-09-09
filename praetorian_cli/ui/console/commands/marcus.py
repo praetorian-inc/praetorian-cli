@@ -15,6 +15,11 @@ from praetorian_cli.ui.conversation.approvals import (
     APPROVAL_POLL_INTERVAL_SECONDS,
     prompt_endpoint_approval,
 )
+from praetorian_cli.ui.conversation.endpoint_status import (
+    ENDPOINT_STATUS_POLL_INTERVAL_SECONDS,
+    endpoint_status_fingerprint,
+    format_endpoint_execution_status,
+)
 
 
 class MarcusCommands:
@@ -164,6 +169,8 @@ class MarcusCommands:
         seen_tool_keys = set()  # Track which tool messages we displayed live
         handled_interactions = set()
         next_interaction_poll = time.monotonic()
+        next_endpoint_status_poll = time.monotonic()
+        last_endpoint_status = None
 
         acct_label = f' [dim]({self.context.account})[/dim]' if self.context.account else ''
         self.console.print(f'[dim]Thinking...[/dim]{acct_label}', end='')
@@ -239,6 +246,15 @@ class MarcusCommands:
                 next_interaction_poll = (
                     interaction_finished + APPROVAL_POLL_INTERVAL_SECONDS
                 )
+
+            now = time.monotonic()
+            if now >= next_endpoint_status_poll:
+                last_endpoint_status = self._show_endpoint_status(
+                    last_endpoint_status
+                )
+                next_endpoint_status_poll = (
+                    time.monotonic() + ENDPOINT_STATUS_POLL_INTERVAL_SECONDS
+                )
             time.sleep(1)
 
         self._last_tool_log = tool_log
@@ -280,6 +296,22 @@ class MarcusCommands:
                     f'Endpoint approval failed: {exc}',
                     markup=False,
                 )
+
+    def _show_endpoint_status(self, previous):
+        try:
+            status = self.sdk.endpoint_executions.conversation_status(
+                self.context.conversation_id
+            )
+        except Exception:
+            return previous
+        fingerprint = endpoint_status_fingerprint(status)
+        if fingerprint != previous and (status['sessions'] or status['tasks']):
+            self.console.print()
+            self.console.print(
+                format_endpoint_execution_status(status),
+                markup=False,
+            )
+        return fingerprint
 
     def _parse_tool_name(self, content: str, msg: dict = None) -> str:
         """Extract a human-readable tool name from a tool call message."""

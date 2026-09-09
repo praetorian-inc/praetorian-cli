@@ -14,14 +14,15 @@ class FakeResponse:
 
 
 class FakeSearch:
-    def __init__(self):
+    def __init__(self, complete_after=3):
         self.calls = 0
+        self.complete_after = complete_after
 
     def by_key_prefix(self, key, user=False):
         assert key == '#message#conversation-1#'
         assert user is True
         self.calls += 1
-        if self.calls < 3:
+        if self.calls < self.complete_after:
             return [], None
         return [{
             'key': '#message#conversation-1#2',
@@ -52,10 +53,21 @@ class FakeConversations:
         }]
 
 
+class FakeEndpointExecutions:
+    def __init__(self):
+        self.status = {'sessions': [], 'tasks': []}
+        self.calls = []
+
+    def conversation_status(self, conversation_id):
+        self.calls.append(conversation_id)
+        return self.status
+
+
 class FakeAPI:
-    def __init__(self, interaction_error=None):
-        self.search = FakeSearch()
+    def __init__(self, interaction_error=None, complete_after=3):
+        self.search = FakeSearch(complete_after)
         self.conversations = FakeConversations(interaction_error)
+        self.endpoint_executions = FakeEndpointExecutions()
 
     def url(self, path):
         assert path == '/planner'
@@ -111,6 +123,51 @@ def test_pending_interaction_delivery_is_deduplicated():
 
     assert [interaction['requestId'] for interaction in delivered] == ['request-1']
     assert api.conversations.calls == 2
+
+
+def test_endpoint_status_handler_receives_only_changed_nonempty_status():
+    api = FakeAPI()
+    api.endpoint_executions.status = {
+        'sessions': [{
+            'sessionId': 'session-1',
+            'state': 'Ready',
+            'activeOperations': [{
+                'operationId': 'operation-1',
+                'state': 'Running',
+                'stdout': 'first chunk',
+            }],
+        }],
+        'tasks': [],
+    }
+    agent = Agents(api)
+    delivered = []
+
+    fingerprint = agent._handle_endpoint_status(
+        'conversation-1', delivered.append, None
+    )
+    api.endpoint_executions.status['sessions'][0]['activeOperations'][0][
+        'stdout'
+    ] = 'second chunk'
+    same = agent._handle_endpoint_status(
+        'conversation-1', delivered.append, fingerprint
+    )
+
+    assert len(delivered) == 1
+    assert delivered[0]['sessions'][0]['sessionId'] == 'session-1'
+    assert same == fingerprint
+
+
+def test_ask_checks_for_completed_response_before_endpoint_status(monkeypatch):
+    monkeypatch.setattr(agents_module, 'sleep', lambda _seconds: None)
+    api = FakeAPI(complete_after=2)
+
+    result = Agents(api).ask(
+        'test',
+        endpoint_status_handler=lambda _status: None,
+    )
+
+    assert result['response'] == 'done'
+    assert api.endpoint_executions.calls == []
 
 
 def test_ask_preserves_existing_behavior_without_interaction_handler(monkeypatch):
