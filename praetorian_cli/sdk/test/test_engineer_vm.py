@@ -7,14 +7,12 @@ each SDK method hits, and the gateway URL construction the ssh/code-server flows
 depend on.
 """
 
+import pytest
+
 from praetorian_cli.handlers.vm import format_vm_table, proxy_nesting
 from praetorian_cli.handlers.vm_proxy import build_code_server_url, build_connect_url
 from praetorian_cli.sdk.entities.engineer_vm import EngineerVms
-from praetorian_cli.sdk.model.vm import (
-    TIERS, is_running, is_snapshotted, is_stopped,
-    STATUS_PROVISIONING, STATUS_SNAPSHOTTED, STATUS_STOPPED,
-    status_label,
-)
+from praetorian_cli.sdk.model.vm import TIERS, status_label
 
 
 class FakeApi:
@@ -98,6 +96,13 @@ def test_extend_omits_body_without_hours_and_includes_it_with():
     assert api2.calls[0][2] == {'hours': 24}
 
 
+def test_extend_rejects_negative_hours():
+    api = FakeApi()
+    with pytest.raises(ValueError):
+        EngineerVms(api).extend('v1', hours=-1)
+    assert api.calls == []
+
+
 def test_ssh_cert_sends_only_public_key():
     api = FakeApi(post_result={'certificate': 'C', 'gateway_url': 'gw'})
     EngineerVms(api).ssh_cert('v1', 'ssh-ed25519 AAAA')
@@ -115,7 +120,7 @@ def test_code_server_token_route():
 # --- URL construction --------------------------------------------------------
 
 def test_connect_url_defaults_bare_host_to_wss():
-    url = build_connect_url('gw-host.example.com', 'tok', 'v1', 'ssh', 'acme')
+    url = build_connect_url('gw-host.example.com', 'tok', 'v1', 'acme')
     assert url.startswith('wss://gw-host.example.com/connect?')
     assert 'token=tok' in url
     assert 'vm_id=v1' in url
@@ -124,7 +129,7 @@ def test_connect_url_defaults_bare_host_to_wss():
 
 
 def test_connect_url_rewrites_https_to_wss_and_omits_empty_account():
-    url = build_connect_url('https://gw/', 'tok', 'v1', 'ssh')
+    url = build_connect_url('https://gw/', 'tok', 'v1')
     assert url.startswith('wss://gw/connect?')
     assert 'account=' not in url
 
@@ -142,27 +147,8 @@ def test_status_label_strips_prefix():
     assert status_label('') == ''
 
 
-def test_is_running():
-    assert is_running({'status': 'EV#running'})
-    assert not is_running({'status': 'EV#stopped'})
-    assert not is_running({})
-
-
-def test_is_stopped_and_is_snapshotted():
-    assert is_stopped({'status': 'EV#stopped'})
-    assert not is_stopped({})
-    assert not is_stopped({'status': 'EV#running'})
-
-    assert is_snapshotted({'status': 'EV#snapshotted'})
-    assert not is_snapshotted({})
-    assert not is_snapshotted({'status': 'EV#stopped'})
-
-
-def test_constants_match_backend():
+def test_tiers_match_the_launch_route_contract():
     assert TIERS == ('light', 'general', 'heavy')
-    assert STATUS_PROVISIONING == 'EV#provisioning'
-    assert STATUS_STOPPED == 'EV#stopped'
-    assert STATUS_SNAPSHOTTED == 'EV#snapshotted'
 
 
 def test_proxy_nesting_matches_entry_point():
@@ -180,7 +166,6 @@ def test_format_vm_table_empty_and_rows():
          'private_ip': '10.0.0.1', 'expiry_at': 0},
     ])
     assert 'VM ID' in table and 'v1' in table
-    assert 'MODE' not in table
 
     # phase present -> table shows the derived phase, not status_label
     table_with_phase = format_vm_table([

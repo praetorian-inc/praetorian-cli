@@ -1,4 +1,3 @@
-import json
 import os
 import shlex
 import shutil
@@ -12,7 +11,7 @@ import click
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
-from praetorian_cli.handlers.utils import error
+from praetorian_cli.handlers.utils import error, print_json
 from praetorian_cli.handlers.vm_proxy import build_code_server_url, run_ws_proxy
 from praetorian_cli.sdk.model.vm import TIERS, status_label
 
@@ -29,8 +28,7 @@ def vm():
 
 @vm.command('list')
 @cli_handler
-@click.pass_context
-def list_vms(ctx, sdk):
+def list_vms(sdk):
     """ List your Engineer VMs. """
     click.echo(format_vm_table(sdk.vms.list()))
 
@@ -41,8 +39,7 @@ def list_vms(ctx, sdk):
               help='Instance class.')
 @click.option('--restore-snapshot', 'restore_snapshot_id', default='',
               help='Restore the data volume from a tenant-owned snapshot id.')
-@click.pass_context
-def launch(ctx, sdk, tier, restore_snapshot_id):
+def launch(sdk, tier, restore_snapshot_id):
     """ Launch a new Engineer VM. """
     new_vm = sdk.vms.launch(tier=tier, restore_snapshot_id=restore_snapshot_id)
     vm_id = new_vm.get('vm_id', '?')
@@ -55,17 +52,15 @@ def launch(ctx, sdk, tier, restore_snapshot_id):
 @vm.command('status')
 @cli_handler
 @click.argument('vm_id', required=True)
-@click.pass_context
-def status(ctx, sdk, vm_id):
+def status(sdk, vm_id):
     """ Show one VM's full details. """
-    click.echo(json.dumps(sdk.vms.get(vm_id), indent=2))
+    print_json(sdk.vms.get(vm_id))
 
 
 @vm.command('pause')
 @cli_handler
 @click.argument('vm_id', required=True)
-@click.pass_context
-def pause(ctx, sdk, vm_id):
+def pause(sdk, vm_id):
     """ Stop a VM, keeping its volume and SG for a later resume. """
     result = sdk.vms.pause(vm_id)
     click.echo(f"Paused {vm_id} (status: {status_label(result.get('status', ''))}).")
@@ -74,8 +69,7 @@ def pause(ctx, sdk, vm_id):
 @vm.command('resume')
 @cli_handler
 @click.argument('vm_id', required=True)
-@click.pass_context
-def resume(ctx, sdk, vm_id):
+def resume(sdk, vm_id):
     """ Start a paused VM back up. """
     result = sdk.vms.resume(vm_id)
     click.echo(f"Resumed {vm_id} (status: {status_label(result.get('status', ''))}).")
@@ -84,10 +78,9 @@ def resume(ctx, sdk, vm_id):
 @vm.command('extend')
 @cli_handler
 @click.argument('vm_id', required=True)
-@click.option('--hours', type=int, default=0,
+@click.option('--hours', type=click.IntRange(min=0), default=0,
               help='Hours to push expiry out (default +7d/168h; RUNNING-only; clamps to the 30-day ceiling).')
-@click.pass_context
-def extend(ctx, sdk, vm_id, hours):
+def extend(sdk, vm_id, hours):
     """ Extend a VM's soft expiry. """
     result = sdk.vms.extend(vm_id, hours)
     click.echo(f"Extended {vm_id}; new expiry: {fmt_epoch(result.get('expiry_at'))}.")
@@ -97,8 +90,7 @@ def extend(ctx, sdk, vm_id, hours):
 @cli_handler
 @click.argument('vm_id', required=True)
 @click.option('--yes', is_flag=True, help='Skip the confirmation prompt.')
-@click.pass_context
-def archive(ctx, sdk, vm_id, yes):
+def archive(sdk, vm_id, yes):
     """ Snapshot the data volume and terminate the VM; revive to bring it back. """
     if not yes:
         click.confirm(
@@ -113,8 +105,7 @@ def archive(ctx, sdk, vm_id, yes):
 @vm.command('revive')
 @cli_handler
 @click.argument('vm_id', required=True)
-@click.pass_context
-def revive(ctx, sdk, vm_id):
+def revive(sdk, vm_id):
     """ Relaunch an archived VM from its snapshot (re-enters provisioning). """
     result = sdk.vms.revive(vm_id)
     click.echo(f"Reviving {vm_id} (status: {status_label(result.get('status', ''))})."
@@ -127,8 +118,7 @@ def revive(ctx, sdk, vm_id):
 @click.option('-u', '--user', default='engineer', show_default=True,
               help='Login user on the VM.')
 @click.argument('args', nargs=-1)
-@click.pass_context
-def ssh(ctx, sdk, vm_id, user, args):
+def ssh(sdk, vm_id, user, args):
     """ SSH into an Engineer VM over a 15-min vm-bound CA cert.
 
     Generates an ephemeral keypair, mints a certificate scoped to this VM, and
@@ -140,8 +130,7 @@ def ssh(ctx, sdk, vm_id, user, args):
     if not ssh_bin or not keygen_bin:
         error('ssh and ssh-keygen must be installed and on PATH.')
 
-    workdir = tempfile.mkdtemp(prefix='guard-vm-ssh-')
-    try:
+    with tempfile.TemporaryDirectory(prefix='guard-vm-ssh-', ignore_cleanup_errors=True) as workdir:
         key_path = os.path.join(workdir, 'id_ed25519')
         subprocess.run([keygen_bin, '-t', 'ed25519', '-N', '', '-q', '-f', key_path], check=True)
         with open(f'{key_path}.pub') as f:
@@ -176,17 +165,14 @@ def ssh(ctx, sdk, vm_id, user, args):
 
         click.echo(f'→ Connecting to engineer VM {vm_id} (cert valid ~15 min)…', err=True)
         result = subprocess.run(ssh_argv)
-        sys.exit(result.returncode)
-    finally:
-        shutil.rmtree(workdir, ignore_errors=True)
+    sys.exit(result.returncode)
 
 
 @vm.command('code-server')
 @cli_handler
 @click.argument('vm_id', required=True)
 @click.option('--no-browser', is_flag=True, help='Print the URL instead of opening a browser.')
-@click.pass_context
-def code_server(ctx, sdk, vm_id, no_browser):
+def code_server(sdk, vm_id, no_browser):
     """ Open the browser code-server IDE for a VM in a new tab. """
     resp = sdk.vms.code_server_token(vm_id)
     token = resp.get('token')
@@ -205,13 +191,12 @@ def code_server(ctx, sdk, vm_id, no_browser):
 @vm.command('proxy', hidden=True)
 @click.argument('vm_id', required=True)
 @click.option('--gateway', required=True)
-@click.option('--target', default='ssh')
 @click.pass_obj
-def proxy(sdk, vm_id, gateway, target):
+def proxy(sdk, vm_id, gateway):
     """ Internal: the ssh ProxyCommand. Bridges stdin/stdout to the gateway over WS. """
     token = sdk.keychain.token()
     account = sdk.keychain.account or ''
-    sys.exit(run_ws_proxy(gateway, token, vm_id, target, account))
+    sys.exit(run_ws_proxy(gateway, token, vm_id, account))
 
 
 # --- helpers -----------------------------------------------------------------
@@ -233,8 +218,7 @@ def proxy_argv(sdk, vm_id: str, gateway: str) -> list:
     else:
         prog = shutil.which('praetorian') or shutil.which('guard') or sys.argv[0]
     nesting = proxy_nesting(os.path.basename(prog))
-    return [prog] + global_opts(sdk) + nesting + \
-        ['proxy', vm_id, '--gateway', gateway, '--target', 'ssh']
+    return [prog] + global_opts(sdk) + nesting + ['proxy', vm_id, '--gateway', gateway]
 
 
 def global_opts(sdk) -> list:

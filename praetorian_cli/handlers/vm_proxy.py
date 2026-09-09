@@ -41,10 +41,11 @@ def _to_https_scheme(gateway: str) -> str:
     return 'https://' + g
 
 
-def build_connect_url(gateway: str, token: str, vm_id: str, target: str, account: str = '') -> str:
-    """ Build the gateway /connect WebSocket URL the ProxyCommand dials. """
+def build_connect_url(gateway: str, token: str, vm_id: str, account: str = '') -> str:
+    """ Build the gateway /connect WebSocket URL the ProxyCommand dials. sshd is
+        the only backend the gateway splices to, so target is fixed. """
     base = _to_ws_scheme(gateway).rstrip('/')
-    query = {'token': token, 'vm_id': vm_id, 'target': target}
+    query = {'token': token, 'vm_id': vm_id, 'target': 'ssh'}
     if account:
         query['account'] = account
     return f'{base}/connect?{urlencode(query)}'
@@ -57,17 +58,17 @@ def build_code_server_url(gateway: str, token: str) -> str:
     return f'{base}/code-server/?{urlencode({"token": token})}'
 
 
-def run_ws_proxy(gateway: str, token: str, vm_id: str, target: str, account: str = '') -> int:
+def run_ws_proxy(gateway: str, token: str, vm_id: str, account: str = '') -> int:
     """ Bridge stdin<->WebSocket<->stdout. Returns a process exit code. """
     try:
         import websocket  # websocket-client
     except ImportError:
         sys.stderr.write(
-            "praetorian vm ssh needs the 'websocket-client' package "
-            "(pip install websocket-client).\n")
+            "praetorian vm ssh needs the 'websocket-client' package, which ships as a "
+            "praetorian-cli dependency; reinstall with 'pip install --upgrade praetorian-cli'.\n")
         return 1
 
-    url = build_connect_url(gateway, token, vm_id, target, account)
+    url = build_connect_url(gateway, token, vm_id, account)
     try:
         ws = websocket.create_connection(url, enable_multithread=True)
     except Exception as e:  # noqa: BLE001 - surface any connect failure to ssh

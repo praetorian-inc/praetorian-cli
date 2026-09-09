@@ -42,8 +42,14 @@ class EngineerVms:
         return self.api.post(f'engineer-vm/{vm_id}/resume', {})
 
     def extend(self, vm_id: str, hours: int = 0) -> dict:
-        """ Push the soft expiry out by `hours` (server clamps to the ceiling). """
-        body = {'hours': hours} if hours and hours > 0 else {}
+        """ Push the soft expiry out by `hours` (server clamps to the ceiling).
+
+        0 (the default) lets the server apply its own default extension; a
+        negative value is rejected here rather than silently becoming that.
+        """
+        if hours < 0:
+            raise ValueError('hours must be non-negative')
+        body = {'hours': hours} if hours else {}
         return self.api.post(f'engineer-vm/{vm_id}/extend', body)
 
     def ssh_cert(self, vm_id: str, public_key: str) -> dict:
