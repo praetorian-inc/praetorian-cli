@@ -1,6 +1,15 @@
 import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.ui.aegis.commands.enrollment import (
+    enrollment_error_message,
+    pending_enrollment_lines,
+)
+
+
+def _enrollment_debug_enabled():
+    ctx = click.get_current_context()
+    return bool(ctx.find_root().params.get('debug', False))
 
 
 @chariot.group(invoke_without_command=True)
@@ -119,6 +128,60 @@ def cp(ctx, sdk, client_id, paths, user, key, no_rsync):
             click.echo(f"Copy failed with exit code {rc}", err=True)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
+
+
+@aegis.group('enrollment')
+def enrollment():
+    """Inspect and approve Aegis v2 endpoint enrollment user codes."""
+    pass
+
+
+@enrollment.command('inspect')
+@cli_handler
+@click.argument('user_code', required=True)
+def inspect_enrollment(sdk, user_code):
+    """Inspect a pending Aegis v2 endpoint enrollment user code."""
+    try:
+        pending = sdk.aegis.inspect_enrollment(user_code)
+    except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
+        raise click.ClickException(enrollment_error_message(exc)) from exc
+
+    click.echo('Pending Aegis v2 enrollment:')
+    for line in pending_enrollment_lines(pending):
+        click.echo(f'  {line}')
+
+
+@enrollment.command('approve')
+@cli_handler
+@click.argument('user_code', required=True)
+@click.option('-y', '--yes', is_flag=True, default=False, help='Approve without interactive confirmation')
+def approve_enrollment(sdk, user_code, yes):
+    """Inspect, confirm, and approve an Aegis v2 endpoint enrollment user code."""
+    try:
+        pending = sdk.aegis.inspect_enrollment(user_code)
+    except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
+        raise click.ClickException(enrollment_error_message(exc)) from exc
+
+    click.echo('Pending Aegis v2 enrollment:')
+    for line in pending_enrollment_lines(pending):
+        click.echo(f'  {line}')
+
+    if not yes and not click.confirm('Approve this enrollment?', default=False):
+        click.echo('Cancelled')
+        return
+
+    try:
+        result = sdk.aegis.approve_enrollment(user_code)
+    except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
+        raise click.ClickException(enrollment_error_message(exc)) from exc
+    status = result.get('status', 'approved') if isinstance(result, dict) else 'approved'
+    click.echo(f'Enrollment {status}')
 
 
 @aegis.command('job')

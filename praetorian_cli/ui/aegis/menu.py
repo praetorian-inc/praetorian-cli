@@ -49,6 +49,7 @@ from .commands.ssh import handle_ssh as cmd_handle_ssh
 from .commands.cp import handle_cp as cmd_handle_cp
 from .commands.info import handle_info as cmd_handle_info
 from .commands.job import complete as cmd_complete_job, handle_job as cmd_handle_job
+from .commands.enrollment import complete as cmd_complete_enrollment, handle_enrollment as cmd_handle_enrollment
 from .commands.schedule import handle_schedule as cmd_handle_schedule
 from .commands.proxy import handle_proxy as cmd_handle_proxy, stop_all_proxies
 
@@ -168,6 +169,11 @@ class MenuCompleter(Completer):
                 tokens = ['job'] + words
                 for completion in cmd_complete_job(self.menu, current_word, tokens):
                     yield Completion(completion, start_position=-len(current_word))
+
+        elif cmd in ('enrollment', 'enroll'):
+            tokens = [cmd] + words
+            for completion in cmd_complete_enrollment(self.menu, current_word, tokens):
+                yield Completion(completion, start_position=-len(current_word))
 
     def _get_schedule_completions(self, prefix):
         """Get schedule ID completions with metadata (cached to avoid per-keystroke API calls)."""
@@ -399,7 +405,8 @@ class AegisMenu:
         self.agent_account_map: dict = {}  # display_id -> account_info dict
 
         self.commands = [
-            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
+            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'enrollment', 'enroll',
+            'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
 
     def prefetch_agent_home(self, agent=None):
@@ -497,6 +504,9 @@ class AegisMenu:
             
         elif command == 'job':
             cmd_handle_job(self, cmd_args)
+
+        elif command in ['enrollment', 'enroll']:
+            cmd_handle_enrollment(self, cmd_args)
 
         elif command == 'schedule':
             cmd_handle_schedule(self, cmd_args)
