@@ -17,6 +17,7 @@ import requests
 from praetorian_cli.sdk.entities.aegis import (
     is_active_aegis_inventory_row,
     merge_aegis_endpoint_rows,
+    normalize_active_endpoint_summary,
     normalize_to_list,
 )
 from praetorian_cli.sdk.model.aegis import Agent
@@ -193,7 +194,12 @@ def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict
     live_rows = _fetch_account_live_endpoints(base_url, headers)
     if identity_rows is None and live_rows is None:
         return None
-    return merge_aegis_endpoint_rows(identity_rows or [], live_rows or [])
+    tunnel_rows = _fetch_account_tunnel_states(base_url, headers)
+    return merge_aegis_endpoint_rows(
+        identity_rows or [],
+        live_rows or [],
+        tunnel_rows or [],
+    )
 
 
 def _fetch_account_endpoint_identities(base_url: str, headers: dict) -> Optional[List[dict]]:
@@ -210,7 +216,7 @@ def _fetch_account_endpoint_identities(base_url: str, headers: dict) -> Optional
         logger.debug('Endpoint identity fetch returned status %d', resp.status_code)
         return None
     return [
-        {**endpoint, 'kind': endpoint.get('kind') or 'aegis'}
+        normalize_active_endpoint_summary(endpoint)
         for endpoint in _flatten_response(resp.json())
         if isinstance(endpoint, dict)
     ]
@@ -248,8 +254,21 @@ def _fetch_account_endpoint_inventory(base_url: str, headers: dict) -> Optional[
 
 
 def _fetch_account_live_endpoints(base_url: str, headers: dict) -> Optional[List[dict]]:
-    endpoints = []
-    params = {'key': '#endpoint#'}
+    rows = _fetch_account_my_rows(base_url, headers, '#endpoint#')
+    return None if rows is None else _aegis_endpoint_rows(rows)
+
+
+def _fetch_account_tunnel_states(base_url: str, headers: dict) -> Optional[List[dict]]:
+    return _fetch_account_my_rows(
+        base_url,
+        headers,
+        '#endpointaegistunnelstate#',
+    )
+
+
+def _fetch_account_my_rows(base_url: str, headers: dict, key: str) -> Optional[List[dict]]:
+    rows = []
+    params = {'key': key}
     seen_offsets = set()
 
     while True:
@@ -260,20 +279,20 @@ def _fetch_account_live_endpoints(base_url: str, headers: dict) -> Optional[List
             timeout=30,
         )
         if resp.status_code != 200:
-            logger.debug('Live endpoint fetch returned status %d', resp.status_code)
+            logger.debug('%s fetch returned status %d', key, resp.status_code)
             return None
 
         body = resp.json()
-        endpoints.extend(_aegis_endpoint_rows(_flatten_response(body)))
+        rows.extend(_flatten_response(body))
         offset = body.get('offset') if isinstance(body, dict) else None
         if not offset:
-            return endpoints
+            return rows
         serialized_offset = json.dumps(offset, sort_keys=True)
         if serialized_offset in seen_offsets:
-            logger.debug('Live endpoint fetch repeated pagination offset: %s', serialized_offset)
+            logger.debug('%s fetch repeated pagination offset: %s', key, serialized_offset)
             return None
         seen_offsets.add(serialized_offset)
-        params = {'key': '#endpoint#', 'offset': serialized_offset}
+        params = {'key': key, 'offset': serialized_offset}
 
 
 def _fetch_account_records(base_url: str, headers: dict) -> Optional[tuple[List[dict], List[dict]]]:

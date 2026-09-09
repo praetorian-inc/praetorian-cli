@@ -552,12 +552,20 @@ class TestFetchAccountEndpoints:
                 ]}
             elif url.endswith('/endpoint'):
                 resp.json.return_value = []
-            else:
+            elif (params or {}).get('key') == '#endpoint#':
                 resp.json.return_value = {'endpoints': [{
                     'endpointId': 'endpoint-live',
                     'kind': 'aegis',
                     'hostname': 'live',
                     'os': 'linux',
+                }]}
+            else:
+                resp.json.return_value = {'tunnelStates': [{
+                    'endpointId': 'endpoint-live',
+                    'cloudflaredStatus': {
+                        'status': 'configured',
+                        'hostname': 'live.example.com',
+                    },
                 }]}
             return resp
 
@@ -573,6 +581,9 @@ class TestFetchAccountEndpoints:
         ] == ['endpoint-offline', 'endpoint-live']
         assert endpoints[0]['profile']['os'] == 'linux'
         assert endpoints[1]['os'] == 'linux'
+        assert endpoints[1]['cloudflaredStatus']['hostname'] == (
+            'live.example.com'
+        )
 
     def test_inventory_follows_cursors_and_excludes_revoked_endpoints(
         self,

@@ -26,8 +26,8 @@ def _is_aegis_endpoint(value) -> bool:
     return isinstance(value, dict) and str(value.get('kind', '')).lower() == 'aegis'
 
 
-def merge_aegis_endpoint_rows(identity_rows, live_rows) -> List[dict]:
-    """Merge durable endpoint identities with richer live registry rows."""
+def merge_aegis_endpoint_rows(identity_rows, live_rows, tunnel_rows=None) -> List[dict]:
+    """Merge durable identities with live status and persisted tunnel state."""
     merged = {}
     order = []
 
@@ -53,29 +53,36 @@ def merge_aegis_endpoint_rows(identity_rows, live_rows) -> List[dict]:
             order.append(endpoint_id)
         merged[endpoint_id] = {**merged.get(endpoint_id, {}), **row}
 
+    for row in tunnel_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        tunnel = row.get('cloudflaredStatus')
+        if endpoint_id in merged and isinstance(tunnel, dict):
+            merged[endpoint_id]['cloudflaredStatus'] = tunnel
+
     return [merged[endpoint_id] for endpoint_id in order]
 
 
 def is_active_aegis_inventory_row(row) -> bool:
-    if not _is_aegis_endpoint(row):
-        return False
-    state = str(
-        row.get('lifecycleState')
-        or row.get('lifecycle_state')
-        or row.get('LifecycleState')
-        or ''
-    ).lower()
-    return state != 'revoked'
+    return bool(
+        _is_aegis_endpoint(row)
+        and str(row.get('lifecycleState', '')).lower() != 'revoked'
+    )
+
+
+def normalize_active_endpoint_summary(row) -> dict:
+    """Convert the /endpoint summary contract to the canonical endpoint shape."""
+    return {
+        'endpointId': row.get('endpoint_id'),
+        'hostname': row.get('hostname'),
+        'lastSeenAt': row.get('last_heartbeat'),
+        'kind': 'aegis',
+    }
 
 
 def _endpoint_row_id(row) -> str:
-    return str(
-        row.get('endpointId')
-        or row.get('endpoint_id')
-        or row.get('EndpointID')
-        or row.get('ID')
-        or ''
-    )
+    return str(row.get('endpointId') or '')
 
 
 ENROLLMENT_INSPECT_PATH = 'endpoint/enrollment/inspect'
@@ -207,6 +214,7 @@ class Aegis:
                 identity_rows = []
 
         live_rows = []
+        tunnel_rows = []
         if hasattr(self.api, 'search'):
             try:
                 endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
@@ -216,12 +224,20 @@ class Aegis:
                 )
             except Exception:
                 pass
+            try:
+                tunnel_rows, _ = self.api.search.by_key_prefix(
+                    '#endpointaegistunnelstate#'
+                )
+            except Exception:
+                pass
 
         try:
-            return [
-                Agent.from_endpoint_dict(endpoint)
-                for endpoint in merge_aegis_endpoint_rows(identity_rows, live_rows)
-            ]
+            rows = merge_aegis_endpoint_rows(
+                identity_rows,
+                live_rows,
+                tunnel_rows,
+            )
+            return [Agent.from_endpoint_dict(endpoint) for endpoint in rows]
         except Exception:
             return []
 
@@ -255,7 +271,7 @@ class Aegis:
         endpoint_data = self.api.get('endpoint')
         endpoints = normalize_to_list(endpoint_data, ['endpoints', 'data', 'items'])
         return [
-            {**endpoint, 'kind': endpoint.get('kind') or 'aegis'}
+            normalize_active_endpoint_summary(endpoint)
             for endpoint in endpoints
             if isinstance(endpoint, dict)
         ]
