@@ -22,6 +22,10 @@ def normalize_to_list(value, item_keys: List[str] = None) -> List:
     return []
 
 
+def _is_aegis_endpoint(value) -> bool:
+    return isinstance(value, dict) and str(value.get('kind', '')).lower() == 'aegis'
+
+
 class Aegis:
     """ The methods in this class are to be accessed from sdk.aegis, where sdk
     is an instance of Chariot. """
@@ -53,24 +57,39 @@ class Aegis:
             >>>     print(f"Online: {agent.is_online}")
 
         **Agent Object Properties:**
-            - client_id: Unique identifier for the agent
+            - client_id: Unique identifier for v1 agents
+            - endpoint_id: Unique identifier for v2 endpoints
+            - version: Aegis protocol version (v1 or v2)
             - hostname: Agent hostname
             - os: Operating system (e.g., 'linux', 'windows')  
             - network_interfaces: List of NetworkInterface objects
             - has_tunnel: Boolean indicating if Cloudflare tunnel is active
             - is_online: Boolean indicating if agent is currently online
         """
+        agents = self._list_legacy_agents()
+        agents.extend(self._list_endpoint_agents())
+        return agents, None
+
+    def _list_legacy_agents(self) -> List[Agent]:
+        agents_data = self.api.get('/agent/enhanced')
+        return [Agent.from_dict(agent_data) for agent_data in agents_data]
+
+    def _list_endpoint_agents(self) -> List[Agent]:
+        if not hasattr(self.api, 'search'):
+            return []
         try:
-            agents_data = self.api.get('/agent/enhanced')
-            
-            # Return Agent objects
-            agents = []
-            for agent_data in agents_data:
-                agent = Agent.from_dict(agent_data)
-                agents.append(agent)
-            return agents, None
-        except Exception as e:
-            raise Exception(f"Failed to list Aegis agents: {e}")
+            endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
+        except Exception:
+            return []
+        endpoints = normalize_to_list(
+            endpoints_data,
+            ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
+        )
+        return [
+            Agent.from_endpoint_dict(endpoint)
+            for endpoint in endpoints
+            if _is_aegis_endpoint(endpoint)
+        ]
     
     def get_by_client_id(self, client_id: str) -> Optional[Agent]:
         """
@@ -91,7 +110,7 @@ class Aegis:
         try:
             agents_data, _ = self.list()
             for agent in agents_data:
-                if agent.client_id == client_id:
+                if agent.display_id == client_id:
                     return agent
             return None
         except Exception as e:
@@ -588,7 +607,7 @@ class Aegis:
                 detailed_lines.append('\n'.join(lines))
             return '\n\n'.join(detailed_lines)
         else:
-            lines = []
+            lines = [f"{'#':>4}  {'VERSION':<7}  {'HOSTNAME':<30}  ID"]
             for i, agent in enumerate(agents_data, 1):
-                lines.append(f"[{i:2d}] {str(agent)}")
+                lines.append(f"{i:>4}  {agent.version:<7}  {(agent.hostname or 'Unknown')[:30]:<30}  {agent.display_id}")
             return '\n'.join(lines)
