@@ -47,6 +47,45 @@ class TestCredentialsAdd:
         })
 
 
+class TestEphemeralCredentials:
+    def test_add_uses_short_lived_broker_contract_without_resource_attachment(self):
+        api = MagicMock()
+        api.post.return_value = {
+            'credentialValue': {'credential_id': 'opaque-reference'},
+        }
+        creds = Credentials(api=api)
+
+        creds.add_ephemeral({'username': 'VALUE-1', 'password': 'VALUE-2'})
+
+        api.post.assert_called_once_with('broker', {
+            'Operation': 'add',
+            'Category': 'env-integration',
+            'Type': 'ephemeral',
+            'Parameters': {'username': 'VALUE-1', 'password': 'VALUE-2'},
+        })
+
+    def test_delete_uses_ephemeral_compensating_cleanup_contract(self):
+        api = MagicMock()
+        creds = Credentials(api=api)
+
+        creds.delete_ephemeral(' opaque-reference ')
+
+        api.delete.assert_called_once_with('broker', {
+            'CredentialID': 'opaque-reference',
+            'Category': 'env-integration',
+            'Type': 'ephemeral',
+        }, params={})
+
+    @pytest.mark.parametrize('parameters', [None, {}, {'username': ''}, {1: 'value'}])
+    def test_add_rejects_invalid_ephemeral_payloads_before_request(self, parameters):
+        api = MagicMock()
+
+        with pytest.raises(ValueError, match='ephemeral credential parameters'):
+            Credentials(api=api).add_ephemeral(parameters)
+
+        api.post.assert_not_called()
+
+
 class TestCredentialsGet:
     def test_get_builds_broker_request_with_resolution_by_target(self):
         """The broker rejects Get requests without Resolution (PR #5457). The

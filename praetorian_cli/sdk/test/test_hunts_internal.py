@@ -343,6 +343,64 @@ def test_list_hunt_conversations_uses_tenant_hunt_index():
     ]
 
 
+def test_list_hunt_interactions_covers_every_root_and_descendant():
+    class ConversationInteractions:
+        def __init__(self):
+            self.calls = []
+
+        def list_interactions(
+            self, conversation_id, status=None, include_descendants=True
+        ):
+            self.calls.append((conversation_id, status, include_descendants))
+            return [{
+                'key': f'#interaction#{conversation_id}#request',
+                'conversationId': 'untrusted-duplicated-value',
+                'requestId': f'request-{conversation_id}',
+                'kind': 'credential',
+                'status': 'pending',
+                'timestamp': f'2026-01-01T00:00:0{len(self.calls)}Z',
+            }]
+
+    class HuntTreeAPI:
+        def __init__(self):
+            self.conversations = ConversationInteractions()
+
+        def get(self, path, params):
+            assert path == 'my'
+            records = {
+                'hunt:hunt-1': [
+                    {'uuid': 'root-1'},
+                    {'uuid': 'root-2'},
+                ],
+                'parent_id:root-1': [{
+                    'uuid': 'child-1',
+                    'parent_id': 'root-1',
+                }],
+                'parent_id:child-1': [{
+                    'uuid': 'grandchild-1',
+                    'parent_id': 'child-1',
+                }],
+            }
+            return {'conversations': records.get(params['key'], [])}
+
+    api = HuntTreeAPI()
+
+    interactions = Hunts(api).list_interactions('hunt-1')
+
+    assert [row['conversationId'] for row in interactions] == [
+        'root-1',
+        'root-2',
+        'child-1',
+        'grandchild-1',
+    ]
+    assert api.conversations.calls == [
+        ('root-1', 'pending', False),
+        ('root-2', 'pending', False),
+        ('child-1', 'pending', False),
+        ('grandchild-1', 'pending', False),
+    ]
+
+
 def test_hunt_endpoint_status_uses_current_workflow_conversations():
     class Search:
         def by_exact_key(self, key):

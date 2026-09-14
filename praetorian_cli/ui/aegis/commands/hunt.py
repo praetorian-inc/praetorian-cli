@@ -12,6 +12,9 @@ from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 from praetorian_cli.ui.entity_selector import select_entity_keys
 from praetorian_cli.ui.hunt_chat import (
     build_hunt_chat,
+    build_hunt_interactions,
+    hunt_interaction_key,
+    review_pending_hunt_interactions,
     select_hunt_conversation,
 )
 from praetorian_cli.ui.hunt_data import (
@@ -33,7 +36,7 @@ from ..utils import agent_display_id, is_v2_agent
 
 SUBCOMMANDS = (
     'launch', 'list', 'status', 'findings', 'memory', 'log', 'chat',
-    'pause', 'resume', 'stop', 'delete', 'help',
+    'interactions', 'pause', 'resume', 'stop', 'delete', 'help',
 )
 HUNT_STATUSES = ('active', 'paused', 'completed', 'stopped', 'expired', 'errored')
 
@@ -69,6 +72,7 @@ def handle_hunt(menu, args):
         'memory': manage_hunt_memory,
         'log': show_hunt_log,
         'chat': chat_hunt,
+        'interactions': show_hunt_interactions,
         'pause': pause_hunt,
         'resume': resume_hunt,
         'stop': stop_hunt,
@@ -106,6 +110,8 @@ def complete(_menu, text, tokens):
         options = ('--follow', '--interval', '--help')
     elif subcommand == 'chat':
         options = ('--conversation', '--message', '--help')
+    elif subcommand == 'interactions':
+        options = ('--watch', '--interval', '--help')
     else:
         options = ('--help',)
     return [option for option in options if option.startswith(text)]
@@ -122,6 +128,7 @@ def show_hunt_help(menu):
   hunt memory <hunt-id> [--item <title>] [--content <text> | --delete]
   hunt log <hunt-id> [--follow]
   hunt chat <hunt-id> [--conversation <id>] [--message <guidance>]
+  hunt interactions <hunt-id> [--watch] [--interval <seconds>]
   hunt pause|resume|stop|delete <hunt-id>
 
   The selected Aegis v2 endpoint is used automatically. When --scope is
@@ -531,13 +538,124 @@ def chat_hunt(menu, endpoint, args):
         menu.pause()
         return
 
-    menu.console.print(build_hunt_chat(conversations, selected, transcript))
+    try:
+        pending_interactions = menu.sdk.hunts.list_interactions(
+            options['hunt_id'],
+            status='pending',
+        )
+    except Exception:
+        pending_interactions = []
+    menu.console.print(build_hunt_chat(
+        conversations,
+        selected,
+        transcript,
+        pending_interactions=pending_interactions,
+    ))
     if options['message']:
         _print_message(
             menu,
             'Guidance queued for the running Hunt iteration.',
             'success',
         )
+    menu.pause()
+
+
+def show_hunt_interactions(menu, endpoint, args):
+    try:
+        options = _parse_interactions_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    hunt_id = options['hunt_id']
+    if _get_selected_hunt(menu, endpoint, [hunt_id]) is None:
+        return
+
+    try:
+        pending = menu.sdk.hunts.list_interactions(
+            hunt_id,
+            status='pending',
+        )
+    except Exception:
+        _print_message(
+            menu,
+            'Unable to load pending Hunt interactions.',
+            'error',
+        )
+        menu.pause()
+        return
+
+    menu.console.print(build_hunt_interactions(pending))
+    if not options['watch']:
+        menu.pause()
+        return
+
+    handled = set()
+    seen = {hunt_interaction_key(row) for row in pending}
+    try:
+        review_pending_hunt_interactions(
+            menu.sdk,
+            pending,
+            menu.console,
+            confirm=lambda message, default: Confirm.ask(
+                message,
+                default=default,
+                console=menu.console,
+            ),
+            credential_prompt=lambda field: Prompt.ask(
+                Text(f'  {field}'),
+                password=True,
+                console=menu.console,
+            ),
+            handled=handled,
+            interactive=True,
+        )
+        while True:
+            time.sleep(options['interval'])
+            try:
+                current = menu.sdk.hunts.list_interactions(
+                    hunt_id,
+                    status='pending',
+                )
+            except Exception:
+                _print_message(
+                    menu,
+                    'Pending Hunt interactions are temporarily unavailable.',
+                    'warning',
+                )
+                continue
+            new_interactions = [
+                row for row in current
+                if hunt_interaction_key(row) not in seen
+            ]
+            if not new_interactions:
+                continue
+            menu.console.print(build_hunt_interactions(
+                new_interactions,
+                title='New pending Hunt interactions',
+            ))
+            review_pending_hunt_interactions(
+                menu.sdk,
+                new_interactions,
+                menu.console,
+                confirm=lambda message, default: Confirm.ask(
+                    message,
+                    default=default,
+                    console=menu.console,
+                ),
+                credential_prompt=lambda field: Prompt.ask(
+                    Text(f'  {field}'),
+                    password=True,
+                    console=menu.console,
+                ),
+                handled=handled,
+                interactive=True,
+            )
+            seen.update(
+                hunt_interaction_key(row) for row in new_interactions
+            )
+    except KeyboardInterrupt:
+        menu.console.print('  Stopped watching Hunt interactions.')
     menu.pause()
 
 
@@ -900,6 +1018,36 @@ def _parse_chat_args(args):
         raise ValueError('a Hunt ID is required')
     if options['message'] is not None and not options['message'].strip():
         raise ValueError('guidance message is required')
+    return options
+
+
+def _parse_interactions_args(args):
+    options = {'hunt_id': None, 'watch': False, 'interval': 5.0}
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == '--watch':
+            options['watch'] = True
+            index += 1
+        elif token == '--interval':
+            if index + 1 >= len(args):
+                raise ValueError('--interval requires a value')
+            try:
+                options['interval'] = float(args[index + 1])
+            except ValueError as exc:
+                raise ValueError('--interval must be a number') from exc
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    if options['interval'] < 1:
+        raise ValueError('--interval must be at least 1 second')
     return options
 
 

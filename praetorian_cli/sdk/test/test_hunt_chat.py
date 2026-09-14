@@ -2,6 +2,8 @@ import pytest
 
 from praetorian_cli.ui.hunt_chat import (
     build_hunt_chat,
+    build_hunt_interactions,
+    review_pending_hunt_interactions,
     select_hunt_conversation,
 )
 
@@ -106,3 +108,87 @@ def test_hunt_chat_dashboard_renders_conversations_transcript_and_tools():
     assert 'portscan' in rendered
     assert 'Target: 10.0.0.5' in rendered
     assert 'Continuing with SMB.' in rendered
+
+
+def test_hunt_interactions_render_safe_metadata_in_chat_without_request_text():
+    from io import StringIO
+    from rich.console import Console
+
+    pending = [{
+        'conversationId': 'child-conversation',
+        'requestId': 'request-1',
+        'kind': 'credential',
+        'status': 'pending',
+        'request': 'MODEL TEXT WITH VALUE-THAT-MUST-NOT-RENDER',
+        'fields': ['username', 'password'],
+    }]
+    conversations = [_conversation('root', status='active')]
+    output = StringIO()
+    console = Console(file=output, width=120, color_system=None)
+
+    console.print(build_hunt_interactions(pending))
+    console.print(build_hunt_chat(
+        conversations,
+        conversations[0],
+        {'messages': []},
+        pending_interactions=pending,
+    ))
+    rendered = output.getvalue()
+
+    assert 'Pending Hunt interactions' in rendered
+    assert 'Pending operator interactions' in rendered
+    assert 'child-conver' in rendered
+    assert 'username, password' in rendered
+    assert 'VALUE-THAT-MUST-NOT-RENDER' not in rendered
+
+
+def test_hunt_interaction_reviewer_reuses_secure_kind_specific_primitives(
+    monkeypatch,
+):
+    calls = []
+    monkeypatch.setattr(
+        'praetorian_cli.ui.hunt_chat.prompt_endpoint_approval',
+        lambda sdk, interaction, **kwargs: calls.append((
+            'approval', interaction['requestId'], kwargs['interactive'],
+        )),
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.hunt_chat.prompt_ephemeral_credentials',
+        lambda sdk, interaction, **kwargs: calls.append((
+            'credential', interaction['requestId'], kwargs['interactive'],
+        )),
+    )
+
+    class Console:
+        def print(self, *_args, **_kwargs):
+            pass
+
+    interactions = [
+        {'kind': 'approval', 'requestId': 'approval-1'},
+        {'kind': 'credential', 'requestId': 'credential-1'},
+        {'kind': 'future-kind', 'requestId': 'future-1'},
+    ]
+    handled = set()
+    review_pending_hunt_interactions(
+        object(),
+        interactions,
+        Console(),
+        confirm=lambda *_args, **_kwargs: False,
+        credential_prompt=lambda _field: 'VALUE',
+        handled=handled,
+        interactive=True,
+    )
+    review_pending_hunt_interactions(
+        object(),
+        interactions,
+        Console(),
+        confirm=lambda *_args, **_kwargs: False,
+        credential_prompt=lambda _field: 'VALUE',
+        handled=handled,
+        interactive=True,
+    )
+
+    assert calls == [
+        ('approval', 'approval-1', True),
+        ('credential', 'credential-1', True),
+    ]

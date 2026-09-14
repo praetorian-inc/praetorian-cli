@@ -7,6 +7,14 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from praetorian_cli.ui.conversation.approvals import (
+    ApprovalContextError,
+    parse_endpoint_approval,
+    prompt_endpoint_approval,
+    prompt_ephemeral_credentials,
+    normalize_credential_interaction_fields,
+)
+
 
 ROLE_PRESENTATION = {
     'user': ('YOU', 'cyan', '▶'),
@@ -69,7 +77,13 @@ def select_hunt_conversation(records, requested_id=None, require_active=False):
     return selected
 
 
-def build_hunt_chat(conversations, selected, transcript, max_messages=50):
+def build_hunt_chat(
+    conversations,
+    selected,
+    transcript,
+    max_messages=50,
+    pending_interactions=None,
+):
     """Build a visual Hunt transcript and conversation navigator."""
     selected_id = _conversation_id(selected)
     messages = transcript.get('messages', []) if isinstance(transcript, dict) else []
@@ -80,7 +94,148 @@ def build_hunt_chat(conversations, selected, transcript, max_messages=50):
     header = _chat_header(selected, len(messages), omitted)
     navigator = _conversation_table(conversations, selected_id)
     transcript_view = _transcript_group(messages, omitted)
-    return Group(header, Text(''), navigator, Text(''), transcript_view)
+    renderables = [header, Text(''), navigator]
+    pending = [
+        interaction for interaction in pending_interactions or []
+        if isinstance(interaction, dict)
+        and interaction.get('status') == 'pending'
+    ]
+    if pending:
+        renderables.extend([
+            Text(''),
+            build_hunt_interactions(
+                pending,
+                title='Pending operator interactions',
+            ),
+        ])
+    renderables.extend([Text(''), transcript_view])
+    return Group(*renderables)
+
+
+def hunt_interaction_key(interaction):
+    """Return a stable, non-secret identity for a durable interaction."""
+    if not isinstance(interaction, dict):
+        return ('', '')
+    key = interaction.get('key')
+    if isinstance(key, str) and key:
+        return ('key', key)
+    return (
+        _safe(interaction.get('conversationId'), 100),
+        _safe(interaction.get('requestId'), 100),
+    )
+
+
+def build_hunt_interactions(interactions, title='Pending Hunt interactions'):
+    """Render safe interaction metadata without model text or secret values."""
+    rows = [row for row in interactions or [] if isinstance(row, dict)]
+    table = Table(
+        title=Text(title, style='bold yellow'),
+        box=box.ROUNDED,
+        expand=True,
+        border_style='yellow',
+        show_edge=True,
+        padding=(0, 1),
+    )
+    table.add_column('KIND', width=12, no_wrap=True)
+    table.add_column('CONVERSATION', width=12, no_wrap=True)
+    table.add_column('REQUEST', width=12, no_wrap=True)
+    table.add_column('SAFE CONTEXT', ratio=3)
+    if not rows:
+        table.add_row('—', '—', '—', 'No pending operator interactions.')
+        return table
+
+    for interaction in rows:
+        kind = _safe(interaction.get('kind') or 'unknown', 32)
+        conversation_id = _safe(interaction.get('conversationId'), 100)
+        request_id = _safe(interaction.get('requestId'), 100)
+        table.add_row(
+            Text(kind.upper(), style='yellow'),
+            Text(conversation_id[:12] or '—', style='cyan'),
+            Text(request_id[:12] or '—', style='cyan'),
+            Text(_safe_interaction_context(interaction)),
+        )
+    return table
+
+
+def review_pending_hunt_interactions(
+    sdk,
+    interactions,
+    console,
+    *,
+    confirm,
+    credential_prompt,
+    handled=None,
+    interactive=True,
+):
+    """Securely answer supported pending Hunt interactions once per watcher."""
+    handled = handled if handled is not None else set()
+    if not interactive:
+        return handled
+
+    for interaction in interactions or []:
+        if not isinstance(interaction, dict):
+            continue
+        kind = interaction.get('kind')
+        if kind not in ('approval', 'credential'):
+            continue
+        identity = hunt_interaction_key(interaction)
+        if identity in handled:
+            continue
+        handled.add(identity)
+        console.print()
+        try:
+            if kind == 'approval':
+                prompt_endpoint_approval(
+                    sdk,
+                    interaction,
+                    echo=lambda message: _console_print_plain(console, message),
+                    confirm=confirm,
+                    interactive=True,
+                )
+            else:
+                prompt_ephemeral_credentials(
+                    sdk,
+                    interaction,
+                    echo=lambda message: _console_print_plain(console, message),
+                    prompt=credential_prompt,
+                    interactive=True,
+                )
+        except Exception:
+            request_id = _safe(interaction.get('requestId'), 100) or 'unknown'
+            _console_print_plain(
+                console,
+                f'Unable to answer {kind} interaction {request_id}; '
+                'it remains pending.',
+            )
+    return handled
+
+
+def _console_print_plain(console, message):
+    try:
+        console.print(message, markup=False)
+    except TypeError:
+        console.print(message)
+
+
+def _safe_interaction_context(interaction):
+    kind = interaction.get('kind')
+    if kind == 'approval':
+        try:
+            context = parse_endpoint_approval(interaction)
+        except ApprovalContextError:
+            return 'Endpoint approval has incomplete server-authored context; deny only.'
+        target = context.target_display_name
+        endpoint = context.endpoint_display_name
+        return _safe(f'{context.action} · {target} · endpoint {endpoint}', 240)
+    if kind == 'credential':
+        fields = ', '.join(
+            normalize_credential_interaction_fields(interaction.get('fields'))
+        )
+        return _safe(
+            f'Secure one-time credential input requested: {fields}',
+            240,
+        )
+    return 'Unsupported interaction kind; no response will be sent.'
 
 
 def _chat_header(selected, message_count, omitted):

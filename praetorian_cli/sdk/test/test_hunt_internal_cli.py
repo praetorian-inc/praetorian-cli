@@ -18,6 +18,8 @@ class FakeHunts:
         self.endpoint_status = {'sessions': [], 'tasks': []}
         self.workflow_runs = []
         self.conversations = []
+        self.interactions = []
+        self.interaction_calls = []
         self.findings = []
         self.memory_items = []
         self.memory_content = {}
@@ -39,6 +41,10 @@ class FakeHunts:
 
     def list_conversations(self, _hunt_id):
         return list(self.conversations), None
+
+    def list_interactions(self, hunt_id, status='pending'):
+        self.interaction_calls.append((hunt_id, status))
+        return list(self.interactions)
 
     def list_findings(self, _hunt_id, pages=1):
         return list(self.findings), None
@@ -485,6 +491,90 @@ def test_hunt_chat_queues_guidance_for_active_iteration():
     assert 'Hannibal Hunt Chat' in result.output
     assert 'Testing the selected target.' in result.output
     assert 'Guidance queued' in result.output
+
+
+def test_hunt_interactions_lists_pending_requests_without_model_text():
+    sdk = _sdk()
+    sdk.hunts.hunt = {'uuid': 'hunt-1', 'status': 'active'}
+    sdk.hunts.interactions = [{
+        'conversationId': 'child-conversation',
+        'requestId': 'request-1',
+        'kind': 'credential',
+        'status': 'pending',
+        'request': 'MODEL TEXT WITH VALUE-THAT-MUST-NOT-RENDER',
+        'fields': ['username', 'password'],
+    }]
+
+    result = CliRunner().invoke(
+        hunt,
+        ['interactions', 'hunt-1'],
+        obj=sdk,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert sdk.hunts.interaction_calls == [('hunt-1', 'pending')]
+    assert 'Pending Hunt interactions' in result.output
+    assert 'username' in result.output
+    assert 'password' in result.output
+    assert 'VALUE-THAT-MUST-NOT-RENDER' not in result.output
+
+
+def test_hunt_interaction_watch_preserves_non_tty_read_only_behavior(monkeypatch):
+    sdk = _sdk()
+    sdk.hunts.hunt = {'uuid': 'hunt-1', 'status': 'active'}
+    sdk.hunts.interactions = [{
+        'conversationId': 'conversation-1',
+        'requestId': 'approval-1',
+        'kind': 'approval',
+        'status': 'pending',
+    }]
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.time.sleep',
+        lambda _interval: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+
+    result = CliRunner().invoke(
+        hunt,
+        ['interactions', 'hunt-1', '--watch', '--interval', '1'],
+        obj=sdk,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert 'Watching read-only' in result.output
+    assert 'Stopped watching Hunt interactions' in result.output
+
+
+def test_hunt_interaction_watch_prints_new_pending_requests(monkeypatch):
+    sdk = _sdk()
+    sdk.hunts.hunt = {'uuid': 'hunt-1', 'status': 'active'}
+    pending = [{
+        'conversationId': 'child-conversation',
+        'requestId': 'credential-1',
+        'kind': 'credential',
+        'status': 'pending',
+        'fields': ['token'],
+    }]
+    snapshots = iter([[], pending])
+    sdk.hunts.list_interactions = lambda *_args, **_kwargs: next(snapshots)
+    sleeps = iter([None, KeyboardInterrupt()])
+
+    def sleep(_interval):
+        outcome = next(sleeps)
+        if isinstance(outcome, BaseException):
+            raise outcome
+
+    monkeypatch.setattr('praetorian_cli.handlers.hunt.time.sleep', sleep)
+
+    result = CliRunner().invoke(
+        hunt,
+        ['interactions', 'hunt-1', '--watch', '--interval', '1'],
+        obj=sdk,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert 'New pending Hunt interactions' in result.output
+    assert 'credential-1' in result.output
+    assert 'Stopped watching Hunt interactions' in result.output
 
 
 def test_hunt_chat_rejects_guidance_when_no_iteration_is_active():

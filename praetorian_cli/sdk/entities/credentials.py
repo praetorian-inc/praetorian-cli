@@ -38,6 +38,40 @@ class Credentials:
         }
         return self.api.post('broker', request)
 
+    def add_ephemeral(self, parameters):
+        """Store one short-lived HITL credential payload in the broker.
+
+        Callers must pass plaintext values only in ``parameters``. The broker
+        returns an opaque credential reference; only that reference may be
+        used as a conversation interaction response.
+        """
+        if not isinstance(parameters, dict) or not parameters:
+            raise ValueError('ephemeral credential parameters are required')
+        if any(
+            not isinstance(key, str) or not key or not isinstance(value, str)
+            or not value
+            for key, value in parameters.items()
+        ):
+            raise ValueError(
+                'ephemeral credential parameters must be non-empty strings'
+            )
+        return self.api.post('broker', {
+            'Operation': 'add',
+            'Category': 'env-integration',
+            'Type': 'ephemeral',
+            'Parameters': dict(parameters),
+        })
+
+    def delete_ephemeral(self, credential_id):
+        """Best-effort cleanup primitive for an unused ephemeral secret."""
+        if not isinstance(credential_id, str) or not credential_id.strip():
+            raise ValueError('ephemeral credential ID is required')
+        return self.api.delete('broker', {
+            'CredentialID': credential_id.strip(),
+            'Category': 'env-integration',
+            'Type': 'ephemeral',
+        }, params={})
+
     def delete(self, credential_id, resource_key, type):
         """
         Delete a credential via the credential broker.

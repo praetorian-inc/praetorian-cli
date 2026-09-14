@@ -1,3 +1,4 @@
+import sys
 import time
 
 import click
@@ -14,6 +15,9 @@ from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 from praetorian_cli.ui.entity_selector import select_entity_keys
 from praetorian_cli.ui.hunt_chat import (
     build_hunt_chat,
+    build_hunt_interactions,
+    hunt_interaction_key,
+    review_pending_hunt_interactions,
     select_hunt_conversation,
 )
 from praetorian_cli.ui.hunt_data import (
@@ -364,9 +368,116 @@ def chat(sdk, uuid, conversation_id, message):
     except Exception as exc:
         raise click.ClickException(f'Unable to open Hunt chat: {exc}') from exc
 
-    Console().print(build_hunt_chat(conversations, selected, transcript))
+    try:
+        pending_interactions = sdk.hunts.list_interactions(
+            uuid,
+            status='pending',
+        )
+    except Exception:
+        pending_interactions = []
+    Console().print(build_hunt_chat(
+        conversations,
+        selected,
+        transcript,
+        pending_interactions=pending_interactions,
+    ))
     if message is not None:
         click.secho('Guidance queued for the running Hunt iteration.', fg='green')
+
+
+@hunt.command()
+@cli_handler
+@click.argument('uuid')
+@click.option('--watch', is_flag=True, help='Watch and securely answer new interactions')
+@click.option(
+    '--interval',
+    type=click.FloatRange(min=1),
+    default=5.0,
+    show_default=True,
+    help='Polling interval while watching',
+)
+def interactions(sdk, uuid, watch, interval):
+    """List pending interactions across every Hunt iteration and subagent."""
+    _require_hunt(sdk, uuid)
+    console = Console()
+    try:
+        pending = sdk.hunts.list_interactions(uuid, status='pending')
+    except Exception:
+        raise click.ClickException(
+            'Unable to load pending Hunt interactions.'
+        ) from None
+
+    console.print(build_hunt_interactions(pending))
+    if not watch:
+        return
+
+    interactive = sys.stdin.isatty() and sys.stderr.isatty()
+    if not interactive:
+        click.echo(
+            'Watching read-only; secure responses require an interactive terminal.',
+            err=True,
+        )
+    handled = set()
+    seen = {hunt_interaction_key(row) for row in pending}
+
+    try:
+        review_pending_hunt_interactions(
+            sdk,
+            pending,
+            console,
+            confirm=lambda message, default: click.confirm(
+                message,
+                default=default,
+                err=True,
+            ),
+            credential_prompt=lambda field: click.prompt(
+                field,
+                hide_input=True,
+                err=True,
+            ),
+            handled=handled,
+            interactive=interactive,
+        )
+        while True:
+            time.sleep(interval)
+            try:
+                current = sdk.hunts.list_interactions(uuid, status='pending')
+            except Exception:
+                click.echo(
+                    'Pending Hunt interactions are temporarily unavailable.',
+                    err=True,
+                )
+                continue
+            new_interactions = [
+                row for row in current
+                if hunt_interaction_key(row) not in seen
+            ]
+            if not new_interactions:
+                continue
+            console.print(build_hunt_interactions(
+                new_interactions,
+                title='New pending Hunt interactions',
+            ))
+            review_pending_hunt_interactions(
+                sdk,
+                new_interactions,
+                console,
+                confirm=lambda message, default: click.confirm(
+                    message,
+                    default=default,
+                    err=True,
+                ),
+                credential_prompt=lambda field: click.prompt(
+                    field,
+                    hide_input=True,
+                    err=True,
+                ),
+                handled=handled,
+                interactive=interactive,
+            )
+            seen.update(hunt_interaction_key(row) for row in new_interactions)
+    except KeyboardInterrupt:
+        click.echo('\nStopped watching Hunt interactions.')
 
 
 @hunt.command('list')

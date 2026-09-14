@@ -263,6 +263,63 @@ class Hunts:
                 pending.append(child_id)
         return conversations, next_offset
 
+    def list_interactions(self, hunt_id, status='pending', pages=100000):
+        """List interactions across every conversation belonging to a Hunt.
+
+        Discovery starts from every Hunt-indexed root and includes every
+        recursively discovered descendant. Each interaction read remains
+        routed through its owning conversation so Guard enforces partition and
+        conversation visibility server-side; this method never performs a
+        tenant-wide interaction scan.
+        """
+        if status is not None:
+            status = str(status).strip()
+            if not status:
+                raise ValueError('interaction status is required')
+
+        conversations, _ = self.list_conversations(hunt_id, pages=pages)
+        interactions = []
+        seen = set()
+        for conversation in conversations:
+            conversation_id = _record_id(conversation)
+            if not conversation_id:
+                continue
+            rows = self.api.conversations.list_interactions(
+                conversation_id,
+                status=status,
+                include_descendants=False,
+            )
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                normalized = dict(row)
+                # Bind the response route to the conversation whose gated read
+                # produced the row instead of trusting duplicated row metadata.
+                normalized['conversationId'] = conversation_id
+                key = normalized.get('key')
+                identity = (
+                    ('key', str(key))
+                    if key
+                    else (
+                        str(normalized.get('conversationId') or ''),
+                        str(normalized.get('requestId') or ''),
+                    )
+                )
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                interactions.append(normalized)
+
+        return sorted(
+            interactions,
+            key=lambda interaction: (
+                str(interaction.get('timestamp') or ''),
+                str(interaction.get('key') or ''),
+                str(interaction.get('conversationId') or ''),
+                str(interaction.get('requestId') or ''),
+            ),
+        )
+
     def endpoint_execution_status(self, hunt):
         """Return endpoint status for conversations in the hunt's current run."""
         if not isinstance(hunt, dict) or not hunt.get('endpointRequired'):

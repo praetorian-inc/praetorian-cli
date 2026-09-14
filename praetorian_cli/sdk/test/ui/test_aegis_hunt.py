@@ -58,6 +58,8 @@ class FakeHunts:
         self.endpoint_status = {'sessions': [], 'tasks': []}
         self.workflow_runs = []
         self.conversations = []
+        self.interactions = []
+        self.interaction_calls = []
         self.findings = []
         self.memory_items = []
         self.memory_content = {}
@@ -88,6 +90,10 @@ class FakeHunts:
 
     def list_conversations(self, _hunt_id):
         return list(self.conversations), None
+
+    def list_interactions(self, hunt_id, status='pending'):
+        self.interaction_calls.append((hunt_id, status))
+        return list(self.interactions)
 
     def list_findings(self, _hunt_id, pages=1):
         return list(self.findings), None
@@ -498,6 +504,34 @@ def test_chat_displays_transcript_and_queues_guidance():
     assert 'Guidance queued' in output
 
 
+def test_interactions_are_hunt_scoped_and_limited_to_selected_endpoint():
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+    menu.sdk.hunts.hunts = [
+        _hunt(),
+        _hunt(OTHER_ENDPOINT_ID, 'hunt-2'),
+    ]
+    menu.sdk.hunts.interactions = [{
+        'conversationId': 'child-conversation',
+        'requestId': 'request-1',
+        'kind': 'credential',
+        'status': 'pending',
+        'request': 'MODEL TEXT WITH VALUE-THAT-MUST-NOT-RENDER',
+        'fields': ['username', 'password'],
+    }]
+
+    handle_hunt(menu, ['interactions', 'hunt-1'])
+    handle_hunt(menu, ['interactions', 'hunt-2'])
+
+    output = menu.console.export_text()
+    assert menu.sdk.hunts.interaction_calls == [('hunt-1', 'pending')]
+    assert 'Pending Hunt interactions' in output
+    assert 'username, password' in output
+    assert 'VALUE-THAT-MUST-NOT-RENDER' not in output
+    assert 'does not belong to the selected endpoint' in output
+
+
 def test_lifecycle_mutations_are_limited_to_selected_endpoint():
     endpoint = V2Endpoint()
     menu = Menu(endpoint)
@@ -555,6 +589,11 @@ def test_hunt_completion_lists_subcommands_and_options():
         '--m',
         ['hunt', 'chat', 'hunt-1', '--m'],
     ) == ['--message']
+    assert complete(
+        menu,
+        '--w',
+        ['hunt', 'interactions', 'hunt-1', '--w'],
+    ) == ['--watch']
     assert complete(
         menu,
         '--sev',
