@@ -63,7 +63,9 @@ def asset(sdk, identifier, group, asset_type, status, surface, resource_type):
 @click.argument('path')
 @click.option('-n', '--name', help='Destination path in Guard storage. Without this flag, the file is placed automatically')
 @click.option('--public', 'is_public', is_flag=True, default=False, help='Share file with the customer (Praetorian users only)')
-def file(sdk, path, name, is_public):
+@click.option('--praetorian', 'is_praetorian', is_flag=True, default=False,
+              help='Store in the Praetorian-only partition, invisible to the customer (Praetorian users only)')
+def file(sdk, path, name, is_public, is_praetorian):
     """ Upload a file
 
     This commands takes the path to a local file and uploads it to the
@@ -81,11 +83,25 @@ def file(sdk, path, name, is_public):
         - guard add file ./file.txt
         - guard add file ./file.txt --public
         - guard add file ./file.txt --name "custom/path/file.txt"
+        - guard add file ./narratives.md --name "reports/narratives.md" --praetorian
     """
     try:
         expanded = os.path.expanduser(path)
         filename = os.path.basename(expanded)
         praetorian = False
+
+        if is_praetorian and is_public:
+            error('--praetorian and --public are mutually exclusive: --public shares the file with '
+                  'the customer, --praetorian hides it from them.')
+        # Reject only when the caller is *known* not to be Praetorian. Profiles
+        # that authenticate with an API key carry no `username`, so
+        # is_praetorian_user() is False for them even when the key belongs to a
+        # Praetorian operator -- gating on it alone would reject the flag on
+        # exactly the engagement profiles this is for. When the identity is
+        # unknown locally, defer to the backend, which checks the authenticated
+        # principal and returns 403 if it is wrong.
+        if is_praetorian and sdk.keychain.username() and not sdk.is_praetorian_user():
+            error('The --praetorian flag is limited to Praetorian engineers only.')
 
         if name:
             # if name is provided, use it as the destination path regardless of whether
@@ -93,6 +109,11 @@ def file(sdk, path, name, is_public):
             # follow the conventions, it will still be uploaded but it will not be
             # displayed in the Guard app UI.
             dest_path = name
+            # The destination partition is chosen independently of the destination path:
+            # without this, --name pinned every upload to the default partition, so
+            # operator-only content (report markdown the Generate Report wizard reads
+            # from the Praetorian partition) was unreachable from the CLI.
+            praetorian = is_praetorian
         elif sdk.is_praetorian_user():
             if is_public:
                 dest_path = f'home/shared-with/{filename}'
