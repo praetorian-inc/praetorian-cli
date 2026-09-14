@@ -25,8 +25,18 @@ ROLE_PRESENTATION = {
 }
 
 
-def select_hunt_conversation(records, requested_id=None, require_active=False):
-    """Select an active or recent Hunt conversation from authorized records."""
+def select_hunt_conversation(
+    records,
+    requested_id=None,
+    require_active=False,
+    exact_id=False,
+):
+    """Select an active or recent Hunt conversation from authorized records.
+
+    Prefixes remain available to explicit ``hunt chat`` commands. Workflow
+    navigation sets ``exact_id`` so stale or unauthorized step references can
+    never resolve to a different authorized conversation by prefix.
+    """
     conversations = _sorted_conversations(records)
     if not conversations:
         raise ValueError('this Hunt has no conversations yet')
@@ -48,6 +58,10 @@ def select_hunt_conversation(records, requested_id=None, require_active=False):
         )
         if exact is not None:
             selected = exact
+        elif exact_id:
+            raise ValueError(
+                f'conversation {requested_id!r} does not belong to this Hunt'
+            )
         elif len(matches) == 1:
             selected = matches[0]
         elif len(matches) > 1:

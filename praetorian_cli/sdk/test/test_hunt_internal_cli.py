@@ -663,6 +663,48 @@ def test_hunt_status_can_render_workflow_iterations():
     assert 'RUNNING' in result.output
 
 
+def test_hunt_status_workflow_step_opens_exact_live_conversation(monkeypatch):
+    sdk = _sdk()
+    sdk.hunts.hunt = {
+        'uuid': 'hunt-1',
+        'status': 'active',
+        'agent': 'hannibal',
+    }
+    sdk.hunts.workflow_runs = [{
+        'run_id': 'run-1',
+        'steps': [{
+            'name': 'dispatch-agent',
+            'conversation_id': 'conversation-exact',
+        }],
+    }]
+    calls = []
+
+    def open_selected(_console, runs, *, open_conversation):
+        assert runs == sdk.hunts.workflow_runs
+        open_conversation(runs[0]['steps'][0]['conversation_id'])
+
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.browse_hunt_workflows',
+        open_selected,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.run_live_hunt_chat',
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    result = CliRunner().invoke(
+        hunt,
+        ['status', 'hunt-1', '--workflows'],
+        obj=sdk,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls[0][0] == (sdk, 'hunt-1')
+    assert calls[0][1]['requested_id'] == 'conversation-exact'
+    assert calls[0][1]['exact_requested_id'] is True
+    assert callable(calls[0][1]['review_interactions'])
+
+
 def test_hunt_status_includes_internal_execution_placement():
     sdk = _sdk()
     sdk.hunts.hunt = {

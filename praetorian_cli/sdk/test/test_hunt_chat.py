@@ -44,6 +44,24 @@ def test_select_hunt_conversation_accepts_unique_id_prefix():
     assert selected['uuid'] == '22222222-bbbb'
 
 
+def test_select_hunt_conversation_can_require_an_exact_authorized_id():
+    conversations = [_conversation('11111111-aaaa')]
+
+    with pytest.raises(ValueError, match='does not belong'):
+        select_hunt_conversation(
+            conversations,
+            requested_id='11111111',
+            exact_id=True,
+        )
+
+    selected = select_hunt_conversation(
+        conversations,
+        requested_id='11111111-aaaa',
+        exact_id=True,
+    )
+    assert selected['uuid'] == '11111111-aaaa'
+
+
 def test_select_hunt_conversation_rejects_nonmember_and_subagent_guidance():
     conversations = [
         _conversation('root', status='active'),

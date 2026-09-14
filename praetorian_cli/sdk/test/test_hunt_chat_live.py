@@ -312,6 +312,21 @@ def test_fullscreen_app_mounts_navigation_pages_and_read_only_composer():
     asyncio.run(exercise_app())
 
 
+def test_live_runner_rejects_a_workflow_prefix_when_exact_id_is_required():
+    _session_state, sdk = _session()
+
+    with pytest.raises(ValueError, match='does not belong'):
+        run_live_hunt_chat(
+            sdk,
+            'hunt-1',
+            requested_id='chi',
+            exact_requested_id=True,
+            app_factory=lambda _session: pytest.fail(
+                'chat app must not open for an inexact workflow reference'
+            ),
+        )
+
+
 def test_live_runner_reuses_shared_interaction_reviewer_and_cancels_cleanly():
     session, sdk = _session()
     sdk.hunts.interactions = [{

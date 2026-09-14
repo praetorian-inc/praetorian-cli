@@ -397,7 +397,40 @@ def show_hunt_status(menu, endpoint, args):
             )
         else:
             menu.console.print()
-            browse_hunt_workflows(menu.console, runs)
+
+            def open_workflow_conversation(conversation_id):
+                def review_interactions(pending):
+                    review_pending_hunt_interactions(
+                        menu.sdk,
+                        pending,
+                        menu.console,
+                        confirm=lambda message, default: Confirm.ask(
+                            message,
+                            default=default,
+                            console=menu.console,
+                        ),
+                        credential_prompt=lambda field: Prompt.ask(
+                            Text(f'  {field}'),
+                            password=True,
+                            console=menu.console,
+                        ),
+                        interactive=True,
+                    )
+
+                return run_live_hunt_chat(
+                    menu.sdk,
+                    _hunt_id(hunt),
+                    requested_id=conversation_id,
+                    exact_requested_id=True,
+                    refresh_interval=DEFAULT_CHAT_REFRESH_SECONDS,
+                    review_interactions=review_interactions,
+                )
+
+            browse_hunt_workflows(
+                menu.console,
+                runs,
+                open_conversation=open_workflow_conversation,
+            )
     menu.pause()
 
 

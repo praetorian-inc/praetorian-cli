@@ -427,6 +427,40 @@ def test_status_renders_endpoint_execution_state_and_workflows():
     assert 'RUNNING' in output
 
 
+def test_status_workflow_step_opens_exact_live_conversation(monkeypatch):
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt()]
+    menu.sdk.hunts.workflow_runs = [{
+        'run_id': 'run-1',
+        'steps': [{
+            'name': 'dispatch-agent',
+            'conversation_id': 'conversation-exact',
+        }],
+    }]
+    calls = []
+
+    def open_selected(_console, runs, *, open_conversation):
+        assert runs == menu.sdk.hunts.workflow_runs
+        open_conversation(runs[0]['steps'][0]['conversation_id'])
+
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.browse_hunt_workflows',
+        open_selected,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.run_live_hunt_chat',
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    handle_hunt(menu, ['status', 'hunt-1', '--workflows'])
+
+    assert calls[0][0] == (menu.sdk, 'hunt-1')
+    assert calls[0][1]['requested_id'] == 'conversation-exact'
+    assert calls[0][1]['exact_requested_id'] is True
+    assert callable(calls[0][1]['review_interactions'])
+
+
 def test_findings_memory_and_log_commands_render_hunt_data():
     endpoint = V2Endpoint()
     menu = Menu(endpoint)

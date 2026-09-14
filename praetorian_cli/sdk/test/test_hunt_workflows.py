@@ -97,6 +97,55 @@ def test_workflow_browser_moves_and_toggles_selected_iteration():
     assert browser.current_is_expanded is True
 
 
+def test_workflow_browser_navigates_only_chat_steps_and_restores_state():
+    runs = [{
+        'run_id': 'run-1',
+        'steps': [
+            {'name': 'setup'},
+            {'name': 'agent-one', 'conversation_id': 'conversation-one'},
+            {'name': 'cleanup'},
+            {'name': 'agent-two', 'conversation_id': 'conversation-two'},
+        ],
+    }]
+    browser = WorkflowBrowser(runs)
+
+    assert browser.current_step_index == 1
+    assert browser.current_conversation_id == 'conversation-one'
+    assert browser.move_step(1) is True
+    assert browser.current_step_index == 3
+    assert browser.current_conversation_id == 'conversation-two'
+
+    before = (browser.cursor, set(browser.expanded), dict(browser.step_cursors))
+    opened = []
+    assert browser.activate(opened.append) is True
+    assert opened == ['conversation-two']
+    assert (browser.cursor, browser.expanded, browser.step_cursors) == before
+    assert 'selection restored' in browser.notice
+
+    def unavailable(_conversation_id):
+        raise PermissionError('conversation is unavailable')
+
+    assert browser.activate(unavailable) is False
+    assert (browser.cursor, browser.expanded, browser.step_cursors) == before
+    assert 'Unable to open conversation conversation-two' in browser.notice
+
+
+def test_workflow_steps_without_conversations_are_clearly_non_actionable():
+    browser = WorkflowBrowser([{
+        'run_id': 'run-1',
+        'steps': [{'name': 'setup'}],
+    }])
+
+    assert browser.current_step is None
+    assert browser.move_step(1) is False
+    assert browser.activate(lambda _conversation_id: None) is False
+    assert browser.notice == 'This workflow has no chat-enabled steps.'
+
+    rendered = format_hunt_workflows(browser.runs)
+    assert '— no conversation' in rendered
+    assert 'Workflow conversation IDs' not in rendered
+
+
 def test_workflow_browser_falls_back_to_static_output_without_tty():
     output = StringIO()
     console = Console(file=output, width=100, color_system=None)
@@ -106,12 +155,20 @@ def test_workflow_browser_falls_back_to_static_output_without_tty():
         'definition': 'internal-hunt',
         'status': 'running',
         'created': '2026-01-01T00:00:00Z',
-        'steps': [],
+        'steps': [{
+            'name': 'dispatch-agent',
+            'conversation_id': '11111111-2222-4333-8444-555555555555',
+        }],
     }])
 
     rendered = output.getvalue()
     assert 'Hunt workflow timeline' in rendered
     assert 'internal-hunt' in rendered
+    assert 'Workflow conversation IDs · scriptable' in rendered
+    assert (
+        'conversation_id=11111111-2222-4333-8444-555555555555'
+        in rendered
+    )
 
 
 def test_workflow_formatter_handles_empty_and_invalid_timestamps():

@@ -51,16 +51,29 @@ def build_hunt_workflows(records):
     return Group(overview, Text(''), *iterations)
 
 
-def browse_hunt_workflows(console, records):
-    """Open an interactive workflow browser, or print when no TTY exists."""
+def browse_hunt_workflows(console, records, *, open_conversation=None):
+    """Open an interactive workflow browser, or print when no TTY exists.
+
+    ``open_conversation`` owns the existing live Hunt chat surface. It is
+    called only from the fullscreen browser and receives the exact
+    ``conversation_id`` stored on the selected workflow step.
+    """
     runs = _sorted_runs(records)
     if not _supports_fullscreen_browser():
         console.print(build_hunt_workflows(runs))
+        conversation_index = _conversation_id_index(runs)
+        if conversation_index is not None:
+            console.print()
+            console.print(conversation_index, soft_wrap=True)
         return
     if not runs:
         console.print(build_hunt_workflows(runs))
         return
-    _run_workflow_browser(console, WorkflowBrowser(runs))
+    _run_workflow_browser(
+        console,
+        WorkflowBrowser(runs),
+        open_conversation=open_conversation,
+    )
 
 
 class WorkflowBrowser:
@@ -72,10 +85,40 @@ class WorkflowBrowser:
         self.runs = list(runs)
         self.cursor = 0
         self.expanded = {0} if self.runs else set()
+        self.step_cursors = {}
+        self.notice = ''
 
     @property
     def current(self):
         return self.runs[self.cursor] if self.runs else None
+
+    @property
+    def conversation_step_indices(self):
+        return [
+            index for index, step in enumerate(_workflow_steps(self.current))
+            if _conversation_id(step)
+        ]
+
+    @property
+    def current_step_index(self):
+        indices = self.conversation_step_indices
+        if not indices:
+            return None
+        selected = self.step_cursors.get(self.cursor)
+        if selected not in indices:
+            selected = indices[0]
+            self.step_cursors[self.cursor] = selected
+        return selected
+
+    @property
+    def current_step(self):
+        index = self.current_step_index
+        steps = _workflow_steps(self.current)
+        return steps[index] if index is not None else None
+
+    @property
+    def current_conversation_id(self):
+        return _conversation_id(self.current_step)
 
     @property
     def visible_start(self):
@@ -94,18 +137,61 @@ class WorkflowBrowser:
         if not self.runs:
             return
         self.cursor = min(max(self.cursor + delta, 0), len(self.runs) - 1)
+        self.notice = ''
+
+    def move_step(self, delta):
+        """Cycle through only steps that can activate a conversation."""
+        indices = self.conversation_step_indices
+        if not indices:
+            self.notice = 'This workflow has no chat-enabled steps.'
+            return False
+        selected = self.current_step_index
+        position = indices.index(selected)
+        self.step_cursors[self.cursor] = indices[(position + delta) % len(indices)]
+        self.expand()
+        self.notice = ''
+        return True
+
+    def activate(self, open_conversation):
+        """Open the selected exact conversation without changing browser state."""
+        if not self.current_is_expanded:
+            self.notice = 'Expand this workflow before opening a step conversation.'
+            return False
+        conversation_id = self.current_conversation_id
+        if not conversation_id:
+            self.notice = 'This workflow has no chat-enabled steps.'
+            return False
+        if not callable(open_conversation):
+            self.notice = 'Live chat is unavailable from this workflow view.'
+            return False
+        try:
+            open_conversation(conversation_id)
+        except Exception as exc:
+            detail = _safe(str(exc) or exc.__class__.__name__, 240)
+            self.notice = (
+                f'Unable to open conversation {conversation_id}: {detail}'
+            )
+            return False
+        self.notice = (
+            f'Returned from conversation {conversation_id}; '
+            'workflow selection restored.'
+        )
+        return True
 
     def toggle(self):
         if self.cursor in self.expanded:
             self.expanded.remove(self.cursor)
         else:
             self.expanded.add(self.cursor)
+        self.notice = ''
 
     def expand(self):
         self.expanded.add(self.cursor)
+        self.notice = ''
 
     def collapse(self):
         self.expanded.discard(self.cursor)
+        self.notice = ''
 
     def iteration_number(self, index=None):
         index = self.cursor if index is None else index
@@ -119,7 +205,7 @@ def _supports_fullscreen_browser():
         return False
 
 
-def _run_workflow_browser(console, browser):
+def _run_workflow_browser(console, browser, *, open_conversation=None):
     from prompt_toolkit import Application
     from prompt_toolkit.formatted_text import ANSI
     from prompt_toolkit.key_binding import KeyBindings
@@ -148,10 +234,20 @@ def _run_workflow_browser(console, browser):
     @key_bindings.add('home')
     def _first(event):
         browser.cursor = 0
+        browser.notice = ''
 
     @key_bindings.add('end')
     def _last(event):
         browser.cursor = len(browser.runs) - 1
+        browser.notice = ''
+
+    @key_bindings.add('tab')
+    def _next_step(event):
+        browser.move_step(1)
+
+    @key_bindings.add('s-tab')
+    def _previous_step(event):
+        browser.move_step(-1)
 
     @key_bindings.add(' ')
     def _toggle(event):
@@ -165,12 +261,22 @@ def _run_workflow_browser(console, browser):
     def _collapse(event):
         browser.collapse()
 
+    @key_bindings.add('enter')
+    def _open_chat(event):
+        if (
+            browser.current_is_expanded
+            and browser.current_conversation_id
+            and callable(open_conversation)
+        ):
+            event.app.exit(result='open-conversation')
+            return
+        browser.activate(open_conversation)
+
     @key_bindings.add('q')
     @key_bindings.add('escape')
     @key_bindings.add('c-c')
-    @key_bindings.add('enter')
     def _close(event):
-        event.app.exit()
+        event.app.exit(result='close')
 
     def display():
         output = StringIO()
@@ -180,8 +286,8 @@ def _run_workflow_browser(console, browser):
             width=max(80, getattr(console, 'width', 80)),
         )
         render_console.print(
-            '↑/↓ move  SPACE expand/collapse  ←/→ collapse/expand  '
-            'PgUp/PgDn jump  ENTER/q/ESC close',
+            '↑/↓ iterations  TAB/Shift+TAB chat steps  ENTER open chat  '
+            'SPACE/←/→ expand/collapse  PgUp/PgDn jump  q/ESC close',
             style='dim',
         )
         render_console.print(_workflow_navigation_table(browser))
@@ -189,20 +295,30 @@ def _run_workflow_browser(console, browser):
             render_console.print(_iteration_panel(
                 browser.current,
                 browser.iteration_number(),
+                selected_step_index=browser.current_step_index,
+                interactive=True,
             ))
         else:
             render_console.print(
                 'Press Space to expand the highlighted workflow.',
                 style='dim',
             )
+        if browser.notice:
+            render_console.print(browser.notice, style='yellow')
         return ANSI(output.getvalue())
 
-    application = Application(
-        layout=Layout(Window(content=FormattedTextControl(display))),
-        key_bindings=key_bindings,
-        full_screen=True,
-    )
-    application.run()
+    while True:
+        application = Application(
+            layout=Layout(Window(content=FormattedTextControl(display))),
+            key_bindings=key_bindings,
+            full_screen=True,
+        )
+        outcome = application.run()
+        if outcome != 'open-conversation':
+            return
+        # The same browser object survives while the shared live chat owns the
+        # terminal, preserving iteration, expansion, and step selection state.
+        browser.activate(open_conversation)
 
 
 def _workflow_navigation_table(browser):
@@ -247,7 +363,12 @@ def format_hunt_workflows(records, width=140):
         force_terminal=False,
         color_system=None,
     )
-    console.print(build_hunt_workflows(records))
+    runs = _sorted_runs(records)
+    console.print(build_hunt_workflows(runs))
+    conversation_index = _conversation_id_index(runs)
+    if conversation_index is not None:
+        console.print()
+        console.print(conversation_index, soft_wrap=True)
     return output.getvalue().rstrip()
 
 
@@ -257,6 +378,48 @@ def _sorted_runs(records):
         key=lambda record: _timestamp_sort_key(record.get('created')),
         reverse=True,
     )
+
+
+def _workflow_steps(run):
+    if not isinstance(run, dict):
+        return []
+    return [
+        step for step in run.get('steps') or []
+        if isinstance(step, dict)
+    ]
+
+
+def _conversation_id(step):
+    if not isinstance(step, dict):
+        return ''
+    value = step.get('conversation_id')
+    if not isinstance(value, str):
+        return ''
+    value = value.strip().removeprefix('#conversation#')
+    safe = _safe(value, 200)
+    return value if value and value == safe else ''
+
+
+def _conversation_id_index(runs):
+    conversation_ids = [
+        conversation_id
+        for run in runs
+        for step in _workflow_steps(run)
+        if (conversation_id := _conversation_id(step))
+    ]
+    if not conversation_ids:
+        return None
+
+    content = Text(
+        'Workflow conversation IDs · scriptable\n',
+        style='bold cyan',
+    )
+    for index, conversation_id in enumerate(conversation_ids):
+        if index:
+            content.append('\n')
+        content.append('conversation_id=', style='dim')
+        content.append(conversation_id, style='cyan')
+    return content
 
 
 def _overview_panel(runs):
@@ -310,7 +473,13 @@ def _metric_panel(label, value, style):
     )
 
 
-def _iteration_panel(run, iteration):
+def _iteration_panel(
+    run,
+    iteration,
+    *,
+    selected_step_index=None,
+    interactive=False,
+):
     status = _shown_status(run.get('status'))
     symbol, style = _status_presentation(status)
     title = Text()
@@ -323,7 +492,11 @@ def _iteration_panel(run, iteration):
         _progress_line(run.get('steps')),
         _pipeline_rail(run.get('steps')),
         Text(''),
-        _steps_table(run.get('steps')),
+        _steps_table(
+            run.get('steps'),
+            selected_step_index=selected_step_index,
+            interactive=interactive,
+        ),
     )
     return Panel(
         body,
@@ -419,7 +592,7 @@ def _pipeline_rail(steps):
     return rail
 
 
-def _steps_table(steps):
+def _steps_table(steps, *, selected_step_index=None, interactive=False):
     steps = [step for step in steps or [] if isinstance(step, dict)]
     table = Table(
         box=box.SIMPLE_HEAVY,
@@ -432,12 +605,19 @@ def _steps_table(steps):
     table.add_column('STATUS', width=12, no_wrap=True)
     table.add_column('ACTIVITY', min_width=16, ratio=3)
     table.add_column('METRICS', width=14, no_wrap=True)
+    table.add_column('CHAT / CONVERSATION', min_width=20, ratio=2)
 
     if not steps:
-        table.add_row(Text('No workflow steps recorded.', style='dim'), '', '', '')
+        table.add_row(
+            Text('No workflow steps recorded.', style='dim'),
+            '',
+            '',
+            '',
+            Text('— no conversation', style='dim'),
+        )
         return table
 
-    for step in steps:
+    for index, step in enumerate(steps):
         status = _shown_status(step.get('status'))
         symbol, style = _status_presentation(status)
         title = _safe(step.get('title') or step.get('name') or 'unnamed step', 100)
@@ -447,20 +627,42 @@ def _steps_table(steps):
         if step.get('error'):
             activity = f'Error: {_safe(step.get("error"), 160)}'
 
+        selected = interactive and index == selected_step_index
         kind = _safe(step.get('kind') or 'capability', 32).lower()
         kind_symbol, kind_style = KIND_PRESENTATION.get(kind, ('•', 'white'))
-        step_label = Text(title, style='bold white' if status == 'running' else 'white')
+        step_label = Text(
+            f'▶ {title}' if selected else title,
+            style='bold cyan' if selected else (
+                'bold white' if status == 'running' else 'white'
+            ),
+        )
         step_label.append(
             f'\n{kind_symbol} {kind.upper()}',
             style=kind_style,
         )
         state = Text(f'{symbol} {status.upper()}', style=f'bold {style}')
+        conversation_id = _conversation_id(step)
+        if conversation_id:
+            conversation = Text()
+            conversation.append(
+                '↵ OPEN CHAT\n' if selected else (
+                    'CHAT\n' if interactive else 'conversation_id='
+                ),
+                style='bold cyan' if selected else 'cyan',
+            )
+            conversation.append(conversation_id, style='cyan')
+        else:
+            conversation = Text('— no conversation', style='dim')
         table.add_row(
             step_label,
             state,
             Text(activity or '—', style='red' if step.get('error') else 'dim'),
             Text(_step_metrics(step), style='dim'),
-            style='on grey11' if status == 'running' else None,
+            conversation,
+            style=(
+                'on grey19' if selected
+                else ('on grey11' if status == 'running' else None)
+            ),
         )
     return table
 

@@ -67,12 +67,14 @@ class HuntChatSession:
         hunt_id,
         *,
         requested_id=None,
+        exact_requested_id=False,
         refresh_interval=DEFAULT_CHAT_REFRESH_SECONDS,
         page_size=DEFAULT_HISTORY_PAGE_SIZE,
     ):
         self.sdk = sdk
         self.hunt_id = str(hunt_id or '').strip()
         self.requested_id = requested_id
+        self.exact_requested_id = bool(exact_requested_id)
         self.refresh_interval = min(
             max(float(refresh_interval), MIN_CHAT_REFRESH_SECONDS),
             MAX_CHAT_REFRESH_SECONDS,
@@ -146,6 +148,7 @@ class HuntChatSession:
             selected = select_hunt_conversation(
                 conversations,
                 requested_id=requested,
+                exact_id=self.exact_requested_id,
             )
             selected_id = hunt_conversation_id(selected)
             transcript = self.sdk.conversations.get(selected_id)
@@ -585,6 +588,7 @@ def run_live_hunt_chat(
     hunt_id,
     *,
     requested_id=None,
+    exact_requested_id=False,
     refresh_interval=DEFAULT_CHAT_REFRESH_SECONDS,
     review_interactions=None,
     app_factory=HuntChatApp,
@@ -594,6 +598,7 @@ def run_live_hunt_chat(
         sdk,
         hunt_id,
         requested_id=requested_id,
+        exact_requested_id=exact_requested_id,
         refresh_interval=refresh_interval,
     )
     session.refresh(raise_errors=True)

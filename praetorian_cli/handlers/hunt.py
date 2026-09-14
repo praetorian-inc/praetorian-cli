@@ -598,7 +598,41 @@ def status(sdk, uuid, workflows):
                 f'Unable to load Hunt workflows: {exc}'
             ) from exc
         click.echo()
-        browse_hunt_workflows(Console(), runs)
+        workflow_console = Console()
+
+        def open_workflow_conversation(conversation_id):
+            def review_interactions(pending):
+                review_pending_hunt_interactions(
+                    sdk,
+                    pending,
+                    workflow_console,
+                    confirm=lambda prompt, default: click.confirm(
+                        prompt,
+                        default=default,
+                        err=True,
+                    ),
+                    credential_prompt=lambda field: click.prompt(
+                        field,
+                        hide_input=True,
+                        err=True,
+                    ),
+                    interactive=True,
+                )
+
+            return run_live_hunt_chat(
+                sdk,
+                uuid,
+                requested_id=conversation_id,
+                exact_requested_id=True,
+                refresh_interval=DEFAULT_CHAT_REFRESH_SECONDS,
+                review_interactions=review_interactions,
+            )
+
+        browse_hunt_workflows(
+            workflow_console,
+            runs,
+            open_conversation=open_workflow_conversation,
+        )
 
 
 @hunt.command()
