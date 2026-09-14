@@ -438,6 +438,21 @@ def test_hunt_memory_lists_reads_saves_and_deletes_items():
     ]
 
 
+def test_hunt_memory_without_static_options_delegates_to_browser(monkeypatch):
+    sdk = _sdk()
+    sdk.hunts.hunt = {'uuid': 'hunt-1'}
+    calls = []
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.browse_hunt_memory',
+        lambda console, hunts, hunt_id: calls.append((hunts, hunt_id)),
+    )
+
+    result = CliRunner().invoke(hunt, ['memory', 'hunt-1'], obj=sdk)
+
+    assert result.exit_code == 0, result.output
+    assert calls == [(sdk.hunts, 'hunt-1')]
+
+
 def test_hunt_log_displays_summary_log():
     sdk = _sdk()
     sdk.hunts.hunt = {'uuid': 'hunt-1'}

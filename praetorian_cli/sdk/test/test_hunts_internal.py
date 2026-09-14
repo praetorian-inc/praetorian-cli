@@ -272,6 +272,7 @@ def test_list_hunt_memory_excludes_summary_log():
             }
             return {'files': [
                 {'name': 'memory/hunt/hunt-1/summary.log'},
+                {'name': 'memory/hunt/hunt-1/SUMMARY.LOG'},
                 {'name': 'memory/hunt/hunt-1/zeta.md'},
                 {'name': 'memory/hunt/hunt-1/alpha.md'},
             ]}
@@ -289,6 +290,8 @@ def test_hunt_memory_rejects_invalid_and_system_owned_titles():
         hunts.get_memory('hunt-1', '../secret')
     with pytest.raises(ValueError, match='system-owned'):
         hunts.save_memory('hunt-1', 'summary.log', 'overwrite')
+    with pytest.raises(ValueError, match='system-owned'):
+        hunts.delete_memory('hunt-1', 'SUMMARY.LOG')
 
 
 def test_list_workflow_runs_uses_hunt_index_and_preserves_pagination():

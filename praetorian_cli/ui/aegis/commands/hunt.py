@@ -17,7 +17,6 @@ from praetorian_cli.ui.hunt_chat import (
 from praetorian_cli.ui.hunt_data import (
     build_hunt_findings,
     build_hunt_log,
-    build_hunt_memory,
     build_hunt_memory_item,
     filter_hunt_findings,
 )
@@ -26,6 +25,7 @@ from praetorian_cli.ui.hunt_defaults import (
     DEFAULT_HUNT_DURATION_HOURS,
 )
 from praetorian_cli.ui.hunt_launch import configure_hunt_launch
+from praetorian_cli.ui.hunt_memory import browse_hunt_memory
 from praetorian_cli.ui.hunt_overview import build_hunt_overview
 from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
 from ..constants import DEFAULT_COLORS
@@ -124,6 +124,9 @@ def show_hunt_help(menu):
   hunt log <hunt-id> [--follow]
   hunt chat <hunt-id> [--conversation <id>] [--message <guidance>]
   hunt pause|resume|stop|delete <hunt-id>
+
+  Hunt memory opens a fullscreen browser on a terminal. Use --item with
+  --content or --delete for deterministic static updates.
 
   The selected Aegis v2 endpoint is used automatically. When --scope is
   omitted, choose active internal targets from a searchable list. The launch
@@ -471,8 +474,7 @@ def manage_hunt_memory(menu, endpoint, args):
             content = menu.sdk.hunts.get_memory(hunt_id, options['item'])
             menu.console.print(build_hunt_memory_item(options['item'], content))
         else:
-            items, _ = menu.sdk.hunts.list_memory(hunt_id)
-            menu.console.print(build_hunt_memory(items))
+            browse_hunt_memory(menu.console, menu.sdk.hunts, hunt_id)
     except Exception as exc:
         _print_message(menu, f'Unable to manage Hunt memory: {exc}', 'error')
     menu.pause()

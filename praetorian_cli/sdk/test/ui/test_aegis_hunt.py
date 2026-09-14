@@ -535,6 +535,22 @@ def test_findings_memory_and_log_commands_render_hunt_data():
     ]
 
 
+def test_memory_without_static_options_opens_fullscreen_browser(monkeypatch):
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt()]
+    calls = []
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.browse_hunt_memory',
+        lambda console, hunts, hunt_id: calls.append((console, hunts, hunt_id)),
+    )
+
+    handle_hunt(menu, ['memory', 'hunt-1'])
+
+    assert calls == [(menu.console, menu.sdk.hunts, 'hunt-1')]
+    assert menu.paused is True
+
+
 def test_chat_displays_transcript_and_queues_guidance():
     endpoint = V2Endpoint()
     menu = Menu(endpoint)

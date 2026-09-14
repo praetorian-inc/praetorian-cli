@@ -198,7 +198,7 @@ class Hunts:
         for record in records:
             name = str(record.get('name') or '').removeprefix('#file#')
             title = name.removeprefix(prefix) if name.startswith(prefix) else name
-            if title and title != 'summary.log':
+            if title and title.casefold() != 'summary.log':
                 items.append({**record, 'name': name, 'title': title})
         return sorted(items, key=lambda item: item['title']), offset
 

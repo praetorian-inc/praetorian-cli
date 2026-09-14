@@ -19,7 +19,6 @@ from praetorian_cli.ui.hunt_chat import (
 from praetorian_cli.ui.hunt_data import (
     build_hunt_findings,
     build_hunt_log,
-    build_hunt_memory,
     build_hunt_memory_item,
     filter_hunt_findings,
 )
@@ -27,6 +26,7 @@ from praetorian_cli.ui.hunt_defaults import (
     DEFAULT_FINISH_CRITERIA,
     DEFAULT_HUNT_DURATION_HOURS,
 )
+from praetorian_cli.ui.hunt_memory import browse_hunt_memory
 from praetorian_cli.ui.hunt_overview import build_hunt_overview
 from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
 
@@ -287,7 +287,7 @@ def findings(sdk, uuid, status, severity, details, evidence, page):
 @click.option('--delete', 'delete_item', is_flag=True, help='Delete the selected item')
 @click.option('-y', '--yes', is_flag=True, help='Skip delete confirmation')
 def memory(sdk, uuid, item, content, delete_item, yes):
-    """List, read, edit, or delete Hunt memory."""
+    """Browse Hunt memory, or use explicit options for static CRUD."""
     _require_hunt(sdk, uuid)
     if content is not None and delete_item:
         raise click.UsageError('--content and --delete cannot be combined')
@@ -310,8 +310,7 @@ def memory(sdk, uuid, item, content, delete_item, yes):
         )
         return
 
-    items, _ = sdk.hunts.list_memory(uuid)
-    Console().print(build_hunt_memory(items))
+    browse_hunt_memory(Console(), sdk.hunts, uuid)
 
 
 @hunt.command()
