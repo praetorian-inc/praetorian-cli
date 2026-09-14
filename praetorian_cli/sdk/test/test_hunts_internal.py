@@ -28,6 +28,45 @@ class FakeAPI:
         return {'uuid': 'hunt-1', **body}
 
 
+def test_hunt_cost_uses_guard_cost_contract_and_strips_key_prefix():
+    class CostAPI:
+        def __init__(self):
+            self.paths = []
+
+        def get(self, path):
+            self.paths.append(path)
+            return {
+                'total': {
+                    'model': '',
+                    'cost': 1.25,
+                    'call_count': 2,
+                    'input_tokens': 100,
+                    'output_tokens': 50,
+                    'total_tokens': 150,
+                },
+                'by_model': [],
+                'currency': 'USD',
+            }
+
+    api = CostAPI()
+
+    hunt_id = '550e8400-e29b-41d4-a716-446655440000'
+    result = Hunts(api).get_cost(f'#hunt#{hunt_id}')
+    Hunts(api).get_cost('hunt/../../other')
+
+    assert api.paths == [
+        f'hunt/{hunt_id}/cost',
+        'hunt/hunt%2F..%2F..%2Fother/cost',
+    ]
+    assert result['total']['cost'] == 1.25
+    assert result['currency'] == 'USD'
+
+
+def test_hunt_cost_requires_an_id_before_request():
+    with pytest.raises(ValueError, match='hunt ID is required'):
+        Hunts(SimpleNamespace()).get_cost('  ')
+
+
 def test_list_hunt_endpoints_uses_active_identity_route():
     api = EndpointAPI([{
         'endpoint_id': '11111111-1111-4111-8111-111111111111',
@@ -284,6 +323,32 @@ def test_list_workflow_runs_uses_hunt_index_and_preserves_pagination():
             'offset': '{"key": "next"}',
         }),
     ]
+
+
+def test_list_root_conversations_only_reads_hunt_iteration_index():
+    class ConversationAPI:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, path, params):
+            self.calls.append((path, dict(params)))
+            return {
+                'conversations': [{
+                    'uuid': 'conversation-1',
+                    'status': 'active',
+                }],
+            }
+
+    api = ConversationAPI()
+
+    conversations, offset = Hunts(api).list_root_conversations('hunt-1')
+
+    assert [item['uuid'] for item in conversations] == ['conversation-1']
+    assert offset is None
+    assert api.calls == [(
+        'my',
+        {'label': 'conversation', 'key': 'hunt:hunt-1'},
+    )]
 
 
 def test_list_hunt_conversations_uses_tenant_hunt_index():

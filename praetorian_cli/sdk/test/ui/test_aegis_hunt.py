@@ -58,7 +58,14 @@ class FakeHunts:
         self.endpoint_status = {'sessions': [], 'tasks': []}
         self.workflow_runs = []
         self.conversations = []
+        self.root_conversations = []
         self.findings = []
+        self.cost_calls = []
+        self.cost_status = {
+            'total': {'cost': 0, 'total_tokens': 0},
+            'by_model': [],
+            'currency': 'USD',
+        }
         self.memory_items = []
         self.memory_content = {}
         self.memory_calls = []
@@ -82,6 +89,13 @@ class FakeHunts:
 
     def endpoint_execution_status(self, _hunt):
         return self.endpoint_status
+
+    def get_cost(self, hunt_id):
+        self.cost_calls.append(hunt_id)
+        return self.cost_status
+
+    def list_root_conversations(self, _hunt_id):
+        return list(self.root_conversations), None
 
     def list_workflow_runs(self, _hunt_id):
         return list(self.workflow_runs), None
@@ -379,6 +393,19 @@ def test_list_filters_hunts_to_selected_endpoint():
     assert 'hunt-3' not in output
 
 
+def test_status_rejects_other_endpoint_before_loading_overview_metrics():
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt(OTHER_ENDPOINT_ID)]
+
+    handle_hunt(menu, ['status', 'hunt-1'])
+
+    assert menu.sdk.hunts.cost_calls == []
+    assert 'does not belong to the selected endpoint' in '\n'.join(
+        menu.console.lines
+    )
+
+
 def test_status_renders_endpoint_execution_state_and_workflows():
     endpoint = V2Endpoint()
     menu = Menu(endpoint)
@@ -419,6 +446,51 @@ def test_status_renders_endpoint_execution_state_and_workflows():
     assert 'Target Selection' in output
     assert 'AGENT' in output
     assert 'RUNNING' in output
+
+
+def test_status_renders_operational_overview_and_bounds_large_scope():
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+    hunt = _hunt()
+    hunt.update({
+        'agent': 'hannibal',
+        'iterationCount': 7,
+        'expiresAt': '2099-01-01T00:00:00Z',
+        'scope': [
+            f'#asset#host-{index}.example.com#10.0.0.{index}'
+            for index in range(100)
+        ],
+    })
+    menu.sdk.hunts.hunts = [hunt]
+    menu.sdk.hunts.root_conversations = [
+        {'uuid': f'conversation-{index}', 'title': f'Iteration agent {index}'}
+        for index in range(100)
+    ]
+    menu.sdk.hunts.findings = [
+        {'status': 'OM', 'statusLabel': 'Open Medium'},
+        {'status': 'TC', 'statusLabel': 'Triaged Critical'},
+    ]
+    menu.sdk.hunts.cost_status = {
+        'total': {'cost': 1.5, 'total_tokens': 150},
+        'by_model': [],
+        'currency': 'USD',
+    }
+
+    handle_hunt(menu, ['status', 'hunt-1'])
+
+    output = menu.console.export_text()
+    assert 'Projected cost (USD)' in output
+    assert '$1.50' in output
+    assert 'Root agents' in output
+    assert '100' in output
+    assert 'Iterations' in output
+    assert 'Highest severity' in output
+    assert 'Critical' in output
+    assert 'host-0.example.com (10.0.0.0)' in output
+    assert 'host-5.example.com' not in output
+    assert '(+95 more)' in output
+    assert 'total_tokens' not in output
 
 
 def test_findings_memory_and_log_commands_render_hunt_data():

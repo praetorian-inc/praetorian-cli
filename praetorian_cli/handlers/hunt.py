@@ -27,6 +27,7 @@ from praetorian_cli.ui.hunt_defaults import (
     DEFAULT_FINISH_CRITERIA,
     DEFAULT_HUNT_DURATION_HOURS,
 )
+from praetorian_cli.ui.hunt_overview import build_hunt_overview
 from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
 
 
@@ -403,13 +404,20 @@ def status(sdk, uuid, workflows):
     if not result:
         click.secho(f'Hunt {uuid} not found.', fg='red', err=True)
         return
+    overview = build_hunt_overview(sdk, result)
     fields = {
         'uuid': result.get('uuid', result.get('key', '').replace('#hunt#', '')),
         'status': result.get('status'),
-        'agent': result.get('agent'),
+        'agent': overview['root_agent'],
+        'rootAgents': overview['root_agent_count'],
+        'agentActivity': overview['agent_summary'],
         'prompt': result.get('prompt', '')[:120],
-        'iterations': result.get('iterationCount', 0),
+        'iterations': overview['iterations'],
         'findings': result.get('findingsCount', 0),
+        'highestSeverity': overview['highest_severity'],
+        'remaining': overview['remaining'],
+        'projectedCost': overview['projected_cost'],
+        'scope': overview['scope_summary'],
         'credentialIds': result.get('credentialIds', []),
         'created': result.get('created'),
         'expires': result.get('expiresAt'),

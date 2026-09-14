@@ -18,7 +18,13 @@ class FakeHunts:
         self.endpoint_status = {'sessions': [], 'tasks': []}
         self.workflow_runs = []
         self.conversations = []
+        self.root_conversations = []
         self.findings = []
+        self.cost_status = {
+            'total': {'cost': 0, 'total_tokens': 0},
+            'by_model': [],
+            'currency': 'USD',
+        }
         self.memory_items = []
         self.memory_content = {}
         self.memory_calls = []
@@ -33,6 +39,12 @@ class FakeHunts:
 
     def endpoint_execution_status(self, _hunt):
         return self.endpoint_status
+
+    def get_cost(self, _hunt_id):
+        return self.cost_status
+
+    def list_root_conversations(self, _hunt_id):
+        return list(self.root_conversations), None
 
     def list_workflow_runs(self, _hunt_id):
         return list(self.workflow_runs), None
@@ -541,6 +553,48 @@ def test_hunt_status_can_render_workflow_iterations():
     assert 'Target Selection' in result.output
     assert 'AGENT' in result.output
     assert 'RUNNING' in result.output
+
+
+def test_hunt_status_renders_operational_overview_with_bounded_summaries():
+    sdk = _sdk()
+    sdk.hunts.hunt = {
+        'uuid': 'hunt-1',
+        'status': 'active',
+        'agent': 'hannibal',
+        'iterationCount': 7,
+        'findingsCount': 2,
+        'expiresAt': '2099-01-01T00:00:00Z',
+        'scope': [
+            f'#asset#host-{index}.example.com#10.0.0.{index}'
+            for index in range(100)
+        ],
+    }
+    sdk.hunts.root_conversations = [
+        {'uuid': f'conversation-{index}', 'title': f'Iteration agent {index}'}
+        for index in range(100)
+    ]
+    sdk.hunts.findings = [
+        {'status': 'OH', 'statusLabel': 'Open High'},
+        {'status': 'TC', 'statusLabel': 'Triaged Critical'},
+    ]
+    sdk.hunts.cost_status = {
+        'total': {'cost': 0, 'total_tokens': 150},
+        'by_model': [],
+        'currency': 'USD',
+    }
+
+    result = CliRunner().invoke(hunt, ['status', 'hunt-1'], obj=sdk)
+
+    assert result.exit_code == 0, result.output
+    assert '"rootAgents": 100' in result.output
+    assert '"iterations": 7' in result.output
+    assert '"highestSeverity": "Critical"' in result.output
+    assert '"projectedCost": "$0.00"' in result.output
+    assert '"remaining":' in result.output
+    assert 'host-0.example.com (10.0.0.0)' in result.output
+    assert 'host-5.example.com' not in result.output
+    assert '(+95 more)' in result.output
+    assert 'total_tokens' not in result.output
 
 
 def test_hunt_status_includes_internal_execution_placement():

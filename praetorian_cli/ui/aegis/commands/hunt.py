@@ -26,6 +26,7 @@ from praetorian_cli.ui.hunt_defaults import (
     DEFAULT_HUNT_DURATION_HOURS,
 )
 from praetorian_cli.ui.hunt_launch import configure_hunt_launch
+from praetorian_cli.ui.hunt_overview import build_hunt_overview
 from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
 from ..constants import DEFAULT_COLORS
 from ..utils import agent_display_id, is_v2_agent
@@ -343,11 +344,19 @@ def show_hunt_status(menu, endpoint, args):
     )
     table.add_column('Field', style=f"bold {colors['primary']}")
     table.add_column('Value')
+    overview = build_hunt_overview(menu.sdk, hunt)
     fields = (
         ('Status', _value(hunt, 'status')),
         ('Endpoint', _hunt_endpoint_id(hunt)),
-        ('Iterations', _value(hunt, 'iterationCount', 'iteration_count') or 0),
+        ('Remaining', overview['remaining']),
+        ('Projected cost (USD)', overview['projected_cost']),
+        ('Root agent', overview['root_agent']),
+        ('Root agents', overview['root_agent_count']),
+        ('Agent activity', overview['agent_summary']),
+        ('Iterations', overview['iterations']),
         ('Findings', _value(hunt, 'findingsCount', 'findings_count') or 0),
+        ('Highest severity', overview['highest_severity']),
+        ('Scope', overview['scope_summary']),
         (
             'Credentials',
             ', '.join(_value(hunt, 'credentialIds', 'credential_ids') or []) or '—',

@@ -153,6 +153,13 @@ class Hunts:
         key = f'#hunt#{_strip_hunt_prefix(uuid)}'
         return self.api.search.by_exact_key(key)
 
+    def get_cost(self, uuid):
+        """Read Guard's projected per-Hunt USD usage rollup."""
+        bare = _strip_hunt_prefix(str(uuid or '').strip())
+        if not bare:
+            raise ValueError('hunt ID is required')
+        return self.api.get(f'hunt/{quote(bare, safe="")}/cost')
+
     def list_findings(self, hunt_id, pages=1):
         """List risks reported by a Hunt."""
         hunt_id = _strip_hunt_prefix(str(hunt_id or '').strip())
@@ -223,12 +230,19 @@ class Hunts:
             pages=pages,
         )
 
-    def list_conversations(self, hunt_id, pages=100000):
-        """List Hunt iterations and recursively discover their subagents."""
-        roots, next_offset = self._list_hunt_records(
+    def list_root_conversations(self, hunt_id, pages=100000):
+        """List the root conversation created for each Hunt iteration."""
+        return self._list_hunt_records(
             hunt_id,
             label='conversation',
             response_key='conversations',
+            pages=pages,
+        )
+
+    def list_conversations(self, hunt_id, pages=100000):
+        """List Hunt iterations and recursively discover their subagents."""
+        roots, next_offset = self.list_root_conversations(
+            hunt_id,
             pages=pages,
         )
         conversations = []
