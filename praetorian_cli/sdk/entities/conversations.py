@@ -125,6 +125,15 @@ class Conversations:
             'conversationId': conversation_id,
         })
 
+    def send_message(self, conversation_id, message) -> dict:
+        """Queue guidance for an active conversation."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        message = _required_string(message, 'message', strip=False)
+        return self.api.post('planner', {
+            'conversationId': conversation_id,
+            'message': message,
+        })
+
     def answer_interaction(self, conversation_id, request_id, response) -> dict:
         """Answer one durable conversation interaction."""
         conversation_id = _required_string(conversation_id, 'conversation ID')

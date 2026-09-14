@@ -1,3 +1,5 @@
+import time
+
 from rich.box import MINIMAL
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -6,11 +8,33 @@ from rich.text import Text
 from praetorian_cli.ui.conversation.endpoint_status import (
     format_endpoint_execution_status,
 )
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
+from praetorian_cli.ui.entity_selector import select_entity_keys
+from praetorian_cli.ui.hunt_chat import (
+    build_hunt_chat,
+    select_hunt_conversation,
+)
+from praetorian_cli.ui.hunt_data import (
+    build_hunt_findings,
+    build_hunt_log,
+    build_hunt_memory,
+    build_hunt_memory_item,
+    filter_hunt_findings,
+)
+from praetorian_cli.ui.hunt_defaults import (
+    DEFAULT_FINISH_CRITERIA,
+    DEFAULT_HUNT_DURATION_HOURS,
+)
+from praetorian_cli.ui.hunt_launch import configure_hunt_launch
+from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
 from ..constants import DEFAULT_COLORS
 from ..utils import agent_display_id, is_v2_agent
 
 
-SUBCOMMANDS = ('launch', 'list', 'status', 'pause', 'resume', 'stop', 'delete', 'help')
+SUBCOMMANDS = (
+    'launch', 'list', 'status', 'findings', 'memory', 'log', 'chat',
+    'pause', 'resume', 'stop', 'delete', 'help',
+)
 HUNT_STATUSES = ('active', 'paused', 'completed', 'stopped', 'expired', 'errored')
 
 
@@ -41,6 +65,10 @@ def handle_hunt(menu, args):
         'launch': launch_hunt,
         'list': list_hunts,
         'status': show_hunt_status,
+        'findings': show_hunt_findings,
+        'memory': manage_hunt_memory,
+        'log': show_hunt_log,
+        'chat': chat_hunt,
         'pause': pause_hunt,
         'resume': resume_hunt,
         'stop': stop_hunt,
@@ -61,12 +89,23 @@ def complete(_menu, text, tokens):
     if subcommand == 'launch':
         options = (
             '--prompt', '--scope', '--expires', '--scope-level',
-            '--aggressiveness', '--yes', '--help',
+            '--aggressiveness', '--finish-criteria', '--guardrails',
+            '--custom-tag', '--model-tier', '--credential', '--yes', '--help',
         )
     elif subcommand == 'list':
         options = ('--status', '--all', '--help')
     elif subcommand in ('stop', 'delete'):
         options = ('--yes', '--help')
+    elif subcommand == 'status':
+        options = ('--workflows', '--help')
+    elif subcommand == 'findings':
+        options = ('--status', '--severity', '--details', '--evidence', '--all', '--help')
+    elif subcommand == 'memory':
+        options = ('--item', '--content', '--delete', '--yes', '--help')
+    elif subcommand == 'log':
+        options = ('--follow', '--interval', '--help')
+    elif subcommand == 'chat':
+        options = ('--conversation', '--message', '--help')
     else:
         options = ('--help',)
     return [option for option in options if option.startswith(text)]
@@ -76,16 +115,52 @@ def show_hunt_help(menu):
     menu.console.print("""
   Aegis v2 AI Hunt Commands
 
-  hunt launch --scope <asset-key> --prompt <objective> [options]
+  hunt launch --prompt <objective> [--scope <hostname-or-IP>] [options]
   hunt list [--status <status>] [--all]
-  hunt status <hunt-id>
+  hunt status <hunt-id> [--workflows]
+  hunt findings <hunt-id> [--severity <level>] [--details]
+  hunt memory <hunt-id> [--item <title>] [--content <text> | --delete]
+  hunt log <hunt-id> [--follow]
+  hunt chat <hunt-id> [--conversation <id>] [--message <guidance>]
   hunt pause|resume|stop|delete <hunt-id>
 
-  The selected Aegis v2 endpoint is used automatically. Hunt scope must
-  contain existing internal asset keys. If the endpoint is unavailable,
-  the Hunt waits without falling back to external compute.
+  The selected Aegis v2 endpoint is used automatically. When --scope is
+  omitted, choose active internal targets from a searchable list. The launch
+  wizard then reviews mandate, aggressiveness, credentials, guardrails,
+  finish criteria, duration, finding tag, and model tier. Use --yes to accept
+  flag/default values. --credential may be repeated, once per credential type.
+  If the endpoint is unavailable, the Hunt waits without external fallback.
 """)
     menu.pause()
+
+
+def _hunt_credentials(menu, endpoint_id):
+    credentials_api = getattr(menu.sdk, 'credentials', None)
+    if credentials_api is None:
+        return []
+    try:
+        credentials, _ = credentials_api.list(pages=1)
+    except Exception as exc:
+        _print_message(
+            menu,
+            f'Credential options unavailable: {exc}',
+            'warning',
+        )
+        return []
+
+    supported = []
+    for credential in credentials:
+        credential_type = _value(credential, 'type', 'credentialType')
+        if credential_type == 'web-auth':
+            supported.append(credential)
+            continue
+        if credential_type != 'active-directory':
+            continue
+        endpoint_ids = _value(credential, 'endpointIds', 'endpoint_ids') or []
+        account_key = _value(credential, 'accountKey', 'account_key')
+        if endpoint_id in endpoint_ids or (not endpoint_ids and account_key == endpoint_id):
+            supported.append(credential)
+    return supported
 
 
 def launch_hunt(menu, endpoint, args):
@@ -95,11 +170,39 @@ def launch_hunt(menu, endpoint, args):
             show_hunt_help(menu)
             return
         objective = options['prompt'] or Prompt.ask('  Hunt objective').strip()
-        scopes = options['scopes'] or [Prompt.ask('  Internal scope asset key').strip()]
+        scopes = [
+            resolve_entity_reference(
+                menu.sdk,
+                value,
+                'asset',
+                interactive=True,
+                console=menu.console,
+            )
+            for value in options['scopes']
+        ]
         if not objective:
             raise ValueError('hunt objective is required')
-        if any(not scope for scope in scopes):
-            raise ValueError('at least one internal scope asset key is required')
+        if not scopes:
+            candidates, next_scope_page = menu.sdk.assets.list_hunt_scope(
+                agent='hannibal',
+                internal=True,
+                pages=1,
+            )
+            scopes = select_entity_keys(
+                menu.console,
+                candidates,
+                title='Select internal Hunt targets',
+                search_entities=lambda query, page: menu.sdk.assets.list_hunt_scope(
+                    agent='hannibal',
+                    internal=True,
+                    search=query,
+                    page=int(page or 0),
+                    pages=1,
+                ),
+                next_offset=next_scope_page,
+            )
+        if not scopes:
+            raise ValueError('at least one internal Hunt target is required')
     except ValueError as exc:
         _print_message(menu, f'Error: {exc}', 'error')
         menu.pause()
@@ -108,12 +211,42 @@ def launch_hunt(menu, endpoint, args):
     endpoint_id = agent_display_id(endpoint)
     endpoint_name = endpoint.hostname or endpoint_id
     endpoint_state = 'online' if endpoint.is_online else 'offline'
+    used_wizard = False
+    if not options['yes']:
+        launch_config, used_wizard = configure_hunt_launch(
+            menu.console,
+            {
+                'prompt': objective,
+                'aggressiveness': options['aggressiveness'],
+                'guardrails': options['guardrails'],
+                'finish_criteria': options['finish_criteria'],
+                'expires': options['expires'],
+                'custom_tag': options['custom_tag'],
+                'model_tier': options['model_tier'],
+                'credential_ids': list(options['credential_ids']),
+            },
+            scopes,
+            f'{endpoint_name} ({endpoint_id}, {endpoint_state})',
+            _hunt_credentials(menu, endpoint_id),
+        )
+        if used_wizard and launch_config is None:
+            menu.console.print('  Cancelled')
+            menu.pause()
+            return
+        if used_wizard:
+            objective = launch_config['prompt']
+            options.update(launch_config)
+
     confirmation = Text(
         f'Run this AI Hunt through {_safe(endpoint_name)} '
         f'({_safe(endpoint_id)}, {endpoint_state})? If unavailable, the Hunt '
         'waits without external compute fallback'
     )
-    if not options['yes'] and not Confirm.ask(confirmation, default=False):
+    if (
+        not options['yes']
+        and not used_wizard
+        and not Confirm.ask(confirmation, default=False)
+    ):
         menu.console.print('  Cancelled')
         menu.pause()
         return
@@ -126,6 +259,11 @@ def launch_hunt(menu, endpoint, args):
             scope=scopes,
             scope_level=options['scope_level'],
             aggressiveness=options['aggressiveness'],
+            finish_criteria=options['finish_criteria'],
+            user_guardrails=options['guardrails'],
+            custom_tag=options['custom_tag'],
+            model_tier_override=options['model_tier'],
+            credential_ids=options['credential_ids'] or None,
             endpoint_required=True,
             endpoint_id=endpoint_id,
             endpoint_confirmed=True,
@@ -188,7 +326,9 @@ def list_hunts(menu, endpoint, args):
 
 
 def show_hunt_status(menu, endpoint, args):
-    hunt = _get_selected_hunt(menu, endpoint, args)
+    show_workflows = '--workflows' in args
+    hunt_args = [arg for arg in args if arg != '--workflows']
+    hunt = _get_selected_hunt(menu, endpoint, hunt_args)
     if hunt is None:
         return
 
@@ -208,6 +348,10 @@ def show_hunt_status(menu, endpoint, args):
         ('Endpoint', _hunt_endpoint_id(hunt)),
         ('Iterations', _value(hunt, 'iterationCount', 'iteration_count') or 0),
         ('Findings', _value(hunt, 'findingsCount', 'findings_count') or 0),
+        (
+            'Credentials',
+            ', '.join(_value(hunt, 'credentialIds', 'credential_ids') or []) or '—',
+        ),
         ('Created', _value(hunt, 'created')),
         ('Expires', _value(hunt, 'expiresAt', 'expires_at')),
         ('Objective', _value(hunt, 'prompt')),
@@ -229,6 +373,171 @@ def show_hunt_status(menu, endpoint, args):
         rendered = format_endpoint_execution_status(status)
         if rendered:
             menu.console.print(Text(rendered))
+
+    if show_workflows:
+        try:
+            runs, _ = menu.sdk.hunts.list_workflow_runs(_hunt_id(hunt))
+        except Exception as exc:
+            _print_message(
+                menu,
+                f'Workflow status unavailable: {exc}',
+                'warning',
+            )
+        else:
+            menu.console.print()
+            browse_hunt_workflows(menu.console, runs)
+    menu.pause()
+
+
+def show_hunt_findings(menu, endpoint, args):
+    try:
+        options = _parse_findings_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    if _get_selected_hunt(menu, endpoint, [options['hunt_id']]) is None:
+        return
+
+    try:
+        findings, _ = menu.sdk.hunts.list_findings(
+            options['hunt_id'],
+            pages=10000 if options['all'] else 1,
+        )
+        findings = filter_hunt_findings(
+            findings,
+            status=options['status'],
+            severity=options['severity'],
+        )
+        if options['details'] or options['evidence'] != 'off':
+            findings = [
+                menu.sdk.risks.get(
+                    finding.get('key'),
+                    details=True,
+                    evidence=options['evidence'],
+                )
+                for finding in findings
+                if finding.get('key')
+            ]
+    except Exception as exc:
+        _print_message(menu, f'Unable to load Hunt vulnerabilities: {exc}', 'error')
+    else:
+        menu.console.print(build_hunt_findings(
+            findings,
+            show_details=options['details'] or options['evidence'] != 'off',
+        ))
+    menu.pause()
+
+
+def manage_hunt_memory(menu, endpoint, args):
+    try:
+        options = _parse_memory_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    hunt_id = options['hunt_id']
+    if _get_selected_hunt(menu, endpoint, [hunt_id]) is None:
+        return
+
+    try:
+        if options['delete']:
+            if not options['yes'] and not Confirm.ask(
+                f'Delete Hunt memory item {options["item"]!r}?',
+                default=False,
+            ):
+                menu.console.print('  Cancelled')
+                menu.pause()
+                return
+            menu.sdk.hunts.delete_memory(hunt_id, options['item'])
+            _print_message(menu, f'Deleted memory item {options["item"]}.', 'success')
+        elif options['content'] is not None:
+            menu.sdk.hunts.save_memory(
+                hunt_id,
+                options['item'],
+                options['content'],
+            )
+            _print_message(menu, f'Saved memory item {options["item"]}.', 'success')
+        elif options['item']:
+            content = menu.sdk.hunts.get_memory(hunt_id, options['item'])
+            menu.console.print(build_hunt_memory_item(options['item'], content))
+        else:
+            items, _ = menu.sdk.hunts.list_memory(hunt_id)
+            menu.console.print(build_hunt_memory(items))
+    except Exception as exc:
+        _print_message(menu, f'Unable to manage Hunt memory: {exc}', 'error')
+    menu.pause()
+
+
+def show_hunt_log(menu, endpoint, args):
+    try:
+        options = _parse_log_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    hunt_id = options['hunt_id']
+    if _get_selected_hunt(menu, endpoint, [hunt_id]) is None:
+        return
+
+    try:
+        content = menu.sdk.hunts.get_log(hunt_id)
+        menu.console.print(build_hunt_log(content))
+        while options['follow']:
+            time.sleep(options['interval'])
+            latest = menu.sdk.hunts.get_log(hunt_id)
+            if latest == content:
+                continue
+            update = latest[len(content):] if latest.startswith(content) else latest
+            content = latest
+            menu.console.print(build_hunt_log(update))
+    except KeyboardInterrupt:
+        menu.console.print('  Stopped following Hunt log.')
+    except Exception as exc:
+        _print_message(menu, f'Unable to load Hunt log: {exc}', 'error')
+    menu.pause()
+
+
+def chat_hunt(menu, endpoint, args):
+    try:
+        options = _parse_chat_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+
+    hunt = _get_selected_hunt(menu, endpoint, [options['hunt_id']])
+    if hunt is None:
+        return
+
+    try:
+        conversations, _ = menu.sdk.hunts.list_conversations(
+            options['hunt_id']
+        )
+        selected = select_hunt_conversation(
+            conversations,
+            requested_id=options['conversation_id'],
+            require_active=bool(options['message']),
+        )
+        selected_id = selected.get('uuid') or selected.get('id')
+        if options['message']:
+            menu.sdk.conversations.send_message(
+                selected_id,
+                options['message'],
+            )
+        transcript = menu.sdk.conversations.get(selected_id)
+    except Exception as exc:
+        _print_message(menu, f'Unable to open Hunt chat: {exc}', 'error')
+        menu.pause()
+        return
+
+    menu.console.print(build_hunt_chat(conversations, selected, transcript))
+    if options['message']:
+        _print_message(
+            menu,
+            'Guidance queued for the running Hunt iteration.',
+            'success',
+        )
     menu.pause()
 
 
@@ -365,9 +674,14 @@ def _parse_launch_args(args):
     options = {
         'prompt': None,
         'scopes': [],
-        'expires': 72,
+        'expires': DEFAULT_HUNT_DURATION_HOURS,
         'scope_level': 'normal',
         'aggressiveness': 'balanced',
+        'finish_criteria': DEFAULT_FINISH_CRITERIA,
+        'guardrails': '',
+        'custom_tag': '',
+        'model_tier': None,
+        'credential_ids': [],
         'yes': False,
         'help': False,
     }
@@ -377,6 +691,11 @@ def _parse_launch_args(args):
         '-e': 'expires', '--expires': 'expires',
         '--scope-level': 'scope_level',
         '--aggressiveness': 'aggressiveness',
+        '--finish-criteria': 'finish_criteria',
+        '--guardrails': 'guardrails',
+        '--custom-tag': 'custom_tag',
+        '--model-tier': 'model_tier',
+        '--credential': 'credential',
     }
     index = 0
     while index < len(args):
@@ -397,6 +716,8 @@ def _parse_launch_args(args):
         value = args[index + 1].strip()
         if destination == 'scope':
             options['scopes'].append(value)
+        elif destination == 'credential':
+            options['credential_ids'].append(value)
         elif destination == 'expires':
             try:
                 options['expires'] = int(value)
@@ -414,6 +735,8 @@ def _parse_launch_args(args):
         raise ValueError(
             '--aggressiveness must be cautious, balanced, or aggressive'
         )
+    if options['model_tier'] not in (None, 'experimental'):
+        raise ValueError('--model-tier must be experimental')
     return options
 
 
@@ -437,6 +760,146 @@ def _parse_list_args(args):
             raise ValueError(f'unknown option: {token}')
     if options['status'] and options['status'] not in HUNT_STATUSES:
         raise ValueError(f"--status must be one of {', '.join(HUNT_STATUSES)}")
+    return options
+
+
+def _parse_findings_args(args):
+    options = {
+        'hunt_id': None,
+        'status': None,
+        'severity': None,
+        'details': False,
+        'evidence': 'off',
+        'all': False,
+    }
+    index = 0
+    value_options = {
+        '--status': 'status',
+        '--severity': 'severity',
+        '--evidence': 'evidence',
+    }
+    while index < len(args):
+        token = args[index]
+        if token in ('--details', '--all'):
+            options[token.removeprefix('--')] = True
+            index += 1
+        elif token in value_options:
+            if index + 1 >= len(args):
+                raise ValueError(f'{token} requires a value')
+            options[value_options[token]] = args[index + 1].lower()
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    severities = ('critical', 'high', 'medium', 'low', 'info', 'exposure')
+    if options['severity'] and options['severity'] not in severities:
+        raise ValueError(f'--severity must be one of {", ".join(severities)}')
+    if options['evidence'] not in ('off', 'basic', 'full'):
+        raise ValueError('--evidence must be off, basic, or full')
+    return options
+
+
+def _parse_memory_args(args):
+    options = {
+        'hunt_id': None,
+        'item': None,
+        'content': None,
+        'delete': False,
+        'yes': False,
+    }
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token in ('--delete', '-y', '--yes'):
+            key = 'delete' if token == '--delete' else 'yes'
+            options[key] = True
+            index += 1
+        elif token in ('--item', '--content'):
+            if index + 1 >= len(args):
+                raise ValueError(f'{token} requires a value')
+            options[token.removeprefix('--')] = args[index + 1]
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    if options['content'] is not None and options['delete']:
+        raise ValueError('--content and --delete cannot be combined')
+    if (options['content'] is not None or options['delete']) and not options['item']:
+        raise ValueError('--item is required when modifying memory')
+    return options
+
+
+def _parse_log_args(args):
+    options = {'hunt_id': None, 'follow': False, 'interval': 5.0}
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == '--follow':
+            options['follow'] = True
+            index += 1
+        elif token == '--interval':
+            if index + 1 >= len(args):
+                raise ValueError('--interval requires a value')
+            try:
+                options['interval'] = float(args[index + 1])
+            except ValueError as exc:
+                raise ValueError('--interval must be a number') from exc
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    if options['interval'] < 1:
+        raise ValueError('--interval must be at least 1 second')
+    return options
+
+
+def _parse_chat_args(args):
+    options = {
+        'hunt_id': None,
+        'conversation_id': None,
+        'message': None,
+    }
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token in ('--conversation', '--message'):
+            if index + 1 >= len(args):
+                raise ValueError(f'{token} requires a value')
+            key = 'conversation_id' if token == '--conversation' else 'message'
+            options[key] = args[index + 1]
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    if options['message'] is not None and not options['message'].strip():
+        raise ValueError('guidance message is required')
     return options
 
 

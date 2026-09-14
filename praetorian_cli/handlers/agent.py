@@ -7,6 +7,7 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
 from praetorian_cli.ui.conversation.approvals import prompt_endpoint_approval
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 from praetorian_cli.ui.conversation.endpoint_status import (
     format_endpoint_execution_status,
     format_endpoint_operation_status,
@@ -64,6 +65,7 @@ def affiliation(sdk, key):
         - guard agent affiliation "#risk#www.praetorian.com#CVE-2024-1234"
         - guard agent affiliation "#asset#praetorian.com#www.praetorian.com"
     """
+    key = resolve_entity_reference(sdk, key, None)
     click.echo("Polling for the affiliation data for up to 3 minutes.")
     click.echo(sdk.agents.affiliation(key))
 

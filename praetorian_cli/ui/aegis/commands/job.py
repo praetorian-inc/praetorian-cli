@@ -2,6 +2,9 @@ import json
 from rich.table import Table
 from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
+
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
+
 from ..utils import ensure_v1_agent, is_v2_agent
 from ..constants import DEFAULT_COLORS
 from . import job_v2
@@ -142,9 +145,23 @@ def run_job(menu, args):
 
         target_display = f"domain {domain}"
     elif target_type == 'repository':
-        target_key = args[1].strip() if len(args) > 1 else Prompt.ask('  Repository target key').strip()
-        if not target_key.startswith('#repository#'):
-            menu.console.print(f"  [{colors['error']}]Repository capabilities require a #repository# target key.[/{colors['error']}]")
+        repository = (
+            args[1].strip()
+            if len(args) > 1
+            else Prompt.ask('  Repository URL or name').strip()
+        )
+        try:
+            target_key = resolve_entity_reference(
+                menu.sdk,
+                repository,
+                'repository',
+                interactive=True,
+                console=menu.console,
+            )
+        except ValueError as exc:
+            menu.console.print(
+                f"  [{colors['error']}]{exc}[/{colors['error']}]"
+            )
             menu.pause()
             return
         target_display = target_key

@@ -177,6 +177,20 @@ def test_stop_conversation_posts_authoritative_guard_contract():
     }]
 
 
+def test_send_message_posts_exact_planner_guidance_contract():
+    api = FakeAPI()
+
+    Conversations(api).send_message(' conversation-1 ', 'Focus on SMB')
+
+    assert api.post_calls == [{
+        'path': 'planner',
+        'body': {
+            'conversationId': 'conversation-1',
+            'message': 'Focus on SMB',
+        },
+    }]
+
+
 def test_answer_interaction_posts_exact_guard_contract_and_preserves_response():
     api = FakeAPI()
 
@@ -200,6 +214,8 @@ def test_answer_interaction_posts_exact_guard_contract_and_preserves_response():
     [
         ('list_interactions', ('  ',), 'conversation ID is required'),
         ('list_interactions', ('conversation-1', '  '), 'interaction status is required'),
+        ('send_message', ('  ', 'guidance'), 'conversation ID is required'),
+        ('send_message', ('conversation-1', '  '), 'message is required'),
         ('answer_interaction', ('  ', 'request-1', 'true'), 'conversation ID is required'),
         ('answer_interaction', ('conversation-1', '  ', 'true'), 'request ID is required'),
         ('answer_interaction', ('conversation-1', 'request-1', '  '), 'interaction response is required'),

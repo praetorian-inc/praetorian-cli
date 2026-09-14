@@ -52,6 +52,8 @@ class Filter:
         PRIVATE = 'private'
         PRIMARY_URL = 'primary_url'
         URL = 'url'
+        IS_INTERNAL = 'isInternal'
+        IS_LLM = 'isLLM'
 
         # Active Directory fields
         OBJECTID = 'objectid'
@@ -87,7 +89,18 @@ class Filter:
         self.not_ = not_
 
     def to_dict(self) -> dict:
-        return {'field': self.field.value, 'operator': self.operator.value, 'value': self.value, 'not': self.not_}
+        field = self.field.value if isinstance(self.field, Enum) else self.field
+        operator = (
+            self.operator.value
+            if isinstance(self.operator, Enum)
+            else self.operator
+        )
+        return {
+            'field': field,
+            'operator': operator,
+            'value': self.value,
+            'not': self.not_,
+        }
 
 
 class Relationship:
@@ -373,7 +386,8 @@ class Node:
 
 class Query:
     def __init__(self, node: Node = None, page: int = 0, limit: int = DEFAULT_PAGE_SIZE, order_by: str = None,
-                 descending: bool = False, global_: bool = False, shortest: int = 0, all_tenants: bool = False):
+                 descending: bool = False, global_: bool = False, shortest: int = 0, all_tenants: bool = False,
+                 filters: list[Filter] = None):
         self.node = node
         self.page = page
         self.limit = limit
@@ -382,11 +396,14 @@ class Query:
         self.global_ = global_
         self.shortest = shortest
         self.all_tenants = all_tenants
+        self.filters = filters
 
     def to_dict(self):
         ret = dict()
         if self.node:
             ret |= dict(node=self.node.to_dict())
+        if self.filters:
+            ret |= dict(filters=[filter_.to_dict() for filter_ in self.filters])
         if self.page:
             ret |= dict(page=self.page)
         if self.limit:

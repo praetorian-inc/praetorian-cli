@@ -9,6 +9,7 @@ from praetorian_cli.sdk.entities.capabilities import (
     capability_name,
     normalize_capabilities_response,
 )
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 from ..constants import DEFAULT_COLORS
 from ..utils import agent_display_id, format_job_status, format_timestamp, is_v2_agent
 from .job_helpers import (
@@ -441,14 +442,21 @@ def _target_key(menu, capability_info, target, target_key):
 
     if target_type != 'asset':
         if not target:
-            target = Prompt.ask(f'  {target_type} target key')
-        if target and target.startswith('#'):
-            return target, target
-        menu.console.print(
-            f"  [{colors['error']}]Aegis v2 {capability} requires a {target_type} target key.[/{colors['error']}]"
-        )
-        menu.console.print('  Use --key with the target entity key.')
-        return None, None
+            target = Prompt.ask(f'  Existing {target_type} value or key')
+        try:
+            target_key = resolve_entity_reference(
+                menu.sdk,
+                target,
+                target_type,
+                interactive=True,
+                console=menu.console,
+            )
+        except ValueError as exc:
+            menu.console.print(
+                f"  [{colors['error']}]{exc}[/{colors['error']}]"
+            )
+            return None, None
+        return target_key, target
 
     if not target:
         target = Prompt.ask('  Existing target asset value or #asset# key')
@@ -474,10 +482,20 @@ def _existing_asset_key(menu, target):
     try:
         asset = menu.sdk.assets.get(candidate_key)
     except Exception:
+        asset = None
+    if asset:
+        return asset.get('key') or candidate_key
+
+    try:
+        return resolve_entity_reference(
+            menu.sdk,
+            target,
+            'asset',
+            interactive=True,
+            console=menu.console,
+        )
+    except ValueError:
         return None
-    if not asset:
-        return None
-    return asset.get('key') or candidate_key
 
 
 def _job_details_config(job):

@@ -8,6 +8,7 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error, parse_configuration_value, parse_kv_entries
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 
 
 @chariot.group()
@@ -161,7 +162,8 @@ def webhook(sdk):
 @add.command()
 @cli_handler
 @click.argument('name', required=True)
-@click.option('-a', '--asset', required=True, help='Key of an existing asset')
+@click.option('-a', '--asset', required=True,
+              help='Existing asset key, hostname, IP, or friendly name')
 @click.option('-s', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
               help=f'Status of the risk')
 @click.option('-c', '--comment', default='', help='Comment for the risk')
@@ -172,8 +174,8 @@ def risk(sdk, name, asset, status, comment, capability, title, tags):
     """ Add a risk
 
     This command adds a risk to Guard. A risk must have an associated asset.
-    The asset is specified by its key, which can be retrieved by listing and
-    searching the assets.
+    The asset may be specified by its canonical key, hostname, IP, or friendly
+    name. Ambiguous values open a selector in interactive terminals.
 
     \b
     Arguments:
@@ -186,12 +188,14 @@ def risk(sdk, name, asset, status, comment, capability, title, tags):
         - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC --capability red-team
         - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI --tag critical --tag needs-review
     """
-    sdk.risks.add(asset, name, status, comment, capability, title, tags)
+    asset_key = resolve_entity_reference(sdk, asset, 'asset')
+    sdk.risks.add(asset_key, name, status, comment, capability, title, tags)
 
 
 @add.command()
 @cli_handler
-@click.option('-k', '--key', required=True, help='Key of an existing asset or attribute')
+@click.option('-k', '--key', required=True,
+              help='Existing asset/attribute key or friendly reference')
 @click.option('-c', '--capability', 'capabilities', multiple=True,
               help='Capabilities to run (can be specified multiple times)')
 @click.option('-g', '--config', help='JSON configuration string')
@@ -211,12 +215,14 @@ def job(sdk, key, capabilities, config, credentials):
         - guard add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"}'
         - guard add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"} --credential "E4644F37-6985-40B4-8D07-5311516D98F1"'
     """
+    key = resolve_entity_reference(sdk, key, None)
     sdk.jobs.add(key, capabilities, config, credentials)
 
 
 @add.command()
 @cli_handler
-@click.option('-k', '--key', required=True, help='Key of an existing asset or risk')
+@click.option('-k', '--key', required=True,
+              help='Existing asset/risk key or friendly reference')
 @click.option('-n', '--name', required=True, help='Name of the attribute')
 @click.option('-v', '--value', required=True, help='Value of the attribute')
 def attribute(sdk, key, name, value):
@@ -229,6 +235,7 @@ def attribute(sdk, key, name, value):
         - guard add attribute --key "#risk#www.example.com#CVE-2024-23049" --name https --value 443
         - guard add attribute --key "#asset#www.example.com#www.example.com" --name id --value "arn:aws:route53::1654874321:hostedzone/Z0000000EJBHGTFTGH3"
     """
+    key = resolve_entity_reference(sdk, key, None)
     sdk.attributes.add(key, name, value)
 
 
