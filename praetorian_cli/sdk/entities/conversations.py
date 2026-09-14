@@ -221,6 +221,9 @@ def _transcript(uuid, meta, records) -> dict:
         message = dict(role=role, content=r.get('content', ''), timestamp=r.get('timestamp', ''))
         if role == 'tool call':
             message['tool'] = _tool_call(r, responses)
+        attachments = _attachment_metadata(r)
+        if attachments:
+            message['attachments'] = attachments
         messages.append(message)
 
     return dict(uuid=uuid, topic=meta.get('topic') or '', created=meta.get('created') or '',
@@ -233,9 +236,86 @@ def _tool_call(call, responses) -> dict:
         spec = {}
     tool_use_id = spec.get('ToolUseID') or call.get('toolUseId', '')
     response = responses.get(tool_use_id)
-    return dict(name=spec.get('Name', ''), input=spec.get('Input'),
-                response=_loads(response.get('content')) if response else None,
-                tool_use_id=tool_use_id)
+    tool = dict(
+        name=spec.get('Name', ''),
+        input=spec.get('Input'),
+        response=_loads(response.get('content')) if response else None,
+        tool_use_id=tool_use_id,
+    )
+    attachments = _attachment_metadata(response or {})
+    if attachments:
+        tool['attachments'] = attachments
+    return tool
+
+
+def _attachment_metadata(record, max_items=12):
+    """Keep only bounded display metadata; never expose attachment URLs/data."""
+    candidates = []
+    for field, kind in (
+        ('attachments', 'attachment'),
+        ('attachment', 'attachment'),
+        ('screenshots', 'screenshot'),
+        ('screenshot', 'screenshot'),
+    ):
+        value = _loads(record.get(field))
+        if isinstance(value, list):
+            candidates.extend((item, kind) for item in value)
+        elif value is not None:
+            candidates.append((value, kind))
+
+    metadata = []
+    for value, default_kind in candidates[:max_items]:
+        if isinstance(value, str):
+            name = _safe_attachment_text(value, 160).replace('\\', '/').rsplit('/', 1)[-1]
+            if name:
+                metadata.append({'kind': default_kind, 'name': name})
+            continue
+        if not isinstance(value, dict):
+            continue
+        media_type = _safe_attachment_text(
+            value.get('mediaType')
+            or value.get('contentType')
+            or value.get('mimeType')
+            or value.get('type'),
+            80,
+        )
+        name = _safe_attachment_text(
+            value.get('displayName')
+            or value.get('filename')
+            or value.get('name')
+            or value.get('title'),
+            160,
+        ).replace('\\', '/').rsplit('/', 1)[-1]
+        item = {
+            'kind': (
+                'screenshot'
+                if default_kind == 'screenshot' or media_type.lower().startswith('image/')
+                else default_kind
+            ),
+        }
+        if name:
+            item['name'] = name
+        if media_type:
+            item['mediaType'] = media_type
+        size = value.get('bytes') if value.get('bytes') is not None else value.get('size')
+        if isinstance(size, int) and 0 <= size <= 10 ** 12:
+            item['bytes'] = size
+        for dimension in ('width', 'height'):
+            number = value.get(dimension)
+            if isinstance(number, int) and 0 < number <= 100000:
+                item[dimension] = number
+        metadata.append(item)
+    return metadata
+
+
+def _safe_attachment_text(value, limit):
+    if value is None:
+        return ''
+    printable = ''.join(
+        character if character.isprintable() else ' '
+        for character in str(value)
+    )
+    return ' '.join(printable.split())[:limit]
 
 
 def _loads(raw):

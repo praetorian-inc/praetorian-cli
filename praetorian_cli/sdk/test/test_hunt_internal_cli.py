@@ -463,6 +463,36 @@ def test_hunt_log_follow_stops_cleanly_on_interrupt(monkeypatch):
     assert 'Stopped following Hunt log' in result.output
 
 
+def test_hunt_chat_uses_fullscreen_live_view_in_an_interactive_terminal(monkeypatch):
+    sdk = _sdk()
+    sdk.hunts.hunt = {'uuid': 'hunt-1', 'status': 'active'}
+    calls = []
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.supports_live_hunt_chat',
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.run_live_hunt_chat',
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    result = CliRunner().invoke(
+        hunt,
+        [
+            'chat', 'hunt-1', '--conversation', 'root-prefix',
+            '--interval', '2',
+        ],
+        obj=sdk,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls[0][0] == (sdk, 'hunt-1')
+    assert calls[0][1]['requested_id'] == 'root-prefix'
+    assert calls[0][1]['refresh_interval'] == 2.0
+    assert callable(calls[0][1]['review_interactions'])
+    assert sdk.hunts.conversations == []
+
+
 def test_hunt_chat_queues_guidance_for_active_iteration():
     sdk = _sdk()
     sdk.hunts.hunt = {'uuid': 'hunt-1', 'status': 'active'}

@@ -332,9 +332,15 @@ def _message_renderable(message):
         (role.upper(), 'white', '•'),
     )
     content = _safe(message.get('content'), 4000) or '—'
+    body = [Text(content)]
+    attachment_lines = safe_hunt_attachment_metadata(message)
+    if attachment_lines:
+        attachments = Text('\n')
+        attachments.append('\n'.join(attachment_lines), style='dim cyan')
+        body.append(attachments)
     timestamp = _format_timestamp(message.get('timestamp'))
     return Panel(
-        Text(content),
+        Group(*body),
         title=Text(f'{symbol} {label}', style=f'bold {style}'),
         subtitle=Text(timestamp, style='dim'),
         border_style=style,
@@ -356,6 +362,9 @@ def _tool_renderable(message):
     target = _tool_target(tool.get('input'))
     if target:
         text.append(f'\nTarget: {target}', style='dim')
+    attachments = safe_hunt_attachment_metadata(tool)
+    if attachments:
+        text.append(f'\n{" · ".join(attachments)}', style='dim cyan')
     return Panel(
         text,
         title=Text('⚙ TOOL ACTIVITY', style='bold bright_black'),
@@ -372,6 +381,98 @@ def _tool_target(value):
         if value.get(key):
             return _safe(value[key], 160)
     return ''
+
+
+def safe_hunt_attachment_metadata(message, max_items=12):
+    """Return bounded attachment labels without paths, URLs, or payload data."""
+    if not isinstance(message, dict):
+        return ()
+
+    candidates = []
+    for field, default_kind in (
+        ('attachments', 'attachment'),
+        ('attachment', 'attachment'),
+        ('screenshots', 'screenshot'),
+        ('screenshot', 'screenshot'),
+    ):
+        value = message.get(field)
+        if isinstance(value, list):
+            candidates.extend((item, default_kind) for item in value)
+        elif value is not None:
+            candidates.append((value, default_kind))
+
+    rendered = []
+    for value, default_kind in candidates[:max_items]:
+        if isinstance(value, str):
+            name = _safe_attachment_name(value)
+            rendered.append(f'▣ {default_kind.title()}: {name or "unnamed"}')
+            continue
+        if not isinstance(value, dict):
+            continue
+
+        media_type = _safe(
+            value.get('mediaType')
+            or value.get('contentType')
+            or value.get('mimeType')
+            or value.get('type'),
+            80,
+        )
+        kind = 'screenshot' if (
+            default_kind == 'screenshot'
+            or media_type.lower().startswith('image/')
+        ) else default_kind
+        name = _safe_attachment_name(
+            value.get('displayName')
+            or value.get('filename')
+            or value.get('name')
+            or value.get('title')
+        )
+        details = []
+        if media_type:
+            details.append(media_type)
+        size = value.get('bytes') if value.get('bytes') is not None else value.get('size')
+        if isinstance(size, int) and 0 <= size <= 10 ** 12:
+            details.append(f'{size} bytes')
+        width = value.get('width')
+        height = value.get('height')
+        if (
+            isinstance(width, int)
+            and isinstance(height, int)
+            and 0 < width <= 100000
+            and 0 < height <= 100000
+        ):
+            details.append(f'{width}×{height}')
+        label = f'▣ {kind.title()}: {name or "unnamed"}'
+        if details:
+            label += f' ({", ".join(details)})'
+        rendered.append(label)
+    return tuple(rendered)
+
+
+def _safe_attachment_name(value):
+    name = _safe(value, 160).replace('\\', '/')
+    return name.rsplit('/', 1)[-1]
+
+
+def ordered_hunt_conversations(records):
+    """Return roots and descendants in stable navigator order."""
+    return _ordered_conversations(records)
+
+
+def hunt_conversation_id(conversation):
+    """Return a normalized Hunt conversation identifier."""
+    return _conversation_id(conversation)
+
+
+def hunt_conversation_is_root(conversation):
+    """Return whether a Hunt conversation is a root iteration."""
+    return _is_root(conversation)
+
+
+def hunt_conversation_depth(conversation, records):
+    """Return bounded descendant depth for a conversation navigator."""
+    by_id = {_conversation_id(item): item for item in records or []}
+    return _conversation_depth(conversation, by_id)
 
 
 def _sorted_conversations(records):

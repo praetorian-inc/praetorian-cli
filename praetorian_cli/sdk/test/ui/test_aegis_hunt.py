@@ -469,6 +469,31 @@ def test_findings_memory_and_log_commands_render_hunt_data():
     ]
 
 
+def test_chat_opens_fullscreen_live_view_without_menu_pause(monkeypatch):
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt()]
+    calls = []
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.supports_live_hunt_chat',
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.run_live_hunt_chat',
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    handle_hunt(menu, [
+        'chat', 'hunt-1', '--conversation', 'root-prefix', '--interval', '2',
+    ])
+
+    assert calls[0][0] == (menu.sdk, 'hunt-1')
+    assert calls[0][1]['requested_id'] == 'root-prefix'
+    assert calls[0][1]['refresh_interval'] == 2.0
+    assert callable(calls[0][1]['review_interactions'])
+    assert menu.paused is False
+
+
 def test_chat_displays_transcript_and_queues_guidance():
     endpoint = V2Endpoint()
     menu = Menu(endpoint)

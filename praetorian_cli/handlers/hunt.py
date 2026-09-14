@@ -20,6 +20,11 @@ from praetorian_cli.ui.hunt_chat import (
     review_pending_hunt_interactions,
     select_hunt_conversation,
 )
+from praetorian_cli.ui.hunt_chat_live import (
+    DEFAULT_CHAT_REFRESH_SECONDS,
+    run_live_hunt_chat,
+    supports_live_hunt_chat,
+)
 from praetorian_cli.ui.hunt_data import (
     build_hunt_findings,
     build_hunt_log,
@@ -349,9 +354,51 @@ def log(sdk, uuid, follow, interval):
 @click.argument('uuid')
 @click.option('--conversation', 'conversation_id', help='Conversation ID or unique prefix to view')
 @click.option('-m', '--message', help='Queue guidance for the active Hunt iteration')
-def chat(sdk, uuid, conversation_id, message):
-    """View Hunt chat or send guidance to the active iteration."""
+@click.option(
+    '--interval',
+    type=click.FloatRange(min=1, max=30),
+    default=DEFAULT_CHAT_REFRESH_SECONDS,
+    show_default=True,
+    help='Live refresh interval in seconds',
+)
+def chat(sdk, uuid, conversation_id, message, interval):
+    """Open live Hunt chat or send non-interactive guidance."""
     _require_hunt(sdk, uuid)
+    if message is None and supports_live_hunt_chat():
+        console = Console()
+
+        def review_interactions(interactions):
+            review_pending_hunt_interactions(
+                sdk,
+                interactions,
+                console,
+                confirm=lambda prompt, default: click.confirm(
+                    prompt,
+                    default=default,
+                    err=True,
+                ),
+                credential_prompt=lambda field: click.prompt(
+                    field,
+                    hide_input=True,
+                    err=True,
+                ),
+                interactive=True,
+            )
+
+        try:
+            run_live_hunt_chat(
+                sdk,
+                uuid,
+                requested_id=conversation_id,
+                refresh_interval=interval,
+                review_interactions=review_interactions,
+            )
+        except Exception as exc:
+            raise click.ClickException(
+                f'Unable to open Hunt chat: {exc}'
+            ) from exc
+        return
+
     try:
         if message is not None and not message.strip():
             raise ValueError('guidance message is required')

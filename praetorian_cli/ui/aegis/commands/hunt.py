@@ -17,6 +17,11 @@ from praetorian_cli.ui.hunt_chat import (
     review_pending_hunt_interactions,
     select_hunt_conversation,
 )
+from praetorian_cli.ui.hunt_chat_live import (
+    DEFAULT_CHAT_REFRESH_SECONDS,
+    run_live_hunt_chat,
+    supports_live_hunt_chat,
+)
 from praetorian_cli.ui.hunt_data import (
     build_hunt_findings,
     build_hunt_log,
@@ -109,7 +114,7 @@ def complete(_menu, text, tokens):
     elif subcommand == 'log':
         options = ('--follow', '--interval', '--help')
     elif subcommand == 'chat':
-        options = ('--conversation', '--message', '--help')
+        options = ('--conversation', '--message', '--interval', '--help')
     elif subcommand == 'interactions':
         options = ('--watch', '--interval', '--help')
     else:
@@ -127,7 +132,7 @@ def show_hunt_help(menu):
   hunt findings <hunt-id> [--severity <level>] [--details]
   hunt memory <hunt-id> [--item <title>] [--content <text> | --delete]
   hunt log <hunt-id> [--follow]
-  hunt chat <hunt-id> [--conversation <id>] [--message <guidance>]
+  hunt chat <hunt-id> [--conversation <id>] [--message <guidance>] [--interval <seconds>]
   hunt interactions <hunt-id> [--watch] [--interval <seconds>]
   hunt pause|resume|stop|delete <hunt-id>
 
@@ -515,6 +520,38 @@ def chat_hunt(menu, endpoint, args):
 
     hunt = _get_selected_hunt(menu, endpoint, [options['hunt_id']])
     if hunt is None:
+        return
+
+    if not options['message'] and supports_live_hunt_chat():
+        def review_interactions(interactions):
+            review_pending_hunt_interactions(
+                menu.sdk,
+                interactions,
+                menu.console,
+                confirm=lambda message, default: Confirm.ask(
+                    message,
+                    default=default,
+                    console=menu.console,
+                ),
+                credential_prompt=lambda field: Prompt.ask(
+                    Text(f'  {field}'),
+                    password=True,
+                    console=menu.console,
+                ),
+                interactive=True,
+            )
+
+        try:
+            run_live_hunt_chat(
+                menu.sdk,
+                options['hunt_id'],
+                requested_id=options['conversation_id'],
+                refresh_interval=options['interval'],
+                review_interactions=review_interactions,
+            )
+        except Exception as exc:
+            _print_message(menu, f'Unable to open Hunt chat: {exc}', 'error')
+            menu.pause()
         return
 
     try:
@@ -996,15 +1033,23 @@ def _parse_chat_args(args):
         'hunt_id': None,
         'conversation_id': None,
         'message': None,
+        'interval': DEFAULT_CHAT_REFRESH_SECONDS,
     }
     index = 0
     while index < len(args):
         token = args[index]
-        if token in ('--conversation', '--message'):
+        if token in ('--conversation', '--message', '--interval'):
             if index + 1 >= len(args):
                 raise ValueError(f'{token} requires a value')
-            key = 'conversation_id' if token == '--conversation' else 'message'
-            options[key] = args[index + 1]
+            if token == '--conversation':
+                options['conversation_id'] = args[index + 1]
+            elif token == '--message':
+                options['message'] = args[index + 1]
+            else:
+                try:
+                    options['interval'] = float(args[index + 1])
+                except ValueError as exc:
+                    raise ValueError('--interval must be a number') from exc
             index += 2
         elif token.startswith('-'):
             raise ValueError(f'unknown option: {token}')
@@ -1018,6 +1063,8 @@ def _parse_chat_args(args):
         raise ValueError('a Hunt ID is required')
     if options['message'] is not None and not options['message'].strip():
         raise ValueError('guidance message is required')
+    if not 1 <= options['interval'] <= 30:
+        raise ValueError('--interval must be between 1 and 30 seconds')
     return options
 
 
