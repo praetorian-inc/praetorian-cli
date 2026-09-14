@@ -1,3 +1,5 @@
+import pytest
+
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.ui import entity_selector
 from praetorian_cli.ui.entity_selector import (
@@ -62,6 +64,48 @@ def test_hunt_scope_query_can_resume_at_a_later_page():
     assert query['limit'] == 200
 
 
+@pytest.mark.parametrize(
+    'agent,expected_label,expected_classes',
+    (
+        (
+            'hannibal',
+            'Asset',
+            ['domain', 'tld', 'ipv4', 'ipv6', 'cidr'],
+        ),
+        ('hannibal-cloud', 'Asset', ['amazon', 'azure', 'gcp']),
+        ('hannibal-webapp', 'WebApplication', None),
+    ),
+)
+def test_surface_scope_queries_match_webui_active_target_fences(
+    agent,
+    expected_label,
+    expected_classes,
+):
+    search = Search()
+
+    Assets(type('API', (), {'search': search})()).list_hunt_scope(agent=agent)
+
+    query, _ = search.calls[0]
+    assert query['node']['labels'] == [expected_label]
+    filters = query['node']['filters']
+    assert {
+        'field': 'status',
+        'operator': 'STARTS WITH',
+        'value': 'A',
+        'not': False,
+    } in filters
+    class_filters = [item for item in filters if item['field'] == 'class']
+    if expected_classes is None:
+        assert class_filters == []
+    else:
+        assert class_filters == [{
+            'field': 'class',
+            'operator': 'IN',
+            'value': [expected_classes],
+            'not': False,
+        }]
+
+
 def test_llm_hunt_scope_queries_active_llm_webapplications():
     search = Search()
 
@@ -71,6 +115,12 @@ def test_llm_hunt_scope_queries_active_llm_webapplications():
 
     query, _ = search.calls[0]
     assert query['node']['labels'] == ['WebApplication']
+    assert {
+        'field': 'status',
+        'operator': 'STARTS WITH',
+        'value': 'A',
+        'not': False,
+    } in query['node']['filters']
     assert {'field': 'isLLM', 'operator': '=', 'value': True, 'not': False} in query['node']['filters']
 
 

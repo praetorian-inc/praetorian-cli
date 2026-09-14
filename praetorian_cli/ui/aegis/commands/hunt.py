@@ -1,7 +1,7 @@
 import time
 
 from rich.box import MINIMAL
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
 
@@ -24,6 +24,7 @@ from praetorian_cli.ui.hunt_data import (
 from praetorian_cli.ui.hunt_defaults import (
     DEFAULT_FINISH_CRITERIA,
     DEFAULT_HUNT_DURATION_HOURS,
+    DEFAULT_INTERNAL_MANDATE,
 )
 from praetorian_cli.ui.hunt_launch import configure_hunt_launch
 from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
@@ -115,7 +116,7 @@ def show_hunt_help(menu):
     menu.console.print("""
   Aegis v2 AI Hunt Commands
 
-  hunt launch --prompt <objective> [--scope <hostname-or-IP>] [options]
+  hunt launch [--prompt <objective>] --scope <hostname-or-IP> [options]
   hunt list [--status <status>] [--all]
   hunt status <hunt-id> [--workflows]
   hunt findings <hunt-id> [--severity <level>] [--details]
@@ -127,8 +128,9 @@ def show_hunt_help(menu):
   The selected Aegis v2 endpoint is used automatically. When --scope is
   omitted, choose active internal targets from a searchable list. The launch
   wizard then reviews mandate, aggressiveness, credentials, guardrails,
-  finish criteria, duration, finding tag, and model tier. Use --yes to accept
-  flag/default values. --credential may be repeated, once per credential type.
+  finish criteria, duration, finding tag, and model tier. Use --yes with an
+  explicit --scope to accept flag/default values without prompts. --credential
+  may be repeated, once per credential type.
   If the endpoint is unavailable, the Hunt waits without external fallback.
 """)
     menu.pause()
@@ -169,7 +171,7 @@ def launch_hunt(menu, endpoint, args):
         if options['help']:
             show_hunt_help(menu)
             return
-        objective = options['prompt'] or Prompt.ask('  Hunt objective').strip()
+        objective = options['prompt'] or DEFAULT_INTERNAL_MANDATE
         scopes = [
             resolve_entity_reference(
                 menu.sdk,
@@ -182,6 +184,8 @@ def launch_hunt(menu, endpoint, args):
         ]
         if not objective:
             raise ValueError('hunt objective is required')
+        if not scopes and options['yes']:
+            raise ValueError('--yes requires at least one --scope')
         if not scopes:
             candidates, next_scope_page = menu.sdk.assets.list_hunt_scope(
                 agent='hannibal',

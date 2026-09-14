@@ -194,8 +194,18 @@ def test_internal_hunt_cli_resolves_friendly_scope_value():
     assert sdk.hunts.create_calls[0]['scope'] == [SCOPE]
 
 
-def test_internal_hunt_cli_discovers_scope_and_sends_ui_launch_fields():
+def test_internal_hunt_cli_discovers_scope_and_sends_ui_launch_fields(
+    monkeypatch,
+):
     sdk = _sdk()
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.supports_fullscreen_wizard',
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.configure_hunt_launch',
+        lambda _console, config, *_args: (dict(config), True),
+    )
     sdk.assets.candidates = [{
         'key': SCOPE,
         'dns': 'internal.example',
@@ -212,6 +222,7 @@ def test_internal_hunt_cli_discovers_scope_and_sends_ui_launch_fields():
             '--internal',
             '--endpoint', ENDPOINT_ID,
             '--confirm-endpoint',
+            '--select-scope',
             '--finish-criteria', 'Stop after critical compromise',
             '--guardrails', 'Do not authenticate',
             '--custom-tag', 'Internal-Q4',
@@ -243,8 +254,18 @@ def test_internal_hunt_cli_discovers_scope_and_sends_ui_launch_fields():
     assert 'internal.example' in result.output
 
 
-def test_internal_hunt_cli_confirmation_names_offline_no_fallback_policy():
+def test_internal_hunt_cli_confirmation_names_offline_no_fallback_policy(
+    monkeypatch,
+):
     sdk = _sdk()
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.supports_fullscreen_wizard',
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.configure_hunt_launch',
+        lambda _console, config, *_args: (dict(config), True),
+    )
 
     result = CliRunner().invoke(
         hunt,
@@ -261,9 +282,17 @@ def test_internal_hunt_cli_confirmation_names_offline_no_fallback_policy():
     assert sdk.hunts.create_calls[0]['endpoint_confirmed'] is True
 
 
-def test_internal_hunt_cli_can_select_an_authorized_v2_endpoint():
+def test_internal_hunt_cli_can_select_an_authorized_v2_endpoint(monkeypatch):
     second_id = '22222222-2222-4222-8222-222222222222'
     sdk = _sdk([_endpoint('first'), _endpoint('second', second_id)])
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.supports_fullscreen_wizard',
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.handlers.hunt.configure_hunt_launch',
+        lambda _console, config, *_args: (dict(config), True),
+    )
 
     result = CliRunner().invoke(
         hunt,
@@ -342,7 +371,7 @@ def test_internal_hunt_cli_requires_hannibal_and_scope():
     assert wrong_agent.exit_code != 0
     assert 'requires the hannibal infrastructure agent' in wrong_agent.output
     assert no_scope.exit_code != 0
-    assert 'No selectable targets found' in no_scope.output
+    assert 'Specific Hunts require at least one --scope' in no_scope.output
     assert sdk.hunts.create_calls == []
 
 

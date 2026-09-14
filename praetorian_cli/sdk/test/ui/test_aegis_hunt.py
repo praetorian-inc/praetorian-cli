@@ -218,16 +218,12 @@ def test_launch_uses_selected_authorized_v2_endpoint():
     assert menu.paused is True
 
 
-def test_launch_discovers_targets_and_sends_ui_configuration(monkeypatch):
+def test_yes_launch_sends_ui_configuration_without_discovery():
     menu = Menu(V2Endpoint())
-    menu.sdk.assets.candidates = [{'key': SCOPE, 'dns': 'internal.example'}]
-    monkeypatch.setattr(
-        'praetorian_cli.ui.aegis.commands.hunt.select_entity_keys',
-        lambda console, entities, title, **_kwargs: [entities[0]['key']],
-    )
 
     handle_hunt(menu, [
         'launch',
+        '--scope', SCOPE,
         '--prompt', 'Assess internal services',
         '--finish-criteria', 'Stop after compromise',
         '--guardrails', 'Do not authenticate',
@@ -243,6 +239,32 @@ def test_launch_discovers_targets_and_sends_ui_configuration(monkeypatch):
     assert call['user_guardrails'] == 'Do not authenticate'
     assert call['custom_tag'] == 'Internal-Q4'
     assert call['model_tier_override'] == 'experimental'
+    assert menu.sdk.assets.candidates == []
+
+
+def test_yes_launch_uses_internal_default_mandate():
+    menu = Menu(V2Endpoint())
+
+    handle_hunt(menu, ['launch', '--yes', '--scope', SCOPE])
+
+    assert 'selected internal assets' in (
+        menu.sdk.hunts.create_calls[0]['prompt']
+    )
+
+
+def test_yes_launch_requires_explicit_scope_without_prompting(monkeypatch):
+    menu = Menu(V2Endpoint())
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.select_entity_keys',
+        lambda *_args, **_kwargs: pytest.fail(
+            '--yes must not open target selection'
+        ),
+    )
+
+    handle_hunt(menu, ['launch', '--yes'])
+
+    assert menu.sdk.hunts.create_calls == []
+    assert '--yes requires at least one --scope' in '\n'.join(menu.console.lines)
 
 
 def test_interactive_launch_wizard_updates_configuration(monkeypatch):

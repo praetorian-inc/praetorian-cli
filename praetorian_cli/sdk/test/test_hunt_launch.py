@@ -2,7 +2,11 @@ from io import StringIO
 
 from rich.console import Console
 
-from praetorian_cli.ui.hunt_defaults import DEFAULT_FINISH_CRITERIA
+from praetorian_cli.ui.hunt_defaults import (
+    DEFAULT_EXTERNAL_MANDATE,
+    DEFAULT_FINISH_CRITERIA,
+    DEFAULT_HUNT_MANDATES,
+)
 from praetorian_cli.ui.hunt_launch import (
     HuntLaunchConfigurator,
     configure_hunt_launch,
@@ -119,3 +123,76 @@ def test_launch_wizard_preserves_non_tty_command_behavior():
 
     assert used_wizard is False
     assert result == config
+
+
+def _field_index(configurator, name):
+    return next(
+        index
+        for index, (field_name, _label, _kind)
+        in enumerate(configurator.fields)
+        if field_name == name
+    )
+
+
+def test_all_surface_configurator_cycles_every_specific_surface_and_defaults():
+    config = {
+        **_config(),
+        'surface': 'external',
+        'scope_mode': 'specific',
+        'prompt': DEFAULT_EXTERNAL_MANDATE,
+    }
+    configurator = HuntLaunchConfigurator(
+        config,
+        ['#asset#example.com#example.com'],
+        'Not required',
+    )
+    configurator.cursor = _field_index(configurator, 'surface')
+
+    for surface in ('internal', 'cloud', 'webapp', 'llm', 'external'):
+        configurator.cycle(1)
+        assert configurator.config['surface'] == surface
+        assert configurator.config['prompt'] == DEFAULT_HUNT_MANDATES[surface]
+        assert configurator.targets == []
+
+
+def test_all_surface_configurator_preserves_custom_mandate_on_surface_change():
+    configurator = HuntLaunchConfigurator(
+        {
+            **_config(),
+            'surface': 'external',
+            'scope_mode': 'specific',
+            'prompt': 'Only assess the customer-approved objective',
+        },
+        ['#asset#example.com#example.com'],
+        'Not required',
+    )
+    configurator.cursor = _field_index(configurator, 'surface')
+
+    configurator.cycle(1)
+
+    assert configurator.config['surface'] == 'internal'
+    assert configurator.config['prompt'] == (
+        'Only assess the customer-approved objective'
+    )
+
+
+def test_all_scope_mode_resets_surface_and_clears_specific_targets():
+    configurator = HuntLaunchConfigurator(
+        {
+            **_config(),
+            'surface': 'cloud',
+            'scope_mode': 'specific',
+            'prompt': DEFAULT_HUNT_MANDATES['cloud'],
+        },
+        ['#asset#aws#123456789012'],
+        'Not required',
+    )
+    configurator.cursor = _field_index(configurator, 'scope_mode')
+
+    configurator.cycle(-1)
+
+    assert configurator.config['scope_mode'] == 'all'
+    assert configurator.config['surface'] == 'external'
+    assert configurator.config['prompt'] == DEFAULT_EXTERNAL_MANDATE
+    assert configurator.value('targets') == 'All active targets'
+    assert configurator.confirmed_config()['scope'] == []

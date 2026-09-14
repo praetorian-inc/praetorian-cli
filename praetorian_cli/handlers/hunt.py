@@ -26,8 +26,28 @@ from praetorian_cli.ui.hunt_data import (
 from praetorian_cli.ui.hunt_defaults import (
     DEFAULT_FINISH_CRITERIA,
     DEFAULT_HUNT_DURATION_HOURS,
+    DEFAULT_HUNT_MANDATES,
+)
+from praetorian_cli.ui.hunt_launch import (
+    configure_hunt_launch,
+    hunt_surface_label,
+    supports_fullscreen_wizard,
 )
 from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
+
+
+SURFACE_TO_AGENT = {
+    'external': 'hannibal',
+    'internal': 'hannibal',
+    'cloud': 'hannibal-cloud',
+    'webapp': 'hannibal-webapp',
+    'llm': 'hannibal-llm',
+}
+AGENT_TO_SURFACE = {
+    agent: surface
+    for surface, agent in SURFACE_TO_AGENT.items()
+    if surface != 'internal'
+}
 
 
 @chariot.group()
@@ -43,6 +63,88 @@ def _require_hunt(sdk, hunt_id):
     return hunt_record
 
 
+def _hunt_surface(agent, internal_hunt):
+    if internal_hunt:
+        return 'internal'
+    return AGENT_TO_SURFACE[agent]
+
+
+def _hunt_scope_type(surface):
+    return 'webapplication' if surface in ('webapp', 'llm') else 'asset'
+
+
+def _select_hunt_scope(sdk, surface, console):
+    agent = SURFACE_TO_AGENT[surface]
+    internal_hunt = surface == 'internal'
+    candidates, next_scope_page = sdk.assets.list_hunt_scope(
+        agent=agent,
+        internal=internal_hunt,
+        pages=1,
+    )
+    return select_entity_keys(
+        console,
+        candidates,
+        title=f'Select {hunt_surface_label(surface)} Hunt targets',
+        search_entities=lambda query, page: sdk.assets.list_hunt_scope(
+            agent=agent,
+            internal=internal_hunt,
+            search=query,
+            page=int(page or 0),
+            pages=1,
+        ),
+        next_offset=next_scope_page,
+    )
+
+
+def _record_value(record, *names):
+    for name in names:
+        if isinstance(record, dict):
+            value = record.get(name)
+        else:
+            value = getattr(record, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _hunt_credentials(sdk, endpoint_id):
+    credentials_api = getattr(sdk, 'credentials', None)
+    if credentials_api is None:
+        return []
+    try:
+        credentials, _ = credentials_api.list(pages=1)
+    except Exception:
+        return []
+
+    supported = []
+    for credential in credentials:
+        credential_type = _record_value(
+            credential,
+            'type',
+            'credentialType',
+        )
+        if credential_type == 'web-auth':
+            supported.append(credential)
+            continue
+        if credential_type != 'active-directory':
+            continue
+        endpoint_ids = _record_value(
+            credential,
+            'endpointIds',
+            'endpoint_ids',
+        ) or []
+        account_key = _record_value(
+            credential,
+            'accountKey',
+            'account_key',
+        )
+        if endpoint_id in endpoint_ids or (
+            not endpoint_ids and account_key == endpoint_id
+        ):
+            supported.append(credential)
+    return supported
+
+
 def _internal_hunt_endpoint(
     sdk,
     endpoint_id,
@@ -50,6 +152,7 @@ def _internal_hunt_endpoint(
     agent,
     scope,
     confirm_endpoint,
+    allow_prompt=True,
 ):
     if not internal_hunt:
         if endpoint_id or confirm_endpoint:
@@ -101,6 +204,11 @@ def _internal_hunt_endpoint(
             )
         return matches[0]
 
+    if not allow_prompt:
+        raise click.UsageError(
+            '--endpoint is required for an Internal Hunt in non-interactive mode'
+        )
+
     click.echo('Authorized Aegis v2 endpoints:')
     for index, endpoint in enumerate(endpoints, 1):
         state = 'online' if endpoint.is_online else 'offline'
@@ -117,7 +225,8 @@ def _internal_hunt_endpoint(
 
 @hunt.command()
 @cli_handler
-@click.option('-p', '--prompt', required=True, help='The hunt objective / central mandate')
+@click.option('-p', '--prompt', default=None,
+              help='The hunt objective / central mandate (surface default when omitted)')
 @click.option('-e', '--expires', type=click.IntRange(1, 72),
               default=DEFAULT_HUNT_DURATION_HOURS, show_default=True,
               help='Hours until the hunt expires (1-72)')
@@ -125,6 +234,8 @@ def _internal_hunt_endpoint(
               default='hannibal', show_default=True, help='Agent type')
 @click.option('-s', '--scope', multiple=True,
               help='Target key, hostname, IP, URL, or friendly name (repeatable)')
+@click.option('--scope-mode', type=click.Choice(['all', 'specific']), default=None,
+              help='Hunt all infrastructure or require specific targets')
 @click.option('--select-scope', is_flag=True,
               help='Search and select Hunt targets interactively')
 @click.option('--scope-level', type=click.Choice(['normal', 'strict']), default='normal', show_default=True)
@@ -146,65 +257,182 @@ def _internal_hunt_endpoint(
               help='Aegis v2 endpoint ID or unique hostname for an Internal Hunt')
 @click.option('--confirm-endpoint', is_flag=True, default=False,
               help='Confirm endpoint-only execution without an interactive prompt')
-def launch(sdk, prompt, expires, agent, scope, select_scope, scope_level,
-           aggressiveness, finish_criteria, guardrails, custom_tag, model_tier,
-           credential_ids, internal_hunt, endpoint_id, confirm_endpoint):
-    """Launch a new hunt against the current account.
+@click.option('-y', '--yes', is_flag=True, default=False,
+              help='Use flag/default values without prompts or fullscreen UI')
+def launch(sdk, prompt, expires, agent, scope, scope_mode, select_scope,
+           scope_level, aggressiveness, finish_criteria, guardrails,
+           custom_tag, model_tier, credential_ids, internal_hunt, endpoint_id,
+           confirm_endpoint, yes):
+    """Launch a new Hunt, using the all-surface wizard in an interactive TTY.
 
     Example usages:
-        guard hunt launch --prompt "Find XSS vulnerabilities in web applications"
-        guard hunt launch --prompt "Test API endpoints" --agent hannibal-webapp --select-scope
-        guard hunt launch --prompt "Cloud misconfigs" --agent hannibal-cloud --scope "#asset#example.com#1.2.3.4"
-        guard hunt launch --internal --endpoint <endpoint-id> --scope "#asset#internal#10.0.0.5" --prompt "Assess internal services"
+        guard hunt launch
+        guard hunt launch --yes --prompt "Find exploitable external paths"
+        guard hunt launch --agent hannibal-webapp --select-scope
+        guard hunt launch --agent hannibal-cloud --scope "#asset#aws#123456789012"
+        guard hunt launch --internal --endpoint <endpoint-id> --scope "#asset#internal#10.0.0.5"
     """
-    if credential_ids and not internal_hunt:
-        raise click.UsageError('--credential requires --internal')
     if internal_hunt and agent != 'hannibal':
         raise click.UsageError(
             '--internal requires the hannibal infrastructure agent'
         )
+    if yes and select_scope:
+        raise click.UsageError('--select-scope cannot be combined with --yes')
 
-    scope_type = (
-        'webapplication'
-        if agent in ('hannibal-webapp', 'hannibal-llm')
-        else 'asset'
+    initial_surface = _hunt_surface(agent, internal_hunt)
+    if scope_mode == 'all' and (
+        scope or select_scope or internal_hunt or agent != 'hannibal'
+    ):
+        raise click.UsageError(
+            '--scope-mode all is only valid for an unscoped External Hunt'
+        )
+    selected_scope_mode = scope_mode or (
+        'specific'
+        if scope or select_scope or internal_hunt or agent != 'hannibal'
+        else 'all'
     )
+    interactive_terminal = supports_fullscreen_wizard()
+    if select_scope and not interactive_terminal:
+        raise click.UsageError('--select-scope requires an interactive TTY')
+    console = Console()
     scopes = [
-        resolve_entity_reference(sdk, value, scope_type)
+        resolve_entity_reference(
+            sdk,
+            value,
+            _hunt_scope_type(initial_surface),
+            interactive=interactive_terminal and not yes,
+            console=console,
+        )
         for value in scope
     ]
-    if select_scope or (internal_hunt and not scopes):
-        candidates, next_scope_page = sdk.assets.list_hunt_scope(
-            agent=agent,
-            internal=internal_hunt,
-            pages=1,
-        )
-        selected_scopes = select_entity_keys(
-            Console(),
-            candidates,
-            title='Select Hunt targets',
-            search_entities=lambda query, page: sdk.assets.list_hunt_scope(
-                agent=agent,
-                internal=internal_hunt,
-                search=query,
-                page=int(page or 0),
-                pages=1,
-            ),
-            next_offset=next_scope_page,
-        )
+
+    should_select_scope = selected_scope_mode == 'specific' and (
+        select_scope or (not scopes and interactive_terminal and not yes)
+    )
+    if should_select_scope:
+        selected_scopes = _select_hunt_scope(sdk, initial_surface, console)
         if not selected_scopes:
             raise click.Abort()
         scopes = list(dict.fromkeys([*scopes, *selected_scopes]))
 
-    endpoint = _internal_hunt_endpoint(
-        sdk,
-        endpoint_id,
-        internal_hunt,
-        agent,
-        scopes,
-        confirm_endpoint,
+    endpoint = None
+    credential_options = []
+    if initial_surface == 'internal' and scopes:
+        endpoint = _internal_hunt_endpoint(
+            sdk,
+            endpoint_id,
+            True,
+            'hannibal',
+            scopes,
+            confirm_endpoint or yes,
+            allow_prompt=interactive_terminal and not yes,
+        )
+        if interactive_terminal and not yes:
+            credential_options = _hunt_credentials(sdk, endpoint.display_id)
+
+    launch_config = {
+        'surface': initial_surface,
+        'scope_mode': selected_scope_mode,
+        'scope': list(scopes),
+        'prompt': prompt or DEFAULT_HUNT_MANDATES[initial_surface],
+        'scope_level': scope_level,
+        'aggressiveness': aggressiveness,
+        'guardrails': guardrails,
+        'finish_criteria': finish_criteria,
+        'expires': expires,
+        'custom_tag': custom_tag,
+        'model_tier': model_tier,
+        'credential_ids': list(credential_ids),
+    }
+    used_wizard = False
+    if not yes:
+        endpoint_description = 'Not required'
+        if initial_surface == 'internal':
+            if endpoint is None:
+                endpoint_description = 'Select after target review'
+            else:
+                endpoint_name = endpoint.hostname or endpoint.display_id
+                endpoint_state = 'online' if endpoint.is_online else 'offline'
+                endpoint_description = (
+                    f'{endpoint_name} ({endpoint.display_id}, {endpoint_state})'
+                )
+        launch_config, used_wizard = configure_hunt_launch(
+            console,
+            launch_config,
+            scopes,
+            endpoint_description,
+            credential_options,
+        )
+        if used_wizard and launch_config is None:
+            raise click.Abort()
+
+    surface = launch_config.get('surface', initial_surface)
+    selected_scope_mode = launch_config.get(
+        'scope_mode',
+        selected_scope_mode,
     )
-    if endpoint and not confirm_endpoint:
+    if selected_scope_mode == 'all':
+        surface = 'external'
+        scopes = []
+    else:
+        scopes = list(launch_config.get('scope') or [])
+    agent = SURFACE_TO_AGENT[surface]
+    internal_hunt = surface == 'internal'
+    prompt = (
+        str(launch_config.get('prompt') or '').strip()
+        or DEFAULT_HUNT_MANDATES[surface]
+    )
+    expires = launch_config.get('expires', expires)
+    scope_level = launch_config.get('scope_level', scope_level)
+    aggressiveness = launch_config.get('aggressiveness', aggressiveness)
+    finish_criteria = (
+        str(launch_config.get('finish_criteria') or '').strip()
+        or DEFAULT_FINISH_CRITERIA
+    )
+    guardrails = str(launch_config.get('guardrails') or '').strip()
+    custom_tag = str(launch_config.get('custom_tag') or '').strip()
+    model_tier = launch_config.get('model_tier', model_tier)
+    credential_ids = list(
+        launch_config.get('credential_ids', credential_ids) or []
+    )
+
+    can_prompt = (interactive_terminal or used_wizard) and not yes
+    if selected_scope_mode == 'specific' and not scopes:
+        if not can_prompt:
+            raise click.UsageError(
+                'Specific Hunts require at least one --scope or --select-scope'
+            )
+        selected_scopes = _select_hunt_scope(sdk, surface, console)
+        if not selected_scopes:
+            raise click.Abort()
+        scopes = selected_scopes
+
+    if credential_ids and not internal_hunt:
+        raise click.UsageError('--credential requires --internal')
+
+    if used_wizard and initial_surface == 'internal' and not internal_hunt:
+        endpoint_id = None
+        confirm_endpoint = False
+    if surface != initial_surface:
+        endpoint = None
+    if endpoint is None or not internal_hunt:
+        endpoint = _internal_hunt_endpoint(
+            sdk,
+            endpoint_id,
+            internal_hunt,
+            agent,
+            scopes,
+            (confirm_endpoint or yes) if internal_hunt else confirm_endpoint,
+            allow_prompt=can_prompt,
+        )
+
+    endpoint_confirmed = confirm_endpoint or yes
+    if endpoint and not endpoint_confirmed:
+        if not can_prompt:
+            raise click.UsageError(
+                '--confirm-endpoint or --yes is required for an Internal Hunt '
+                'in non-interactive mode'
+            )
         endpoint_name = endpoint.hostname or endpoint.display_id
         online = 'online' if endpoint.is_online else 'offline'
         confirmed = click.confirm(
@@ -227,7 +455,7 @@ def launch(sdk, prompt, expires, agent, scope, select_scope, scope_level,
         user_guardrails=guardrails,
         custom_tag=custom_tag,
         model_tier_override=model_tier,
-        credential_ids=list(credential_ids) or None,
+        credential_ids=credential_ids or None,
         endpoint_required=internal_hunt,
         endpoint_id=endpoint.display_id if endpoint else None,
         endpoint_confirmed=bool(endpoint),

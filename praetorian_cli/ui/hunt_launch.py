@@ -7,7 +7,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from praetorian_cli.ui.hunt_defaults import DEFAULT_GUARDRAILS
+from praetorian_cli.ui.hunt_defaults import (
+    DEFAULT_GUARDRAILS,
+    DEFAULT_HUNT_MANDATES,
+)
 
 
 AGGRESSIVENESS_OPTIONS = (
@@ -41,12 +44,62 @@ MODEL_OPTIONS = (
         'Use experimental model routing. Requires super-admin authorization.',
     ),
 )
+HUNT_SURFACE_OPTIONS = (
+    (
+        'external',
+        'External',
+        'Hunt web-facing domains, IP addresses, and CIDR ranges.',
+    ),
+    (
+        'internal',
+        'Internal',
+        'Hunt selected private IPv4 addresses and CIDRs through one Aegis endpoint.',
+    ),
+    (
+        'cloud',
+        'Cloud',
+        'Hunt selected Amazon, Azure, and GCP account roots.',
+    ),
+    (
+        'webapp',
+        'Web Application',
+        'Hunt selected active WebApplication targets.',
+    ),
+    (
+        'llm',
+        'LLM Application',
+        'Hunt selected active LLM-backed WebApplication targets.',
+    ),
+)
+SCOPE_MODE_OPTIONS = (
+    (
+        'all',
+        'All infrastructure',
+        'Hunt every active Guard target with the External infrastructure agent.',
+    ),
+    (
+        'specific',
+        'Specific infrastructure',
+        'Choose an attack surface and one or more exact targets.',
+    ),
+)
+
+
+def hunt_surface_label(surface):
+    return next(
+        (
+            label for value, label, _description
+            in HUNT_SURFACE_OPTIONS
+            if value == surface
+        ),
+        str(surface or 'Hunt'),
+    )
 
 
 class HuntLaunchConfigurator:
     """Editable launch configuration for the fullscreen Hunt wizard."""
 
-    fields = (
+    internal_fields = (
         ('prompt', 'Mandate', 'text'),
         ('targets', 'Targets', 'readonly'),
         ('endpoint', 'Endpoint', 'readonly'),
@@ -60,11 +113,24 @@ class HuntLaunchConfigurator:
         ('model_tier', 'Model tier', 'choice'),
         ('launch', 'Launch Hunt', 'action'),
     )
+    settings_fields = (
+        ('aggressiveness', 'Aggressiveness', 'choice'),
+        ('guardrails', 'Additional guardrails', 'text'),
+        ('finish_criteria', 'Finish criteria', 'text'),
+        ('expires', 'Duration', 'choice'),
+        ('custom_tag', 'Finding tag', 'text'),
+        ('model_tier', 'Model tier', 'choice'),
+        ('launch', 'Launch Hunt', 'action'),
+    )
 
-    def __init__(self, config, targets, endpoint, credentials=None):
+    def __init__(self, config, targets, endpoint='', credentials=None):
         self.config = dict(config)
+        self.surface_enabled = (
+            self.config.get('surface') in DEFAULT_HUNT_MANDATES
+            and self.config.get('scope_mode') in ('all', 'specific')
+        )
         self.targets = list(targets)
-        self.endpoint = endpoint
+        self.endpoint = endpoint or 'Not required'
         self.credentials = [
             credential for credential in credentials or []
             if _credential_id(credential)
@@ -86,6 +152,26 @@ class HuntLaunchConfigurator:
         self.edit_value = ''
         self.original_value = ''
         self.status = ''
+
+    @property
+    def fields(self):
+        if not self.surface_enabled:
+            return self.internal_fields
+
+        fields = [
+            ('scope_mode', 'Infrastructure scope', 'choice'),
+            ('surface', 'Attack surface', 'choice'),
+            ('prompt', 'Mandate', 'text'),
+            ('targets', 'Targets', 'readonly'),
+        ]
+        if self.config.get('surface') == 'internal':
+            fields.extend((
+                ('endpoint', 'Endpoint', 'readonly'),
+                ('ad_credential', 'Active Directory credential', 'choice'),
+                ('web_auth_credential', 'Web authentication credential', 'choice'),
+            ))
+        fields.extend(self.settings_fields)
+        return tuple(fields)
 
     @property
     def field(self):
@@ -119,6 +205,8 @@ class HuntLaunchConfigurator:
             return
         options = self._choice_options(name)
         values = [option[0] for option in options]
+        if not values:
+            return
         credential_type = {
             'ad_credential': 'active-directory',
             'web_auth_credential': 'web-auth',
@@ -138,9 +226,38 @@ class HuntLaunchConfigurator:
                 self.selected_credentials.pop(credential_type, None)
             else:
                 self.selected_credentials[credential_type] = selected
+        elif name == 'scope_mode':
+            self._change_scope_mode(selected)
+        elif name == 'surface':
+            self._change_surface(selected)
         else:
             self.config[name] = selected
         self.status = self._choice_description(name)
+
+    def _change_scope_mode(self, scope_mode):
+        self.config['scope_mode'] = scope_mode
+        if scope_mode == 'all':
+            self._change_surface('external')
+            self.targets = []
+
+    def _change_surface(self, surface):
+        previous = self.config.get('surface')
+        if previous == surface:
+            return
+        previous_default = DEFAULT_HUNT_MANDATES.get(previous)
+        mandate = str(self.config.get('prompt') or '')
+        self.config['surface'] = surface
+        if not mandate or mandate == previous_default:
+            self.config['prompt'] = DEFAULT_HUNT_MANDATES[surface]
+        self.targets = []
+        self.endpoint = (
+            'Select after target review'
+            if surface == 'internal'
+            else 'Not required'
+        )
+        self.selected_credentials.clear()
+        self.unresolved_credential_ids = []
+        self.cursor = min(self.cursor, len(self.fields) - 1)
 
     def append_edit(self, value):
         if self.editing:
@@ -180,13 +297,31 @@ class HuntLaunchConfigurator:
             *self.selected_credentials.values(),
             *self.unresolved_credential_ids,
         ]
+        if self.surface_enabled:
+            if config.get('scope_mode') == 'all':
+                config['surface'] = 'external'
+                config['scope'] = []
+            else:
+                config['scope'] = list(self.targets)
         return config
 
     def value(self, name):
         if name == 'targets':
+            if self.surface_enabled and self.config.get('scope_mode') == 'all':
+                return 'All active targets'
             return f'{len(self.targets)} selected'
         if name == 'endpoint':
             return self.endpoint
+        if name in ('surface', 'scope_mode'):
+            current = self.config.get(name)
+            return next(
+                (
+                    label for value, label, _description
+                    in self._choice_options(name)
+                    if value == current
+                ),
+                str(current or '—'),
+            )
         if name in ('ad_credential', 'web_auth_credential'):
             credential_type = (
                 'active-directory' if name == 'ad_credential' else 'web-auth'
@@ -220,8 +355,18 @@ class HuntLaunchConfigurator:
         if self.editing:
             return 'Type the replacement value. Enter saves; Escape cancels.'
         if name == 'prompt':
-            return 'The primary objective and mandate for Hannibal.'
+            surface = hunt_surface_label(
+                self.config.get('surface') if self.surface_enabled else 'internal'
+            )
+            return f'The primary objective and mandate for the {surface} Hunt.'
         if name == 'targets':
+            if self.surface_enabled and self.config.get('scope_mode') == 'all':
+                return (
+                    'Empty request scope matches the WebUI All infrastructure mode. '
+                    'Hannibal discovers every active target in Guard.'
+                )
+            if not self.targets:
+                return 'A searchable active-target selector opens after this review.'
             return '\n'.join(_target_label(target) for target in self.targets[:12])
         if name == 'endpoint':
             return 'All target-network work remains pinned to this Aegis endpoint.'
@@ -243,6 +388,12 @@ class HuntLaunchConfigurator:
         return ''
 
     def _choice_options(self, name):
+        if name == 'scope_mode':
+            return SCOPE_MODE_OPTIONS
+        if name == 'surface':
+            if self.config.get('scope_mode') == 'all':
+                return HUNT_SURFACE_OPTIONS[:1]
+            return HUNT_SURFACE_OPTIONS
         if name == 'ad_credential':
             return self._credential_options('active-directory')
         if name == 'web_auth_credential':
@@ -315,11 +466,17 @@ def configure_hunt_launch(
     return _run_hunt_launch_wizard(console, configurator), True
 
 
-def _supports_fullscreen_wizard():
+def supports_fullscreen_wizard():
+    """Return whether launch UI can safely take over the current terminal."""
     try:
         return sys.stdin.isatty() and sys.stdout.isatty()
     except (AttributeError, OSError):
         return False
+
+
+# Backwards-compatible private alias for callers/tests from the Internal wizard.
+def _supports_fullscreen_wizard():
+    return supports_fullscreen_wizard()
 
 
 def _run_hunt_launch_wizard(console, configurator):
@@ -431,8 +588,13 @@ def _run_hunt_launch_wizard(console, configurator):
 
 
 def _configuration_table(configurator):
+    title = (
+        f"Configure {hunt_surface_label(configurator.config.get('surface'))} Hunt"
+        if configurator.surface_enabled
+        else 'Configure Internal Hunt'
+    )
     table = Table(
-        title=Text('Configure Internal Hunt', style='bold magenta'),
+        title=Text(title, style='bold magenta'),
         box=box.ROUNDED,
         border_style='magenta',
         expand=True,
