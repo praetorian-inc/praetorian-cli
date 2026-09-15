@@ -98,6 +98,20 @@ def test_api_key_profile_is_not_blocked_locally(local_file):
     assert kwargs['praetorian'] is True
 
 
+def test_flag_without_name_still_targets_praetorian_partition(local_file):
+    """--praetorian must be honoured even with no --name. On an API-key profile
+    is_praetorian_user() is False, so without a dedicated branch this fell through
+    to the customer path and uploaded to home/shared-by/ with the flag silently
+    dropped -- accepting a flag and ignoring it is worse than not offering it."""
+    sdk = _sdk(is_praetorian_user=False, username=None)
+    result = _invoke(sdk, local_file, '--praetorian')
+
+    assert result.exit_code == 0, result.output
+    args, kwargs = sdk.files.add.call_args
+    assert args[1] == 'home/internal/narratives.md'
+    assert kwargs['praetorian'] is True
+
+
 def test_flag_conflicts_with_public(local_file):
     sdk = _sdk()
     result = _invoke(sdk, local_file, '--name', 'reports/x.md', '--praetorian', '--public')

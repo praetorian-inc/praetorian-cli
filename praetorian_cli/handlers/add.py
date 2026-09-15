@@ -114,6 +114,13 @@ def file(sdk, path, name, is_public, is_praetorian):
             # operator-only content (report markdown the Generate Report wizard reads
             # from the Praetorian partition) was unreachable from the CLI.
             praetorian = is_praetorian
+        elif is_praetorian:
+            # Auto-placement with an explicit --praetorian. This branch exists
+            # because is_praetorian_user() is False on API-key profiles, so
+            # without it the request would fall through to the customer branch
+            # below and silently land in home/shared-by/ with the flag dropped.
+            dest_path = f'home/internal/{filename}'
+            praetorian = True
         elif sdk.is_praetorian_user():
             if is_public:
                 dest_path = f'home/shared-with/{filename}'
