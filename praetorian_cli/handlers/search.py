@@ -54,11 +54,16 @@ def search(chariot, term, count, kind, details, offset, page, desc, global_, all
         - "source:#risk#www.example.com#"
 
     \b
+    - Search by exact GUID (UUID) of a risk:
+        - "guid:550e8400-e29b-41d4-a716-446655440000"
+
+    \b
     Example usages:
         - guard search --term "status:OH"
         - guard search --term "status:OH" --details --page all
         - guard search --term "#asset#www.example.com"
         - guard search --term "dns:https://github.com/praetorian-inc/" --kind asset --desc
+        - guard search --term "guid:550e8400-e29b-41d4-a716-446655440000" --kind risk
     """
     if count:
         print_json(chariot.search.count(term))
