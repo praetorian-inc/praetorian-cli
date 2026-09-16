@@ -211,6 +211,8 @@ def run_az_login(client_id, tenant, assertion):
             'Azure CLI (az) is not installed. Install az and retry.')
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or '').strip()
+        if assertion:
+            detail = detail.replace(assertion, '[redacted]')
         raise click.ClickException(detail or 'az login failed')
     return completed
 
@@ -410,8 +412,20 @@ def azure(sdk, account, tenant, credential):
         dest = Path.home() / '.azure' / azure_sp_filename(prefix, credential_id)
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
-    write_azure_sp_file(dest, client_id, tenant_id, assertion)
-    run_az_login(client_id, tenant_id, assertion)
+    try:
+        write_azure_sp_file(dest, client_id, tenant_id, assertion)
+    except FileExistsError:
+        raise click.ClickException(
+            f'Azure SP file already exists at {dest}. Retry the command.'
+        ) from None
+    try:
+        run_az_login(client_id, tenant_id, assertion)
+    except Exception:
+        try:
+            dest.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
     click.echo(f'Wrote Azure service principal to {dest}')
     click.echo('Logged in with az login --service-principal')
 

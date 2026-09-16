@@ -388,6 +388,45 @@ class TestAzureCLIPath:
         assert list(tmp_path.rglob('*.json')) == []
 
 
+
+    def test_same_second_collision_does_not_traceback(self, tmp_path, monkeypatch):
+        frozen = datetime(2026, 9, 16, 15, 30, 45, tzinfo=timezone.utc)
+        monkeypatch.setattr(
+            'praetorian_cli.handlers.access.datetime',
+            SimpleNamespace(now=lambda tz=None: frozen),
+        )
+        login_calls = _patch_azure_fs(monkeypatch, tmp_path)
+        dest = tmp_path / '.azure' / f'client-{CRED_ID}-20260916T153045Z.json'
+        dest.parent.mkdir()
+        dest.write_text('pre-existing')
+
+        sdk = _sdk([_azure_cred()], response=_token_response())
+        result = _invoke(sdk)
+        assert result.exit_code != 0
+        assert 'retry' in result.output.lower()
+        assert 'Traceback' not in result.output
+        assert not login_calls
+        assert dest.read_text() == 'pre-existing'
+
+    def test_failed_az_login_unlinks_sp_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'praetorian_cli.handlers.access.Path.home',
+            lambda *args, **kwargs: tmp_path,
+        )
+        monkeypatch.setattr(
+            'praetorian_cli.handlers.access.run_az_login',
+            lambda *a, **k: (_ for _ in ()).throw(
+                click.ClickException('az login failed')
+            ),
+        )
+        sdk = _sdk([_azure_cred()], response=_token_response())
+        result = _invoke(sdk)
+        assert result.exit_code != 0
+        azure_dir = tmp_path / '.azure'
+        json_files = list(azure_dir.glob('*.json')) if azure_dir.exists() else []
+        assert json_files == []
+
+
 class TestRunAzLogin:
 
     def test_invokes_az_login(self, monkeypatch):
@@ -427,3 +466,18 @@ class TestRunAzLogin:
         )
         with pytest.raises(click.ClickException):
             run_az_login(CLIENT_ID, TENANT_A, ASSERTION)
+
+    def test_az_error_redacts_assertion(self, monkeypatch):
+        from praetorian_cli.handlers.access import run_az_login
+
+        monkeypatch.setattr(
+            'praetorian_cli.handlers.access.subprocess.run',
+            lambda *a, **k: SimpleNamespace(
+                returncode=1,
+                stdout='',
+                stderr=f'AADSTS70021: {ASSERTION} is invalid',
+            ),
+        )
+        with pytest.raises(click.ClickException) as exc:
+            run_az_login(CLIENT_ID, TENANT_A, ASSERTION)
+        assert ASSERTION not in str(exc.value)
