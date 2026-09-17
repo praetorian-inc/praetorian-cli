@@ -6,11 +6,42 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
+from praetorian_cli.ui.conversation.approvals import prompt_endpoint_approval
+from praetorian_cli.ui.conversation.endpoint_status import (
+    format_endpoint_execution_status,
+    format_endpoint_operation_status,
+)
 
 # Default MCP tool allow profile: read-only query/list/get tools. Sensitive
 # tools (see praetorian_cli.sdk.mcp_server.SENSITIVE_TOOL_PATTERNS) are never
 # matched by these wildcards — they require an exact-name -a entry.
 DEFAULT_MCP_TOOLS = ['search_by_query', '*_list', '*_get']
+
+
+def _ask_with_approvals(sdk, *args, **kwargs):
+    def handle_approval(interaction):
+        if interaction.get('kind') != 'approval':
+            return None
+        return prompt_endpoint_approval(
+            sdk,
+            interaction,
+            echo=lambda message: click.echo(message, err=True),
+            confirm=lambda message, default: click.confirm(
+                message, default=default, err=True
+            ),
+        )
+
+    def handle_endpoint_status(status):
+        rendered = format_endpoint_execution_status(status)
+        if rendered:
+            click.echo(rendered, err=True)
+
+    return sdk.agents.ask(
+        *args,
+        interaction_handler=handle_approval,
+        endpoint_status_handler=handle_endpoint_status,
+        **kwargs,
+    )
 
 
 @chariot.group()
@@ -122,6 +153,100 @@ def conversation(sdk):
     run_textual_conversation(sdk)
 
 
+@agent.group('endpoint')
+def endpoint_execution():
+    """Inspect and cancel Guard-owned agentic endpoint execution."""
+    pass
+
+
+@endpoint_execution.command('status')
+@cli_handler
+@click.argument('conversation_id')
+def endpoint_status(sdk, conversation_id):
+    """Show endpoint tasks and sessions for a conversation tree."""
+    status = sdk.endpoint_executions.conversation_status(conversation_id)
+    rendered = format_endpoint_execution_status(status)
+    click.echo(rendered or 'No endpoint execution found for this conversation.')
+
+
+@endpoint_execution.command('operation')
+@cli_handler
+@click.argument('session_id')
+@click.argument('operation_id')
+@click.option('--download', 'download_directory', type=click.Path(file_okay=False),
+              default=None, help='Download and verify operation artifacts')
+def endpoint_operation(sdk, session_id, operation_id, download_directory):
+    """Show bounded non-secret status for one endpoint operation."""
+    operation = sdk.endpoint_executions.operation_status(
+        session_id, operation_id
+    )
+    click.echo(format_endpoint_operation_status(operation))
+    if download_directory is not None:
+        paths = sdk.endpoint_executions.download_operation_artifacts(
+            session_id,
+            operation_id,
+            download_directory,
+        )
+        for path in paths:
+            click.echo(f'Downloaded and verified: {path}')
+
+
+@endpoint_execution.command('stop-conversation')
+@cli_handler
+@click.argument('conversation_id')
+@click.confirmation_option(
+    prompt='Stop this conversation and its correlated child work?'
+)
+def stop_endpoint_conversation(sdk, conversation_id):
+    """Stop a conversation through Guard's authoritative cancellation path."""
+    result = sdk.conversations.stop(conversation_id)
+    click.echo(json.dumps(result, indent=2))
+
+
+@endpoint_execution.command('cancel-session')
+@cli_handler
+@click.argument('conversation_id')
+@click.confirmation_option(
+    prompt='Cancel the endpoint session for this conversation?'
+)
+def cancel_endpoint_session(sdk, conversation_id):
+    """Request cancellation of a conversation's exact endpoint session."""
+    status = sdk.endpoint_executions.cancel_conversation_session(
+        conversation_id
+    )
+    click.echo(format_endpoint_execution_status({
+        'sessions': [status],
+        'tasks': [],
+    }))
+
+
+@endpoint_execution.command('cancel-task')
+@cli_handler
+@click.argument('endpoint_id')
+@click.argument('task_id')
+@click.confirmation_option(prompt='Cancel this exact endpoint task?')
+def cancel_endpoint_task(sdk, endpoint_id, task_id):
+    """Request cancellation of one native endpoint task."""
+    status = sdk.endpoint_executions.cancel_task(endpoint_id, task_id)
+    click.echo(format_endpoint_execution_status({
+        'sessions': [],
+        'tasks': [status],
+    }))
+
+
+@endpoint_execution.command('cancel-operation')
+@cli_handler
+@click.argument('session_id')
+@click.argument('operation_id')
+@click.confirmation_option(prompt='Cancel this exact endpoint operation?')
+def cancel_endpoint_operation(sdk, session_id, operation_id):
+    """Request cancellation of one endpoint operation."""
+    operation = sdk.endpoint_executions.cancel_operation(
+        session_id, operation_id
+    )
+    click.echo(format_endpoint_operation_status(operation))
+
+
 @chariot.group()
 def marcus():
     """ Marcus Aurelius — Guard's AI operator
@@ -171,7 +296,7 @@ def marcus_read(sdk, path, local, instructions):
             f'If it contains credentials or secrets, flag them.'
         )
 
-    result = sdk.agents.ask(message, mode='agent', new=True)
+    result = _ask_with_approvals(sdk, message, mode='agent', new=True)
     click.echo(result['response'])
 
 
@@ -207,7 +332,9 @@ def marcus_ingest(sdk, path, scope, findings):
         f'Report what you created when done.'
     )
 
-    result = sdk.agents.ask(message, mode='agent', new=True, timeout=300)
+    result = _ask_with_approvals(
+        sdk, message, mode='agent', new=True, timeout=300
+    )
     click.echo(result['response'])
 
 
@@ -227,7 +354,9 @@ def marcus_do(sdk, instruction):
         guard marcus do "create a risk for CVE-2024-1234 on asset api.example.com"
         guard marcus do "generate an executive summary"
     """
-    result = sdk.agents.ask(instruction, mode='agent', timeout=300)
+    result = _ask_with_approvals(
+        sdk, instruction, mode='agent', timeout=300
+    )
     click.echo(result['response'])
 
 
@@ -262,8 +391,10 @@ def ask(sdk, message, mode, new_conversation, output_format):
             pass
 
     try:
-        result = sdk.agents.ask(
-            message, mode=mode,
+        result = _ask_with_approvals(
+            sdk,
+            message,
+            mode=mode,
             conversation_id=conversation_id,
             new=new_conversation,
         )

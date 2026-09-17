@@ -1,6 +1,8 @@
 import json
 import time
 
+from praetorian_cli.sdk.entities.search import flatten_results
+
 
 class Jobs:
     """ The methods in this class are to be assessed from sdk.jobs, where sdk
@@ -148,6 +150,33 @@ class Jobs:
         """
         return self.api.search.by_key_prefix(f'#job#{prefix_filter}',
                                              offset, pages)
+
+    def list_by_conversation(self, conversation_id, offset=None,
+                             pages=100000) -> tuple:
+        """List tenant-partition jobs correlated to a conversation."""
+        conversation_id = conversation_id.strip() if isinstance(conversation_id, str) else ''
+        if not conversation_id:
+            raise ValueError('conversation ID is required')
+
+        params = {
+            'label': 'job',
+            'key': f'conversation:{conversation_id}',
+        }
+        if offset:
+            params['offset'] = offset
+
+        jobs = []
+        next_offset = None
+        for _page in range(pages):
+            response = self.api.get('my', params)
+            raw_offset = response.pop('offset', None)
+            jobs.extend(flatten_results(response))
+            if not raw_offset:
+                next_offset = None
+                break
+            next_offset = json.dumps(raw_offset)
+            params['offset'] = next_offset
+        return jobs, next_offset
 
     def list_by_status(self, status, offset=None, pages=100000) -> tuple:
         """

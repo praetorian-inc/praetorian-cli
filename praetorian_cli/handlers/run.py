@@ -3,9 +3,16 @@ import time
 
 import click
 
+from praetorian_cli.handlers.agent import _ask_with_approvals
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, error
+from praetorian_cli.sdk.entities.capabilities import (
+    capability_description,
+    capability_name,
+    capability_target_type,
+    normalize_capabilities_response,
+)
 
 
 # Friendly names for well-known agents — descriptions for the CLI help.
@@ -26,40 +33,38 @@ FRIENDLY_NAMES = {
 # TOOL_ALIASES: mutable dict used by the console. Seeded from FRIENDLY_NAMES,
 # dynamically extended when the console resolves capabilities from the API.
 TOOL_ALIASES = {
-    name: {'capability': name, 'agent': name, 'target_type': 'asset', 'description': desc}
+    name: {
+        'name': name,
+        'capability': name,
+        'agent': name,
+        'target_type': 'asset',
+        'description': desc,
+        'default_config': {},
+    }
     for name, desc in FRIENDLY_NAMES.items()
 }
 
 
 def resolve_capability(sdk, name):
-    """Resolve a capability name to its metadata from the backend API.
+    """Resolve a friendly alias first, then fall back to a Guard capability."""
+    lookup = name.lower()
+    if lookup in TOOL_ALIASES:
+        return dict(TOOL_ALIASES[lookup])
 
-    Checks FRIENDLY_NAMES for aliases, then queries the /capabilities/ endpoint.
-    Returns dict with at minimum: name, target, description. Or None.
-    """
     # Check backend capabilities
     try:
         caps = sdk.capabilities.list(name=name)
-        if isinstance(caps, list):
-            cap_list = caps
-        elif isinstance(caps, dict):
-            cap_list = caps.get('capabilities', caps.get('data', []))
-        else:
-            cap_list = []
 
         # Exact match first
-        for c in cap_list:
-            cap_name = c.get('name', '')
+        for c in normalize_capabilities_response(caps):
+            cap_name = capability_name(c)
             if cap_name.lower() == name.lower():
-                target = c.get('target', [])
-                if isinstance(target, list):
-                    target = target[0] if target else 'asset'
                 return {
                     'name': cap_name,
                     'capability': cap_name,
-                    'target_type': target,
-                    'description': c.get('description', ''),
-                    'executor': c.get('executor', ''),
+                    'target_type': capability_target_type(c),
+                    'description': capability_description(c),
+                    'executor': c.get('executor') or c.get('Executor', ''),
                 }
     except Exception:
         pass
@@ -183,9 +188,9 @@ def tool(sdk, tool_name, target, tool_args, extra_config, credential, wait, use_
     \b
     Example usages:
         guard run tool brutus 10.0.1.5:22
-        guard run tool brutus 10.0.1.5:22 --protocol ssh -U users.txt
-        guard run tool brutus 10.0.1.5:22 -- --wait
-        guard run tool nuclei example.com --remote -c '{"templates":"cves/"}'
+        guard run tool <capability> <target>
+        guard run tool <capability> <target> --remote -c '{"param":"value"}'
+        guard run tool <capability> <target> -- --tool-flag
     """
     from praetorian_cli.runners.local import is_installed as _is_installed
 
@@ -338,7 +343,7 @@ def capabilities(sdk, name, target, executor):
     \b
     Example usages:
         guard run capabilities
-        guard run capabilities --name nuclei
+        guard run capabilities --name <capability>
         guard run capabilities --target asset
     """
     result = sdk.capabilities.list(name=name, target=target, executor=executor)
@@ -358,7 +363,7 @@ def install(sdk, tool_name, force):
 
     \b
     Example usages:
-        guard run install brutus
+        guard run install <tool>
         guard run install all
     """
     from praetorian_cli.runners.local import install_tool, INSTALLABLE_TOOLS, is_installed
@@ -426,7 +431,7 @@ def _run_via_agent(sdk, cap, target_key):
     click.echo(f'Asking Marcus...')
 
     try:
-        result = sdk.agents.ask(message, mode='agent')
+        result = _ask_with_approvals(sdk, message, mode='agent')
         click.echo(result['response'])
     except Exception as e:
         error(str(e))

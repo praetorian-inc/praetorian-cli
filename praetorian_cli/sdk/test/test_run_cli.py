@@ -5,6 +5,7 @@ import pytest
 from click.testing import CliRunner
 
 from praetorian_cli.handlers.chariot import chariot
+from praetorian_cli.handlers.run import FRIENDLY_NAMES, resolve_capability
 
 
 @pytest.fixture
@@ -38,6 +39,38 @@ def _invoke(runner, fake_sdk, argv):
     with patch('praetorian_cli.sdk.chariot.Chariot', return_value=fake_sdk), \
          patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
         return runner.invoke(chariot, argv, obj=obj, catch_exceptions=False)
+
+
+def test_resolve_capability_prefers_friendly_alias_without_backend_lookup():
+    sdk = MagicMock()
+
+    cap = resolve_capability(sdk, 'brutus')
+
+    assert cap['capability'] == 'brutus'
+    assert cap['agent'] == 'brutus'
+    assert cap['target_type'] == 'asset'
+    assert cap['description'] == FRIENDLY_NAMES['brutus']
+    sdk.capabilities.list.assert_not_called()
+
+
+def test_resolve_capability_falls_back_to_guard_for_non_friendly_name():
+    sdk = MagicMock()
+    sdk.capabilities.list.return_value = ({
+        'capabilities': [
+            {'name': 'dynamic-scan', 'target': ['asset'], 'description': 'dynamic', 'executor': 'chariot'},
+        ],
+    }, None)
+
+    cap = resolve_capability(sdk, 'dynamic-scan')
+
+    assert cap == {
+        'name': 'dynamic-scan',
+        'capability': 'dynamic-scan',
+        'target_type': 'asset',
+        'description': 'dynamic',
+        'executor': 'chariot',
+    }
+    sdk.capabilities.list.assert_called_once_with(name='dynamic-scan')
 
 
 def test_passthrough_collects_unknown_options(runner, fake_sdk):
