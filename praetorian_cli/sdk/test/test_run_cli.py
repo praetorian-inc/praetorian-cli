@@ -191,19 +191,19 @@ def test_retest_full_risk_key_queues_cato_retest_job(runner, fake_sdk):
     assert RISK_KEY in result.output
 
 
-def test_retest_rejects_friendly_name(runner, fake_sdk):
-    """A friendly name is refused outright: CVE names exist on many assets."""
+def test_retest_rejects_unresolvable_friendly_name(runner, fake_sdk):
+    """A friendly name fails closed when it resolves to no risk."""
     result = _invoke(runner, fake_sdk, ['retest', 'cve-2024-1234'])
     assert result.exit_code != 0
-    assert 'full risk key' in result.output
+    assert 'Could not resolve' in result.output
     assert 'cve-2024-1234' in result.output
     fake_sdk.jobs.add.assert_not_called()
-    fake_sdk.search.fulltext.assert_not_called()
+    fake_sdk.search.fulltext.assert_called_once()
 
 
 def test_retest_rejects_non_risk_key(runner, fake_sdk):
     """A full key of another entity type is refused; retest needs a #risk# key."""
     result = _invoke(runner, fake_sdk, ['retest', '#asset#example.com#example.com'])
     assert result.exit_code != 0
-    assert 'full risk key' in result.output
+    assert 'Expected a risk key' in result.output
     fake_sdk.jobs.add.assert_not_called()

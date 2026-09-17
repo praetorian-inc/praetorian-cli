@@ -223,6 +223,22 @@ def test_aegis_list_includes_offline_v2_endpoint_identity_without_live_row():
     ]
 
 
+def test_aegis_list_preserves_endpoint_network_policy_support():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'networkPolicySupported': True,
+            'profile': {'hostname': 'sensor-1'},
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert agents[0].network_policy_supported is True
+
+
 def test_aegis_list_enriches_durable_identity_with_live_endpoint_data():
     api = FakeAPI(
         inventory=[{

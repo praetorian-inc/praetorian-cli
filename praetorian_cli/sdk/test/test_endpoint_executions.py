@@ -162,8 +162,12 @@ def test_job_list_by_conversation_uses_tenant_partition_and_pages():
         def get(self, path, params):
             self.calls.append((path, dict(params)))
             if len(self.calls) == 1:
-                return {'jobs': [{'key': 'job-1'}], 'offset': {'key': 'next'}}
-            return {'jobs': [{'key': 'job-2'}]}
+                return {
+                    'count': 1,
+                    'jobs': [{'key': 'job-1'}],
+                    'offset': {'key': 'next'},
+                }
+            return {'count': 1, 'jobs': [{'key': 'job-2'}]}
 
     api = JobAPI()
 

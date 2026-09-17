@@ -8,12 +8,13 @@ from typing import Optional
 from prompt_toolkit.formatted_text import HTML
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 
 from praetorian_cli.ui.aegis.theme import PRIMARY_RED, COMPLEMENTARY_GOLD
 from praetorian_cli.ui.conversation.approvals import (
     APPROVAL_POLL_INTERVAL_SECONDS,
     prompt_endpoint_approval,
+    prompt_ephemeral_credentials,
 )
 from praetorian_cli.ui.conversation.endpoint_status import (
     ENDPOINT_STATUS_POLL_INTERVAL_SECONDS,
@@ -68,7 +69,10 @@ class MarcusCommands:
             self.context.mode = 'query'
 
         self.console.print(f'[primary]Entering conversation mode[/primary] [dim](type "/back" to return)[/dim]')
-        self.console.print(f'[dim]Commands: /back, /new, /query, /agent, or just chat[/dim]')
+        self.console.print(
+            '[dim]Commands: /back, /new, /query, /agent, /stop, '
+            'or send guidance while Marcus works[/dim]'
+        )
         self.console.print(f'[dim]Context: {self.context.summary()}[/dim]')
         if not self.context.account:
             self.console.print(f'[warning]No account set -- Marcus will query your personal account. Use "set account <email>" first.[/warning]')
@@ -100,8 +104,14 @@ class MarcusCommands:
                     self.context.mode = slash_cmd
                     self.console.print(f'[success]Switched to {slash_cmd} mode[/success]')
                     continue
+                elif slash_cmd == 'stop':
+                    self._stop_marcus()
+                    continue
                 else:
-                    self.console.print(f'[dim]Unknown command: /{slash_cmd}. Use /back, /new, /query, /agent[/dim]')
+                    self.console.print(
+                        f'[dim]Unknown command: /{slash_cmd}. '
+                        'Use /back, /new, /query, /agent, /stop[/dim]'
+                    )
                     continue
 
             # Everything else is sent to Marcus as a message
@@ -240,7 +250,7 @@ class MarcusCommands:
             now = time.monotonic()
             if now >= next_interaction_poll:
                 interaction_started = time.monotonic()
-                self._handle_pending_approvals(handled_interactions)
+                self._handle_pending_interactions(handled_interactions)
                 interaction_finished = time.monotonic()
                 deadline += interaction_finished - interaction_started
                 next_interaction_poll = (
@@ -261,7 +271,7 @@ class MarcusCommands:
         self.console.print('\n[warning]Timed out waiting for response[/warning]')
         return None
 
-    def _handle_pending_approvals(self, handled):
+    def _handle_pending_interactions(self, handled):
         try:
             interactions = self.sdk.conversations.list_interactions(
                 self.context.conversation_id,
@@ -272,30 +282,57 @@ class MarcusCommands:
             return
 
         for interaction in interactions:
-            if interaction.get('kind') != 'approval':
+            kind = interaction.get('kind')
+            if kind not in ('approval', 'credential'):
                 continue
             request_id = interaction.get('requestId')
             if not request_id or request_id in handled:
                 continue
-            handled.add(request_id)
             self.console.print()
             try:
-                prompt_endpoint_approval(
-                    self.sdk,
-                    interaction,
-                    echo=lambda message: self.console.print(
-                        message, markup=False
-                    ),
-                    confirm=lambda message, default: Confirm.ask(
-                        message, default=default, console=self.console
-                    ),
-                    interactive=True,
-                )
+                if kind == 'approval':
+                    prompt_endpoint_approval(
+                        self.sdk,
+                        interaction,
+                        echo=lambda message: self.console.print(
+                            message, markup=False
+                        ),
+                        confirm=lambda message, default: Confirm.ask(
+                            message, default=default, console=self.console
+                        ),
+                        interactive=True,
+                    )
+                else:
+                    prompt_ephemeral_credentials(
+                        self.sdk,
+                        interaction,
+                        echo=lambda message: self.console.print(
+                            message, markup=False
+                        ),
+                        prompt=lambda field: Prompt.ask(
+                            field,
+                            password=True,
+                            console=self.console,
+                        ),
+                        interactive=True,
+                    )
+                handled.add(request_id)
             except Exception as exc:
                 self.console.print(
-                    f'Endpoint approval failed: {exc}',
+                    f'Operator interaction failed: {exc}',
                     markup=False,
                 )
+
+    def _stop_marcus(self):
+        if not self.context.conversation_id:
+            self.console.print('[warning]No active Marcus conversation[/warning]')
+            return
+        try:
+            self.sdk.conversations.stop(self.context.conversation_id)
+        except Exception as exc:
+            self.console.print(f'[error]Unable to stop Marcus: {exc}[/error]')
+            return
+        self.console.print('[success]Stop requested for Marcus and child work[/success]')
 
     def _show_endpoint_status(self, previous):
         try:

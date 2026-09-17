@@ -491,6 +491,36 @@ def test_job_run_success(monkeypatch):
     assert job_calls[0]['target_key'].startswith('#asset#')
 
 
+def test_v1_repository_search_outage_returns_to_menu(monkeypatch):
+    responses = {
+        'capabilities': {
+            'secrets': {
+                'name': 'secrets',
+                'description': 'Repository secret scan',
+                'target': 'repository',
+                'parameters': [],
+            },
+        },
+    }
+    menu = Menu(responses=responses)
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job._interactive_capability_picker',
+        lambda _menu, _suggested=None: 'secrets',
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.job.resolve_entity_reference',
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError('Guard entity search is unavailable')
+        ),
+    )
+
+    handle_job(menu, ['run', 'secrets', 'project'])
+
+    assert menu.paused is True
+    assert menu.sdk.jobs.calls == []
+    assert 'Guard entity search is unavailable' in '\n'.join(menu.console.lines)
+
+
 def test_v1_smb_secrets_uses_repository_target_and_ad_credential(monkeypatch):
     target_key = '#repository#smb://files.example.test/share#share'
     responses = {

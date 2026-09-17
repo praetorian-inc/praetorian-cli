@@ -1,3 +1,4 @@
+import base64
 import datetime
 import json
 import os.path
@@ -8,6 +9,7 @@ from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error, parse_configuration_value, parse_kv_entries
 from praetorian_cli.sdk.model.globals import AddRisk, Asset, Seed, Kind
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 
 
 @chariot.group()
@@ -189,7 +191,8 @@ def webhook(sdk):
 @add.command()
 @cli_handler
 @click.argument('name', required=True)
-@click.option('-a', '--asset', required=True, help='Key of an existing asset')
+@click.option('-a', '--asset', required=True,
+              help='Existing asset key, hostname, IP, or friendly name')
 @click.option('-s', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
               help=f'Status of the risk')
 @click.option('-c', '--comment', default='', help='Comment for the risk')
@@ -200,8 +203,8 @@ def risk(sdk, name, asset, status, comment, capability, title, tags):
     """ Add a risk
 
     This command adds a risk to Guard. A risk must have an associated asset.
-    The asset is specified by its key, which can be retrieved by listing and
-    searching the assets.
+    The asset may be specified by its canonical key, hostname, IP, or friendly
+    name. Ambiguous values open a selector in interactive terminals.
 
     \b
     Arguments:
@@ -214,12 +217,14 @@ def risk(sdk, name, asset, status, comment, capability, title, tags):
         - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TC --capability red-team
         - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI --tag critical --tag needs-review
     """
-    sdk.risks.add(asset, name, status, comment, capability, title, tags)
+    asset_key = resolve_entity_reference(sdk, asset, 'asset')
+    sdk.risks.add(asset_key, name, status, comment, capability, title, tags)
 
 
 @add.command()
 @cli_handler
-@click.option('-k', '--key', required=True, help='Key of an existing asset or attribute')
+@click.option('-k', '--key', required=True,
+              help='Existing asset/attribute key or friendly reference')
 @click.option('-c', '--capability', 'capabilities', multiple=True,
               help='Capabilities to run (can be specified multiple times)')
 @click.option('-g', '--config', help='JSON configuration string')
@@ -239,12 +244,14 @@ def job(sdk, key, capabilities, config, credentials):
         - guard add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"}'
         - guard add job --key "#asset#example.com#1.2.3.4" --config '{"run-type":"login"} --credential "E4644F37-6985-40B4-8D07-5311516D98F1"'
     """
+    key = resolve_entity_reference(sdk, key, None)
     sdk.jobs.add(key, capabilities, config, credentials)
 
 
 @add.command()
 @cli_handler
-@click.option('-k', '--key', required=True, help='Key of an existing asset or risk')
+@click.option('-k', '--key', required=True,
+              help='Existing asset/risk key or friendly reference')
 @click.option('-n', '--name', required=True, help='Name of the attribute')
 @click.option('-v', '--value', required=True, help='Value of the attribute')
 def attribute(sdk, key, name, value):
@@ -257,6 +264,7 @@ def attribute(sdk, key, name, value):
         - guard add attribute --key "#risk#www.example.com#CVE-2024-23049" --name https --value 443
         - guard add attribute --key "#asset#www.example.com#www.example.com" --name id --value "arn:aws:route53::1654874321:hostedzone/Z0000000EJBHGTFTGH3"
     """
+    key = resolve_entity_reference(sdk, key, None)
     sdk.attributes.add(key, name, value)
 
 
@@ -449,6 +457,111 @@ def credential(ctx, sdk, resource_key, category, cred_type, label, parameters):
         click.echo(json.dumps(result, indent=2))
     except Exception as e:
         error(f'Unable to add credential. Error: {e}')
+
+
+@credential.command('active-directory')
+@cli_handler
+@click.option('-e', '--endpoint', 'endpoint_ids', multiple=True, required=True,
+              help='Authorized Aegis v2 endpoint ID (repeatable)')
+@click.option('-l', '--label', required=True, help='Credential display name')
+@click.option('-d', '--domain', required=True, help='Active Directory domain')
+@click.option(
+    '--auth-type',
+    type=click.Choice(['password', 'hash', 'keytab', 'ccache']),
+    default='password',
+    show_default=True,
+)
+@click.option('-u', '--username', help='Username for password/hash authentication')
+@click.option('--principal', help='Kerberos principal for keytab authentication')
+@click.option('--secret-env', help='Environment variable holding a password or NT hash')
+@click.option(
+    '--credential-file',
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help='Keytab or ccache file; read locally and sent as base64',
+)
+def credential_active_directory(
+    sdk,
+    endpoint_ids,
+    label,
+    domain,
+    auth_type,
+    username,
+    principal,
+    secret_env,
+    credential_file,
+):
+    """Create an Active Directory credential authorized for Aegis endpoints.
+
+    Passwords and hashes are requested with hidden input unless --secret-env is
+    used. Secret values are never accepted as command arguments or echoed.
+
+    \b
+    Example:
+        guard add credential active-directory --endpoint <endpoint-id> \\
+          --label "Internal AD" --domain corp.example --username svc-hunt
+    """
+    material = _active_directory_material(
+        auth_type,
+        username,
+        principal,
+        secret_env,
+        credential_file,
+    )
+    try:
+        result = sdk.credentials.add_active_directory(
+            label,
+            endpoint_ids,
+            domain,
+            auth_type,
+            **material,
+        )
+    except Exception as exc:
+        error(f'Unable to add Active Directory credential. Error: {exc}')
+    click.echo(json.dumps(result, indent=2))
+
+
+def _active_directory_material(
+    auth_type,
+    username,
+    principal,
+    secret_env,
+    credential_file,
+):
+    if auth_type in ('password', 'hash'):
+        username = username or click.prompt('Username')
+        secret = _credential_secret(
+            secret_env,
+            'Password' if auth_type == 'password' else 'NT hash',
+            confirmation=auth_type == 'password',
+        )
+        field = 'password' if auth_type == 'password' else 'hash'
+        return {'username': username, field: secret}
+
+    if not credential_file:
+        raise click.UsageError(
+            f'--credential-file is required for {auth_type} authentication'
+        )
+    with open(credential_file, 'rb') as credential_stream:
+        encoded = base64.b64encode(credential_stream.read()).decode('ascii')
+    if auth_type == 'keytab':
+        principal = principal or click.prompt('Kerberos principal')
+        return {'principal': principal, 'keytabBase64': encoded}
+    return {'ccacheBase64': encoded}
+
+
+def _credential_secret(environment_variable, prompt, confirmation=False):
+    if environment_variable:
+        value = os.environ.get(environment_variable)
+        if not value:
+            raise click.UsageError(
+                f'environment variable {environment_variable!r} is empty or unset'
+            )
+        return value
+    return click.prompt(
+        prompt,
+        hide_input=True,
+        confirmation_prompt=confirmation,
+    )
 
 
 @credential.command('webauth')

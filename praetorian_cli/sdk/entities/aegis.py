@@ -1,4 +1,5 @@
 from typing import List, Optional
+from urllib.parse import quote
 import shlex
 import shutil
 import subprocess
@@ -107,6 +108,7 @@ def _endpoint_row_id(row) -> str:
 
 ENROLLMENT_INSPECT_PATH = 'endpoint/enrollment/inspect'
 ENROLLMENT_APPROVE_PATH = 'endpoint/enrollment/approve'
+ENDPOINT_NETWORK_POLICY_PATH = 'endpoint/{endpoint_id}/network-policy'
 AEGIS_MANAGEMENT_TASKS_PATH = 'aegis/management/tasks'
 CLOUDFLARE_TUNNEL_CREATE_PATH = 'aegis/management/cloudflare/tunnel/create'
 CLOUDFLARE_TUNNEL_REMOVE_PATH = 'aegis/management/cloudflare/tunnel/remove'
@@ -340,6 +342,32 @@ class Aegis:
         if not isinstance(response, dict):
             return {'status': 'approved'}
         return {'status': response.get('status') or response.get('Status') or 'approved'}
+
+    def get_endpoint_network_policy(self, endpoint_id: str) -> dict:
+        """Get the desired and applied host egress policy for an Aegis v2 endpoint."""
+        path = ENDPOINT_NETWORK_POLICY_PATH.format(
+            endpoint_id=quote(_required_endpoint_id(endpoint_id), safe=''),
+        )
+        return self.api.get(path)
+
+    def update_endpoint_network_policy(
+        self,
+        endpoint_id: str,
+        expected_revision: int,
+        disabled_default_rule_ids: List[str],
+        custom_deny_rules: List[dict],
+    ) -> dict:
+        """Replace an Aegis v2 endpoint policy using optimistic revision control."""
+        if isinstance(expected_revision, bool) or not isinstance(expected_revision, int) or expected_revision < 0:
+            raise ValueError('expected network policy revision must be a non-negative integer')
+        path = ENDPOINT_NETWORK_POLICY_PATH.format(
+            endpoint_id=quote(_required_endpoint_id(endpoint_id), safe=''),
+        )
+        return self.api.put(path, {
+            'expectedRevision': expected_revision,
+            'disabledDefaultRuleIds': list(disabled_default_rule_ids or []),
+            'customDenyRules': [dict(rule) for rule in custom_deny_rules or []],
+        })
 
     def create_cloudflare_tunnel(self, agent_id: str, *, legacy: bool = False) -> dict:
         """Create and install a Cloudflare tunnel on a selected Aegis agent."""

@@ -55,6 +55,10 @@ from .commands.proxy import handle_proxy as cmd_handle_proxy, stop_all_proxies
 from .commands.tunnel import complete as cmd_complete_tunnel, handle_tunnel as cmd_handle_tunnel
 from .commands.user import complete as cmd_complete_user, handle_user as cmd_handle_user
 from .commands.hunt import complete as cmd_complete_hunt, handle_hunt as cmd_handle_hunt
+from .commands.network_policy import (
+    complete as cmd_complete_network_policy,
+    handle_network_policy as cmd_handle_network_policy,
+)
 
 from .commands.schedule_helpers import get_cached_schedules
 from .constants import DEFAULT_COLORS
@@ -191,6 +195,11 @@ class MenuCompleter(Completer):
         elif cmd == 'hunt':
             tokens = ['hunt'] + words
             for completion in cmd_complete_hunt(self.menu, current_word, tokens):
+                yield Completion(completion, start_position=-len(current_word))
+
+        elif cmd in ('policy', 'network-policy'):
+            tokens = [cmd] + words
+            for completion in cmd_complete_network_policy(self.menu, current_word, tokens):
                 yield Completion(completion, start_position=-len(current_word))
 
     def _get_schedule_completions(self, prefix):
@@ -423,7 +432,7 @@ class AegisMenu:
         self.agent_account_map: dict = {}  # display_id -> account_info dict
 
         self.commands = [
-            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'hunt', 'user', 'tunnel',
+            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'hunt', 'policy', 'user', 'tunnel',
             'enrollment', 'enroll', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
 
@@ -490,7 +499,19 @@ class AegisMenu:
         
         command = args[0].lower()
         cmd_args = args[1:] if len(args) > 1 else []
-        
+
+        try:
+            return self._dispatch_command(command, cmd_args)
+        except Exception as exc:
+            self.console.print(
+                f'\n  Command failed: {exc}',
+                style=self.colors['error'],
+                markup=False,
+            )
+            self.pause()
+            return True
+
+    def _dispatch_command(self, command, cmd_args):
         if command in ['q', 'quit', 'exit']:
             return False
             
@@ -525,6 +546,9 @@ class AegisMenu:
 
         elif command == 'hunt':
             cmd_handle_hunt(self, cmd_args)
+
+        elif command in ('policy', 'network-policy'):
+            cmd_handle_network_policy(self, cmd_args)
 
         elif command == 'user':
             cmd_handle_user(self, cmd_args)
