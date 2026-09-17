@@ -20,6 +20,7 @@
     - [Signing up](#signing-up)
     - [Authentication](#authentication)
 - [Using the CLI](#using-the-cli)
+    - [Aegis endpoint network policy](#aegis-endpoint-network-policy)
     - [Update checks](#update-checks)
 - [Operators](#operators)
     - [Interactive Console](#interactive-console)
@@ -155,6 +156,35 @@ To get detailed information about a specific asset, run:
 ```zsh
 guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
+
+## Aegis endpoint network policy
+
+Aegis v2 endpoint policies restrict egress from every active and future workload on an endpoint, including agentic Hunt workloads. View the desired and applied revisions, protected gateway/DNS connectivity, built-in rules, and custom rules with:
+
+```zsh
+guard aegis network-policy show <ENDPOINT_ID>
+```
+
+Add address-wide or TCP-port-specific denies using canonical IP addresses or CIDRs:
+
+```zsh
+guard aegis network-policy deny add <ENDPOINT_ID> 10.20.30.0/24
+guard aegis network-policy deny add <ENDPOINT_ID> 198.51.100.7 --tcp-ports 22,443
+guard aegis network-policy deny remove <ENDPOINT_ID> 1
+```
+
+The remove command accepts either the rule number shown by `show`, or an exact destination plus matching `--tcp-ports`.
+
+Guard supplies four built-in rules: `deny-unspecified`, `deny-loopback`, `deny-docker-api`, and `deny-control-plane`. They can be removed or restored explicitly:
+
+```zsh
+guard aegis network-policy default remove <ENDPOINT_ID> deny-loopback
+guard aegis network-policy default restore <ENDPOINT_ID> deny-loopback
+```
+
+Changes require confirmation unless `--yes` is supplied. Guard rejects policies that conflict with protected gateway or DNS connectivity, and revisions prevent one operator from silently overwriting another operator's changes.
+
+The interactive `guard aegis` interface exposes the same operations for the selected endpoint through `policy`, `policy default ...`, and `policy deny ...`.
 
 ## Update checks
 

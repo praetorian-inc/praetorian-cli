@@ -6,8 +6,10 @@ from praetorian_cli.ui.conversation import approvals as approvals_module
 from praetorian_cli.ui.conversation.approvals import (
     ApprovalContextError,
     format_endpoint_approval,
+    normalize_credential_interaction_fields,
     parse_endpoint_approval,
     prompt_endpoint_approval,
+    prompt_ephemeral_credentials,
 )
 
 
@@ -39,6 +41,20 @@ COMPLETE_INTERACTION = {
 }
 
 
+class FakeCredentials:
+    def __init__(self):
+        self.added = []
+        self.deleted = []
+        self.reference = 'opaque-reference'
+
+    def add_ephemeral(self, parameters):
+        self.added.append(dict(parameters))
+        return {'credentialValue': {'credential_id': self.reference}}
+
+    def delete_ephemeral(self, credential_id):
+        self.deleted.append(credential_id)
+
+
 class FakeConversations:
     def __init__(self):
         self.answers = []
@@ -57,7 +73,109 @@ class FakeConversations:
 
 
 def _sdk():
-    return SimpleNamespace(conversations=FakeConversations())
+    return SimpleNamespace(
+        conversations=FakeConversations(),
+        credentials=FakeCredentials(),
+    )
+
+
+def test_ephemeral_credential_response_sends_only_opaque_reference():
+    sdk = _sdk()
+    output = []
+    supplied = {
+        'username': 'VALUE-1',
+        'password': 'VALUE-2',
+    }
+    interaction = {
+        'conversationId': 'conversation-1',
+        'requestId': 'credential-1',
+        'kind': 'credential',
+        'status': 'pending',
+        'request': 'MODEL TEXT MUST NOT BE SHOWN',
+        'fields': ['username', 'password'],
+    }
+
+    result = prompt_ephemeral_credentials(
+        sdk,
+        interaction,
+        echo=output.append,
+        prompt=lambda field: supplied[field],
+        interactive=True,
+    )
+
+    assert result == {'status': 'answered'}
+    assert sdk.credentials.added == [{
+        'username': 'VALUE-1',
+        'password': 'VALUE-2',
+    }]
+    assert sdk.conversations.answers == [(
+        'conversation-1',
+        'credential-1',
+        'opaque-reference',
+    )]
+    rendered = '\n'.join(output)
+    assert 'VALUE-1' not in rendered
+    assert 'VALUE-2' not in rendered
+    assert 'MODEL TEXT' not in rendered
+
+
+def test_ephemeral_credential_answer_failure_deletes_temporary_secret():
+    sdk = _sdk()
+    sdk.conversations.answer_error = RuntimeError('answer failed')
+    interaction = {
+        'conversationId': 'conversation-1',
+        'requestId': 'credential-1',
+        'kind': 'credential',
+        'status': 'pending',
+        'fields': ['token'],
+    }
+
+    with pytest.raises(RuntimeError, match='temporary secret was cleaned up'):
+        prompt_ephemeral_credentials(
+            sdk,
+            interaction,
+            echo=lambda _message: None,
+            prompt=lambda _field: 'VALUE',
+            interactive=True,
+        )
+
+    assert sdk.credentials.deleted == ['opaque-reference']
+
+
+def test_credential_fields_are_deduplicated_sanitized_and_bounded():
+    fields = [
+        ' username ',
+        'USERNAME',
+        'bad\x08field',
+        *[f'field-{index}' for index in range(20)],
+    ]
+
+    normalized = normalize_credential_interaction_fields(fields)
+
+    assert normalized[0] == 'username'
+    assert 'bad\x08field' not in normalized
+    assert len(normalized) == 12
+    assert normalize_credential_interaction_fields(None) == ('input',)
+
+
+def test_noninteractive_credential_request_remains_pending():
+    sdk = _sdk()
+
+    with pytest.raises(RuntimeError, match='requires an interactive terminal'):
+        prompt_ephemeral_credentials(
+            sdk,
+            {
+                'conversationId': 'conversation-1',
+                'requestId': 'credential-1',
+                'kind': 'credential',
+                'status': 'pending',
+            },
+            prompt=lambda _field: 'VALUE',
+            interactive=False,
+        )
+
+    assert sdk.credentials.added == []
+    assert sdk.conversations.answers == []
 
 
 def test_parse_endpoint_approval_requires_complete_server_context():

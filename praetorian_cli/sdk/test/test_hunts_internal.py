@@ -28,6 +28,45 @@ class FakeAPI:
         return {'uuid': 'hunt-1', **body}
 
 
+def test_hunt_cost_uses_guard_cost_contract_and_strips_key_prefix():
+    class CostAPI:
+        def __init__(self):
+            self.paths = []
+
+        def get(self, path):
+            self.paths.append(path)
+            return {
+                'total': {
+                    'model': '',
+                    'cost': 1.25,
+                    'call_count': 2,
+                    'input_tokens': 100,
+                    'output_tokens': 50,
+                    'total_tokens': 150,
+                },
+                'by_model': [],
+                'currency': 'USD',
+            }
+
+    api = CostAPI()
+
+    hunt_id = '550e8400-e29b-41d4-a716-446655440000'
+    result = Hunts(api).get_cost(f'#hunt#{hunt_id}')
+    Hunts(api).get_cost('hunt/../../other')
+
+    assert api.paths == [
+        f'hunt/{hunt_id}/cost',
+        'hunt/hunt%2F..%2F..%2Fother/cost',
+    ]
+    assert result['total']['cost'] == 1.25
+    assert result['currency'] == 'USD'
+
+
+def test_hunt_cost_requires_an_id_before_request():
+    with pytest.raises(ValueError, match='hunt ID is required'):
+        Hunts(SimpleNamespace()).get_cost('  ')
+
+
 def test_list_hunt_endpoints_uses_active_identity_route():
     api = EndpointAPI([{
         'endpoint_id': '11111111-1111-4111-8111-111111111111',
@@ -59,6 +98,47 @@ def test_external_hunt_request_does_not_include_endpoint_placement():
     assert 'endpointId' not in body
     assert 'endpointConfirmed' not in body
     assert result['uuid'] == 'hunt-1'
+
+
+def test_hunt_request_includes_ui_launch_configuration():
+    api = FakeAPI()
+
+    Hunts(api).create(
+        'Find risks',
+        finish_criteria='Stop after one critical finding',
+        user_guardrails='Do not authenticate',
+        custom_tag='Q4-Hunt',
+        model_tier_override='experimental',
+        credential_ids=[
+            '#credential#integration#active-directory#ad-1',
+            'web-1',
+        ],
+    )
+
+    body = api.calls[0]['body']
+    assert body['finishCriteria'] == 'Stop after one critical finding'
+    assert body['userGuardrails'] == 'Do not authenticate'
+    assert body['customTag'] == 'Q4-Hunt'
+    assert body['modelTierOverride'] == 'experimental'
+    assert body['credentialIds'] == ['ad-1', 'web-1']
+
+
+def test_hunt_request_normalizes_run_scoped_credential_references():
+    api = FakeAPI()
+
+    Hunts(api).create(
+        'Assess internal services',
+        scope=['#asset#internal.example#10.0.0.5'],
+        endpoint_required=True,
+        endpoint_id='11111111-1111-4111-8111-111111111111',
+        endpoint_confirmed=True,
+        credential_ids=[
+            '#credential#integration#active-directory#ad-1',
+            'web-1',
+        ],
+    )
+
+    assert api.calls[0]['body']['credentialIds'] == ['ad-1', 'web-1']
 
 
 def test_internal_hunt_request_matches_guard_contract():
@@ -112,12 +192,291 @@ def test_invalid_endpoint_placement_fails_before_request(kwargs, message):
     assert api.calls == []
 
 
+def test_list_hunt_findings_uses_reported_by_relationship():
+    class Search:
+        def __init__(self):
+            self.query = None
+
+        def by_query(self, query, pages):
+            self.query = query.to_dict()
+            assert pages == 2
+            return [{'key': '#risk#target#finding'}], None
+
+    search = Search()
+    findings, offset = Hunts(SimpleNamespace(search=search)).list_findings(
+        'hunt-1',
+        pages=2,
+    )
+
+    assert findings == [{'key': '#risk#target#finding'}]
+    assert offset is None
+    assert search.query['node']['labels'] == ['Risk']
+    relationship = search.query['node']['relationships'][0]
+    assert relationship['label'] == 'REPORTED_BY'
+    assert relationship['target']['labels'] == ['Hunt']
+    assert relationship['target']['filters'][0]['value'] == '#hunt#hunt-1'
+
+
+def test_hunt_memory_round_trips_through_hunt_owned_routes():
+    class Files:
+        def __init__(self):
+            self.paths = []
+
+        def get_utf8(self, path):
+            self.paths.append(path)
+            return 'remembered context'
+
+    class MemoryAPI:
+        def __init__(self):
+            self.files = Files()
+            self.calls = []
+
+        def put(self, path, body):
+            self.calls.append(('PUT', path, body))
+            return {'title': 'target notes.md'}
+
+        def delete(self, path, body, params):
+            self.calls.append(('DELETE', path, body, params))
+            return {'title': 'target notes.md'}
+
+    api = MemoryAPI()
+    hunts = Hunts(api)
+
+    assert hunts.get_memory('hunt-1', 'target notes.md') == 'remembered context'
+    hunts.save_memory('hunt-1', 'target notes.md', 'new context')
+    hunts.delete_memory('hunt-1', 'target notes.md')
+
+    assert api.files.paths == ['memory/hunt/hunt-1/target notes.md']
+    assert api.calls == [
+        (
+            'PUT',
+            'hunt/hunt-1/memory/target%20notes.md',
+            {'content': 'new context'},
+        ),
+        (
+            'DELETE',
+            'hunt/hunt-1/memory/target%20notes.md',
+            {},
+            {},
+        ),
+    ]
+
+
+def test_list_hunt_memory_excludes_summary_log():
+    class MemoryListAPI:
+        def get(self, path, params):
+            assert path == 'my'
+            assert params == {
+                'label': 'file',
+                'key': '#file#memory/hunt/hunt-1/',
+            }
+            return {'files': [
+                {'name': 'memory/hunt/hunt-1/summary.log'},
+                {'name': 'memory/hunt/hunt-1/SUMMARY.LOG'},
+                {'name': 'memory/hunt/hunt-1/zeta.md'},
+                {'name': 'memory/hunt/hunt-1/alpha.md'},
+            ]}
+
+    items, offset = Hunts(MemoryListAPI()).list_memory('hunt-1')
+
+    assert [item['title'] for item in items] == ['alpha.md', 'zeta.md']
+    assert offset is None
+
+
+def test_hunt_memory_rejects_invalid_and_system_owned_titles():
+    hunts = Hunts(SimpleNamespace())
+
+    with pytest.raises(ValueError, match='memory title'):
+        hunts.get_memory('hunt-1', '../secret')
+    with pytest.raises(ValueError, match='system-owned'):
+        hunts.save_memory('hunt-1', 'summary.log', 'overwrite')
+    with pytest.raises(ValueError, match='system-owned'):
+        hunts.delete_memory('hunt-1', 'SUMMARY.LOG')
+
+
+def test_list_workflow_runs_uses_hunt_index_and_preserves_pagination():
+    class WorkflowAPI:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, path, params):
+            self.calls.append((path, dict(params)))
+            if len(self.calls) == 1:
+                return {
+                    'workflowruns': [{'run_id': 'run-1'}],
+                    'count': 2,
+                    'offset': {'key': 'next'},
+                }
+            return {
+                'workflowruns': [{'run_id': 'run-2'}],
+                'count': 2,
+            }
+
+    api = WorkflowAPI()
+
+    runs, offset = Hunts(api).list_workflow_runs('#hunt#hunt-1', pages=2)
+
+    assert [run['run_id'] for run in runs] == ['run-1', 'run-2']
+    assert offset is None
+    assert api.calls == [
+        ('my', {'label': 'workflow_run', 'key': 'hunt:hunt-1'}),
+        ('my', {
+            'label': 'workflow_run',
+            'key': 'hunt:hunt-1',
+            'offset': '{"key": "next"}',
+        }),
+    ]
+
+
+def test_list_root_conversations_only_reads_hunt_iteration_index():
+    class ConversationAPI:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, path, params):
+            self.calls.append((path, dict(params)))
+            return {
+                'conversations': [{
+                    'uuid': 'conversation-1',
+                    'status': 'active',
+                }],
+            }
+
+    api = ConversationAPI()
+
+    conversations, offset = Hunts(api).list_root_conversations('hunt-1')
+
+    assert [item['uuid'] for item in conversations] == ['conversation-1']
+    assert offset is None
+    assert api.calls == [(
+        'my',
+        {'label': 'conversation', 'key': 'hunt:hunt-1'},
+    )]
+
+
+def test_list_hunt_conversations_uses_tenant_hunt_index():
+    class ConversationAPI:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, path, params):
+            self.calls.append((path, dict(params)))
+            if params['key'] == 'hunt:hunt-1':
+                return {
+                    'conversations': [{
+                        'uuid': 'conversation-1',
+                        'status': 'active',
+                    }],
+                    'count': 1,
+                }
+            if params['key'] == 'parent_id:conversation-1':
+                return {
+                    'conversations': [{
+                        'uuid': 'subagent-1',
+                        'parent_id': 'conversation-1',
+                    }],
+                }
+            return {'conversations': []}
+
+    api = ConversationAPI()
+
+    conversations, offset = Hunts(api).list_conversations('hunt-1')
+
+    assert [item['uuid'] for item in conversations] == [
+        'conversation-1',
+        'subagent-1',
+    ]
+    assert offset is None
+    assert api.calls == [
+        (
+            'my',
+            {'label': 'conversation', 'key': 'hunt:hunt-1'},
+        ),
+        (
+            'my',
+            {
+                'label': 'conversation',
+                'key': 'parent_id:conversation-1',
+                'user': False,
+            },
+        ),
+        (
+            'my',
+            {
+                'label': 'conversation',
+                'key': 'parent_id:subagent-1',
+                'user': False,
+            },
+        ),
+    ]
+
+
+def test_list_hunt_interactions_covers_every_root_and_descendant():
+    class ConversationInteractions:
+        def __init__(self):
+            self.calls = []
+
+        def list_interactions(
+            self, conversation_id, status=None, include_descendants=True
+        ):
+            self.calls.append((conversation_id, status, include_descendants))
+            return [{
+                'key': f'#interaction#{conversation_id}#request',
+                'conversationId': 'untrusted-duplicated-value',
+                'requestId': f'request-{conversation_id}',
+                'kind': 'credential',
+                'status': 'pending',
+                'timestamp': f'2026-01-01T00:00:0{len(self.calls)}Z',
+            }]
+
+    class HuntTreeAPI:
+        def __init__(self):
+            self.conversations = ConversationInteractions()
+
+        def get(self, path, params):
+            assert path == 'my'
+            records = {
+                'hunt:hunt-1': [
+                    {'uuid': 'root-1'},
+                    {'uuid': 'root-2'},
+                ],
+                'parent_id:root-1': [{
+                    'uuid': 'child-1',
+                    'parent_id': 'root-1',
+                }],
+                'parent_id:child-1': [{
+                    'uuid': 'grandchild-1',
+                    'parent_id': 'child-1',
+                }],
+            }
+            return {'conversations': records.get(params['key'], [])}
+
+    api = HuntTreeAPI()
+
+    interactions = Hunts(api).list_interactions('hunt-1')
+
+    assert [row['conversationId'] for row in interactions] == [
+        'root-1',
+        'root-2',
+        'child-1',
+        'grandchild-1',
+    ]
+    assert api.conversations.calls == [
+        ('root-1', 'pending', False),
+        ('root-2', 'pending', False),
+        ('child-1', 'pending', False),
+        ('grandchild-1', 'pending', False),
+    ]
+
+
 def test_hunt_endpoint_status_uses_current_workflow_conversations():
     class Search:
         def by_exact_key(self, key):
             assert key == '#workflow_run#workflow-1'
             return {'steps': [
                 {'conversation_id': 'conversation-1'},
+                2,
+                None,
                 {'conversation_id': 'conversation-1'},
                 {'conversation_id': 'conversation-2'},
             ]}
@@ -129,13 +488,19 @@ def test_hunt_endpoint_status_uses_current_workflow_conversations():
         def conversation_status(self, conversation_id, include_descendants=True):
             self.calls.append((conversation_id, include_descendants))
             return {
-                'sessions': [{
-                    'sessionId': f'session-{conversation_id}',
-                }],
-                'tasks': [{
-                    'endpointId': 'endpoint-1',
-                    'taskId': 'task-1',
-                }],
+                'sessions': [
+                    {'sessionId': f'session-{conversation_id}'},
+                    {'state': 'missing identifier'},
+                    2,
+                ],
+                'tasks': [
+                    {
+                        'endpointId': 'endpoint-1',
+                        'taskId': 'task-1',
+                    },
+                    {'endpointId': 'missing-task-id'},
+                    2,
+                ],
             }
 
     executions = Executions()

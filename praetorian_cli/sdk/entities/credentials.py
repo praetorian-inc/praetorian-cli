@@ -38,6 +38,114 @@ class Credentials:
         }
         return self.api.post('broker', request)
 
+    def add_active_directory(
+        self,
+        label,
+        endpoint_ids,
+        domain,
+        auth_type,
+        **material,
+    ):
+        """Create a v2 Active Directory credential for specific endpoints."""
+        endpoint_ids = _required_strings(endpoint_ids, 'endpoint IDs')
+        parameters = {
+            'endpointIds': endpoint_ids,
+            'domain': _required_string(domain, 'domain'),
+            'authType': _required_string(auth_type, 'auth type'),
+            **{
+                key: value for key, value in material.items()
+                if value not in (None, '')
+            },
+        }
+        return self.add(
+            '',
+            'env-integration',
+            'active-directory',
+            _required_string(label, 'label'),
+            parameters,
+        )
+
+    def authorize_active_directory(self, credential_id, endpoint_ids):
+        """Add endpoint authorization without rotating AD secret material."""
+        credential_id = normalize_credential_id(credential_id)
+        record = self._credential_record(credential_id)
+        credential_type = str(record.get('type') or '').strip()
+        if credential_type != 'active-directory':
+            raise ValueError(
+                f'credential {credential_id!r} is not active-directory'
+            )
+        existing = record.get('endpointIds') or record.get('endpoint_ids') or []
+        endpoint_ids = list(dict.fromkeys([
+            *[
+                _required_string(value, 'existing endpoint ID')
+                for value in existing
+            ],
+            *_required_strings(endpoint_ids, 'endpoint IDs'),
+        ]))
+        label = _required_string(
+            record.get('name') or record.get('label'),
+            'credential label',
+        )
+        return self.api.post('broker', {
+            'Operation': 'update',
+            'CredentialID': credential_id,
+            'Category': 'env-integration',
+            'Type': 'active-directory',
+            'Format': ['env'],
+            'Parameters': {
+                'label': label,
+                'endpointIds': endpoint_ids,
+            },
+        })
+
+    def add_ephemeral(self, parameters):
+        """Store one short-lived HITL credential payload in the broker.
+
+        Callers must pass plaintext values only in ``parameters``. The broker
+        returns an opaque credential reference; only that reference may be
+        used as a conversation interaction response.
+        """
+        if not isinstance(parameters, dict) or not parameters:
+            raise ValueError('ephemeral credential parameters are required')
+        if any(
+            not isinstance(key, str) or not key or not isinstance(value, str)
+            or not value
+            for key, value in parameters.items()
+        ):
+            raise ValueError(
+                'ephemeral credential parameters must be non-empty strings'
+            )
+        return self.api.post('broker', {
+            'Operation': 'add',
+            'Category': 'env-integration',
+            'Type': 'ephemeral',
+            'Parameters': dict(parameters),
+        })
+
+    def delete_ephemeral(self, credential_id):
+        """Best-effort cleanup primitive for an unused ephemeral secret."""
+        if not isinstance(credential_id, str) or not credential_id.strip():
+            raise ValueError('ephemeral credential ID is required')
+        return self.api.delete('broker', {
+            'CredentialID': credential_id.strip(),
+            'Category': 'env-integration',
+            'Type': 'ephemeral',
+        }, params={})
+
+    def _credential_record(self, credential_id):
+        credentials, _ = self.list()
+        matches = [
+            credential for credential in credentials
+            if normalize_credential_id(
+                credential.get('credentialId')
+                or credential.get('credential_id')
+                or credential.get('key')
+            ) == credential_id
+        ]
+        if len(matches) != 1:
+            raise ValueError(f'credential {credential_id!r} was not found')
+        return matches[0]
+
     def delete(self, credential_id, resource_key, type):
         """
         Delete a credential via the credential broker.
@@ -215,3 +323,29 @@ class Credentials:
             return result
         else:
             return json.dumps(result, indent=2)
+
+
+def normalize_credential_id(reference):
+    reference = str(reference or '').strip()
+    if reference.startswith('#credential#'):
+        reference = reference.rsplit('#', 1)[-1].strip()
+    if not reference:
+        raise ValueError('credential ID is required')
+    return reference
+
+
+def _required_string(value, name):
+    value = str(value or '').strip()
+    if not value:
+        raise ValueError(f'{name} is required')
+    return value
+
+
+def _required_strings(values, name):
+    normalized = [
+        _required_string(value, name.removesuffix('s'))
+        for value in values or []
+    ]
+    if not normalized:
+        raise ValueError(f'{name} are required')
+    return normalized

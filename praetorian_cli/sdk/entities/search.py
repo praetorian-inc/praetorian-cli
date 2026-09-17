@@ -1,7 +1,7 @@
 import json
 import time
 
-from praetorian_cli.sdk.model.query import (Query, Node, Relationship, KIND_TO_LABEL, node_of_key,
+from praetorian_cli.sdk.model.query import (Filter, Query, Node, Relationship, KIND_TO_LABEL, node_of_key,
                                              ttl_blockers_query)
 from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
 
@@ -475,12 +475,28 @@ class Search:
             try:
                 node = Node(labels=labels, search=term)
                 query = Query(node=node, limit=limit)
-                results, _ = self.by_query(query)
+                results, _ = self.by_query(query, pages=1)
                 all_results.extend(results)
             except Exception:
                 pass
 
         return all_results, None
+
+    def by_fields(self, term, kind, fields, limit=25) -> tuple:
+        """Search one entity kind across a set of display fields."""
+        label = KIND_TO_LABEL.get(kind)
+        if not label:
+            raise ValueError(f'Unsupported type for field search: {kind}')
+        conditions = [
+            Filter(field, Filter.Operator.CONTAINS, term).to_dict()
+            for field in fields
+        ]
+        query = Query(
+            node=Node(labels=[label]),
+            filters=[Filter('', Filter.Operator.OR, conditions)],
+            limit=limit,
+        )
+        return self.by_query(query, pages=1)
 
     def ttl_status(self, key) -> dict:
         """
@@ -581,7 +597,9 @@ def _first(iterable):
 def flatten_results(results):
     if isinstance(results, list):
         return results
+    if not isinstance(results, dict):
+        return []
     flattened = []
-    for key in results.keys():
-        flattened.extend(flatten_results(results[key]))
+    for value in results.values():
+        flattened.extend(flatten_results(value))
     return flattened

@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from praetorian_cli.sdk.entities.conversations import Conversations
@@ -32,6 +34,27 @@ class TreeAPI:
             ('root', False): [{'uuid': 'tenant-child'}],
             ('user-child', True): [{'uuid': 'grandchild'}],
         }
+        self.metadata = {
+            'root': {'uuid': 'root', 'topic': 'Marcus', 'status': 'active'},
+            'user-child': {
+                'uuid': 'user-child',
+                'topic': 'Subagent: asset-analyzer',
+                'parent_id': 'root',
+                'status': 'active',
+            },
+            'tenant-child': {
+                'uuid': 'tenant-child',
+                'topic': 'Subagent: hitl-romulus-agent',
+                'parent_id': 'root',
+                'status': 'active',
+            },
+            'grandchild': {
+                'uuid': 'grandchild',
+                'topic': 'Subagent: cato-agent',
+                'parent_id': 'user-child',
+                'status': 'idle',
+            },
+        }
         self.interactions = {
             'root': [{
                 'key': '#interaction#root#4',
@@ -64,7 +87,11 @@ class TreeAPI:
 
     def my(self, params, pages=1):
         self.calls.append({'params': dict(params), 'pages': pages})
-        return {'interactions': self.interactions.get(params['convId'], [])}
+        conversation_id = params['convId']
+        if params['key'].startswith('#conversation#'):
+            metadata = self.metadata.get(conversation_id)
+            return {'conversations': [metadata] if metadata else []}
+        return {'interactions': self.interactions.get(conversation_id, [])}
 
 
 def test_list_interactions_routes_through_conversation_partition_and_sorts():
@@ -129,6 +156,48 @@ def test_tree_ids_reuses_recent_descendant_discovery():
     assert len(api.calls) == child_query_count
 
 
+def test_get_metadata_and_root_id_route_across_conversation_partitions():
+    api = TreeAPI()
+    conversations = Conversations(api)
+
+    metadata = conversations.get_metadata('tenant-child')
+    root_id = conversations.root_id('grandchild')
+
+    assert metadata['topic'] == 'Subagent: hitl-romulus-agent'
+    assert root_id == 'root'
+    routed_metadata_ids = [
+        call['params']['convId'] for call in api.calls
+        if call['params']['key'].startswith('#conversation#')
+    ]
+    assert routed_metadata_ids == [
+        'tenant-child',
+        'grandchild',
+        'user-child',
+        'root',
+    ]
+
+
+def test_root_id_accepts_the_maximum_supported_subagent_depth():
+    conversations = Conversations(SimpleNamespace())
+    parents = {
+        'root': None,
+        'depth-1': 'root',
+        'depth-2': 'depth-1',
+        'depth-3': 'depth-2',
+        'depth-4': 'depth-3',
+        'depth-5': 'depth-4',
+        'depth-6': 'depth-5',
+    }
+    conversations.get_metadata = lambda conversation_id: {
+        'uuid': conversation_id,
+        'parent_id': parents[conversation_id],
+    }
+
+    assert conversations.root_id('depth-5', max_depth=5) == 'root'
+    with pytest.raises(ValueError, match='exceeds its maximum depth'):
+        conversations.root_id('depth-6', max_depth=5)
+
+
 def test_children_preserves_offsets_and_rejects_partial_page_results():
     class PaginatedAPI:
         def __init__(self):
@@ -177,6 +246,20 @@ def test_stop_conversation_posts_authoritative_guard_contract():
     }]
 
 
+def test_send_message_posts_exact_planner_guidance_contract():
+    api = FakeAPI()
+
+    Conversations(api).send_message(' conversation-1 ', 'Focus on SMB')
+
+    assert api.post_calls == [{
+        'path': 'planner',
+        'body': {
+            'conversationId': 'conversation-1',
+            'message': 'Focus on SMB',
+        },
+    }]
+
+
 def test_answer_interaction_posts_exact_guard_contract_and_preserves_response():
     api = FakeAPI()
 
@@ -200,6 +283,8 @@ def test_answer_interaction_posts_exact_guard_contract_and_preserves_response():
     [
         ('list_interactions', ('  ',), 'conversation ID is required'),
         ('list_interactions', ('conversation-1', '  '), 'interaction status is required'),
+        ('send_message', ('  ', 'guidance'), 'conversation ID is required'),
+        ('send_message', ('conversation-1', '  '), 'message is required'),
         ('answer_interaction', ('  ', 'request-1', 'true'), 'conversation ID is required'),
         ('answer_interaction', ('conversation-1', '  ', 'true'), 'request ID is required'),
         ('answer_interaction', ('conversation-1', 'request-1', '  '), 'interaction response is required'),

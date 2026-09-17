@@ -99,6 +99,7 @@ class Agent:
     agent_version: str = ''
     runtime: Optional[Dict[str, Any]] = None
     running_container_count: int = 0
+    network_policy_supported: Optional[bool] = None
     
     def __post_init__(self):
         if self.network_interfaces is None:
@@ -173,6 +174,7 @@ class Agent:
             ),
             runtime=runtime,
             running_container_count=data.get('runningContainerCount') or 0,
+            network_policy_supported=data.get('networkPolicySupported'),
         )
     
     @property

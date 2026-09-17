@@ -1,8 +1,10 @@
+import getpass
 import sys
 from dataclasses import dataclass
 
 
 APPROVAL_POLL_INTERVAL_SECONDS = 5
+MAX_CREDENTIAL_INTERACTION_FIELDS = 12
 
 
 class ApprovalContextError(ValueError):
@@ -138,6 +140,206 @@ def prompt_endpoint_approval(
 
     response = 'true' if allow else 'false'
     return _answer_interaction(sdk, interaction, response, echo)
+
+
+def prompt_ephemeral_credentials(
+    sdk,
+    interaction,
+    *,
+    echo=print,
+    prompt=None,
+    interactive=None,
+):
+    """Collect a credential response through the ephemeral secret broker.
+
+    Plaintext values exist only in the local prompt result and the broker add
+    request. The durable interaction receives only the broker's opaque secret
+    reference. If recording that reference fails, the secret is deleted on a
+    best-effort basis so it cannot be orphaned.
+    """
+    if (
+        not isinstance(interaction, dict)
+        or interaction.get('kind') != 'credential'
+    ):
+        raise ValueError('interaction is not a credential request')
+    if interaction.get('status') != 'pending':
+        raise ValueError('credential request is not pending')
+
+    conversation_id = _optional_text(interaction, 'conversationId')
+    request_id = _optional_text(interaction, 'requestId')
+    if not conversation_id:
+        raise ValueError('credential request conversation ID is required')
+    if not request_id:
+        raise ValueError('credential request ID is required')
+
+    if interactive is None:
+        interactive = sys.stdin.isatty() and sys.stderr.isatty()
+    if not interactive:
+        raise RuntimeError(
+            f'credential request {request_id} requires an interactive terminal'
+        )
+    if prompt is None:
+        def prompt(field):
+            return getpass.getpass(f'{field}: ')
+
+    fields = normalize_credential_interaction_fields(interaction.get('fields'))
+    echo(
+        f'Credential input required for request {request_id}. '
+        'Values are sent once to the secret broker and are never stored in chat.'
+    )
+    parameters = {}
+    try:
+        for field in fields:
+            value = prompt(field)
+            if not isinstance(value, str):
+                raise ValueError(
+                    f'a value for credential field {field!r} is required'
+                )
+            if not value:
+                if credential_field_is_optional(field):
+                    continue
+                raise ValueError(
+                    f'a value for credential field {field!r} is required'
+                )
+            parameters[field] = value
+
+        return submit_ephemeral_credentials(
+            sdk,
+            interaction,
+            parameters,
+            echo=echo,
+        )
+    finally:
+        # Drop references promptly. Python strings cannot be zeroized, but the
+        # values never enter output, logs, messages, events, or argv.
+        parameters.clear()
+
+
+def submit_ephemeral_credentials(sdk, interaction, parameters, *, echo=print):
+    """Store collected values ephemerally and answer with only their reference."""
+    if (
+        not isinstance(interaction, dict)
+        or interaction.get('kind') != 'credential'
+        or interaction.get('status') != 'pending'
+    ):
+        raise ValueError('credential request is not pending')
+    conversation_id = _optional_text(interaction, 'conversationId')
+    request_id = _optional_text(interaction, 'requestId')
+    if not conversation_id:
+        raise ValueError('credential request conversation ID is required')
+    if not request_id:
+        raise ValueError('credential request ID is required')
+    if (
+        not isinstance(parameters, dict)
+        or not parameters
+        or any(
+            not isinstance(name, str)
+            or not name
+            or not isinstance(value, str)
+            or not value
+            for name, value in parameters.items()
+        )
+    ):
+        raise ValueError('credential values are required')
+
+    try:
+        broker_response = sdk.credentials.add_ephemeral(parameters)
+    except Exception:
+        raise RuntimeError(
+            'Unable to store credentials securely; the interaction '
+            'remains pending.'
+        ) from None
+
+    credential_values = (
+        broker_response.get('credentialValue')
+        if isinstance(broker_response, dict)
+        else None
+    )
+    secret_ref = (
+        credential_values.get('credential_id')
+        if isinstance(credential_values, dict)
+        else None
+    )
+    if not isinstance(secret_ref, str) or not secret_ref.strip():
+        raise RuntimeError(
+            'The secret broker did not return a credential reference; '
+            'the interaction remains pending.'
+        )
+    secret_ref = secret_ref.strip()
+
+    try:
+        return sdk.conversations.answer_interaction(
+            conversation_id,
+            request_id,
+            secret_ref,
+        )
+    except Exception:
+        try:
+            sdk.credentials.delete_ephemeral(secret_ref)
+        except Exception:
+            pass
+        terminal_status = _interaction_terminal_status(
+            sdk,
+            conversation_id,
+            request_id,
+        )
+        if terminal_status:
+            echo(f'Credential request {request_id} was resolved elsewhere.')
+            return {'status': terminal_status}
+        raise RuntimeError(
+            'Unable to send the credential reference; the temporary secret '
+            'was cleaned up and the interaction remains pending.'
+        ) from None
+
+
+def normalize_credential_interaction_fields(fields):
+    """Normalize and bound untrusted agent-authored credential field names."""
+    if not isinstance(fields, list):
+        return ('input',)
+    normalized = []
+    seen = set()
+    for value in fields:
+        if not isinstance(value, str):
+            continue
+        field = value.strip()
+        if (
+            not field
+            or len(field) > 128
+            or any(not character.isprintable() for character in field)
+        ):
+            continue
+        identity = field.casefold()
+        if identity in seen:
+            continue
+        seen.add(identity)
+        normalized.append(field)
+        if len(normalized) >= MAX_CREDENTIAL_INTERACTION_FIELDS:
+            break
+    return tuple(normalized or ('input',))
+
+
+def credential_field_is_optional(field):
+    normalized = field.strip().casefold()
+    return normalized in {
+        'totp', 'totp_secret', 'totp_seed', 'totp_code',
+        'otp', 'otp_code', 'mfa', 'mfa_code', '2fa',
+    }
+
+
+def _interaction_terminal_status(sdk, conversation_id, request_id):
+    try:
+        current = sdk.conversations.list_interactions(conversation_id)
+    except Exception:
+        return ''
+    return next(
+        (
+            row.get('status') for row in current
+            if isinstance(row, dict)
+            and row.get('requestId') == request_id
+            and row.get('status') in ('answered', 'expired')
+        ),
+        '',
+    )
 
 
 def _answer_interaction(sdk, interaction, response, echo):

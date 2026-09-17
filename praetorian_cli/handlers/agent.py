@@ -6,7 +6,11 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
-from praetorian_cli.ui.conversation.approvals import prompt_endpoint_approval
+from praetorian_cli.ui.conversation.approvals import (
+    prompt_endpoint_approval,
+    prompt_ephemeral_credentials,
+)
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 from praetorian_cli.ui.conversation.endpoint_status import (
     format_endpoint_execution_status,
     format_endpoint_operation_status,
@@ -18,18 +22,30 @@ from praetorian_cli.ui.conversation.endpoint_status import (
 DEFAULT_MCP_TOOLS = ['search_by_query', '*_list', '*_get']
 
 
-def _ask_with_approvals(sdk, *args, **kwargs):
-    def handle_approval(interaction):
-        if interaction.get('kind') != 'approval':
-            return None
-        return prompt_endpoint_approval(
-            sdk,
-            interaction,
-            echo=lambda message: click.echo(message, err=True),
-            confirm=lambda message, default: click.confirm(
-                message, default=default, err=True
-            ),
-        )
+def _ask_with_interactions(sdk, *args, **kwargs):
+    def handle_interaction(interaction):
+        kind = interaction.get('kind')
+        if kind == 'approval':
+            return prompt_endpoint_approval(
+                sdk,
+                interaction,
+                echo=lambda message: click.echo(message, err=True),
+                confirm=lambda message, default: click.confirm(
+                    message, default=default, err=True
+                ),
+            )
+        if kind == 'credential':
+            return prompt_ephemeral_credentials(
+                sdk,
+                interaction,
+                echo=lambda message: click.echo(message, err=True),
+                prompt=lambda field: click.prompt(
+                    field,
+                    hide_input=True,
+                    err=True,
+                ),
+            )
+        return None
 
     def handle_endpoint_status(status):
         rendered = format_endpoint_execution_status(status)
@@ -38,7 +54,7 @@ def _ask_with_approvals(sdk, *args, **kwargs):
 
     return sdk.agents.ask(
         *args,
-        interaction_handler=handle_approval,
+        interaction_handler=handle_interaction,
         endpoint_status_handler=handle_endpoint_status,
         **kwargs,
     )
@@ -64,6 +80,7 @@ def affiliation(sdk, key):
         - guard agent affiliation "#risk#www.praetorian.com#CVE-2024-1234"
         - guard agent affiliation "#asset#praetorian.com#www.praetorian.com"
     """
+    key = resolve_entity_reference(sdk, key, None)
     click.echo("Polling for the affiliation data for up to 3 minutes.")
     click.echo(sdk.agents.affiliation(key))
 
@@ -125,7 +142,14 @@ def tools(sdk, allowed):
 
 @agent.command()
 @cli_handler
-def conversation(sdk):
+@click.option(
+    '--mode',
+    type=click.Choice(['query', 'agent']),
+    default='query',
+    show_default=True,
+    help='Initial conversation mode',
+)
+def conversation(sdk, mode):
     """ Interactive conversation with Guard AI assistant
 
     Start an interactive chat session with the Guard AI assistant.
@@ -146,11 +170,17 @@ def conversation(sdk):
         - "What assets do we have for example.com?"
 
     \b
+    HITL agentic usage:
+        guard agent conversation --mode agent
+        Ask Marcus to use HITL Romulus against the authorized web application.
+        While it runs, send guidance at any time or type "stop" to cancel.
+
+    \b
     Usage:
         guard agent conversation
     """
     from praetorian_cli.ui.conversation import run_textual_conversation
-    run_textual_conversation(sdk)
+    run_textual_conversation(sdk, mode=mode)
 
 
 @agent.group('endpoint')
@@ -296,7 +326,7 @@ def marcus_read(sdk, path, local, instructions):
             f'If it contains credentials or secrets, flag them.'
         )
 
-    result = _ask_with_approvals(sdk, message, mode='agent', new=True)
+    result = _ask_with_interactions(sdk, message, mode='agent', new=True)
     click.echo(result['response'])
 
 
@@ -332,7 +362,7 @@ def marcus_ingest(sdk, path, scope, findings):
         f'Report what you created when done.'
     )
 
-    result = _ask_with_approvals(
+    result = _ask_with_interactions(
         sdk, message, mode='agent', new=True, timeout=300
     )
     click.echo(result['response'])
@@ -354,7 +384,7 @@ def marcus_do(sdk, instruction):
         guard marcus do "create a risk for CVE-2024-1234 on asset api.example.com"
         guard marcus do "generate an executive summary"
     """
-    result = _ask_with_approvals(
+    result = _ask_with_interactions(
         sdk, instruction, mode='agent', timeout=300
     )
     click.echo(result['response'])
@@ -391,7 +421,7 @@ def ask(sdk, message, mode, new_conversation, output_format):
             pass
 
     try:
-        result = _ask_with_approvals(
+        result = _ask_with_interactions(
             sdk,
             message,
             mode=mode,

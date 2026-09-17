@@ -47,6 +47,99 @@ class TestCredentialsAdd:
         })
 
 
+class TestActiveDirectoryCredentials:
+    def test_add_uses_v2_endpoint_allowlist_contract(self):
+        api = MagicMock()
+        Credentials(api).add_active_directory(
+            label='Internal AD',
+            endpoint_ids=['endpoint-1', 'endpoint-2'],
+            domain='corp.example',
+            auth_type='password',
+            username='svc-hunt',
+            password='secret-value',
+        )
+
+        api.post.assert_called_once_with('broker', {
+            'Operation': 'add',
+            'ResourceKey': '',
+            'Category': 'env-integration',
+            'Type': 'active-directory',
+            'Parameters': {
+                'label': 'Internal AD',
+                'endpointIds': ['endpoint-1', 'endpoint-2'],
+                'domain': 'corp.example',
+                'authType': 'password',
+                'username': 'svc-hunt',
+                'password': 'secret-value',
+            },
+        })
+
+    def test_authorize_preserves_existing_endpoints_without_secret_rotation(self):
+        api = MagicMock()
+        api.search.by_key_prefix.return_value = ([{
+            'credentialId': 'credential-1',
+            'type': 'active-directory',
+            'name': 'Internal AD',
+            'endpointIds': ['endpoint-1'],
+        }], None)
+
+        Credentials(api).authorize_active_directory(
+            'credential-1',
+            ['endpoint-2', 'endpoint-1'],
+        )
+
+        api.post.assert_called_once_with('broker', {
+            'Operation': 'update',
+            'CredentialID': 'credential-1',
+            'Category': 'env-integration',
+            'Type': 'active-directory',
+            'Format': ['env'],
+            'Parameters': {
+                'label': 'Internal AD',
+                'endpointIds': ['endpoint-1', 'endpoint-2'],
+            },
+        })
+
+
+class TestEphemeralCredentials:
+    def test_add_uses_short_lived_broker_contract_without_resource_attachment(self):
+        api = MagicMock()
+        api.post.return_value = {
+            'credentialValue': {'credential_id': 'opaque-reference'},
+        }
+        creds = Credentials(api=api)
+
+        creds.add_ephemeral({'username': 'VALUE-1', 'password': 'VALUE-2'})
+
+        api.post.assert_called_once_with('broker', {
+            'Operation': 'add',
+            'Category': 'env-integration',
+            'Type': 'ephemeral',
+            'Parameters': {'username': 'VALUE-1', 'password': 'VALUE-2'},
+        })
+
+    def test_delete_uses_ephemeral_compensating_cleanup_contract(self):
+        api = MagicMock()
+        creds = Credentials(api=api)
+
+        creds.delete_ephemeral(' opaque-reference ')
+
+        api.delete.assert_called_once_with('broker', {
+            'CredentialID': 'opaque-reference',
+            'Category': 'env-integration',
+            'Type': 'ephemeral',
+        }, params={})
+
+    @pytest.mark.parametrize('parameters', [None, {}, {'username': ''}, {1: 'value'}])
+    def test_add_rejects_invalid_ephemeral_payloads_before_request(self, parameters):
+        api = MagicMock()
+
+        with pytest.raises(ValueError, match='ephemeral credential parameters'):
+            Credentials(api=api).add_ephemeral(parameters)
+
+        api.post.assert_not_called()
+
+
 class TestCredentialsGet:
     def test_get_builds_broker_request_with_resolution_by_target(self):
         """The broker rejects Get requests without Resolution (PR #5457). The
@@ -188,6 +281,8 @@ def runner():
 def fake_sdk():
     sdk = MagicMock()
     sdk.credentials.add.return_value = {'ok': True}
+    sdk.credentials.add_active_directory.return_value = {'ok': True}
+    sdk.credentials.authorize_active_directory.return_value = {'ok': True}
     sdk.credentials.delete.return_value = {'ok': True}
     sdk.credentials.get.return_value = {'credentialValue': {'token': 'abc'}}
     sdk.credentials.format_output.side_effect = lambda r: str(r)
@@ -253,6 +348,57 @@ class TestAddCredentialGeneric:
         ])
         assert result.exit_code != 0
         assert 'key=value' in result.output
+
+
+class TestActiveDirectoryCredentialCLI:
+    def test_add_prompts_for_secret_without_command_argument(
+        self,
+        runner,
+        fake_sdk,
+    ):
+        with patch(
+            'praetorian_cli.handlers.add.click.prompt',
+            return_value='hidden-password',
+        ) as prompt:
+            result = _invoke(runner, fake_sdk, [
+                'add', 'credential', 'active-directory',
+                '--endpoint', 'endpoint-1',
+                '--label', 'Internal AD',
+                '--domain', 'corp.example',
+                '--username', 'svc-hunt',
+            ])
+
+        assert result.exit_code == 0, result.output
+        prompt.assert_called_once_with(
+            'Password',
+            hide_input=True,
+            confirmation_prompt=True,
+        )
+        fake_sdk.credentials.add_active_directory.assert_called_once_with(
+            'Internal AD',
+            ('endpoint-1',),
+            'corp.example',
+            'password',
+            username='svc-hunt',
+            password='hidden-password',
+        )
+        assert 'hidden-password' not in result.output
+
+    def test_update_authorizes_existing_credential_for_endpoint(
+        self,
+        runner,
+        fake_sdk,
+    ):
+        result = _invoke(runner, fake_sdk, [
+            'update', 'credential', 'active-directory', 'credential-1',
+            '--endpoint', 'endpoint-2',
+        ])
+
+        assert result.exit_code == 0, result.output
+        fake_sdk.credentials.authorize_active_directory.assert_called_once_with(
+            'credential-1',
+            ('endpoint-2',),
+        )
 
 
 class TestAddCredentialWebauth:

@@ -4,6 +4,7 @@ from rich.console import Console
 from praetorian_cli.sdk.test.ui_mocks import MockMenuBase
 from praetorian_cli.ui.aegis import menu as menu_module
 from praetorian_cli.ui.aegis.commands.hunt import complete, handle_hunt
+from praetorian_cli.ui.hunt_defaults import DEFAULT_FINISH_CRITERIA
 from praetorian_cli.ui.aegis.menu import AegisMenu
 
 
@@ -55,6 +56,22 @@ class FakeHunts:
         self.mutation_calls = []
         self.hunts = []
         self.endpoint_status = {'sessions': [], 'tasks': []}
+        self.workflow_runs = []
+        self.conversations = []
+        self.interactions = []
+        self.interaction_calls = []
+        self.root_conversations = []
+        self.findings = []
+        self.cost_calls = []
+        self.cost_status = {
+            'total': {'cost': 0, 'total_tokens': 0},
+            'by_model': [],
+            'currency': 'USD',
+        }
+        self.memory_items = []
+        self.memory_content = {}
+        self.memory_calls = []
+        self.log = ''
 
     def create(self, **kwargs):
         self.create_calls.append(kwargs)
@@ -75,6 +92,41 @@ class FakeHunts:
     def endpoint_execution_status(self, _hunt):
         return self.endpoint_status
 
+    def get_cost(self, hunt_id):
+        self.cost_calls.append(hunt_id)
+        return self.cost_status
+
+    def list_root_conversations(self, _hunt_id):
+        return list(self.root_conversations), None
+
+    def list_workflow_runs(self, _hunt_id):
+        return list(self.workflow_runs), None
+
+    def list_conversations(self, _hunt_id):
+        return list(self.conversations), None
+
+    def list_interactions(self, hunt_id, status='pending'):
+        self.interaction_calls.append((hunt_id, status))
+        return list(self.interactions)
+
+    def list_findings(self, _hunt_id, pages=1):
+        return list(self.findings), None
+
+    def list_memory(self, _hunt_id):
+        return list(self.memory_items), None
+
+    def get_memory(self, _hunt_id, title):
+        return self.memory_content[title]
+
+    def save_memory(self, hunt_id, title, content):
+        self.memory_calls.append(('save', hunt_id, title, content))
+
+    def delete_memory(self, hunt_id, title):
+        self.memory_calls.append(('delete', hunt_id, title))
+
+    def get_log(self, _hunt_id):
+        return self.log
+
     def pause(self, hunt_id):
         self.mutation_calls.append(('pause', hunt_id))
 
@@ -88,6 +140,40 @@ class FakeHunts:
         self.mutation_calls.append(('delete', hunt_id))
 
 
+class FakeAssets:
+    def __init__(self):
+        self.candidates = []
+
+    def list_hunt_scope(self, **_kwargs):
+        return list(self.candidates), None
+
+
+class FakeRisks:
+    def get(self, key, details=False, evidence='off'):
+        return {'key': key, 'status': 'OH', 'statusLabel': 'Open High'}
+
+
+class FakeCredentials:
+    def __init__(self):
+        self.records = []
+
+    def list(self, pages=1):
+        assert pages == 1
+        return list(self.records), None
+
+
+class FakeConversations:
+    def __init__(self):
+        self.sent = []
+        self.transcripts = {}
+
+    def send_message(self, conversation_id, message):
+        self.sent.append((conversation_id, message))
+
+    def get(self, conversation_id):
+        return self.transcripts.get(conversation_id, {'messages': []})
+
+
 class Menu(MockMenuBase):
     def __init__(self, selected_agent=None, authorized_endpoints=None):
         super().__init__()
@@ -99,6 +185,10 @@ class Menu(MockMenuBase):
             else ([selected_agent] if selected_agent else [])
         )
         self.sdk.hunts = FakeHunts()
+        self.sdk.assets = FakeAssets()
+        self.sdk.risks = FakeRisks()
+        self.sdk.credentials = FakeCredentials()
+        self.sdk.conversations = FakeConversations()
 
 
 def _hunt(endpoint_id=ENDPOINT_ID, hunt_id='hunt-1', status='active'):
@@ -135,12 +225,131 @@ def test_launch_uses_selected_authorized_v2_endpoint():
         'scope': [SCOPE],
         'scope_level': 'strict',
         'aggressiveness': 'cautious',
+        'finish_criteria': DEFAULT_FINISH_CRITERIA,
+        'user_guardrails': '',
+        'custom_tag': '',
+        'model_tier_override': None,
+        'credential_ids': None,
         'endpoint_required': True,
         'endpoint_id': ENDPOINT_ID,
         'endpoint_confirmed': True,
     }]
     assert 'AI Hunt launched' in '\n'.join(menu.console.lines)
     assert menu.paused is True
+
+
+def test_yes_launch_sends_ui_configuration_without_discovery():
+    menu = Menu(V2Endpoint())
+
+    handle_hunt(menu, [
+        'launch',
+        '--scope', SCOPE,
+        '--prompt', 'Assess internal services',
+        '--finish-criteria', 'Stop after compromise',
+        '--guardrails', 'Do not authenticate',
+        '--custom-tag', 'Internal-Q4',
+        '--model-tier', 'experimental',
+        '--yes',
+    ])
+
+    call = menu.sdk.hunts.create_calls[0]
+    assert call['scope'] == [SCOPE]
+    assert call['expires_hours'] == 24
+    assert call['finish_criteria'] == 'Stop after compromise'
+    assert call['user_guardrails'] == 'Do not authenticate'
+    assert call['custom_tag'] == 'Internal-Q4'
+    assert call['model_tier_override'] == 'experimental'
+    assert menu.sdk.assets.candidates == []
+
+
+def test_yes_launch_uses_internal_default_mandate():
+    menu = Menu(V2Endpoint())
+
+    handle_hunt(menu, ['launch', '--yes', '--scope', SCOPE])
+
+    assert 'selected internal assets' in (
+        menu.sdk.hunts.create_calls[0]['prompt']
+    )
+
+
+def test_yes_launch_requires_explicit_scope_without_prompting(monkeypatch):
+    menu = Menu(V2Endpoint())
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.select_entity_keys',
+        lambda *_args, **_kwargs: pytest.fail(
+            '--yes must not open target selection'
+        ),
+    )
+
+    handle_hunt(menu, ['launch', '--yes'])
+
+    assert menu.sdk.hunts.create_calls == []
+    assert '--yes requires at least one --scope' in '\n'.join(menu.console.lines)
+
+
+def test_interactive_launch_wizard_updates_configuration(monkeypatch):
+    menu = Menu(V2Endpoint())
+    menu.sdk.credentials.records = [
+        {
+            'credentialId': 'ad-1',
+            'type': 'active-directory',
+            'name': 'Corp AD',
+            'endpointIds': [ENDPOINT_ID],
+        },
+        {
+            'credentialId': 'ad-other',
+            'type': 'active-directory',
+            'endpointIds': [OTHER_ENDPOINT_ID],
+        },
+        {
+            'credentialId': 'web-1',
+            'type': 'web-auth',
+            'accountKey': '#webapplication#https://internal.example/',
+        },
+    ]
+    configured = {
+        'prompt': 'Prioritize domain controllers',
+        'aggressiveness': 'aggressive',
+        'guardrails': 'Do not test authentication',
+        'finish_criteria': 'Stop after one critical finding',
+        'expires': 48,
+        'custom_tag': 'Internal-Q4',
+        'model_tier': 'experimental',
+        'credential_ids': ['ad-1', 'web-1'],
+    }
+    available_credentials = []
+
+    def configure(*args, **_kwargs):
+        available_credentials.extend(args[4])
+        return configured, True
+
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.configure_hunt_launch',
+        configure,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.Confirm.ask',
+        lambda *_args, **_kwargs: pytest.fail(
+            'the fullscreen wizard owns launch confirmation'
+        ),
+    )
+
+    handle_hunt(menu, [
+        'launch', '--scope', SCOPE, '--prompt', 'Initial objective',
+    ])
+
+    call = menu.sdk.hunts.create_calls[0]
+    assert call['prompt'] == 'Prioritize domain controllers'
+    assert call['aggressiveness'] == 'aggressive'
+    assert call['user_guardrails'] == 'Do not test authentication'
+    assert call['finish_criteria'] == 'Stop after one critical finding'
+    assert call['expires_hours'] == 48
+    assert call['custom_tag'] == 'Internal-Q4'
+    assert call['model_tier_override'] == 'experimental'
+    assert call['credential_ids'] == ['ad-1', 'web-1']
+    assert [
+        credential['credentialId'] for credential in available_credentials
+    ] == ['ad-1', 'ad-other', 'web-1']
 
 
 def test_subcommand_help_does_not_require_selected_endpoint():
@@ -212,11 +421,36 @@ def test_list_filters_hunts_to_selected_endpoint():
     assert 'hunt-3' not in output
 
 
-def test_status_renders_endpoint_execution_state():
+def test_status_rejects_other_endpoint_before_loading_overview_metrics():
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt(OTHER_ENDPOINT_ID)]
+
+    handle_hunt(menu, ['status', 'hunt-1'])
+
+    assert menu.sdk.hunts.cost_calls == []
+    assert 'does not belong to the selected endpoint' in '\n'.join(
+        menu.console.lines
+    )
+
+
+def test_status_renders_endpoint_execution_state_and_workflows():
     endpoint = V2Endpoint()
     menu = Menu(endpoint)
     menu.console = Console(record=True, force_terminal=False, width=120)
     menu.sdk.hunts.hunts = [_hunt()]
+    menu.sdk.hunts.workflow_runs = [{
+        'run_id': 'run-1',
+        'definition': 'hunt',
+        'status': 'running',
+        'created': '2026-01-01T02:00:00Z',
+        'steps': [{
+            'name': 'target-selection',
+            'title': 'Target Selection',
+            'kind': 'agent',
+            'status': 'running',
+        }],
+    }]
     menu.sdk.hunts.endpoint_status = {
         'sessions': [],
         'tasks': [{
@@ -231,11 +465,287 @@ def test_status_renders_endpoint_execution_state():
         }],
     }
 
-    handle_hunt(menu, ['status', 'hunt-1'])
+    handle_hunt(menu, ['status', 'hunt-1', '--workflows'])
 
     output = menu.console.export_text()
     assert 'AI Hunt hunt-1' in output
     assert 'Waiting for assigned endpoint (no compute fallback)' in output
+    assert 'Iteration 1' in output
+    assert 'Target Selection' in output
+    assert 'AGENT' in output
+    assert 'RUNNING' in output
+
+
+def test_status_renders_operational_overview_and_bounds_large_scope():
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+    hunt = _hunt()
+    hunt.update({
+        'agent': 'hannibal',
+        'iterationCount': 7,
+        'expiresAt': '2099-01-01T00:00:00Z',
+        'scope': [
+            f'#asset#host-{index}.example.com#10.0.0.{index}'
+            for index in range(100)
+        ],
+    })
+    menu.sdk.hunts.hunts = [hunt]
+    menu.sdk.hunts.root_conversations = [
+        {'uuid': f'conversation-{index}', 'title': f'Iteration agent {index}'}
+        for index in range(100)
+    ]
+    menu.sdk.hunts.findings = [
+        {'status': 'OM', 'statusLabel': 'Open Medium'},
+        {'status': 'TC', 'statusLabel': 'Triaged Critical'},
+    ]
+    menu.sdk.hunts.cost_status = {
+        'total': {'cost': 1.5, 'total_tokens': 150},
+        'by_model': [],
+        'currency': 'USD',
+    }
+
+    handle_hunt(menu, ['status', 'hunt-1'])
+
+    output = menu.console.export_text()
+    assert 'Projected cost (USD)' in output
+    assert '$1.50' in output
+    assert 'Root agents' in output
+    assert '100' in output
+    assert 'Iterations' in output
+    assert 'Highest severity' in output
+    assert 'Critical' in output
+    assert 'host-0.example.com (10.0.0.0)' in output
+    assert 'host-5.example.com' not in output
+    assert '(+95 more)' in output
+    assert 'total_tokens' not in output
+
+
+def test_status_workflow_step_opens_exact_live_conversation(monkeypatch):
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt()]
+    menu.sdk.hunts.workflow_runs = [{
+        'run_id': 'run-1',
+        'steps': [{
+            'name': 'dispatch-agent',
+            'conversation_id': 'conversation-exact',
+        }],
+    }]
+    calls = []
+
+    def open_selected(_console, runs, *, open_conversation):
+        assert runs == menu.sdk.hunts.workflow_runs
+        open_conversation(runs[0]['steps'][0]['conversation_id'])
+
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.browse_hunt_workflows',
+        open_selected,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.run_live_hunt_chat',
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    handle_hunt(menu, ['status', 'hunt-1', '--workflows'])
+
+    assert calls[0][0] == (menu.sdk, 'hunt-1')
+    assert calls[0][1]['requested_id'] == 'conversation-exact'
+    assert calls[0][1]['exact_requested_id'] is True
+    assert callable(calls[0][1]['review_interactions'])
+
+
+def test_findings_memory_and_log_commands_render_hunt_data():
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+    menu.sdk.hunts.hunts = [_hunt()]
+    menu.sdk.hunts.findings = [{
+        'key': '#risk#db#sql',
+        'dns': 'db.example',
+        'title': 'SQL injection',
+        'status': 'OH',
+        'statusLabel': 'Open High',
+    }]
+    menu.sdk.hunts.memory_items = [{
+        'title': 'target.md',
+        'bytes': 10,
+        'updated': '2026-01-01T00:00:00Z',
+    }]
+    menu.sdk.hunts.memory_content['target.md'] = 'remember this target'
+    menu.sdk.hunts.log = '[iteration-complete] confirmed SMB'
+
+    handle_hunt(menu, ['findings', 'hunt-1', '--severity', 'high'])
+    handle_hunt(menu, ['memory', 'hunt-1'])
+    handle_hunt(menu, ['memory', 'hunt-1', '--item', 'target.md'])
+    handle_hunt(menu, [
+        'memory', 'hunt-1', '--item', 'target.md', '--content', 'updated',
+    ])
+    handle_hunt(menu, [
+        'memory', 'hunt-1', '--item', 'target.md', '--delete', '--yes',
+    ])
+    handle_hunt(menu, ['log', 'hunt-1'])
+
+    output = menu.console.export_text()
+    assert 'SQL injection' in output
+    assert 'target.md' in output
+    assert 'remember this target' in output
+    assert 'confirmed SMB' in output
+    assert menu.sdk.hunts.memory_calls == [
+        ('save', 'hunt-1', 'target.md', 'updated'),
+        ('delete', 'hunt-1', 'target.md'),
+    ]
+
+
+def test_open_launches_unified_view_with_endpoint_authorization(monkeypatch):
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt()]
+    calls = []
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.supports_fullscreen_hunt_open',
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.run_hunt_open',
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    handle_hunt(menu, ['open', 'hunt-1'])
+
+    assert calls[0][0] == (menu.sdk, 'hunt-1')
+    assert calls[0][1]['initial_hunt'] == _hunt()
+    assert 'refresh_interval' not in calls[0][1]
+    assert callable(calls[0][1]['authorize_hunt'])
+    assert callable(calls[0][1]['confirm_stop'])
+    assert callable(calls[0][1]['review_interactions'])
+    assert calls[0][1]['authorize_hunt']('hunt-1') == _hunt()
+    assert menu.paused is False
+
+
+def test_open_revalidates_endpoint_ownership_before_fullscreen_actions(monkeypatch):
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt()]
+    callbacks = []
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.supports_fullscreen_hunt_open',
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.run_hunt_open',
+        lambda *_args, **kwargs: callbacks.append(kwargs['authorize_hunt']),
+    )
+
+    handle_hunt(menu, ['open', 'hunt-1'])
+    menu.sdk.aegis.endpoints = [V2Endpoint(OTHER_ENDPOINT_ID)]
+
+    with pytest.raises(ValueError, match='no longer authorized'):
+        callbacks[0]('hunt-1')
+
+
+def test_chat_opens_fullscreen_live_view_without_menu_pause(monkeypatch):
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt()]
+    calls = []
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.supports_live_hunt_chat',
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.run_live_hunt_chat',
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    handle_hunt(menu, [
+        'chat', 'hunt-1', '--conversation', 'root-prefix',
+    ])
+
+    assert calls[0][0] == (menu.sdk, 'hunt-1')
+    assert calls[0][1]['requested_id'] == 'root-prefix'
+    assert 'refresh_interval' not in calls[0][1]
+    assert callable(calls[0][1]['review_interactions'])
+    assert menu.paused is False
+
+
+def test_memory_without_static_options_opens_fullscreen_browser(monkeypatch):
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.sdk.hunts.hunts = [_hunt()]
+    calls = []
+    monkeypatch.setattr(
+        'praetorian_cli.ui.aegis.commands.hunt.browse_hunt_memory',
+        lambda console, hunts, hunt_id: calls.append((console, hunts, hunt_id)),
+    )
+
+    handle_hunt(menu, ['memory', 'hunt-1'])
+
+    assert calls == [(menu.console, menu.sdk.hunts, 'hunt-1')]
+    assert menu.paused is True
+
+
+def test_chat_displays_transcript_and_queues_guidance():
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+    menu.sdk.hunts.hunts = [_hunt()]
+    menu.sdk.hunts.conversations = [{
+        'uuid': 'conversation-1',
+        'status': 'active',
+        'parent_id': 'self',
+        'created': '2026-01-01T02:00:00Z',
+    }]
+    menu.sdk.conversations.transcripts['conversation-1'] = {
+        'messages': [{
+            'role': 'chariot',
+            'content': 'Testing the selected target.',
+            'timestamp': '2026-01-01T02:01:00Z',
+        }],
+    }
+
+    handle_hunt(menu, [
+        'chat',
+        'hunt-1',
+        '--message',
+        'Focus on SMB',
+    ])
+
+    output = menu.console.export_text()
+    assert menu.sdk.conversations.sent == [
+        ('conversation-1', 'Focus on SMB')
+    ]
+    assert 'Hannibal Hunt Chat' in output
+    assert 'Testing the selected target.' in output
+    assert 'Guidance queued' in output
+
+
+def test_interactions_are_hunt_scoped_and_limited_to_selected_endpoint():
+    endpoint = V2Endpoint()
+    menu = Menu(endpoint)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+    menu.sdk.hunts.hunts = [
+        _hunt(),
+        _hunt(OTHER_ENDPOINT_ID, 'hunt-2'),
+    ]
+    menu.sdk.hunts.interactions = [{
+        'conversationId': 'child-conversation',
+        'requestId': 'request-1',
+        'kind': 'credential',
+        'status': 'pending',
+        'request': 'MODEL TEXT WITH VALUE-THAT-MUST-NOT-RENDER',
+        'fields': ['username', 'password'],
+    }]
+
+    handle_hunt(menu, ['interactions', 'hunt-1'])
+    handle_hunt(menu, ['interactions', 'hunt-2'])
+
+    output = menu.console.export_text()
+    assert menu.sdk.hunts.interaction_calls == [('hunt-1', 'pending')]
+    assert 'Pending Hunt interactions' in output
+    assert 'username, password' in output
+    assert 'VALUE-THAT-MUST-NOT-RENDER' not in output
+    assert 'does not belong to the selected endpoint' in output
 
 
 def test_lifecycle_mutations_are_limited_to_selected_endpoint():
@@ -278,9 +788,58 @@ def test_aegis_menu_registers_and_dispatches_hunt(monkeypatch):
     assert calls == [(menu, ['status', 'hunt-1'])]
 
 
+def test_aegis_menu_reports_command_errors_and_keeps_running(monkeypatch):
+    sdk = type('SDK', (), {
+        'get_current_user': lambda _self: ('user@example.com', 'user'),
+    })()
+    menu = AegisMenu(sdk)
+    menu.console = Console(record=True, force_terminal=False, width=120)
+    monkeypatch.setattr(
+        menu_module,
+        'cmd_handle_hunt',
+        lambda *_args: (_ for _ in ()).throw(RuntimeError('service unavailable')),
+    )
+
+    result = menu.handle_choice('hunt list')
+
+    assert result is True
+    assert 'Command failed: service unavailable' in menu.console.export_text()
+
+
 def test_hunt_completion_lists_subcommands_and_options():
     menu = Menu(V2Endpoint())
 
     assert complete(menu, 'la', ['hunt', 'la']) == ['launch']
     assert '--scope' in complete(menu, '--', ['hunt', 'launch', '--'])
+    assert '--credential' in complete(menu, '--', ['hunt', 'launch', '--'])
     assert complete(menu, '--s', ['hunt', 'list', '--s']) == ['--status']
+    assert complete(
+        menu,
+        '--i',
+        ['hunt', 'open', 'hunt-1', '--i'],
+    ) == []
+    assert complete(
+        menu,
+        '--w',
+        ['hunt', 'status', 'hunt-1', '--w'],
+    ) == ['--workflows']
+    assert complete(
+        menu,
+        '--m',
+        ['hunt', 'chat', 'hunt-1', '--m'],
+    ) == ['--message']
+    assert complete(
+        menu,
+        '--w',
+        ['hunt', 'interactions', 'hunt-1', '--w'],
+    ) == ['--watch']
+    assert complete(
+        menu,
+        '--sev',
+        ['hunt', 'findings', 'hunt-1', '--sev'],
+    ) == ['--severity']
+    assert complete(
+        menu,
+        '--f',
+        ['hunt', 'log', 'hunt-1', '--f'],
+    ) == ['--follow']

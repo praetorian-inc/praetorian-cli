@@ -2,7 +2,7 @@ class MockConsole:
     def __init__(self):
         self.lines = []
 
-    def print(self, msg=""):
+    def print(self, msg="", *args, **kwargs):
         self.lines.append(str(msg))
 
 
@@ -97,6 +97,41 @@ class MockAegis:
         if error:
             raise error
         return self._responses.get('approved_enrollment', {'status': 'approved'})
+
+    def get_endpoint_network_policy(self, endpoint_id):
+        self.calls.append({
+            'method': 'get_endpoint_network_policy',
+            'endpoint_id': endpoint_id,
+        })
+        error = (self._responses.get('network_policy_errors') or {}).get('get')
+        if error:
+            raise error
+        return self._responses.get('network_policy', {})
+
+    def update_endpoint_network_policy(
+        self,
+        endpoint_id,
+        expected_revision,
+        disabled_default_rule_ids,
+        custom_deny_rules,
+    ):
+        self.calls.append({
+            'method': 'update_endpoint_network_policy',
+            'endpoint_id': endpoint_id,
+            'expected_revision': expected_revision,
+            'disabled_default_rule_ids': list(disabled_default_rule_ids),
+            'custom_deny_rules': [dict(rule) for rule in custom_deny_rules],
+        })
+        error = (self._responses.get('network_policy_errors') or {}).get('update')
+        if error:
+            raise error
+        response = dict(self._responses.get('network_policy', {}))
+        response.update({
+            'revision': expected_revision + 1,
+            'disabledDefaultRuleIds': list(disabled_default_rule_ids),
+            'customDenyRules': [dict(rule) for rule in custom_deny_rules],
+        })
+        return response
 
     def create_cloudflare_tunnel(self, endpoint_id, *, legacy=False):
         self.calls.append({

@@ -3,7 +3,7 @@ import time
 
 import click
 
-from praetorian_cli.handlers.agent import _ask_with_approvals
+from praetorian_cli.handlers.agent import _ask_with_interactions
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, error
@@ -13,6 +13,7 @@ from praetorian_cli.sdk.entities.capabilities import (
     capability_target_type,
     normalize_capabilities_response,
 )
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 
 
 # Friendly names for well-known agents — descriptions for the CLI help.
@@ -73,49 +74,15 @@ def resolve_capability(sdk, name):
 
 
 def resolve_target(sdk, target_input, expected_type):
-    """Resolve a friendly target (domain, IP, URL) to a Guard entity key.
-
-    Uses sdk.search.fulltext() for resolution. Returns (key, warning) tuple.
-    """
-    if target_input.startswith('#'):
-        return target_input, None
-
-    # Use fulltext search from the SDK
+    """Resolve a friendly target without silently choosing ambiguous matches."""
     try:
-        results, _ = sdk.search.fulltext(target_input, kind=expected_type, limit=10)
-        if results:
-            # Exact match on dns/name
-            for r in results:
-                if r.get('dns', '') == target_input or r.get('name', '') == target_input:
-                    return r['key'], None
-            return results[0]['key'], None
-    except Exception:
-        pass
-
-    # Fallback: prefix search
-    valid_types = {
-        'asset': 'asset', 'port': 'port', 'webpage': 'webpage',
-        'webapplication': 'webapplication', 'repository': 'asset',
-        'risk': 'risk',
-    }
-    vtype = valid_types.get(expected_type, expected_type)
-    try:
-        results, _ = sdk.search.by_key_prefix(f'#{vtype}#{target_input}', pages=1)
-        if results:
-            return results[0]['key'], None
-    except Exception:
-        pass
-
-    # Fallback: field search
-    for field in ('dns', 'name'):
-        try:
-            results, _ = sdk.search.by_term(f'{field}:{target_input}', expected_type, pages=1)
-            if results:
-                return results[0]['key'], None
-        except Exception:
-            pass
-
-    return None, f'Could not resolve "{target_input}" to a {expected_type}. Use a full Guard key (#asset#...) or check the entity exists.'
+        return resolve_entity_reference(
+            sdk,
+            target_input,
+            expected_type,
+        ), None
+    except ValueError as exc:
+        return None, str(exc)
 
 
 @chariot.group()
@@ -146,18 +113,18 @@ def retest(sdk, risk_key, wait):
     the resulting status.
 
     \b
-    RISK_KEY must be a full Guard risk key (#risk#<dns>#<name>). Friendly
-    names are not accepted: a risk name such as a CVE ID usually exists on
-    many assets, so a name cannot identify the single risk to retest.
+    RISK_KEY may be a full Guard key or a friendly risk name. Ambiguous
+    names open an interactive selector and fail closed in non-interactive use.
 
     \b
     Example usages:
         guard retest "#risk#example.com#cve-2024-1234"
         guard retest "#risk#example.com#cve-2024-1234" --wait
     """
-    if not risk_key.startswith('#risk#'):
-        error(f'Retest requires a full risk key (#risk#<dns>#<name>), got "{risk_key}". '
-              'Use "guard list risks" to find it.')
+    try:
+        risk_key = resolve_entity_reference(sdk, risk_key, 'risk')
+    except ValueError as exc:
+        error(str(exc))
 
     cap = {'capability': RETEST_CAPABILITY, 'target_type': 'risk'}
     _run_direct(sdk, cap, risk_key, json.dumps({'source': RETEST_SOURCE}), [], wait)
@@ -431,7 +398,7 @@ def _run_via_agent(sdk, cap, target_key):
     click.echo(f'Asking Marcus...')
 
     try:
-        result = _ask_with_approvals(sdk, message, mode='agent')
+        result = _ask_with_interactions(sdk, message, mode='agent')
         click.echo(result['response'])
     except Exception as e:
         error(str(e))

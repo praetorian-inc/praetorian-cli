@@ -1,3 +1,6 @@
+import time
+from contextlib import nullcontext
+
 from rich.box import MINIMAL
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -6,11 +9,53 @@ from rich.text import Text
 from praetorian_cli.ui.conversation.endpoint_status import (
     format_endpoint_execution_status,
 )
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
+from praetorian_cli.ui.entity_selector import select_entity_keys
+from praetorian_cli.ui.hunt_chat import (
+    build_hunt_chat,
+    build_hunt_interactions,
+    review_pending_hunt_interactions,
+    select_hunt_conversation,
+    watch_pending_hunt_interactions,
+)
+from praetorian_cli.ui.hunt_chat_live import (
+    run_live_hunt_chat,
+    supports_live_hunt_chat,
+)
+from praetorian_cli.ui.hunt_data import (
+    build_hunt_findings,
+    build_hunt_log,
+    build_hunt_memory_item,
+    filter_hunt_findings,
+)
+from praetorian_cli.ui.hunt_defaults import (
+    DEFAULT_FINISH_CRITERIA,
+    DEFAULT_HUNT_DURATION_HOURS,
+    DEFAULT_INTERNAL_MANDATE,
+)
+from praetorian_cli.ui.hunt_format import (
+    record_value as _value,
+    safe_text as _safe,
+)
+from praetorian_cli.ui.hunt_launch import (
+    configure_hunt_launch,
+    supported_hunt_credentials,
+)
+from praetorian_cli.ui.hunt_memory import browse_hunt_memory
+from praetorian_cli.ui.hunt_open import (
+    run_hunt_open,
+    supports_fullscreen_hunt_open,
+)
+from praetorian_cli.ui.hunt_overview import build_hunt_overview
+from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
 from ..constants import DEFAULT_COLORS
 from ..utils import agent_display_id, is_v2_agent
 
 
-SUBCOMMANDS = ('launch', 'list', 'status', 'pause', 'resume', 'stop', 'delete', 'help')
+SUBCOMMANDS = (
+    'launch', 'list', 'open', 'status', 'findings', 'memory', 'log', 'chat',
+    'interactions', 'pause', 'resume', 'stop', 'delete', 'help',
+)
 HUNT_STATUSES = ('active', 'paused', 'completed', 'stopped', 'expired', 'errored')
 
 
@@ -40,7 +85,13 @@ def handle_hunt(menu, args):
     handlers = {
         'launch': launch_hunt,
         'list': list_hunts,
+        'open': open_hunt,
         'status': show_hunt_status,
+        'findings': show_hunt_findings,
+        'memory': manage_hunt_memory,
+        'log': show_hunt_log,
+        'chat': chat_hunt,
+        'interactions': show_hunt_interactions,
         'pause': pause_hunt,
         'resume': resume_hunt,
         'stop': stop_hunt,
@@ -61,12 +112,27 @@ def complete(_menu, text, tokens):
     if subcommand == 'launch':
         options = (
             '--prompt', '--scope', '--expires', '--scope-level',
-            '--aggressiveness', '--yes', '--help',
+            '--aggressiveness', '--finish-criteria', '--guardrails',
+            '--custom-tag', '--model-tier', '--credential', '--yes', '--help',
         )
     elif subcommand == 'list':
         options = ('--status', '--all', '--help')
     elif subcommand in ('stop', 'delete'):
         options = ('--yes', '--help')
+    elif subcommand == 'open':
+        options = ('--help',)
+    elif subcommand == 'status':
+        options = ('--workflows', '--help')
+    elif subcommand == 'findings':
+        options = ('--status', '--severity', '--details', '--evidence', '--all', '--help')
+    elif subcommand == 'memory':
+        options = ('--item', '--content', '--delete', '--yes', '--help')
+    elif subcommand == 'log':
+        options = ('--follow', '--interval', '--help')
+    elif subcommand == 'chat':
+        options = ('--conversation', '--message', '--help')
+    elif subcommand == 'interactions':
+        options = ('--watch', '--interval', '--help')
     else:
         options = ('--help',)
     return [option for option in options if option.startswith(text)]
@@ -76,16 +142,48 @@ def show_hunt_help(menu):
     menu.console.print("""
   Aegis v2 AI Hunt Commands
 
-  hunt launch --scope <asset-key> --prompt <objective> [options]
+  hunt launch [--prompt <objective>] --scope <hostname-or-IP> [options]
   hunt list [--status <status>] [--all]
-  hunt status <hunt-id>
+  hunt open <hunt-id>
+  hunt status <hunt-id> [--workflows]
+  hunt findings <hunt-id> [--severity <level>] [--details]
+  hunt memory <hunt-id> [--item <title>] [--content <text> | --delete]
+  hunt log <hunt-id> [--follow]
+  hunt chat <hunt-id> [--conversation <id>] [--message <guidance>]
+  hunt interactions <hunt-id> [--watch] [--interval <seconds>]
   hunt pause|resume|stop|delete <hunt-id>
 
-  The selected Aegis v2 endpoint is used automatically. Hunt scope must
-  contain existing internal asset keys. If the endpoint is unavailable,
-  the Hunt waits without falling back to external compute.
+  Hunt open provides Overview, Vulnerabilities, Workflow, Log, Memory, Chat,
+  and Approvals in one fullscreen operator interface. Hunt
+  memory opens a fullscreen browser on a terminal. Use --item with --content
+  or --delete for deterministic static updates.
+
+  The selected Aegis v2 endpoint is used automatically. When --scope is
+  omitted, choose active internal targets from a searchable list. The launch
+  wizard then reviews mandate, aggressiveness, credentials, guardrails,
+  finish criteria, duration, finding tag, and model tier. Use --yes with an
+  explicit --scope to accept flag/default values without prompts. --credential
+  may be repeated, once per credential type.
+  If the endpoint is unavailable, the Hunt waits without external fallback.
 """)
     menu.pause()
+
+
+def _hunt_credentials(menu):
+    credentials_api = getattr(menu.sdk, 'credentials', None)
+    if credentials_api is None:
+        return []
+    try:
+        credentials, _ = credentials_api.list()
+    except Exception as exc:
+        _print_message(
+            menu,
+            f'Credential options unavailable: {exc}',
+            'warning',
+        )
+        return []
+
+    return supported_hunt_credentials(credentials)
 
 
 def launch_hunt(menu, endpoint, args):
@@ -94,12 +192,43 @@ def launch_hunt(menu, endpoint, args):
         if options['help']:
             show_hunt_help(menu)
             return
-        objective = options['prompt'] or Prompt.ask('  Hunt objective').strip()
-        scopes = options['scopes'] or [Prompt.ask('  Internal scope asset key').strip()]
+        objective = options['prompt'] or DEFAULT_INTERNAL_MANDATE
+        scopes = [
+            resolve_entity_reference(
+                menu.sdk,
+                value,
+                'asset',
+                interactive=True,
+                console=menu.console,
+            )
+            for value in options['scopes']
+        ]
         if not objective:
             raise ValueError('hunt objective is required')
-        if any(not scope for scope in scopes):
-            raise ValueError('at least one internal scope asset key is required')
+        if not scopes and options['yes']:
+            raise ValueError('--yes requires at least one --scope')
+        if not scopes:
+            with _loading_feedback(menu, 'Loading Hunt targets…'):
+                candidates, next_scope_page = menu.sdk.assets.list_hunt_scope(
+                    agent='hannibal',
+                    internal=True,
+                    pages=1,
+                )
+            scopes = select_entity_keys(
+                menu.console,
+                candidates,
+                title='Select internal Hunt targets',
+                search_entities=lambda query, page: menu.sdk.assets.list_hunt_scope(
+                    agent='hannibal',
+                    internal=True,
+                    search=query,
+                    page=int(page or 0),
+                    pages=1,
+                ),
+                next_offset=next_scope_page,
+            )
+        if not scopes:
+            raise ValueError('at least one internal Hunt target is required')
     except ValueError as exc:
         _print_message(menu, f'Error: {exc}', 'error')
         menu.pause()
@@ -108,12 +237,45 @@ def launch_hunt(menu, endpoint, args):
     endpoint_id = agent_display_id(endpoint)
     endpoint_name = endpoint.hostname or endpoint_id
     endpoint_state = 'online' if endpoint.is_online else 'offline'
+    used_wizard = False
+    if not options['yes']:
+        with _loading_feedback(menu, 'Loading credentials…'):
+            credential_options = _hunt_credentials(menu)
+        launch_config, used_wizard = configure_hunt_launch(
+            menu.console,
+            {
+                'prompt': objective,
+                'aggressiveness': options['aggressiveness'],
+                'guardrails': options['guardrails'],
+                'finish_criteria': options['finish_criteria'],
+                'expires': options['expires'],
+                'custom_tag': options['custom_tag'],
+                'model_tier': options['model_tier'],
+                'credential_ids': list(options['credential_ids']),
+            },
+            scopes,
+            f'{endpoint_name} ({endpoint_id}, {endpoint_state})',
+            credential_options,
+        )
+        if used_wizard and launch_config is None:
+            menu.console.print('  Cancelled')
+            menu.pause()
+            return
+        if used_wizard:
+            objective = launch_config['prompt']
+            launch_config.pop('_resources_changed', None)
+            options.update(launch_config)
+
     confirmation = Text(
         f'Run this AI Hunt through {_safe(endpoint_name)} '
         f'({_safe(endpoint_id)}, {endpoint_state})? If unavailable, the Hunt '
         'waits without external compute fallback'
     )
-    if not options['yes'] and not Confirm.ask(confirmation, default=False):
+    if (
+        not options['yes']
+        and not used_wizard
+        and not Confirm.ask(confirmation, default=False)
+    ):
         menu.console.print('  Cancelled')
         menu.pause()
         return
@@ -126,6 +288,11 @@ def launch_hunt(menu, endpoint, args):
             scope=scopes,
             scope_level=options['scope_level'],
             aggressiveness=options['aggressiveness'],
+            finish_criteria=options['finish_criteria'],
+            user_guardrails=options['guardrails'],
+            custom_tag=options['custom_tag'],
+            model_tier_override=options['model_tier'],
+            credential_ids=options['credential_ids'] or None,
             endpoint_required=True,
             endpoint_id=endpoint_id,
             endpoint_confirmed=True,
@@ -187,8 +354,75 @@ def list_hunts(menu, endpoint, args):
     menu.pause()
 
 
+def open_hunt(menu, endpoint, args):
+    """Open the unified Hunt interface within the selected endpoint boundary."""
+    try:
+        options = _parse_open_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    hunt = _get_selected_hunt(menu, endpoint, [options['hunt_id']])
+    if hunt is None:
+        return
+    if not supports_fullscreen_hunt_open():
+        _print_message(
+            menu,
+            'hunt open requires an interactive terminal.',
+            'error',
+        )
+        menu.pause()
+        return
+
+    endpoint_id = agent_display_id(endpoint)
+
+    def authorize_hunt(hunt_id):
+        endpoints = menu.sdk.aegis.list_hunt_endpoints()
+        authorized = any(
+            is_v2_agent(candidate)
+            and str(getattr(candidate, 'kind', '')).lower() == 'aegis'
+            and agent_display_id(candidate).lower() == endpoint_id.lower()
+            for candidate in endpoints
+        )
+        if not authorized:
+            raise ValueError(
+                'the selected endpoint is no longer authorized for AI Hunts'
+            )
+        current = menu.sdk.hunts.get(hunt_id)
+        if not current:
+            raise ValueError(f'AI Hunt {hunt_id} was not found')
+        if not _belongs_to_endpoint(current, endpoint_id):
+            raise ValueError(
+                f'AI Hunt {hunt_id} does not belong to the selected endpoint'
+            )
+        return current
+
+    def review_interactions(interactions):
+        _review_hunt_interactions_menu(menu, interactions)
+
+    try:
+        run_hunt_open(
+            menu.sdk,
+            options['hunt_id'],
+            console=menu.console,
+            initial_hunt=hunt,
+            authorize_hunt=authorize_hunt,
+            confirm_stop=lambda message: Confirm.ask(
+                Text(message),
+                default=False,
+                console=menu.console,
+            ),
+            review_interactions=review_interactions,
+        )
+    except Exception as exc:
+        _print_message(menu, f'Unable to open AI Hunt: {exc}', 'error')
+        menu.pause()
+
+
 def show_hunt_status(menu, endpoint, args):
-    hunt = _get_selected_hunt(menu, endpoint, args)
+    show_workflows = '--workflows' in args
+    hunt_args = [arg for arg in args if arg != '--workflows']
+    hunt = _get_selected_hunt(menu, endpoint, hunt_args)
     if hunt is None:
         return
 
@@ -203,11 +437,23 @@ def show_hunt_status(menu, endpoint, args):
     )
     table.add_column('Field', style=f"bold {colors['primary']}")
     table.add_column('Value')
+    overview = build_hunt_overview(menu.sdk, hunt)
     fields = (
         ('Status', _value(hunt, 'status')),
         ('Endpoint', _hunt_endpoint_id(hunt)),
-        ('Iterations', _value(hunt, 'iterationCount', 'iteration_count') or 0),
+        ('Remaining', overview['remaining']),
+        ('Projected cost (USD)', overview['projected_cost']),
+        ('Root agent', overview['root_agent']),
+        ('Root agents', overview['root_agent_count']),
+        ('Agent activity', overview['agent_summary']),
+        ('Iterations', overview['iterations']),
         ('Findings', _value(hunt, 'findingsCount', 'findings_count') or 0),
+        ('Highest severity', overview['highest_severity']),
+        ('Scope', overview['scope_summary']),
+        (
+            'Credentials',
+            ', '.join(_value(hunt, 'credentialIds', 'credential_ids') or []) or '—',
+        ),
         ('Created', _value(hunt, 'created')),
         ('Expires', _value(hunt, 'expiresAt', 'expires_at')),
         ('Objective', _value(hunt, 'prompt')),
@@ -229,6 +475,313 @@ def show_hunt_status(menu, endpoint, args):
         rendered = format_endpoint_execution_status(status)
         if rendered:
             menu.console.print(Text(rendered))
+
+    if show_workflows:
+        try:
+            runs, _ = menu.sdk.hunts.list_workflow_runs(_hunt_id(hunt))
+        except Exception as exc:
+            _print_message(
+                menu,
+                f'Workflow status unavailable: {exc}',
+                'warning',
+            )
+        else:
+            menu.console.print()
+
+            def open_workflow_conversation(conversation_id):
+                def review_interactions(pending):
+                    review_pending_hunt_interactions(
+                        menu.sdk,
+                        pending,
+                        menu.console,
+                        confirm=lambda message, default: Confirm.ask(
+                            message,
+                            default=default,
+                            console=menu.console,
+                        ),
+                        credential_prompt=lambda field: Prompt.ask(
+                            Text(f'  {field}'),
+                            password=True,
+                            console=menu.console,
+                        ),
+                        interactive=True,
+                    )
+
+                return run_live_hunt_chat(
+                    menu.sdk,
+                    _hunt_id(hunt),
+                    requested_id=conversation_id,
+                    exact_requested_id=True,
+                    review_interactions=review_interactions,
+                    console=menu.console,
+                )
+
+            browse_hunt_workflows(
+                menu.console,
+                runs,
+                open_conversation=open_workflow_conversation,
+            )
+    menu.pause()
+
+
+def show_hunt_findings(menu, endpoint, args):
+    try:
+        options = _parse_findings_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    if _get_selected_hunt(menu, endpoint, [options['hunt_id']]) is None:
+        return
+
+    try:
+        findings, _ = menu.sdk.hunts.list_findings(
+            options['hunt_id'],
+            pages=10000 if options['all'] else 1,
+        )
+        findings = filter_hunt_findings(
+            findings,
+            status=options['status'],
+            severity=options['severity'],
+        )
+        if options['details'] or options['evidence'] != 'off':
+            findings = [
+                menu.sdk.risks.get(
+                    finding.get('key'),
+                    details=True,
+                    evidence=options['evidence'],
+                )
+                for finding in findings
+                if finding.get('key')
+            ]
+    except Exception as exc:
+        _print_message(menu, f'Unable to load Hunt vulnerabilities: {exc}', 'error')
+    else:
+        menu.console.print(build_hunt_findings(
+            findings,
+            show_details=options['details'] or options['evidence'] != 'off',
+        ))
+    menu.pause()
+
+
+def manage_hunt_memory(menu, endpoint, args):
+    try:
+        options = _parse_memory_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    hunt_id = options['hunt_id']
+    if _get_selected_hunt(menu, endpoint, [hunt_id]) is None:
+        return
+
+    try:
+        if options['delete']:
+            if not options['yes'] and not Confirm.ask(
+                f'Delete Hunt memory item {options["item"]!r}?',
+                default=False,
+            ):
+                menu.console.print('  Cancelled')
+                menu.pause()
+                return
+            menu.sdk.hunts.delete_memory(hunt_id, options['item'])
+            _print_message(menu, f'Deleted memory item {options["item"]}.', 'success')
+        elif options['content'] is not None:
+            menu.sdk.hunts.save_memory(
+                hunt_id,
+                options['item'],
+                options['content'],
+            )
+            _print_message(menu, f'Saved memory item {options["item"]}.', 'success')
+        elif options['item']:
+            content = menu.sdk.hunts.get_memory(hunt_id, options['item'])
+            menu.console.print(build_hunt_memory_item(options['item'], content))
+        else:
+            browse_hunt_memory(menu.console, menu.sdk.hunts, hunt_id)
+    except Exception as exc:
+        _print_message(menu, f'Unable to manage Hunt memory: {exc}', 'error')
+    menu.pause()
+
+
+def show_hunt_log(menu, endpoint, args):
+    try:
+        options = _parse_log_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    hunt_id = options['hunt_id']
+    if _get_selected_hunt(menu, endpoint, [hunt_id]) is None:
+        return
+
+    try:
+        content = menu.sdk.hunts.get_log(hunt_id)
+        menu.console.print(build_hunt_log(content))
+        while options['follow']:
+            time.sleep(options['interval'])
+            latest = menu.sdk.hunts.get_log(hunt_id)
+            if latest == content:
+                continue
+            update = latest[len(content):] if latest.startswith(content) else latest
+            content = latest
+            menu.console.print(build_hunt_log(update))
+    except KeyboardInterrupt:
+        menu.console.print('  Stopped following Hunt log.')
+    except Exception as exc:
+        _print_message(menu, f'Unable to load Hunt log: {exc}', 'error')
+    menu.pause()
+
+
+def chat_hunt(menu, endpoint, args):
+    try:
+        options = _parse_chat_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+
+    hunt = _get_selected_hunt(menu, endpoint, [options['hunt_id']])
+    if hunt is None:
+        return
+
+    if not options['message'] and supports_live_hunt_chat():
+        def review_interactions(interactions):
+            _review_hunt_interactions_menu(menu, interactions)
+
+        try:
+            run_live_hunt_chat(
+                menu.sdk,
+                options['hunt_id'],
+                requested_id=options['conversation_id'],
+                review_interactions=review_interactions,
+                console=menu.console,
+            )
+        except Exception as exc:
+            _print_message(menu, f'Unable to open Hunt chat: {exc}', 'error')
+            menu.pause()
+        return
+
+    try:
+        conversations, _ = menu.sdk.hunts.list_conversations(
+            options['hunt_id']
+        )
+        selected = select_hunt_conversation(
+            conversations,
+            requested_id=options['conversation_id'],
+            require_active=bool(options['message']),
+        )
+        selected_id = selected.get('uuid') or selected.get('id')
+        if options['message']:
+            menu.sdk.conversations.send_message(
+                selected_id,
+                options['message'],
+            )
+        transcript = menu.sdk.conversations.get(selected_id)
+    except Exception as exc:
+        _print_message(menu, f'Unable to open Hunt chat: {exc}', 'error')
+        menu.pause()
+        return
+
+    try:
+        pending_interactions = menu.sdk.hunts.list_interactions(
+            options['hunt_id'],
+            status='pending',
+        )
+    except Exception:
+        pending_interactions = []
+    menu.console.print(build_hunt_chat(
+        conversations,
+        selected,
+        transcript,
+        pending_interactions=pending_interactions,
+    ))
+    if options['message']:
+        _print_message(
+            menu,
+            'Guidance queued for the running Hunt iteration.',
+            'success',
+        )
+    menu.pause()
+
+
+def _review_hunt_interactions_menu(menu, interactions):
+    """Run shared secure prompts using the Aegis console's input surface."""
+    return review_pending_hunt_interactions(
+        menu.sdk,
+        interactions,
+        menu.console,
+        confirm=lambda message, default: Confirm.ask(
+            message,
+            default=default,
+            console=menu.console,
+        ),
+        credential_prompt=lambda field: Prompt.ask(
+            Text(f'  {field}'),
+            password=True,
+            console=menu.console,
+        ),
+        interactive=True,
+    )
+
+
+def show_hunt_interactions(menu, endpoint, args):
+    try:
+        options = _parse_interactions_args(args)
+    except ValueError as exc:
+        _print_message(menu, f'Error: {exc}', 'error')
+        menu.pause()
+        return
+    hunt_id = options['hunt_id']
+    if _get_selected_hunt(menu, endpoint, [hunt_id]) is None:
+        return
+
+    try:
+        pending = menu.sdk.hunts.list_interactions(
+            hunt_id,
+            status='pending',
+        )
+    except Exception:
+        _print_message(
+            menu,
+            'Unable to load pending Hunt interactions.',
+            'error',
+        )
+        menu.pause()
+        return
+
+    menu.console.print(build_hunt_interactions(pending))
+    if not options['watch']:
+        menu.pause()
+        return
+
+    def review(rows, handled):
+        return review_pending_hunt_interactions(
+            menu.sdk,
+            rows,
+            menu.console,
+            confirm=lambda message, default: Confirm.ask(
+                message,
+                default=default,
+                console=menu.console,
+            ),
+            credential_prompt=lambda field: Prompt.ask(
+                Text(f'  {field}'),
+                password=True,
+                console=menu.console,
+            ),
+            handled=handled,
+            interactive=True,
+        )
+
+    watch_pending_hunt_interactions(
+        menu.sdk,
+        hunt_id,
+        pending,
+        menu.console,
+        interval=options['interval'],
+        review=review,
+        notify=lambda message, level: _print_message(menu, message, level),
+    )
     menu.pause()
 
 
@@ -265,7 +818,8 @@ def _selected_hunt_endpoint(menu):
 
     selected_id = agent_display_id(selected).lower()
     try:
-        endpoints = menu.sdk.aegis.list_hunt_endpoints()
+        with _loading_feedback(menu, 'Validating selected endpoint…'):
+            endpoints = menu.sdk.aegis.list_hunt_endpoints()
     except Exception as exc:
         _print_message(
             menu,
@@ -295,7 +849,8 @@ def _selected_hunt_endpoint(menu):
 def _get_selected_hunt(menu, endpoint, args):
     try:
         hunt_id, _yes = _parse_hunt_id_args(args)
-        hunt = menu.sdk.hunts.get(hunt_id)
+        with _loading_feedback(menu, 'Loading Hunt…'):
+            hunt = menu.sdk.hunts.get(hunt_id)
     except ValueError as exc:
         _print_message(menu, f'Error: {exc}', 'error')
         menu.pause()
@@ -323,7 +878,8 @@ def _get_selected_hunt(menu, endpoint, args):
 def _mutate_hunt(menu, endpoint, args, method, past_tense, confirm=False):
     try:
         hunt_id, yes = _parse_hunt_id_args(args)
-        hunt = menu.sdk.hunts.get(hunt_id)
+        with _loading_feedback(menu, 'Loading Hunt state…'):
+            hunt = menu.sdk.hunts.get(hunt_id)
         if not hunt:
             raise ValueError(f'AI Hunt {hunt_id} was not found')
         if not _belongs_to_endpoint(hunt, agent_display_id(endpoint)):
@@ -343,8 +899,15 @@ def _mutate_hunt(menu, endpoint, args, method, past_tense, confirm=False):
         menu.pause()
         return
 
+    action_label = {
+        'pause': 'Pausing',
+        'resume': 'Resuming',
+        'stop': 'Stopping',
+        'delete': 'Deleting',
+    }.get(method, f'{method.title()}ing')
     try:
-        getattr(menu.sdk.hunts, method)(hunt_id)
+        with _loading_feedback(menu, f'{action_label} Hunt…'):
+            getattr(menu.sdk.hunts, method)(hunt_id)
     except Exception as exc:
         _print_message(menu, f'Unable to {method} AI Hunt: {exc}', 'error')
     else:
@@ -356,6 +919,13 @@ def _mutate_hunt(menu, endpoint, args, method, past_tense, confirm=False):
     menu.pause()
 
 
+def _loading_feedback(menu, message):
+    status = getattr(menu.console, 'status', None)
+    if not callable(status):
+        return nullcontext()
+    return status(message, spinner='dots')
+
+
 def _print_message(menu, message, color):
     colors = getattr(menu, 'colors', DEFAULT_COLORS)
     menu.console.print(Text(_safe(message, limit=1000), style=colors[color]))
@@ -365,9 +935,14 @@ def _parse_launch_args(args):
     options = {
         'prompt': None,
         'scopes': [],
-        'expires': 72,
+        'expires': DEFAULT_HUNT_DURATION_HOURS,
         'scope_level': 'normal',
         'aggressiveness': 'balanced',
+        'finish_criteria': DEFAULT_FINISH_CRITERIA,
+        'guardrails': '',
+        'custom_tag': '',
+        'model_tier': None,
+        'credential_ids': [],
         'yes': False,
         'help': False,
     }
@@ -377,6 +952,11 @@ def _parse_launch_args(args):
         '-e': 'expires', '--expires': 'expires',
         '--scope-level': 'scope_level',
         '--aggressiveness': 'aggressiveness',
+        '--finish-criteria': 'finish_criteria',
+        '--guardrails': 'guardrails',
+        '--custom-tag': 'custom_tag',
+        '--model-tier': 'model_tier',
+        '--credential': 'credential',
     }
     index = 0
     while index < len(args):
@@ -397,6 +977,8 @@ def _parse_launch_args(args):
         value = args[index + 1].strip()
         if destination == 'scope':
             options['scopes'].append(value)
+        elif destination == 'credential':
+            options['credential_ids'].append(value)
         elif destination == 'expires':
             try:
                 options['expires'] = int(value)
@@ -414,6 +996,8 @@ def _parse_launch_args(args):
         raise ValueError(
             '--aggressiveness must be cautious, balanced, or aggressive'
         )
+    if options['model_tier'] not in (None, 'experimental'):
+        raise ValueError('--model-tier must be experimental')
     return options
 
 
@@ -437,6 +1021,195 @@ def _parse_list_args(args):
             raise ValueError(f'unknown option: {token}')
     if options['status'] and options['status'] not in HUNT_STATUSES:
         raise ValueError(f"--status must be one of {', '.join(HUNT_STATUSES)}")
+    return options
+
+
+def _parse_open_args(args):
+    options = {'hunt_id': None}
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    return options
+
+
+def _parse_findings_args(args):
+    options = {
+        'hunt_id': None,
+        'status': None,
+        'severity': None,
+        'details': False,
+        'evidence': 'off',
+        'all': False,
+    }
+    index = 0
+    value_options = {
+        '--status': 'status',
+        '--severity': 'severity',
+        '--evidence': 'evidence',
+    }
+    while index < len(args):
+        token = args[index]
+        if token in ('--details', '--all'):
+            options[token.removeprefix('--')] = True
+            index += 1
+        elif token in value_options:
+            if index + 1 >= len(args):
+                raise ValueError(f'{token} requires a value')
+            options[value_options[token]] = args[index + 1].lower()
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    severities = ('critical', 'high', 'medium', 'low', 'info', 'exposure')
+    if options['severity'] and options['severity'] not in severities:
+        raise ValueError(f'--severity must be one of {", ".join(severities)}')
+    if options['evidence'] not in ('off', 'basic', 'full'):
+        raise ValueError('--evidence must be off, basic, or full')
+    return options
+
+
+def _parse_memory_args(args):
+    options = {
+        'hunt_id': None,
+        'item': None,
+        'content': None,
+        'delete': False,
+        'yes': False,
+    }
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token in ('--delete', '-y', '--yes'):
+            key = 'delete' if token == '--delete' else 'yes'
+            options[key] = True
+            index += 1
+        elif token in ('--item', '--content'):
+            if index + 1 >= len(args):
+                raise ValueError(f'{token} requires a value')
+            options[token.removeprefix('--')] = args[index + 1]
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    if options['content'] is not None and options['delete']:
+        raise ValueError('--content and --delete cannot be combined')
+    if (options['content'] is not None or options['delete']) and not options['item']:
+        raise ValueError('--item is required when modifying memory')
+    return options
+
+
+def _parse_log_args(args):
+    options = {'hunt_id': None, 'follow': False, 'interval': 5.0}
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == '--follow':
+            options['follow'] = True
+            index += 1
+        elif token == '--interval':
+            if index + 1 >= len(args):
+                raise ValueError('--interval requires a value')
+            try:
+                options['interval'] = float(args[index + 1])
+            except ValueError as exc:
+                raise ValueError('--interval must be a number') from exc
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    if options['interval'] < 1:
+        raise ValueError('--interval must be at least 1 second')
+    return options
+
+
+def _parse_chat_args(args):
+    options = {
+        'hunt_id': None,
+        'conversation_id': None,
+        'message': None,
+    }
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token in ('--conversation', '--message'):
+            if index + 1 >= len(args):
+                raise ValueError(f'{token} requires a value')
+            if token == '--conversation':
+                options['conversation_id'] = args[index + 1]
+            else:
+                options['message'] = args[index + 1]
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    if options['message'] is not None and not options['message'].strip():
+        raise ValueError('guidance message is required')
+    return options
+
+
+def _parse_interactions_args(args):
+    options = {'hunt_id': None, 'watch': False, 'interval': 5.0}
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == '--watch':
+            options['watch'] = True
+            index += 1
+        elif token == '--interval':
+            if index + 1 >= len(args):
+                raise ValueError('--interval requires a value')
+            try:
+                options['interval'] = float(args[index + 1])
+            except ValueError as exc:
+                raise ValueError('--interval must be a number') from exc
+            index += 2
+        elif token.startswith('-'):
+            raise ValueError(f'unknown option: {token}')
+        elif options['hunt_id'] is None:
+            options['hunt_id'] = token
+            index += 1
+        else:
+            raise ValueError(f'unexpected argument: {token}')
+    if not options['hunt_id']:
+        raise ValueError('a Hunt ID is required')
+    if options['interval'] < 1:
+        raise ValueError('--interval must be at least 1 second')
     return options
 
 
@@ -479,23 +1252,3 @@ def _hunt_id(hunt):
     if not identifier:
         identifier = _value(hunt, 'key')
     return _safe(identifier).removeprefix('#hunt#')
-
-
-def _value(values, *keys):
-    if not isinstance(values, dict):
-        return None
-    for key in keys:
-        value = values.get(key)
-        if value is not None:
-            return value
-    return None
-
-
-def _safe(value, limit=500):
-    if value is None:
-        return ''
-    printable = ''.join(
-        character if character.isprintable() else ' '
-        for character in str(value)
-    )
-    return ' '.join(printable.split())[:limit]
