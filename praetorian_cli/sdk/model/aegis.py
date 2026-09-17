@@ -133,57 +133,46 @@ class Agent:
     @classmethod
     def from_endpoint_dict(cls, data: Dict[str, Any]) -> 'Agent':
         """Create an Agent-shaped row from a Guard endpoint registry record."""
-        runtime = data.get('runtime') or data.get('Runtime') or {}
-        endpoint_id = data.get('endpointId') or data.get('endpoint_id') or data.get('EndpointID') or data.get('ID') or ''
-        hostname = data.get('hostname') or data.get('Hostname') or 'Unknown'
-        health_data = (
-            data.get('health_check')
-            or data.get('healthCheck')
-            or data.get('HealthCheck')
+        runtime = data.get('runtime')
+        runtime = runtime if isinstance(runtime, dict) else {}
+        profile = data.get('profile')
+        profile = profile if isinstance(profile, dict) else {}
+        endpoint_id = data.get('endpointId') or ''
+        hostname = data.get('hostname') or profile.get('hostname') or 'Unknown'
+        cloudflared_data = data.get('cloudflaredStatus')
+        health_check = (
+            HealthCheck(
+                cloudflared_status=CloudflaredStatus.from_dict(cloudflared_data)
+            )
+            if isinstance(cloudflared_data, dict)
+            else None
         )
-        cloudflared_data = (
-            data.get('cloudflared_status')
-            or data.get('cloudflaredStatus')
-            or data.get('CloudflaredStatus')
-            or data.get('CloudFlaredStatus')
-            or (runtime if isinstance(runtime, dict) else {}).get('cloudflared_status')
-            or (runtime if isinstance(runtime, dict) else {}).get('cloudflaredStatus')
-            or (runtime if isinstance(runtime, dict) else {}).get('CloudflaredStatus')
-            or (runtime if isinstance(runtime, dict) else {}).get('CloudFlaredStatus')
-        )
-        if isinstance(health_data, dict):
-            health_check = HealthCheck.from_dict(health_data)
-        elif isinstance(cloudflared_data, dict):
-            health_check = HealthCheck(cloudflared_status=CloudflaredStatus.from_dict(cloudflared_data))
-        else:
-            health_check = None
         return cls(
             client_id='N/A',
             hostname=hostname,
             fqdn=hostname,
-            os=data.get('os') or data.get('OS') or 'unknown',
-            architecture=data.get('arch') or data.get('architecture') or data.get('Arch') or data.get('Architecture') or 'Unknown',
+            os=data.get('os') or profile.get('os') or 'unknown',
+            architecture=(
+                data.get('arch')
+                or profile.get('arch')
+                or 'Unknown'
+            ),
             last_seen_at=parse_timestamp_seconds(
-                data.get('lastHeartbeat')
-                or data.get('last_heartbeat')
-                or data.get('LastHeartbeat')
-                or data.get('last_seen_at')
-                or data.get('LastSeenAt')
+                data.get('lastHeartbeat') or data.get('lastSeenAt')
             ),
             network_interfaces=[],
             health_check=health_check,
-            key=data.get('key') or data.get('Key'),
+            key=data.get('key'),
             endpoint_id=endpoint_id,
             version='v2',
-            kind=data.get('kind') or data.get('Kind') or 'aegis',
-            agent_version=data.get('version') or data.get('Version') or '',
-            runtime=runtime if isinstance(runtime, dict) else {},
-            running_container_count=(
-                data.get('runningContainerCount')
-                or data.get('running_container_count')
-                or data.get('RunningContainerCount')
-                or 0
+            kind=data.get('kind') or 'aegis',
+            agent_version=(
+                data.get('version')
+                or profile.get('softwareVersion')
+                or ''
             ),
+            runtime=runtime,
+            running_container_count=data.get('runningContainerCount') or 0,
         )
     
     @property
@@ -193,6 +182,11 @@ class Agent:
             return False
         cloudflared_status = self.health_check.cloudflared_status
         status = (getattr(cloudflared_status, 'status', '') or '').lower()
+        if is_v2_agent(self):
+            return bool(cloudflared_status.hostname) and status in {
+                'configured',
+                'running',
+            }
         return bool(cloudflared_status.hostname) and status != 'not_found'
     
     @property

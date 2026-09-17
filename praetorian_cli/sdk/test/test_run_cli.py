@@ -6,6 +6,7 @@ from click.testing import CliRunner
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.run import FRIENDLY_NAMES, resolve_capability
+from praetorian_cli.sdk.entities.capabilities import capability_target_type
 
 
 @pytest.fixture
@@ -39,6 +40,20 @@ def _invoke(runner, fake_sdk, argv):
     with patch('praetorian_cli.sdk.chariot.Chariot', return_value=fake_sdk), \
          patch('praetorian_cli.handlers.cli_decorators.upgrade_check', lambda f: f):
         return runner.invoke(chariot, argv, obj=obj, catch_exceptions=False)
+
+
+@pytest.mark.parametrize(
+    'capability',
+    [
+        {'target': None},
+        {'target': None, 'Target': 'port'},
+        {'Target': None},
+    ],
+)
+def test_capability_target_type_treats_null_as_absent(capability):
+    expected = 'port' if capability.get('Target') == 'port' else 'asset'
+
+    assert capability_target_type(capability) == expected
 
 
 def test_resolve_capability_prefers_friendly_alias_without_backend_lookup():

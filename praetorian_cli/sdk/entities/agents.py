@@ -186,7 +186,10 @@ class Agents:
         except Exception:
             return previous
         fingerprint = endpoint_status_fingerprint(status)
-        if fingerprint != previous and (status['sessions'] or status['tasks']):
+        has_endpoint_status = isinstance(status, dict) and (
+            status.get('sessions') or status.get('tasks')
+        )
+        if fingerprint != previous and has_endpoint_status:
             handler(status)
         return fingerprint
 
@@ -279,8 +282,9 @@ class Agents:
                 )
             except Exception:
                 endpoint_status = None
-            if endpoint_status and (
-                endpoint_status['sessions'] or endpoint_status['tasks']
+            if isinstance(endpoint_status, dict) and (
+                endpoint_status.get('sessions')
+                or endpoint_status.get('tasks')
             ):
                 result['endpoint_execution'] = endpoint_status
             return result

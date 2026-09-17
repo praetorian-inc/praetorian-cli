@@ -129,6 +129,30 @@ def test_tree_ids_reuses_recent_descendant_discovery():
     assert len(api.calls) == child_query_count
 
 
+def test_children_preserves_offsets_and_rejects_partial_page_results():
+    class PaginatedAPI:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, path, params):
+            self.calls.append(dict(params))
+            if 'offset' not in params:
+                return {
+                    'conversations': [{'uuid': 'child-1'}],
+                    'offset': {'key': 'next'},
+                }
+            return {'conversations': [{'uuid': 'child-2'}]}
+
+    api = PaginatedAPI()
+    children = Conversations(api)._children('root', True, pages=2)
+
+    assert [child['uuid'] for child in children] == ['child-1', 'child-2']
+    assert api.calls[1]['offset'] == '{"key": "next"}'
+
+    with pytest.raises(RuntimeError, match='remaining offset'):
+        Conversations(PaginatedAPI())._children('root', True, pages=1)
+
+
 def test_list_interactions_filters_by_status_without_filtering_kind():
     api = FakeAPI([
         {'key': '#interaction#conversation-1#1', 'kind': 'approval', 'status': 'pending'},

@@ -54,6 +54,7 @@ from .commands.schedule import handle_schedule as cmd_handle_schedule
 from .commands.proxy import handle_proxy as cmd_handle_proxy, stop_all_proxies
 from .commands.tunnel import complete as cmd_complete_tunnel, handle_tunnel as cmd_handle_tunnel
 from .commands.user import complete as cmd_complete_user, handle_user as cmd_handle_user
+from .commands.hunt import complete as cmd_complete_hunt, handle_hunt as cmd_handle_hunt
 
 from .commands.schedule_helpers import get_cached_schedules
 from .constants import DEFAULT_COLORS
@@ -185,6 +186,11 @@ class MenuCompleter(Completer):
         elif cmd in ('enrollment', 'enroll'):
             tokens = [cmd] + words
             for completion in cmd_complete_enrollment(self.menu, current_word, tokens):
+                yield Completion(completion, start_position=-len(current_word))
+
+        elif cmd == 'hunt':
+            tokens = ['hunt'] + words
+            for completion in cmd_complete_hunt(self.menu, current_word, tokens):
                 yield Completion(completion, start_position=-len(current_word))
 
     def _get_schedule_completions(self, prefix):
@@ -417,8 +423,8 @@ class AegisMenu:
         self.agent_account_map: dict = {}  # display_id -> account_info dict
 
         self.commands = [
-            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'user', 'tunnel', 'enrollment', 'enroll',
-            'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
+            'set', 'ssh', 'cp', 'proxy', 'info', 'list', 'job', 'hunt', 'user', 'tunnel',
+            'enrollment', 'enroll', 'schedule', 'reload', 'clear', 'help', 'quit', 'exit'
         ]
 
     def prefetch_agent_home(self, agent=None):
@@ -516,6 +522,9 @@ class AegisMenu:
             
         elif command == 'job':
             cmd_handle_job(self, cmd_args)
+
+        elif command == 'hunt':
+            cmd_handle_hunt(self, cmd_args)
 
         elif command == 'user':
             cmd_handle_user(self, cmd_args)
@@ -649,6 +658,8 @@ class AegisMenu:
             styles = get_agent_display_style(group, self.colors)
             status = styles['status']
             tunnel = styles['tunnel']
+            if agent.has_tunnel:
+                tunnel = Text('active', style=self.colors['accent'])
             idx_style = styles['idx_style']
             hostname_style = styles['hostname_style']
             

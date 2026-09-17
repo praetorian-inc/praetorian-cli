@@ -26,6 +26,85 @@ def _is_aegis_endpoint(value) -> bool:
     return isinstance(value, dict) and str(value.get('kind', '')).lower() == 'aegis'
 
 
+def merge_aegis_endpoint_rows(
+    identity_rows,
+    live_rows,
+    tunnel_rows=None,
+    status_rows=None,
+) -> List[dict]:
+    """Merge durable identities with live status and persisted tunnel state."""
+    merged = {}
+    order = []
+
+    for row in identity_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        if not endpoint_id:
+            continue
+        normalized = dict(row)
+        normalized.setdefault('kind', 'aegis')
+        if endpoint_id not in merged:
+            order.append(endpoint_id)
+        merged[endpoint_id] = normalized
+
+    for row in live_rows or []:
+        if not _is_aegis_endpoint(row):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        if not endpoint_id:
+            continue
+        if endpoint_id not in merged:
+            order.append(endpoint_id)
+        merged[endpoint_id] = {**merged.get(endpoint_id, {}), **row}
+
+    for row in tunnel_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        tunnel = row.get('cloudflaredStatus')
+        if endpoint_id in merged and isinstance(tunnel, dict):
+            merged[endpoint_id]['cloudflaredStatus'] = dict(tunnel)
+
+    for row in status_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        observed = row.get('cloudflared')
+        if endpoint_id not in merged or not isinstance(observed, dict):
+            continue
+        tunnel = merged[endpoint_id].get('cloudflaredStatus')
+        if isinstance(tunnel, dict):
+            continue
+        if observed.get('state'):
+            merged[endpoint_id]['cloudflaredStatus'] = {
+                'status': observed['state'],
+            }
+
+    return [merged[endpoint_id] for endpoint_id in order]
+
+
+def is_active_aegis_inventory_row(row) -> bool:
+    return bool(
+        _is_aegis_endpoint(row)
+        and str(row.get('lifecycleState', '')).lower() != 'revoked'
+    )
+
+
+def normalize_active_endpoint_summary(row) -> dict:
+    """Convert the /endpoint summary contract to the canonical endpoint shape."""
+    return {
+        'endpointId': row.get('endpoint_id'),
+        'hostname': row.get('hostname'),
+        'lastSeenAt': row.get('last_heartbeat'),
+        'kind': 'aegis',
+    }
+
+
+def _endpoint_row_id(row) -> str:
+    return str(row.get('endpointId') or '')
+
+
 ENROLLMENT_INSPECT_PATH = 'endpoint/enrollment/inspect'
 ENROLLMENT_APPROVE_PATH = 'endpoint/enrollment/approve'
 AEGIS_MANAGEMENT_TASKS_PATH = 'aegis/management/tasks'
@@ -146,27 +225,84 @@ class Aegis:
         return [Agent.from_dict(agent_data) for agent_data in agents_data]
 
     def _list_endpoint_agents(self) -> List[Agent]:
-        if not hasattr(self.api, 'search'):
-            return []
         try:
-            endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
-            endpoints = normalize_to_list(
-                endpoints_data,
-                ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
+            identity_rows = self._list_endpoint_inventory_rows()
+        except Exception:
+            try:
+                identity_rows = self._list_active_endpoint_rows()
+            except Exception:
+                identity_rows = []
+
+        live_rows = []
+        tunnel_rows = []
+        status_rows = []
+        if hasattr(self.api, 'search'):
+            try:
+                endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
+                live_rows = normalize_to_list(
+                    endpoints_data,
+                    ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
+                )
+            except Exception:
+                pass
+            try:
+                tunnel_rows, _ = self.api.search.by_key_prefix(
+                    '#endpointaegistunnelstate#'
+                )
+            except Exception:
+                pass
+            try:
+                status_rows, _ = self.api.search.by_key_prefix(
+                    '#endpointaegisstatus#'
+                )
+            except Exception:
+                pass
+
+        try:
+            rows = merge_aegis_endpoint_rows(
+                identity_rows,
+                live_rows,
+                tunnel_rows,
+                status_rows,
             )
-            return [
-                Agent.from_endpoint_dict(endpoint)
-                for endpoint in endpoints
-                if _is_aegis_endpoint(endpoint)
-            ]
+            return [Agent.from_endpoint_dict(endpoint) for endpoint in rows]
         except Exception:
             return []
-    
+
     def list_hunt_endpoints(self) -> List[Agent]:
         """List active tenant-owned Aegis v2 identities for Internal Hunts."""
+        return [
+            Agent.from_endpoint_dict(endpoint)
+            for endpoint in self._list_active_endpoint_rows()
+        ]
+
+    def _list_endpoint_inventory_rows(self) -> List[dict]:
+        endpoints = []
+        cursor = None
+        seen_cursors = set()
+        while True:
+            params = {'cursor': cursor} if cursor else {}
+            response = self.api.get('endpoint/list', params)
+            rows = normalize_to_list(response, ['endpoints', 'data', 'items'])
+            endpoints.extend(
+                endpoint for endpoint in rows
+                if is_active_aegis_inventory_row(endpoint)
+            )
+            cursor = response.get('cursor') if isinstance(response, dict) else None
+            if not cursor:
+                return endpoints
+            if cursor in seen_cursors:
+                raise ValueError('endpoint inventory returned a repeated cursor')
+            seen_cursors.add(cursor)
+
+    def _list_active_endpoint_rows(self) -> List[dict]:
         endpoint_data = self.api.get('endpoint')
         endpoints = normalize_to_list(endpoint_data, ['endpoints', 'data', 'items'])
-        return [Agent.from_endpoint_dict(endpoint) for endpoint in endpoints]
+        return [
+            normalize_active_endpoint_summary(endpoint)
+            for endpoint in endpoints
+            if isinstance(endpoint, dict)
+        ]
 
     def get_by_client_id(self, client_id: str) -> Optional[Agent]:
         """

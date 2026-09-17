@@ -84,12 +84,22 @@ class Files:
         )
         digest = hashlib.sha256()
         size = 0
+        request_options = {}
+        if getattr(self.api, 'proxy', ''):
+            request_options = {
+                'proxies': {
+                    'http': self.api.proxy,
+                    'https': self.api.proxy,
+                },
+                'verify': False,
+            }
         try:
             with os.fdopen(descriptor, 'wb') as output:
                 with requests.get(
                     url,
                     stream=True,
                     timeout=DEFAULT_HTTP_TIMEOUT,
+                    **request_options,
                 ) as response:
                     process_failure(response)
                     for chunk in response.iter_content(chunk_size=1024 * 1024):

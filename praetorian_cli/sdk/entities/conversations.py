@@ -159,7 +159,7 @@ class Conversations:
             frontier = next_frontier
         return descendants
 
-    def _children(self, parent_id, user_partition):
+    def _children(self, parent_id, user_partition, pages=100000):
         params = {
             'key': f'parent_id:{parent_id}',
             'label': 'conversation',
@@ -168,13 +168,18 @@ class Conversations:
             params['user'] = 'true'
 
         children = []
-        while True:
+        for _page in range(pages):
             results = self.api.get('my', params)
             offset = results.pop('offset', None)
             children.extend(flatten_results(results))
             if not offset:
                 return children
             params['offset'] = json.dumps(offset)
+
+        raise RuntimeError(
+            'conversation child listing exceeded its page limit; '
+            f'remaining offset: {params.get("offset")}'
+        )
 
     def _shared(self, offset=None, pages=100000) -> tuple:
         # The tenant partition (no user flag) mixes shared conversations in with
