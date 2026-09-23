@@ -96,6 +96,16 @@ class TestRunJobTarget:
             Aegis(FakeApi()).run_job(capabilities=[SURVEY])
         assert 'No target' in str(e.value)
 
+    def test_an_agent_passed_positionally_is_reported_as_a_call_error(self):
+        # The old signature took an Agent first. A caller who has not migrated should be
+        # told about the call, not about the target.
+        class Agentish:
+            hostname = 'agent01'
+
+        with pytest.raises(Exception) as e:
+            Aegis(FakeApi()).run_job(Agentish())
+        assert 'capabilities must be a list' in str(e.value)
+
     def test_two_targets_are_refused(self):
         with pytest.raises(Exception) as e:
             Aegis(FakeApi()).run_job(capabilities=[SURVEY], hostname='agent01', package='com.bank.app')

@@ -583,6 +583,13 @@ class Aegis:
             >>> # Dispatch a host capability to an Aegis agent, as before
             >>> sdk.aegis.run_job(capabilities=['linux-enum'], hostname='agent01')
         """
+        # This method used to take an Agent as its first positional argument. Passing one
+        # now lands it in capabilities, where it would fail somewhere further down with an
+        # error about the target rather than about the call.
+        if capabilities is not None and not isinstance(capabilities, (list, tuple)):
+            raise Exception('capabilities must be a list of capability names. To name an '
+                            'agent, pass hostname=agent.hostname.')
+
         if hostname and package:
             raise Exception('A job has one target: pass either hostname or package, not both.')
 
