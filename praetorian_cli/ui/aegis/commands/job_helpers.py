@@ -383,6 +383,16 @@ def _merge_by_name(capabilities, extra):
     return merged
 
 
+def is_endpoint_dispatched(menu, capability_name):
+    """Whether a capability runs on an enrolled endpoint rather than on compute.
+
+    Not every APK capability needs a device: jadx targets an APK too and decompiles it on
+    compute. Asking which endpoint should run that one would block a job that needs no
+    endpoint at all.
+    """
+    return any(c.get('name') == capability_name for c in _endpoint_capabilities(menu))
+
+
 def select_apk(menu):
     """Interactive APK selection with a numbered list.
 

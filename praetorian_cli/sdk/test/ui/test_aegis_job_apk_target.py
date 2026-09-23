@@ -33,6 +33,12 @@ def mobile_responses(capability_parameters=None):
                 'parameters': [{'name': 'command', 'default': ''}],
             },
         },
+        # The capabilities Guard reports as dispatchable to an enrolled endpoint. jadx
+        # targets an APK too but runs on compute, so it is deliberately absent.
+        'endpoint_capabilities': [
+            {'name': 'android-device-survey'},
+            {'name': 'android-device-command'},
+        ],
         'assets': [{'key': '#apk#com.bank.app', 'package': 'com.bank.app', 'versionName': '1.2.3'}],
         'endpoints': [
             {'endpointId': 'endpoint-offline', 'kind': 'aegis', 'connectionState': 'not_connected'},
@@ -157,3 +163,23 @@ def test_host_capability_still_targets_the_agent(monkeypatch):
     handle_job(menu, ['run', 'linux-enum'])
 
     assert menu.sdk.jobs.calls[0]['target_key'] == '#asset#agent01#agent01'
+
+
+def test_a_static_apk_capability_needs_no_endpoint(monkeypatch):
+    """jadx targets an APK but decompiles it on compute. Demanding a device for it would
+    block a job that needs none -- and would fail outright with no device enrolled."""
+    responses = mobile_responses()
+    responses['capabilities'] = {
+        'jadx': {'name': 'jadx', 'description': 'Decompiles an Android APK',
+                 'target': ['apk'], 'surface': 'mobile', 'parameters': []},
+    }
+    responses['endpoints'] = []
+    menu = Menu(responses=responses)
+    answer_prompts(monkeypatch, confirms=[True, False, True])
+
+    handle_job(menu, ['run', 'jadx'])
+
+    calls = menu.sdk.jobs.calls
+    assert len(calls) == 1
+    assert calls[0]['target_key'] == '#apk#com.bank.app'
+    assert 'endpoint_agent_id' not in json.loads(calls[0]['config'])

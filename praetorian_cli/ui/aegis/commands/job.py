@@ -10,6 +10,7 @@ from .job_helpers import (
     select_apk as _select_apk,
     select_domain as _select_domain,
     select_endpoint as _select_endpoint,
+    is_endpoint_dispatched as _is_endpoint_dispatched,
     select_credentials as _select_credentials,
     configure_parameters as _configure_parameters,
     capability_needs_credentials as _capability_needs_credentials,
@@ -151,10 +152,13 @@ def run_job(menu, args):
             menu.pause()
             return
 
-        endpoint_id = _select_endpoint(menu)
-        if not endpoint_id:
-            menu.pause()
-            return
+        # Only a capability that runs on the device needs one named. A static APK
+        # capability runs on compute, and demanding an endpoint would block it.
+        if _is_endpoint_dispatched(menu, capability):
+            endpoint_id = _select_endpoint(menu)
+            if not endpoint_id:
+                menu.pause()
+                return
 
         target_display = f"APK {target_key.split('#')[-1]}"
     elif target_type == 'addomain':
