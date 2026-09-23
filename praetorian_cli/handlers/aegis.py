@@ -121,27 +121,95 @@ def cp(ctx, sdk, client_id, paths, user, key, no_rsync):
         click.echo(f"Error: {e}", err=True)
 
 
+@aegis.command('endpoints')
+@cli_handler
+@click.option('-f', '--filter', 'filter_text', default='',
+              help='Filter by endpoint ID, kind, hostname, OS or architecture')
+@click.option('--online', 'online_only', is_flag=True,
+              help='Show only endpoints currently connected to Guard')
+@click.pass_context
+def endpoints(ctx, sdk, filter_text, online_only):
+    """List enrolled Aegis endpoints
+
+    Endpoints are a different inventory from the agents in "guard aegis list". An
+    endpoint receives tasks dispatched by Guard rather than being reached over SSH,
+    and a mobile device running the Aegis agent appears only here.
+
+    \b
+    Example usages:
+        - guard aegis endpoints
+        - guard aegis endpoints --online
+        - guard aegis endpoints --filter arm64
+    """
+    enrolled, _ = sdk.endpoints.list(filter_text=filter_text, online_only=online_only)
+
+    if not enrolled:
+        click.echo('No endpoints found.')
+        return
+
+    click.echo(f"{'ENDPOINT ID':<38} {'STATE':<14} {'KIND':<8} SYSTEM")
+    for endpoint in enrolled:
+        profile = endpoint.get('profile') or {}
+        system = ' '.join(d for d in (profile.get('hostname'), profile.get('os'), profile.get('arch')) if d)
+        click.echo(f"{endpoint.get('endpointId', 'unknown'):<38} "
+                   f"{endpoint.get('connectionState', 'unknown'):<14} "
+                   f"{endpoint.get('kind', ''):<8} {system}")
+
+
 @aegis.command('job')
 @cli_handler
-@click.option('-c', '--capability', 'capabilities', multiple=True, help='Capability to run (e.g., windows-smb-snaffler)')
+@click.option('-c', '--capability', 'capabilities', multiple=True,
+              help='Capability to run (e.g., windows-smb-snaffler, android-device-survey)')
 @click.option('--config', help='JSON configuration string for the job')
-@click.argument('client_id', required=True)
+@click.option('-p', '--package',
+              help='Android application ID to target, e.g. com.bank.app. Upload the APK first with "guard add apk".')
+@click.option('-e', '--endpoint', 'endpoint_id',
+              help='Enrolled endpoint to run the job on, as listed by "guard aegis endpoints"')
+@click.argument('client_id', required=False)
 @click.pass_context
-def job(ctx, sdk, capabilities, config, client_id):
-    """Run a job on an Aegis agent"""
-    agent = sdk.aegis.get_by_client_id(client_id)
-    if not agent:
-        click.echo(f"Agent not found: {client_id}", err=True)
+def job(ctx, sdk, capabilities, config, package, endpoint_id, client_id):
+    """Run a job on an Aegis agent or an enrolled endpoint
+
+    Name the target with either CLIENT_ID, for an agent's own host, or --package, for
+    an Android application already registered with "guard add apk". Without -c, the
+    capabilities available for that target are listed instead of a job being run.
+
+    \b
+    Example usages:
+        - guard aegis job C.6e012b467f9faf82-OG9F0 -c linux-enum
+        - guard aegis job --package com.bank.app
+        - guard aegis job --package com.bank.app -c android-device-survey -e 16169bc5-7943-4783-af81-c4735616f7e9
+        - guard aegis job --package com.bank.app -c android-device-command -e 16169bc5-7943-4783-af81-c4735616f7e9 --config '{"command": "getprop ro.build.fingerprint"}'
+    """
+    if client_id and package:
+        click.echo('A job has one target: pass either CLIENT_ID or --package, not both.', err=True)
         return
-    
+
+    if not client_id and not package:
+        click.echo('No target. Pass an agent CLIENT_ID, or --package to target an APK.', err=True)
+        return
+
+    hostname = None
+    if client_id:
+        agent = sdk.aegis.get_by_client_id(client_id)
+        if not agent:
+            click.echo(f"Agent not found: {client_id}", err=True)
+            return
+        hostname = agent.hostname
+
     try:
         result = sdk.aegis.run_job(
-            agent,
-            list(capabilities) if capabilities else None,
-            config
+            capabilities=list(capabilities) if capabilities else None,
+            hostname=hostname,
+            package=package,
+            endpoint_id=endpoint_id,
+            config=config,
         )
 
         if 'capabilities' in result:
+            if not result['capabilities']:
+                click.echo('No capabilities available for this target.')
+                return
             click.echo("Available capabilities:")
             for cap in result['capabilities']:
                 name = cap.get('name', 'unknown')
@@ -150,6 +218,9 @@ def job(ctx, sdk, capabilities, config, client_id):
         elif result.get('success'):
             click.echo("✓ Job queued successfully")
             click.echo(f"  Job ID: {result.get('job_id', 'unknown')}")
+            click.echo(f"  Target: {result.get('target_key', 'unknown')}")
+            if result.get('endpoint_id'):
+                click.echo(f"  Endpoint: {result['endpoint_id']}")
             click.echo(f"  Status: {result.get('status', 'unknown')}")
         else:
             click.echo("Error: Unknown error", err=True)

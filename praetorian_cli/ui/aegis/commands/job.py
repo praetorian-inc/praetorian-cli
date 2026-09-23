@@ -2,11 +2,14 @@ import json
 from rich.table import Table
 from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
+from praetorian_cli.sdk.entities.aegis import ENDPOINT_AGENT_ID
 from ..utils import format_timestamp, format_job_status
 from ..constants import DEFAULT_COLORS
 from .job_helpers import (
     interactive_capability_picker as _interactive_capability_picker,
+    select_apk as _select_apk,
     select_domain as _select_domain,
+    select_endpoint as _select_endpoint,
     select_credentials as _select_credentials,
     configure_parameters as _configure_parameters,
     capability_needs_credentials as _capability_needs_credentials,
@@ -136,9 +139,25 @@ def run_job(menu, args):
         return
 
     target_type = extract_target_type(capability_info)
+    endpoint_id = None
 
     # Create appropriate target key
-    if target_type == 'addomain':
+    if target_type == 'apk':
+        # A mobile capability targets the application, not the device: its findings are
+        # filed on the APK asset. The device is named separately, because which phone
+        # holds the app is not derivable from the app.
+        target_key = _select_apk(menu)
+        if not target_key:
+            menu.pause()
+            return
+
+        endpoint_id = _select_endpoint(menu)
+        if not endpoint_id:
+            menu.pause()
+            return
+
+        target_display = f"APK {target_key.split('#')[-1]}"
+    elif target_type == 'addomain':
         # For AD capabilities, use interactive domain selection
         domain = _select_domain(menu)
         if not domain:
@@ -173,8 +192,13 @@ def run_job(menu, args):
                     # Pass UUID to jobs.add() - API will retrieve values server-side
                     credentials.append(credential_id)
 
-    # Create job configuration using SDK
-    config = menu.sdk.aegis.create_job_config(menu.selected_agent, None)
+    # Create job configuration using SDK. An endpoint-dispatched job carries the endpoint
+    # pin instead of the selected agent's identity: the two are different inventories, and
+    # the agent the menu has selected is not the device this job runs on.
+    if endpoint_id:
+        config = {ENDPOINT_AGENT_ID: endpoint_id}
+    else:
+        config = menu.sdk.aegis.create_job_config(menu.selected_agent, None)
 
     # Handle large artifact storage - always offer the option
     # Default to True if capability metadata says it supports it, or if capability name suggests large output
@@ -214,6 +238,8 @@ def run_job(menu, args):
             menu.console.print(f"  Job Key: {job_key}")
             menu.console.print(f"  Capability: {capability}")
             menu.console.print(f"  Target: {target_display}")
+            if endpoint_id:
+                menu.console.print(f"  Endpoint: {endpoint_id}")
             menu.console.print(f"  Status: {status}")
             if credentials and credential_display_name:
                 menu.console.print(f"  Credential: {credential_display_name}")
@@ -237,9 +263,8 @@ def list_capabilities(menu, args):
 
     try:
         result = menu.sdk.aegis.run_job(
-            agent=menu.selected_agent,
             capabilities=None,
-            config=None
+            hostname=menu.selected_agent.hostname,
         )
 
         colors = getattr(menu, 'colors', DEFAULT_COLORS)

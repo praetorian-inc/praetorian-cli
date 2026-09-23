@@ -5,9 +5,10 @@ class Capabilities:
     def __init__(self, api):
         self.api = api
 
-    def list(self, name='', target='', executor='') -> tuple:
+    def list(self, name='', target='', executor='', endpoint_kind='') -> tuple:
         """
-        List available capabilities, optionally filtered by name, target, and/or executor.
+        List available capabilities, optionally filtered by name, target, executor and/or
+        endpoint kind.
 
         Capabilities are security scanning tools and integrations available in Chariot.
         Each capability can target specific entity types (assets, attributes, preseeds, etc.)
@@ -19,6 +20,11 @@ class Capabilities:
         :type target: str
         :param executor: Filter capabilities by executor (partial match: chariot, aegis, janus)
         :type executor: str
+        :param endpoint_kind: Filter to capabilities dispatchable to an enrolled endpoint of
+            this kind (exact match: aegis). This is a different axis from executor: an
+            endpoint-dispatchable capability is registered against Guard's own executor and
+            opts into endpoint dispatch separately, so filtering by executor will not find it.
+        :type endpoint_kind: str
         :return: A tuple containing (list of matching capabilities, next page offset)
         :rtype: tuple
 
@@ -38,6 +44,9 @@ class Capabilities:
             >>> # Combine filters
             >>> capabilities, offset = sdk.capabilities.list(name='nuclei', target='attribute', executor='chariot')
 
+            >>> # Capabilities that can be dispatched to an enrolled Aegis endpoint
+            >>> capabilities, offset = sdk.capabilities.list(endpoint_kind='aegis')
+
         **Capability Object Structure:**
             Each capability in the returned list contains:
             - Name: Capability identifier (e.g., 'nuclei', 'subdomain')
@@ -51,8 +60,11 @@ class Capabilities:
             - Executor: Execution environment (chariot, aegis, janus)
 
         **Valid Filter Values:**
-            - target: 'asset', 'attribute', 'preseed', 'webpage', 'repository', 'integration'
+            - target: 'asset', 'attribute', 'preseed', 'webpage', 'repository', 'integration', 'apk'
             - executor: 'chariot', 'aegis', 'janus'
+            - endpoint_kind: 'aegis'
             - name: Any string (partial matching)
         """
-        return self.api.get('capabilities', {'name': name, 'target': target, 'executor': executor})
+        return self.api.get('capabilities', {
+            'name': name, 'target': target, 'executor': executor, 'endpoint_kind': endpoint_kind,
+        })

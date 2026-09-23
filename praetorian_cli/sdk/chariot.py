@@ -5,12 +5,14 @@ from praetorian_cli.sdk.entities.ad import AD
 from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
+from praetorian_cli.sdk.entities.apks import Apks
 from praetorian_cli.sdk.entities.attributes import Attributes
 from praetorian_cli.sdk.entities.capabilities import Capabilities
 from praetorian_cli.sdk.entities.configurations import Configurations
 from praetorian_cli.sdk.entities.conversations import Conversations
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
+from praetorian_cli.sdk.entities.endpoints import Endpoints
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.hunts import Hunts
 from praetorian_cli.sdk.entities.integrations import Integrations
@@ -65,6 +67,8 @@ class Chariot:
         self.webpage = Webpage(self)
         self.schema = Schema(self)
         self.schedules = Schedules(self)
+        self.apks = Apks(self)
+        self.endpoints = Endpoints(self)
         self.proxy = proxy
 
         if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):

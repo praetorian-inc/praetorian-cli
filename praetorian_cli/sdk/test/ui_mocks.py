@@ -42,11 +42,13 @@ class MockAegis:
         })
         return 0
 
-    def run_job(self, agent, capabilities=None, config=None):
+    def run_job(self, capabilities=None, hostname=None, package=None, endpoint_id=None, config=None):
         self.calls.append({
             'method': 'run_job',
-            'agent': agent,
             'capabilities': capabilities,
+            'hostname': hostname,
+            'package': package,
+            'endpoint_id': endpoint_id,
             'config': config,
         })
         if capabilities is None:
@@ -67,6 +69,20 @@ class MockAegis:
 
     def get_available_ad_domains(self):
         return self._responses.get('domains', ['example.local'])
+
+    def get_capabilities(self, surface_filter=None, agent_os=None, target=None,
+                         endpoint_kind=None, executor='aegis'):
+        self.calls.append({
+            'method': 'get_capabilities',
+            'surface_filter': surface_filter,
+            'agent_os': agent_os,
+            'target': target,
+            'endpoint_kind': endpoint_kind,
+            'executor': executor,
+        })
+        if endpoint_kind:
+            return list(self._responses.get('endpoint_capabilities', []))
+        return list(self._responses.get('agent_capabilities', []))
 
 
 class MockCredentials:
@@ -120,12 +136,37 @@ class MockAssets:
         return assets, None
 
 
+class MockEndpoints:
+    def __init__(self, responses=None):
+        self._responses = responses or {}
+        self.calls = []
+
+    def list(self, filter_text='', online_only=False, pages=100):
+        self.calls.append({
+            'method': 'list',
+            'filter_text': filter_text,
+            'online_only': online_only,
+            'pages': pages,
+        })
+        endpoints = self._responses.get('endpoints', [])
+        if online_only:
+            endpoints = [e for e in endpoints if e.get('connectionState') == 'online']
+        return endpoints, None
+
+    def get(self, endpoint_id):
+        for endpoint in self._responses.get('endpoints', []):
+            if endpoint.get('endpointId') == endpoint_id:
+                return endpoint
+        return None
+
+
 class MockSDK:
     def __init__(self, responses=None):
         self.aegis = MockAegis(responses=responses)
         self.jobs = MockJobs(responses=responses)
         self.credentials = MockCredentials(responses=responses)
         self.assets = MockAssets(responses=responses)
+        self.endpoints = MockEndpoints(responses=responses)
 
 
 class MockJobs:
