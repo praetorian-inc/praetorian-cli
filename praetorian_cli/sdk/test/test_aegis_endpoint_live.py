@@ -55,8 +55,10 @@ class FakeSearch:
 class FakeAPI:
     def __init__(self, agents=None, endpoints=None, endpoint_error=None,
                  identities=None, identity_error=None, inventory=None,
-                 inventory_error=None, tunnel_states=None, status_rows=None):
+                 inventory_error=None, tunnel_states=None, status_rows=None,
+                 legacy_error=None):
         self.agents = agents or []
+        self.legacy_error = legacy_error
         self.identities = identities or []
         self.identity_error = identity_error
         self.inventory = inventory or []
@@ -70,6 +72,8 @@ class FakeAPI:
 
     def get(self, path, params=None):
         if path == '/agent/enhanced':
+            if self.legacy_error:
+                raise self.legacy_error
             return self.agents
         if path == 'endpoint/list':
             if self.inventory_error:
@@ -182,6 +186,99 @@ def test_aegis_list_combines_v1_agents_and_aegis_v2_endpoints():
         ('v1', 'legacy-host', 'C.legacy'),
         ('v2', 'sensor-1', 'endpoint-1'),
     ]
+
+
+@pytest.mark.parametrize('failed_source', ['legacy', 'v2'])
+def test_aegis_list_keeps_healthy_inventory_when_other_source_fails(failed_source):
+    failure = RuntimeError('tls: expired certificate')
+    api = FakeAPI(
+        agents=[{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'profile': {'hostname': 'sensor-1'},
+        }],
+        legacy_error=failure if failed_source == 'legacy' else None,
+        inventory_error=failure if failed_source == 'v2' else None,
+        identity_error=failure if failed_source == 'v2' else None,
+        endpoint_error=failure if failed_source == 'v2' else None,
+    )
+    warnings = []
+
+    agents, _ = Aegis(api).list(on_warning=warnings.append)
+
+    expected = ['endpoint-1'] if failed_source == 'legacy' else ['C.legacy']
+    assert [agent.display_id for agent in agents] == expected
+    assert len(warnings) == 1
+    assert str(failure) in warnings[0]
+    assert failed_source.lower() in warnings[0].lower()
+
+
+def test_aegis_list_raises_when_no_inventory_can_be_loaded():
+    api = FakeAPI(
+        legacy_error=RuntimeError('legacy unavailable'),
+        inventory_error=RuntimeError('durable unavailable'),
+        identity_error=RuntimeError('active unavailable'),
+        endpoint_error=RuntimeError('live unavailable'),
+    )
+
+    with pytest.raises(RuntimeError) as error:
+        Aegis(api).list()
+
+    for source in ('legacy', 'durable', 'active', 'live'):
+        assert f'{source} unavailable' in str(error.value)
+
+
+@pytest.mark.parametrize('failed_source', ['legacy', 'v2'])
+def test_aegis_list_distinguishes_partial_empty_from_confirmed_empty(failed_source):
+    failure = RuntimeError('inventory unavailable')
+    api = FakeAPI(
+        legacy_error=failure if failed_source == 'legacy' else None,
+        inventory_error=failure if failed_source == 'v2' else None,
+        identity_error=failure if failed_source == 'v2' else None,
+        endpoint_error=failure if failed_source == 'v2' else None,
+    )
+    warnings = []
+    sdk = Aegis(api)
+
+    agents, _ = sdk.list(on_warning=warnings.append)
+
+    assert agents == []
+    assert any(str(failure) in message for message in warnings)
+    api.legacy_error = api.inventory_error = api.identity_error = None
+    api.search.error = None
+    warnings.clear()
+    agents, _ = sdk.list(on_warning=warnings.append)
+    assert agents == []
+    assert warnings == []
+
+
+def test_aegis_list_reports_incomplete_offline_inventory_with_live_fallback():
+    api = FakeAPI(
+        inventory_error=RuntimeError('durable unavailable'),
+        identity_error=RuntimeError('active unavailable'),
+        endpoints=[{'endpointId': 'live-1', 'kind': 'aegis'}],
+    )
+    warnings = []
+
+    agents, _ = Aegis(api).list(on_warning=warnings.append)
+
+    assert [agent.display_id for agent in agents] == ['live-1']
+    assert 'durable unavailable' in warnings[0]
+    assert 'active unavailable' in warnings[0]
+
+
+def test_aegis_formatted_list_exposes_partial_failure_and_healthy_v2():
+    api = FakeAPI(
+        legacy_error=RuntimeError('legacy unavailable'),
+        inventory=[{'endpointId': 'endpoint-1', 'kind': 'aegis'}],
+    )
+
+    output = Aegis(api).format_agents_list()
+
+    assert 'legacy unavailable' in output
+    assert 'endpoint-1' in output
+    assert 'v2' in output
 
 
 def test_aegis_list_includes_offline_v2_endpoint_identity_without_live_row():

@@ -11,6 +11,8 @@
 - [Update] Expanded the public SDK for Hunts, conversations, interactions, Aegis v2 endpoint execution, verified files, entity resolution, and endpoint network policy
 - [Performance] Added cached Hunt views and a shared cancellable HTTP transport so fullscreen Hunt operations remain responsive without periodic polling
 - [Bug fix] Added `add file --praetorian` so explicitly named and automatically placed uploads can target the Praetorian-only partition
+- [Bug fix] Isolated legacy and Aegis v2 inventory failures so healthy agents remain visible, with partial-load warnings and distinct failed/empty states in single- and multi-account views
+- [Bug fix] Routed `guard list aegis` through the current agent formatter and removed unsupported pagination options
 
 # 2.5.0
 - [New Feature] Added the `vm` command group for ad-hoc Engineer VM cloud workspaces (Praetorian engineers only): `launch`, `list`, `status`, `pause`, `resume`, `extend`, `archive`, `revive`, plus `ssh` and `code-server` access

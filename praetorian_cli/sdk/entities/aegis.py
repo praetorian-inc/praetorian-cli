@@ -1,5 +1,6 @@
 from typing import List, Optional
 from urllib.parse import quote
+import logging
 import shlex
 import shutil
 import subprocess
@@ -187,7 +188,7 @@ class Aegis:
         self.api = api
 
 
-    def list(self) -> tuple:
+    def list(self, *, on_warning=None) -> tuple[List[Agent], None]:
         """
         List all Aegis agents.
 
@@ -197,6 +198,10 @@ class Aegis:
 
         :return: A tuple containing (list of Agent objects, None for compatibility)
         :rtype: tuple
+
+        Loads legacy and v2 inventories independently. Partial failures go to
+        on_warning(message), or the logger when no callback is supplied.
+        Raises RuntimeError if neither inventory can be loaded.
 
         **Example Usage:**
             >>> # List all Aegis agents
@@ -219,24 +224,49 @@ class Aegis:
             - has_tunnel: Boolean indicating if Cloudflare tunnel is active
             - is_online: Boolean indicating if agent is currently online
         """
-        agents = self._list_legacy_agents()
-        agents.extend(self._list_endpoint_agents())
+        agents = []
+        errors = []
+        loaded = False
+        try:
+            agents.extend(self._list_legacy_agents())
+            loaded = True
+        except Exception as exc:
+            errors.append(f'Legacy Aegis inventory: {exc}')
+        try:
+            endpoints, endpoint_errors = self._list_endpoint_agents()
+            agents.extend(endpoints)
+            errors.extend(endpoint_errors)
+            loaded = True
+        except Exception as exc:
+            errors.append(f'Aegis v2 inventory: {exc}')
+
+        if not loaded:
+            raise RuntimeError('Failed to load Aegis inventories: ' + '; '.join(errors))
+        if errors:
+            message = 'Incomplete Aegis inventory: ' + '; '.join(errors)
+            if on_warning is not None:
+                on_warning(message)
+            else:
+                logging.getLogger(__name__).warning(message)
         return agents, None
 
     def _list_legacy_agents(self) -> List[Agent]:
         agents_data = self.api.get('/agent/enhanced')
         return [Agent.from_dict(agent_data) for agent_data in agents_data]
 
-    def _list_endpoint_agents(self) -> List[Agent]:
+    def _list_endpoint_agents(self) -> tuple[List[Agent], List[str]]:
+        errors = []
         try:
             identity_rows = self._list_endpoint_inventory_rows()
-        except Exception:
+        except Exception as exc:
+            errors.append(f'Aegis v2 durable inventory: {exc}')
             try:
                 identity_rows = self._list_active_endpoint_rows()
-            except Exception:
-                identity_rows = []
+            except Exception as exc:
+                errors.append(f'Aegis v2 active inventory: {exc}')
+                identity_rows = None
 
-        live_rows = []
+        live_rows = None
         tunnel_rows = []
         status_rows = []
         if hasattr(self.api, 'search'):
@@ -246,8 +276,9 @@ class Aegis:
                     endpoints_data,
                     ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                if identity_rows is None:
+                    errors.append(f'Aegis v2 live inventory: {exc}')
             try:
                 tunnel_rows, _ = self.api.search.by_key_prefix(
                     '#endpointaegistunnelstate#'
@@ -261,16 +292,15 @@ class Aegis:
             except Exception:
                 pass
 
-        try:
-            rows = merge_aegis_endpoint_rows(
-                identity_rows,
-                live_rows,
-                tunnel_rows,
-                status_rows,
-            )
-            return [Agent.from_endpoint_dict(endpoint) for endpoint in rows]
-        except Exception:
-            return []
+        if identity_rows is None and live_rows is None:
+            raise RuntimeError('; '.join(errors))
+        rows = merge_aegis_endpoint_rows(
+            identity_rows or [],
+            live_rows or [],
+            tunnel_rows,
+            status_rows,
+        )
+        return [Agent.from_endpoint_dict(endpoint) for endpoint in rows], errors
 
     def list_hunt_endpoints(self) -> List[Agent]:
         """List active tenant-owned Aegis v2 identities for Internal Hunts."""
@@ -892,10 +922,15 @@ class Aegis:
             >>> result = sdk.aegis.format_agents_list(details=True, filter_text="windows")
             >>> print(result)
         """
-        agents_data, _ = self.list()
-        
+        warnings = []
+        agents_data, _ = self.list(on_warning=warnings.append)
+        warning_text = ''.join(f'Warning: {message}\n' for message in warnings)
+
         if not agents_data:
-            return "No agents found."
+            return warning_text + (
+                'No agents returned from available inventories.'
+                if warnings else 'No agents found.'
+            )
         
         if filter_text:
             filter_lower = filter_text.lower()
@@ -907,7 +942,7 @@ class Aegis:
             ]
 
         if not agents_data:
-            return f"No agents found matching filter: {filter_text}"
+            return warning_text + f"No agents found matching filter: {filter_text}"
         
         if details:
             detailed_lines = []
@@ -918,9 +953,9 @@ class Aegis:
                 if lines:
                     lines[0] = f"[{i:2d}] {lines[0].lstrip()}"
                 detailed_lines.append('\n'.join(lines))
-            return '\n\n'.join(detailed_lines)
+            return warning_text + '\n\n'.join(detailed_lines)
         else:
             lines = [f"{'#':>4}  {'VERSION':<7}  {'HOSTNAME':<30}  ID"]
             for i, agent in enumerate(agents_data, 1):
                 lines.append(f"{i:>4}  {agent.version:<7}  {(agent.hostname or 'Unknown')[:30]:<30}  {agent.display_id}")
-            return '\n'.join(lines)
+            return warning_text + '\n'.join(lines)

@@ -38,7 +38,7 @@ class ListingAegis:
     def __init__(self, agents):
         self.agents = agents
 
-    def list(self):
+    def list(self, *, on_warning=None):
         return self.agents, None
 
 
