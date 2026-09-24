@@ -803,11 +803,7 @@ class AegisMenu:
         self.console.print(message, style=self.colors['warning'], markup=False)
 
     def load_agents(self) -> None:
-        """Load agents from SDK and build lookup cache.
-
-        In multi-account mode, aggregates agents from all selected accounts
-        and maintains agent_account_map for account context display.
-        """
+        """Load available agents and rebuild lookup maps for the selected accounts."""
         self.load_warnings = []
         self.load_error = None
         self.displayed_agents = []
@@ -835,18 +831,12 @@ class AegisMenu:
                     )
                     self.agents = []
                     self.agent_account_map = {}
-                    self.agent_lookup = {}
-                    self.agent_os_lookup = {}
                     for agent, acct_info in agent_tuples:
                         self.agents.append(agent)
                         agent._account_info = acct_info
                         identifier = agent_display_id(agent)
                         if identifier and identifier != 'N/A':
                             self.agent_account_map[identifier] = acct_info
-                        if identifier:
-                            self.agent_os_lookup[identifier] = agent.os
-                            if agent.hostname:
-                                self.agent_lookup[identifier] = agent.hostname
                 finally:
                     status.stop()
 
@@ -866,14 +856,14 @@ class AegisMenu:
                     self.agents = agents or []
                     self.agent_account_map = {}
 
-                self.agent_lookup = {}
-                self.agent_os_lookup = {}
-                for agent in self.agents:
-                    identifier = agent_display_id(agent)
-                    if identifier:
-                        self.agent_os_lookup[identifier] = agent.os
-                        if agent.hostname:
-                            self.agent_lookup[identifier] = agent.hostname
+            self.agent_lookup = {}
+            self.agent_os_lookup = {}
+            for agent in self.agents:
+                identifier = agent_display_id(agent)
+                if identifier:
+                    self.agent_os_lookup[identifier] = agent.os
+                    if agent.hostname:
+                        self.agent_lookup[identifier] = agent.hostname
 
             self._rebind_selected_agent()
 

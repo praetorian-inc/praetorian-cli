@@ -333,7 +333,7 @@ def _fetch_account_source(fetch, headers: dict, source: str, on_warning=None):
 def _fetch_account_records(
     base_url: str, headers: dict, on_warning=None,
 ) -> Optional[tuple[List[dict], List[dict]]]:
-    """Keep available rows; retry failed or incomplete empty inventories."""
+    """Keep available rows; return None if empty results cannot be confirmed."""
     agents_data = _fetch_account_source(
         lambda: _fetch_account_agents(base_url, headers),
         headers, 'legacy agents', on_warning,
@@ -504,7 +504,7 @@ def load_agents_for_accounts(
     lock = threading.Lock()
     warn = on_warning if on_warning is not None else logger.warning
 
-    def _load_one(acct, attempt=1, track_progress=True):
+    def _load_one(acct, attempt):
         nonlocal checked
         email = acct['account_email']
         warnings = []
@@ -525,40 +525,36 @@ def load_agents_for_accounts(
             warnings.append(f'Account {email}: agent inventory failed (attempt {attempt}): {e}')
             return None, warnings
         finally:
-            if track_progress:
+            if attempt == 1:
                 with lock:
                     checked += 1
                     if on_progress:
                         on_progress(checked, total, acct.get('display_name', email))
 
     results = []
-    retry_accounts = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(_load_one, acct): acct for acct in selected_accounts}
-        for future in as_completed(futures):
-            result, warnings = future.result()
-            if result is None:
-                retry_accounts.append(futures[future])
-            else:
-                results.extend(result)
-                for message in warnings:
-                    warn(message)
-
-    # Retry failed accounts once (don't double-count progress)
-    if retry_accounts:
-        logger.debug('Retrying %d failed account(s)', len(retry_accounts))
+    pending = selected_accounts
+    for attempt in (1, 2):
+        if attempt == 2:
+            logger.debug('Retrying %d failed account(s)', len(pending))
+        retry_accounts = []
         with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(_load_one, acct, 2, False): acct for acct in retry_accounts}
+            futures = {executor.submit(_load_one, acct, attempt): acct for acct in pending}
             for future in as_completed(futures):
+                acct = futures[future]
                 result, warnings = future.result()
                 if result is None:
-                    acct = futures[future]
-                    with lock:
-                        failed_accounts.append(acct.get('display_name', acct['account_email']))
+                    if attempt == 1:
+                        retry_accounts.append(acct)
+                        # A successful retry must not leave a partial-load warning.
+                        continue
+                    failed_accounts.append(acct.get('display_name', acct['account_email']))
                 else:
                     results.extend(result)
                 for message in warnings:
                     warn(message)
+        if not retry_accounts:
+            break
+        pending = retry_accounts
 
     if failed_accounts:
         warn(f"Failed to load agents for: {', '.join(failed_accounts)}")

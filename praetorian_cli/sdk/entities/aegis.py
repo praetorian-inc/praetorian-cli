@@ -189,40 +189,11 @@ class Aegis:
 
 
     def list(self, *, on_warning=None) -> tuple[List[Agent], None]:
-        """
-        List all Aegis agents.
+        """List legacy and v2 agents independently, returning (agents, None).
 
-        Retrieves all Aegis agents from the account, returning them as Agent
-        objects with detailed information including system specs, network
-        interfaces, and tunnel connectivity status.
-
-        :return: A tuple containing (list of Agent objects, None for compatibility)
-        :rtype: tuple
-
-        Loads legacy and v2 inventories independently. Partial failures go to
-        on_warning(message), or the logger when no callback is supplied.
-        Raises RuntimeError if neither inventory can be loaded.
-
-        **Example Usage:**
-            >>> # List all Aegis agents
-            >>> agents, _ = sdk.aegis.list()
-            
-            >>> # Check agent properties
-            >>> for agent in agents:
-            >>>     print(f"Agent: {agent.hostname}")
-            >>>     print(f"OS: {agent.os}")
-            >>>     print(f"Has tunnel: {agent.has_tunnel}")
-            >>>     print(f"Online: {agent.is_online}")
-
-        **Agent Object Properties:**
-            - client_id: Unique identifier for v1 agents
-            - endpoint_id: Unique identifier for v2 endpoints
-            - version: Aegis protocol version (v1 or v2)
-            - hostname: Agent hostname
-            - os: Operating system (e.g., 'linux', 'windows')  
-            - network_interfaces: List of NetworkInterface objects
-            - has_tunnel: Boolean indicating if Cloudflare tunnel is active
-            - is_online: Boolean indicating if agent is currently online
+        Send partial failures to on_warning(message), or the logger if omitted.
+        Raise RuntimeError if both inventories fail. A successful empty response
+        still counts as a loaded inventory.
         """
         agents = []
         errors = []
@@ -244,10 +215,8 @@ class Aegis:
             raise RuntimeError('Failed to load Aegis inventories: ' + '; '.join(errors))
         if errors:
             message = 'Incomplete Aegis inventory: ' + '; '.join(errors)
-            if on_warning is not None:
-                on_warning(message)
-            else:
-                logging.getLogger(__name__).warning(message)
+            warn = on_warning if on_warning is not None else logging.getLogger(__name__).warning
+            warn(message)
         return agents, None
 
     def _list_legacy_agents(self) -> List[Agent]:
