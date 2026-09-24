@@ -3,6 +3,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.sdk.model.globals import Risk
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 
 
 @chariot.group()
@@ -19,12 +20,13 @@ def asset(chariot, key):
 
     \b
     Arguments:
-        - KEY: the key of an existing asset
+        - KEY: an asset key, hostname, IP, or friendly name
 
     \b
     Example usage:
         - guard delete asset "#asset#www.example.com#1.2.3.4"
     """
+    key = resolve_entity_reference(chariot, key, 'asset')
     chariot.assets.delete(key)
 
 
@@ -39,12 +41,13 @@ def risk(chariot, key, status, comment):
 
     \b
     Arguments:
-        - KEY: the key of an existing risk
+        - KEY: a risk key or friendly name
 
     \b
     Example usage:
         - guard delete risk "#risk#example.com#CVE-2024-23049" --status DIO
     """
+    key = resolve_entity_reference(chariot, key, 'risk')
     chariot.risks.delete(key, status, comment)
 
 

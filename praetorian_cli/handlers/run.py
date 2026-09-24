@@ -3,9 +3,17 @@ import time
 
 import click
 
+from praetorian_cli.handlers.agent import _ask_with_interactions
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, error
+from praetorian_cli.sdk.entities.capabilities import (
+    capability_description,
+    capability_name,
+    capability_target_type,
+    normalize_capabilities_response,
+)
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 
 
 # Friendly names for well-known agents — descriptions for the CLI help.
@@ -26,40 +34,38 @@ FRIENDLY_NAMES = {
 # TOOL_ALIASES: mutable dict used by the console. Seeded from FRIENDLY_NAMES,
 # dynamically extended when the console resolves capabilities from the API.
 TOOL_ALIASES = {
-    name: {'capability': name, 'agent': name, 'target_type': 'asset', 'description': desc}
+    name: {
+        'name': name,
+        'capability': name,
+        'agent': name,
+        'target_type': 'asset',
+        'description': desc,
+        'default_config': {},
+    }
     for name, desc in FRIENDLY_NAMES.items()
 }
 
 
 def resolve_capability(sdk, name):
-    """Resolve a capability name to its metadata from the backend API.
+    """Resolve a friendly alias first, then fall back to a Guard capability."""
+    lookup = name.lower()
+    if lookup in TOOL_ALIASES:
+        return dict(TOOL_ALIASES[lookup])
 
-    Checks FRIENDLY_NAMES for aliases, then queries the /capabilities/ endpoint.
-    Returns dict with at minimum: name, target, description. Or None.
-    """
     # Check backend capabilities
     try:
         caps = sdk.capabilities.list(name=name)
-        if isinstance(caps, list):
-            cap_list = caps
-        elif isinstance(caps, dict):
-            cap_list = caps.get('capabilities', caps.get('data', []))
-        else:
-            cap_list = []
 
         # Exact match first
-        for c in cap_list:
-            cap_name = c.get('name', '')
+        for c in normalize_capabilities_response(caps):
+            cap_name = capability_name(c)
             if cap_name.lower() == name.lower():
-                target = c.get('target', [])
-                if isinstance(target, list):
-                    target = target[0] if target else 'asset'
                 return {
                     'name': cap_name,
                     'capability': cap_name,
-                    'target_type': target,
-                    'description': c.get('description', ''),
-                    'executor': c.get('executor', ''),
+                    'target_type': capability_target_type(c),
+                    'description': capability_description(c),
+                    'executor': c.get('executor') or c.get('Executor', ''),
                 }
     except Exception:
         pass
@@ -68,49 +74,15 @@ def resolve_capability(sdk, name):
 
 
 def resolve_target(sdk, target_input, expected_type):
-    """Resolve a friendly target (domain, IP, URL) to a Guard entity key.
-
-    Uses sdk.search.fulltext() for resolution. Returns (key, warning) tuple.
-    """
-    if target_input.startswith('#'):
-        return target_input, None
-
-    # Use fulltext search from the SDK
+    """Resolve a friendly target without silently choosing ambiguous matches."""
     try:
-        results, _ = sdk.search.fulltext(target_input, kind=expected_type, limit=10)
-        if results:
-            # Exact match on dns/name
-            for r in results:
-                if r.get('dns', '') == target_input or r.get('name', '') == target_input:
-                    return r['key'], None
-            return results[0]['key'], None
-    except Exception:
-        pass
-
-    # Fallback: prefix search
-    valid_types = {
-        'asset': 'asset', 'port': 'port', 'webpage': 'webpage',
-        'webapplication': 'webapplication', 'repository': 'asset',
-        'risk': 'risk',
-    }
-    vtype = valid_types.get(expected_type, expected_type)
-    try:
-        results, _ = sdk.search.by_key_prefix(f'#{vtype}#{target_input}', pages=1)
-        if results:
-            return results[0]['key'], None
-    except Exception:
-        pass
-
-    # Fallback: field search
-    for field in ('dns', 'name'):
-        try:
-            results, _ = sdk.search.by_term(f'{field}:{target_input}', expected_type, pages=1)
-            if results:
-                return results[0]['key'], None
-        except Exception:
-            pass
-
-    return None, f'Could not resolve "{target_input}" to a {expected_type}. Use a full Guard key (#asset#...) or check the entity exists.'
+        return resolve_entity_reference(
+            sdk,
+            target_input,
+            expected_type,
+        ), None
+    except ValueError as exc:
+        return None, str(exc)
 
 
 @chariot.group()
@@ -141,18 +113,18 @@ def retest(sdk, risk_key, wait):
     the resulting status.
 
     \b
-    RISK_KEY must be a full Guard risk key (#risk#<dns>#<name>). Friendly
-    names are not accepted: a risk name such as a CVE ID usually exists on
-    many assets, so a name cannot identify the single risk to retest.
+    RISK_KEY may be a full Guard key or a friendly risk name. Ambiguous
+    names open an interactive selector and fail closed in non-interactive use.
 
     \b
     Example usages:
         guard retest "#risk#example.com#cve-2024-1234"
         guard retest "#risk#example.com#cve-2024-1234" --wait
     """
-    if not risk_key.startswith('#risk#'):
-        error(f'Retest requires a full risk key (#risk#<dns>#<name>), got "{risk_key}". '
-              'Use "guard list risks" to find it.')
+    try:
+        risk_key = resolve_entity_reference(sdk, risk_key, 'risk')
+    except ValueError as exc:
+        error(str(exc))
 
     cap = {'capability': RETEST_CAPABILITY, 'target_type': 'risk'}
     _run_direct(sdk, cap, risk_key, json.dumps({'source': RETEST_SOURCE}), [], wait)
@@ -183,9 +155,9 @@ def tool(sdk, tool_name, target, tool_args, extra_config, credential, wait, use_
     \b
     Example usages:
         guard run tool brutus 10.0.1.5:22
-        guard run tool brutus 10.0.1.5:22 --protocol ssh -U users.txt
-        guard run tool brutus 10.0.1.5:22 -- --wait
-        guard run tool nuclei example.com --remote -c '{"templates":"cves/"}'
+        guard run tool <capability> <target>
+        guard run tool <capability> <target> --remote -c '{"param":"value"}'
+        guard run tool <capability> <target> -- --tool-flag
     """
     from praetorian_cli.runners.local import is_installed as _is_installed
 
@@ -338,7 +310,7 @@ def capabilities(sdk, name, target, executor):
     \b
     Example usages:
         guard run capabilities
-        guard run capabilities --name nuclei
+        guard run capabilities --name <capability>
         guard run capabilities --target asset
     """
     result = sdk.capabilities.list(name=name, target=target, executor=executor)
@@ -358,7 +330,7 @@ def install(sdk, tool_name, force):
 
     \b
     Example usages:
-        guard run install brutus
+        guard run install <tool>
         guard run install all
     """
     from praetorian_cli.runners.local import install_tool, INSTALLABLE_TOOLS, is_installed
@@ -426,7 +398,7 @@ def _run_via_agent(sdk, cap, target_key):
     click.echo(f'Asking Marcus...')
 
     try:
-        result = sdk.agents.ask(message, mode='agent')
+        result = _ask_with_interactions(sdk, message, mode='agent')
         click.echo(result['response'])
     except Exception as e:
         error(str(e))

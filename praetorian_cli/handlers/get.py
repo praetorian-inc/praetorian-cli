@@ -7,6 +7,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
 from praetorian_cli.handlers.utils import error, print_json
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 
 
 @chariot.group()
@@ -24,13 +25,14 @@ def asset(chariot, key, details):
 
     \b
     Argument:
-        - KEY: the key of an existing asset
+        - KEY: an asset key, hostname, IP, or friendly name
 
     \b
     Example usages:
         - guard get asset "#asset#api.example.com#1.2.3.4"
         - guard get asset "#asset#api.example.com#1.2.3.4" --details
     """
+    key = resolve_entity_reference(chariot, key, 'asset')
     print_json(chariot.assets.get(key, details))
 
 
@@ -44,7 +46,7 @@ def risk(chariot, key, details, evidence):
 
     \b
     Argument:
-        - KEY: the key of an existing risk
+        - KEY: a risk key or friendly name
 
     \b
     Example usages:
@@ -53,6 +55,7 @@ def risk(chariot, key, details, evidence):
         - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence basic
         - guard get risk "#risk#api.example.com#CVE-2024-23049" --evidence full
      """
+    key = resolve_entity_reference(chariot, key, 'risk')
     print_json(chariot.risks.get(key, details, evidence=evidence))
 
 

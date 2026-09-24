@@ -1,9 +1,10 @@
 from typing import List, Optional
+from urllib.parse import quote
 import shlex
 import shutil
 import subprocess
 import time
-from praetorian_cli.sdk.model.aegis import Agent, validate_agent_for_ssh
+from praetorian_cli.sdk.model.aegis import Agent, is_v2_agent, validate_agent_for_ssh
 
 
 def normalize_to_list(value, item_keys: List[str] = None) -> List:
@@ -20,6 +21,161 @@ def normalize_to_list(value, item_keys: List[str] = None) -> List:
                 return value[k]
         return []
     return []
+
+
+def _is_aegis_endpoint(value) -> bool:
+    return isinstance(value, dict) and str(value.get('kind', '')).lower() == 'aegis'
+
+
+def merge_aegis_endpoint_rows(
+    identity_rows,
+    live_rows,
+    tunnel_rows=None,
+    status_rows=None,
+) -> List[dict]:
+    """Merge durable identities with live status and persisted tunnel state."""
+    merged = {}
+    order = []
+
+    for row in identity_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        if not endpoint_id:
+            continue
+        normalized = dict(row)
+        normalized.setdefault('kind', 'aegis')
+        if endpoint_id not in merged:
+            order.append(endpoint_id)
+        merged[endpoint_id] = normalized
+
+    for row in live_rows or []:
+        if not _is_aegis_endpoint(row):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        if not endpoint_id:
+            continue
+        if endpoint_id not in merged:
+            order.append(endpoint_id)
+        merged[endpoint_id] = {**merged.get(endpoint_id, {}), **row}
+
+    for row in tunnel_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        tunnel = row.get('cloudflaredStatus')
+        if endpoint_id in merged and isinstance(tunnel, dict):
+            merged[endpoint_id]['cloudflaredStatus'] = dict(tunnel)
+
+    for row in status_rows or []:
+        if not isinstance(row, dict):
+            continue
+        endpoint_id = _endpoint_row_id(row)
+        observed = row.get('cloudflared')
+        if endpoint_id not in merged or not isinstance(observed, dict):
+            continue
+        tunnel = merged[endpoint_id].get('cloudflaredStatus')
+        if isinstance(tunnel, dict):
+            continue
+        if observed.get('state'):
+            merged[endpoint_id]['cloudflaredStatus'] = {
+                'status': observed['state'],
+            }
+
+    return [merged[endpoint_id] for endpoint_id in order]
+
+
+def is_active_aegis_inventory_row(row) -> bool:
+    return bool(
+        _is_aegis_endpoint(row)
+        and str(row.get('lifecycleState', '')).lower() != 'revoked'
+    )
+
+
+def normalize_active_endpoint_summary(row) -> dict:
+    """Convert the /endpoint summary contract to the canonical endpoint shape."""
+    return {
+        'endpointId': row.get('endpoint_id'),
+        'hostname': row.get('hostname'),
+        'lastSeenAt': row.get('last_heartbeat'),
+        'kind': 'aegis',
+    }
+
+
+def _endpoint_row_id(row) -> str:
+    return str(row.get('endpointId') or '')
+
+
+ENROLLMENT_INSPECT_PATH = 'endpoint/enrollment/inspect'
+ENROLLMENT_APPROVE_PATH = 'endpoint/enrollment/approve'
+ENDPOINT_NETWORK_POLICY_PATH = 'endpoint/{endpoint_id}/network-policy'
+AEGIS_MANAGEMENT_TASKS_PATH = 'aegis/management/tasks'
+CLOUDFLARE_TUNNEL_CREATE_PATH = 'aegis/management/cloudflare/tunnel/create'
+CLOUDFLARE_TUNNEL_REMOVE_PATH = 'aegis/management/cloudflare/tunnel/remove'
+ENDPOINT_PIN_CONFIG_KEY = 'endpoint_agent_id'
+LINUX_SYSTEM_ADDUSER = 'linux-system-adduser'
+LINUX_SYSTEM_DELUSER = 'linux-system-deluser'
+
+
+def _enrollment_user_code_payload(user_code: str) -> dict:
+    code = str(user_code or '').strip()
+    if not code:
+        raise ValueError('enrollment user code is required')
+    return {'userCode': code}
+
+
+def _required_endpoint_id(endpoint_id: str) -> str:
+    endpoint_id = str(endpoint_id or '').strip()
+    if not endpoint_id:
+        raise ValueError('endpoint ID is required')
+    return endpoint_id
+
+
+def _required_username(username: str) -> str:
+    username = str(username or '').strip()
+    if not username:
+        raise ValueError('username is required')
+    return username
+
+
+def _endpoint_tunnel_payload(agent_id: str, legacy: bool = False) -> dict:
+    key = 'aegisClientId' if legacy else 'endpointAgentId'
+    return {key: _required_endpoint_id(agent_id)}
+
+
+def _endpoint_management_task_payload(capability: str, agent_id: str, parameters: dict = None, legacy: bool = False) -> dict:
+    task_parameters = dict(parameters or {})
+    payload = {
+        'aegisManagementCapability': capability,
+        'parameters': task_parameters,
+    }
+    if legacy:
+        payload['aegisClientId'] = _required_endpoint_id(agent_id)
+    else:
+        task_parameters[ENDPOINT_PIN_CONFIG_KEY] = _required_endpoint_id(agent_id)
+    return payload
+
+
+def normalize_pending_enrollment(pending: dict) -> dict:
+    """Return only safe enrollment review fields from an inspect response."""
+    if not isinstance(pending, dict):
+        return {}
+
+    metadata = pending.get('metadata') or pending.get('Metadata') or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    return {
+        'endpoint_id': pending.get('endpointId') or pending.get('endpoint_id') or '',
+        'account': pending.get('account') or pending.get('Account') or '',
+        'kind': pending.get('kind') or pending.get('Kind') or '',
+        'version': metadata.get('version') or metadata.get('Version') or '',
+        'hostname': metadata.get('hostname') or metadata.get('Hostname') or '',
+        'os': metadata.get('os') or metadata.get('OS') or '',
+        'arch': metadata.get('arch') or metadata.get('Arch') or '',
+        'created_at': pending.get('createdAt') or pending.get('created_at') or '',
+        'expires_at': pending.get('expiresAt') or pending.get('expires_at') or '',
+    }
 
 
 class Aegis:
@@ -53,25 +209,103 @@ class Aegis:
             >>>     print(f"Online: {agent.is_online}")
 
         **Agent Object Properties:**
-            - client_id: Unique identifier for the agent
+            - client_id: Unique identifier for v1 agents
+            - endpoint_id: Unique identifier for v2 endpoints
+            - version: Aegis protocol version (v1 or v2)
             - hostname: Agent hostname
             - os: Operating system (e.g., 'linux', 'windows')  
             - network_interfaces: List of NetworkInterface objects
             - has_tunnel: Boolean indicating if Cloudflare tunnel is active
             - is_online: Boolean indicating if agent is currently online
         """
+        agents = self._list_legacy_agents()
+        agents.extend(self._list_endpoint_agents())
+        return agents, None
+
+    def _list_legacy_agents(self) -> List[Agent]:
+        agents_data = self.api.get('/agent/enhanced')
+        return [Agent.from_dict(agent_data) for agent_data in agents_data]
+
+    def _list_endpoint_agents(self) -> List[Agent]:
         try:
-            agents_data = self.api.get('/agent/enhanced')
-            
-            # Return Agent objects
-            agents = []
-            for agent_data in agents_data:
-                agent = Agent.from_dict(agent_data)
-                agents.append(agent)
-            return agents, None
-        except Exception as e:
-            raise Exception(f"Failed to list Aegis agents: {e}")
-    
+            identity_rows = self._list_endpoint_inventory_rows()
+        except Exception:
+            try:
+                identity_rows = self._list_active_endpoint_rows()
+            except Exception:
+                identity_rows = []
+
+        live_rows = []
+        tunnel_rows = []
+        status_rows = []
+        if hasattr(self.api, 'search'):
+            try:
+                endpoints_data, _ = self.api.search.by_key_prefix('#endpoint#')
+                live_rows = normalize_to_list(
+                    endpoints_data,
+                    ["endpoints", "endpointInfos", "endpointinfos", "data", "items"],
+                )
+            except Exception:
+                pass
+            try:
+                tunnel_rows, _ = self.api.search.by_key_prefix(
+                    '#endpointaegistunnelstate#'
+                )
+            except Exception:
+                pass
+            try:
+                status_rows, _ = self.api.search.by_key_prefix(
+                    '#endpointaegisstatus#'
+                )
+            except Exception:
+                pass
+
+        try:
+            rows = merge_aegis_endpoint_rows(
+                identity_rows,
+                live_rows,
+                tunnel_rows,
+                status_rows,
+            )
+            return [Agent.from_endpoint_dict(endpoint) for endpoint in rows]
+        except Exception:
+            return []
+
+    def list_hunt_endpoints(self) -> List[Agent]:
+        """List active tenant-owned Aegis v2 identities for Internal Hunts."""
+        return [
+            Agent.from_endpoint_dict(endpoint)
+            for endpoint in self._list_active_endpoint_rows()
+        ]
+
+    def _list_endpoint_inventory_rows(self) -> List[dict]:
+        endpoints = []
+        cursor = None
+        seen_cursors = set()
+        while True:
+            params = {'cursor': cursor} if cursor else {}
+            response = self.api.get('endpoint/list', params)
+            rows = normalize_to_list(response, ['endpoints', 'data', 'items'])
+            endpoints.extend(
+                endpoint for endpoint in rows
+                if is_active_aegis_inventory_row(endpoint)
+            )
+            cursor = response.get('cursor') if isinstance(response, dict) else None
+            if not cursor:
+                return endpoints
+            if cursor in seen_cursors:
+                raise ValueError('endpoint inventory returned a repeated cursor')
+            seen_cursors.add(cursor)
+
+    def _list_active_endpoint_rows(self) -> List[dict]:
+        endpoint_data = self.api.get('endpoint')
+        endpoints = normalize_to_list(endpoint_data, ['endpoints', 'data', 'items'])
+        return [
+            normalize_active_endpoint_summary(endpoint)
+            for endpoint in endpoints
+            if isinstance(endpoint, dict)
+        ]
+
     def get_by_client_id(self, client_id: str) -> Optional[Agent]:
         """
         Get a specific Aegis agent by client ID.
@@ -91,12 +325,86 @@ class Aegis:
         try:
             agents_data, _ = self.list()
             for agent in agents_data:
-                if agent.client_id == client_id:
+                if agent.display_id == client_id:
                     return agent
             return None
         except Exception as e:
             raise Exception(f"Failed to get agent {client_id}: {e}")
     
+    def inspect_enrollment(self, user_code: str) -> dict:
+        """Inspect safe pending Aegis v2 enrollment details for a user code."""
+        response = self.api.post(ENROLLMENT_INSPECT_PATH, _enrollment_user_code_payload(user_code))
+        return normalize_pending_enrollment(response)
+
+    def approve_enrollment(self, user_code: str) -> dict:
+        """Approve a pending Aegis v2 enrollment user code."""
+        response = self.api.post(ENROLLMENT_APPROVE_PATH, _enrollment_user_code_payload(user_code))
+        if not isinstance(response, dict):
+            return {'status': 'approved'}
+        return {'status': response.get('status') or response.get('Status') or 'approved'}
+
+    def get_endpoint_network_policy(self, endpoint_id: str) -> dict:
+        """Get the desired and applied host egress policy for an Aegis v2 endpoint."""
+        path = ENDPOINT_NETWORK_POLICY_PATH.format(
+            endpoint_id=quote(_required_endpoint_id(endpoint_id), safe=''),
+        )
+        return self.api.get(path)
+
+    def update_endpoint_network_policy(
+        self,
+        endpoint_id: str,
+        expected_revision: int,
+        disabled_default_rule_ids: List[str],
+        custom_deny_rules: List[dict],
+    ) -> dict:
+        """Replace an Aegis v2 endpoint policy using optimistic revision control."""
+        if isinstance(expected_revision, bool) or not isinstance(expected_revision, int) or expected_revision < 0:
+            raise ValueError('expected network policy revision must be a non-negative integer')
+        path = ENDPOINT_NETWORK_POLICY_PATH.format(
+            endpoint_id=quote(_required_endpoint_id(endpoint_id), safe=''),
+        )
+        return self.api.put(path, {
+            'expectedRevision': expected_revision,
+            'disabledDefaultRuleIds': list(disabled_default_rule_ids or []),
+            'customDenyRules': [dict(rule) for rule in custom_deny_rules or []],
+        })
+
+    def create_cloudflare_tunnel(self, agent_id: str, *, legacy: bool = False) -> dict:
+        """Create and install a Cloudflare tunnel on a selected Aegis agent."""
+        return self.api.post(CLOUDFLARE_TUNNEL_CREATE_PATH, _endpoint_tunnel_payload(agent_id, legacy))
+
+    def remove_cloudflare_tunnel(self, agent_id: str, *, legacy: bool = False) -> dict:
+        """Remove Cloudflare tunnel configuration from a selected Aegis agent."""
+        return self.api.post(CLOUDFLARE_TUNNEL_REMOVE_PATH, _endpoint_tunnel_payload(agent_id, legacy))
+
+    def add_system_user(self, agent_id: str, username: str, *, legacy: bool = False) -> dict:
+        """Add a Linux user through Aegis management."""
+        return self.api.post(
+            AEGIS_MANAGEMENT_TASKS_PATH,
+            _endpoint_management_task_payload(
+                LINUX_SYSTEM_ADDUSER,
+                agent_id,
+                {'username': _required_username(username)},
+                legacy,
+            ),
+        )
+
+    def remove_system_user(self, agent_id: str, username: str, remove_home: bool = False, *, legacy: bool = False) -> dict:
+        """Remove a Linux user through Aegis management."""
+        remove_home_value = '--remove-home' if remove_home else ''
+        return self.api.post(
+            AEGIS_MANAGEMENT_TASKS_PATH,
+            _endpoint_management_task_payload(
+                LINUX_SYSTEM_DELUSER,
+                agent_id,
+                {
+                    'username': _required_username(username),
+                    'remove_home': remove_home_value,
+                },
+                legacy,
+            ),
+        )
+
     def get_capabilities(self, surface_filter: str = None, agent_os: str = None) -> List[dict]:
         """
         Get Aegis capabilities with optional filtering.
@@ -211,6 +519,12 @@ class Aegis:
             >>> creds = {"Username": "admin", "Password": "secret"}
             >>> config = sdk.aegis.create_job_config(agent, creds)
         """
+        if is_v2_agent(agent):
+            raise Exception(
+                "Aegis v2 endpoint job execution is not supported by the legacy "
+                "Aegis job path; refusing to create aegis/client_id config"
+            )
+
         config = {
             "aegis": "true",
             "client_id": agent.client_id or '',
@@ -285,17 +599,17 @@ class Aegis:
             raise Exception(f"Failed to get available domains: {e}")
     
     def ssh_to_agent(self, agent: Agent, options: List[str] = None, user: str = None, display_info: bool = True) -> int:
-        """SSH to an Aegis agent using Cloudflare tunnel."""
+        """SSH to an Aegis agent or v2 endpoint using its Cloudflare tunnel."""
 
         options = options or []
-        
-        # Determine SSH username using the centralized method
-        if not user:
-            _, user = self.api.get_current_user()
         
         is_valid, error_msg = validate_agent_for_ssh(agent)
         if not is_valid:
             raise Exception(error_msg)
+
+        # Determine SSH username using the centralized method
+        if not user:
+            _, user = self.api.get_current_user()
         
         hostname = agent.hostname or 'Unknown'
         cf_status = agent.health_check.cloudflared_status
@@ -368,13 +682,15 @@ class Aegis:
         :return: Process exit code
         """
         ssh_options = ssh_options or []
-
-        if not user:
-            _, user = self.api.get_current_user()
+        if is_v2_agent(agent):
+            raise Exception("Aegis v2 endpoint file copy is not supported")
 
         is_valid, error_msg = validate_agent_for_ssh(agent)
         if not is_valid:
             raise Exception(error_msg)
+
+        if not user:
+            _, user = self.api.get_current_user()
 
         hostname = agent.hostname or 'Unknown'
         cf_status = agent.health_check.cloudflared_status
@@ -514,6 +830,12 @@ class Aegis:
         the 'capabilities' key. When capabilities are provided, returns a dict
         with keys: 'success', 'job_id', 'job_key', 'status'. Errors raise.
         """
+        if is_v2_agent(agent):
+            raise Exception(
+                "Aegis v2 endpoint job execution is not supported by the legacy "
+                "Aegis job path; refusing to run without endpoint_agent_id"
+            )
+
         if not capabilities:
             caps = self.get_capabilities(surface_filter='internal')
             return {
@@ -569,10 +891,12 @@ class Aegis:
         
         if filter_text:
             filter_lower = filter_text.lower()
-            agents_data = [agent for agent in agents_data 
-                            if filter_lower in agent.hostname.lower() or
-                                filter_lower in agent.client_id.lower() or
-                                filter_lower in agent.os.lower()]
+            agents_data = [
+                agent for agent in agents_data
+                if filter_lower in (agent.hostname or '').lower()
+                or filter_lower in (agent.display_id or '').lower()
+                or filter_lower in (agent.os or '').lower()
+            ]
 
         if not agents_data:
             return f"No agents found matching filter: {filter_text}"
@@ -588,7 +912,7 @@ class Aegis:
                 detailed_lines.append('\n'.join(lines))
             return '\n\n'.join(detailed_lines)
         else:
-            lines = []
+            lines = [f"{'#':>4}  {'VERSION':<7}  {'HOSTNAME':<30}  ID"]
             for i, agent in enumerate(agents_data, 1):
-                lines.append(f"[{i:2d}] {str(agent)}")
+                lines.append(f"{i:>4}  {agent.version:<7}  {(agent.hostname or 'Unknown')[:30]:<30}  {agent.display_id}")
             return '\n'.join(lines)
