@@ -1,6 +1,6 @@
 # Praetorian CLI and SDK
 
-[![Python Version](https://img.shields.io/badge/Python-v3.9+-blue)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/Python-v3.10+-blue)](https://www.python.org/)
 [![pip Version](https://img.shields.io/badge/pip-v23.0+-blue)](https://pypi.org/project/praetorian-cli/)
 [![License](https://img.shields.io/badge/License-MIT-007EC6.svg)](LICENSE)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20covenant-2.1-007EC6.svg)](CODE_OF_CONDUCT.md)
@@ -20,7 +20,11 @@
     - [Signing up](#signing-up)
     - [Authentication](#authentication)
 - [Using the CLI](#using-the-cli)
+    - [Aegis v2 endpoints](#aegis-v2-endpoints)
+    - [AI Hunts](#ai-hunts)
     - [Aegis endpoint network policy](#aegis-endpoint-network-policy)
+    - [Engineer VMs](#engineer-vms)
+    - [File upload partitions](#file-upload-partitions)
     - [Update checks](#update-checks)
 - [Operators](#operators)
     - [Interactive Console](#interactive-console)
@@ -48,7 +52,7 @@ offensive security platform.
 
 ## Prerequisites
 
-- Python v3.9 or above
+- Python v3.10 or above
 - pip v23.0 or above
 
 ## Installation
@@ -59,7 +63,7 @@ Install the Python package:
 pip install praetorian-cli
 ```
 
-### Install from source (for console branch features)
+### Install from source
 
 ```zsh
 git clone https://github.com/praetorian-inc/praetorian-cli.git
@@ -157,9 +161,55 @@ To get detailed information about a specific asset, run:
 guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
 
+## Aegis v2 endpoints
+
+List Aegis endpoints or open the interactive endpoint console:
+
+```zsh
+guard aegis list --details
+guard aegis
+```
+
+Aegis v2 support includes durable online/offline inventory, enrollment approval,
+endpoint-compatible capability execution, Linux user and Cloudflare tunnel
+management and status diagnostics, endpoint-bound Hunts, host egress policy,
+verified artifact downloads, and explicit session/task/operation cancellation.
+
+```zsh
+guard aegis enrollment inspect <USER_CODE>
+guard aegis enrollment approve <USER_CODE>
+guard agent endpoint status <CONVERSATION_ID>
+```
+
+See [Aegis endpoints](docs/aegis.md) for enrollment, interactive commands,
+endpoint execution, tunnels, users, and policy management.
+
+## AI Hunts
+
+Launch Hunts across External, Internal, Cloud, Web Application, and LLM Application surfaces:
+
+```zsh
+guard hunt launch
+guard hunt launch --scope-mode specific --scope example.com --yes
+guard hunt launch --internal --endpoint <ENDPOINT_ID> \
+  --scope 10.20.30.0/24 --confirm-endpoint --yes
+```
+
+Use `guard hunt open <HUNT_ID>` for the unified Overview, Vulnerabilities,
+Workflow, Log, Memory, Chat, and Approvals interface. Static commands provide
+findings/evidence, finalized logs, memory CRUD, live chat and steering,
+interactions, workflow status, projected cost, and pause/resume/stop/delete
+lifecycle controls.
+
+See [AI Hunts](docs/hunts.md) for launch options, scoped credentials, keyboard
+controls, human-in-the-loop (HITL) approvals, and scriptable commands.
+
 ## Aegis endpoint network policy
 
-Aegis v2 endpoint policies restrict egress from every active and future workload on an endpoint, including agentic Hunt workloads. View the desired and applied revisions, protected gateway/DNS connectivity, built-in rules, and custom rules with:
+Aegis v2 endpoint policies restrict egress from every active and future
+workload on an endpoint, including agentic Hunt workloads. View the desired and
+applied revisions, protected gateway/DNS connectivity, built-in rules, and
+custom rules with:
 
 ```zsh
 guard aegis network-policy show <ENDPOINT_ID>
@@ -175,16 +225,54 @@ guard aegis network-policy deny remove <ENDPOINT_ID> 1
 
 The remove command accepts either the rule number shown by `show`, or an exact destination plus matching `--tcp-ports`.
 
-Guard supplies four built-in rules: `deny-unspecified`, `deny-loopback`, `deny-docker-api`, and `deny-control-plane`. They can be removed or restored explicitly:
+Guard supplies four built-in rules: `deny-unspecified`, `deny-loopback`,
+`deny-docker-api`, and `deny-control-plane`. They can be removed or restored
+explicitly:
 
 ```zsh
 guard aegis network-policy default remove <ENDPOINT_ID> deny-loopback
 guard aegis network-policy default restore <ENDPOINT_ID> deny-loopback
 ```
 
-Changes require confirmation unless `--yes` is supplied. Guard rejects policies that conflict with protected gateway or DNS connectivity, and revisions prevent one operator from silently overwriting another operator's changes.
+Changes require confirmation unless `--yes` is supplied. Guard rejects
+policies that conflict with protected gateway or DNS connectivity, and
+revisions prevent one operator from silently overwriting another operator's
+changes.
 
-The interactive `guard aegis` interface exposes the same operations for the selected endpoint through `policy`, `policy default ...`, and `policy deny ...`.
+The interactive `guard aegis` interface exposes the same operations for the
+selected endpoint through `policy`, `policy default ...`, and `policy deny ...`.
+See [Host egress network policy](docs/aegis.md#host-egress-network-policy) for
+all built-in rules, safety behavior, and SDK access.
+
+## Engineer VMs
+
+Praetorian engineers can manage ad-hoc cloud workspaces with the `vm` command group:
+
+```zsh
+guard vm launch --tier general
+guard vm list
+guard vm ssh <VM_ID>
+guard vm code-server <VM_ID>
+guard vm pause <VM_ID>
+guard vm archive <VM_ID>
+guard vm revive <VM_ID>
+```
+
+SSH uses an ephemeral keypair and short-lived VM-bound certificate through
+Guard's authenticated gateway. See [Engineer VMs](docs/engineer-vms.md) for
+lifecycle, access, and security details.
+
+## File upload partitions
+
+Praetorian operators can place an upload in the Praetorian-only partition independently of its destination path:
+
+```zsh
+guard add file ./narratives.md \
+  --name "reports/narratives.md" \
+  --praetorian
+```
+
+`--praetorian` and `--public` are mutually exclusive. Guard enforces operator authorization server-side; customer users cannot write to the Praetorian partition.
 
 ## Update checks
 
@@ -268,7 +356,9 @@ The console provides:
 - **Engagement management** — switch between accounts, view stats (seeds/assets/risks), create customers, manage vaults
 - **Metasploit-style tool selection** — `use <tool>`, `show targets`, `set target`, `execute`
 - **All 141 backend capabilities** — any capability can be selected via `use <name>` or `use <#>`
-- **Marcus Aurelius AI** — inline queries (`ask`) and multi-turn conversation (`marcus`)
+- **Marcus Aurelius AI** — inline queries, supervised multi-agent operations, HITL approvals, and secure credential prompts
+- **Aegis v2 operations** — endpoint inventory, capability execution, tunnels, users, egress policy, and lifecycle controls
+- **AI Hunts** — all-surface launch, unified monitoring, steering, memory, findings, workflows, and approvals
 - **Fulltext search** — `find` for Neo4j graph search across all entity types
 - **Evidence hydration** — `evidence <risk>` fetches all scattered evidence in one view
 - **Report generation** — `report generate` / `report validate`
@@ -323,11 +413,22 @@ Marcus is Guard's AI operator, accessible from both the CLI and the interactive 
 guard ask "how many critical risks are there?"
 guard ask "show me all assets with port 22 open" --mode query
 
+# Supervised multi-agent operations
+guard agent conversation --mode agent
+
 # File analysis and ingestion
 guard marcus read "vault/engagement/sow.pdf"
 guard marcus ingest "vault/nessus-export.csv" --findings
 guard marcus do "generate an executive summary"
 ```
+
+Agent mode shows named tool and delegated-agent progress. Use `/agents`,
+`/focus`, and `/guide` to navigate and steer the tree; `/stop <id-prefix>` stops
+one branch, while `stop` or Ctrl+X stops Marcus and all correlated work.
+Endpoint approvals and masked one-time credential/MFA prompts are handled in
+the terminal without persisting secret values in conversation history.
+
+See [Guard Interactive Console](docs/console.md#supervised-agent-mode) for the complete command set.
 
 In the console, Marcus shows live tool execution:
 ```
@@ -428,7 +529,14 @@ guard.add('asset', dict(name='example.com', dns='example.com'))
 The best place to explore the SDK is the code of the CLI, especially
 [the handlers of the CLI](https://github.com/praetorian-inc/praetorian-cli/tree/main/praetorian_cli/handlers)
 
-You can inspect the handler code to see how each CLI command is implemented with the SDK.
+You can inspect the handler code to see how each CLI command is implemented
+with the SDK. The 2.6.0 release adds structured APIs under `sdk.aegis`,
+`sdk.hunts`, `sdk.conversations`, `sdk.endpoint_executions`, and
+`sdk.credentials`.
+
+For higher-level examples and safety requirements, see
+[Aegis endpoints](docs/aegis.md), [AI Hunts](docs/hunts.md), and
+[Engineer VMs](docs/engineer-vms.md).
 
 ## Developing external scripts
 
