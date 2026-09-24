@@ -110,6 +110,7 @@ ENROLLMENT_INSPECT_PATH = 'endpoint/enrollment/inspect'
 ENROLLMENT_APPROVE_PATH = 'endpoint/enrollment/approve'
 ENDPOINT_NETWORK_POLICY_PATH = 'endpoint/{endpoint_id}/network-policy'
 AEGIS_MANAGEMENT_TASKS_PATH = 'aegis/management/tasks'
+CLOUDFLARE_TUNNEL_STATUS_PATH = 'aegis/management/cloudflare/tunnel/status/{endpoint_id}'
 CLOUDFLARE_TUNNEL_CREATE_PATH = 'aegis/management/cloudflare/tunnel/create'
 CLOUDFLARE_TUNNEL_REMOVE_PATH = 'aegis/management/cloudflare/tunnel/remove'
 ENDPOINT_PIN_CONFIG_KEY = 'endpoint_agent_id'
@@ -368,6 +369,13 @@ class Aegis:
             'disabledDefaultRuleIds': list(disabled_default_rule_ids or []),
             'customDenyRules': [dict(rule) for rule in custom_deny_rules or []],
         })
+
+    def get_cloudflare_tunnel_status(self, endpoint_id: str) -> dict:
+        """Get safe configuration and runtime health for an Aegis v2 tunnel."""
+        path = CLOUDFLARE_TUNNEL_STATUS_PATH.format(
+            endpoint_id=quote(_required_endpoint_id(endpoint_id), safe=''),
+        )
+        return self.api.get(path)
 
     def create_cloudflare_tunnel(self, agent_id: str, *, legacy: bool = False) -> dict:
         """Create and install a Cloudflare tunnel on a selected Aegis agent."""

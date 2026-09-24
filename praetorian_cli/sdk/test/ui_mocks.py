@@ -133,6 +133,27 @@ class MockAegis:
         })
         return response
 
+    def get_cloudflare_tunnel_status(self, endpoint_id):
+        self.calls.append({
+            'method': 'get_cloudflare_tunnel_status',
+            'endpoint_id': endpoint_id,
+        })
+        error = (self._responses.get('tunnel_errors') or {}).get('status')
+        if error:
+            raise error
+        return self._responses.get('tunnel_status', {
+            'configuration': {
+                'state': 'configured',
+                'hostname': 'endpoint.example.com',
+                'tunnelName': 'endpoint-tunnel',
+            },
+            'runtime': {
+                'state': 'running',
+                'reason': 'ready',
+                'observedAt': '2026-09-17T12:00:00Z',
+            },
+        })
+
     def create_cloudflare_tunnel(self, endpoint_id, *, legacy=False):
         self.calls.append({
             'method': 'create_cloudflare_tunnel',
