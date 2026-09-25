@@ -9,8 +9,7 @@ pin the properties that keep the mobile tools callable.
 
 from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.entities.apks import Apks
-from praetorian_cli.sdk.entities.endpoints import Endpoints
-from praetorian_cli.sdk.mcp_server import MCPServer
+from praetorian_cli.sdk.mcp_server import MCPServer, is_sensitive_tool
 
 JSON_SCALARS = {'string', 'number', 'boolean', 'array'}
 
@@ -21,7 +20,6 @@ class FakeChariot:
     def __init__(self):
         self.aegis = Aegis(None)
         self.apks = Apks(None)
-        self.endpoints = Endpoints(None)
 
 
 def discovery_only_server():
@@ -50,15 +48,24 @@ class TestMobileToolsAreExposed:
         self.server = discovery_only_server()
 
     def test_the_mobile_tools_are_discovered(self):
-        for tool in ('aegis_run_job', 'apks_add', 'endpoints_list', 'endpoints_get'):
+        for tool in ('aegis_run_job', 'apks_add', 'aegis_list'):
             assert tool in self.server.discovered_tools
 
-    def test_run_job_takes_only_values_an_mcp_client_can_send(self):
+    def test_the_mobile_tools_survive_the_default_allow_list(self):
+        # Secret-bearing tools are withheld unless named exactly. Dispatching a
+        # capability and registering an APK carry no secrets, so they stay reachable
+        # with no allow-list configured -- which is how the MCP server usually runs.
+        for tool in ('aegis_run_job', 'apks_add'):
+            assert not is_sensitive_tool(tool)
+            assert self.server._is_tool_allowed(tool)
+
+    def test_run_job_dispatches_on_values_an_mcp_client_can_send(self):
         parameters = tool_parameters(self.server, 'aegis_run_job')
 
-        assert set(parameters) == {'capabilities', 'hostname', 'package', 'endpoint_id', 'config'}
-        for name, parameter in parameters.items():
-            assert parameter['type'] in JSON_SCALARS, f'{name} is not expressible as JSON'
+        # Everything needed to dispatch is a scalar or a list. `agent` is the legacy
+        # Agent argument, kept for positional callers; an MCP client never sends it.
+        for name in ('capabilities', 'hostname', 'package', 'endpoint_id', 'config'):
+            assert parameters[name]['type'] in JSON_SCALARS, f'{name} is not expressible as JSON'
 
     def test_run_job_needs_no_required_argument_to_list_capabilities(self):
         parameters = tool_parameters(self.server, 'aegis_run_job')

@@ -1,6 +1,10 @@
 import json
+from time import monotonic
 
 from praetorian_cli.sdk.entities.search import flatten_results
+
+
+TREE_CACHE_TTL_SECONDS = 10
 
 
 class Conversations:
@@ -10,6 +14,7 @@ class Conversations:
 
     def __init__(self, api):
         self.api = api
+        self._tree_cache = {}
 
     def list(self, scope='user', offset=None, pages=100000) -> tuple:
         """List conversations, most recent first.
@@ -55,6 +60,172 @@ class Conversations:
             raise ValueError(f'No conversation found for id: {conversation_id}')
         return _transcript(conversation_id, meta[0] if meta else {}, records)
 
+    def get_metadata(self, conversation_id) -> dict:
+        """Get one conversation row without loading its message history."""
+        conversation_id = _required_string(
+            conversation_id,
+            'conversation ID',
+        )
+        records = self._routed(
+            f'#conversation#{conversation_id}',
+            conversation_id,
+        )
+        if not records:
+            raise ValueError(
+                f'No conversation found for id: {conversation_id}'
+            )
+        return records[0]
+
+    def root_id(self, conversation_id, max_depth=5) -> str:
+        """Walk parent links to the root of an authorized conversation tree."""
+        current_id = _required_string(conversation_id, 'conversation ID')
+        seen = {current_id}
+        # A tree with max_depth subagent edges contains max_depth + 1 nodes
+        # including the root, so inspect the root after the final parent hop.
+        for _depth in range(max_depth + 1):
+            conversation = self.get_metadata(current_id)
+            parent_id = (
+                conversation.get('parent_id')
+                or conversation.get('parentId')
+            )
+            if not parent_id or parent_id == 'self':
+                return current_id
+            if parent_id in seen:
+                raise ValueError('conversation parent links contain a cycle')
+            seen.add(parent_id)
+            current_id = parent_id
+        raise ValueError('conversation tree exceeds its maximum depth')
+
+    def list_interactions(
+        self,
+        conversation_id,
+        status=None,
+        include_descendants=False,
+    ) -> list:
+        """List durable interactions for a conversation or conversation tree.
+
+        The ``convId`` parameter lets Guard resolve private and hunt/public
+        conversation partitions server-side. Unknown interaction kinds are
+        returned unchanged.
+        """
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        if status is not None:
+            status = _required_string(status, 'interaction status')
+
+        conversation_ids = (
+            self.tree_ids(conversation_id)
+            if include_descendants
+            else [conversation_id]
+        )
+
+        interactions = []
+        for current_id in conversation_ids:
+            interactions.extend(self._routed(
+                f'#interaction#{current_id}#', current_id
+            ))
+        if status is not None:
+            interactions = [
+                interaction for interaction in interactions
+                if interaction.get('status') == status
+            ]
+        return sorted(
+            interactions,
+            key=lambda interaction: (
+                interaction.get('timestamp', ''),
+                interaction.get('key', ''),
+            ),
+        )
+
+    def tree_ids(self, conversation_id) -> list:
+        """Return a cached, bounded conversation tree."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        now = monotonic()
+        cached = self._tree_cache.get(conversation_id)
+        if cached and cached[0] > now:
+            return list(cached[1])
+
+        conversation_ids = [
+            conversation_id,
+            *self._descendant_ids(conversation_id),
+        ]
+        self._tree_cache[conversation_id] = (
+            now + TREE_CACHE_TTL_SECONDS,
+            tuple(conversation_ids),
+        )
+        return conversation_ids
+
+    def stop(self, conversation_id) -> dict:
+        """Stop a conversation and its Guard-correlated child work."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        return self.api.post('planner/stop', {
+            'conversationId': conversation_id,
+        })
+
+    def send_message(self, conversation_id, message) -> dict:
+        """Queue guidance for an active conversation."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        message = _required_string(message, 'message', strip=False)
+        return self.api.post('planner', {
+            'conversationId': conversation_id,
+            'message': message,
+        })
+
+    def answer_interaction(self, conversation_id, request_id, response) -> dict:
+        """Answer one durable conversation interaction."""
+        conversation_id = _required_string(conversation_id, 'conversation ID')
+        request_id = _required_string(request_id, 'request ID')
+        response = _required_string(response, 'interaction response', strip=False)
+        return self.api.post('planner/interaction', {
+            'conversationId': conversation_id,
+            'requestId': request_id,
+            'response': response,
+        })
+
+    def _descendant_ids(self, root_id, max_depth=5, max_ids=200):
+        descendants = []
+        seen = {root_id}
+        frontier = [root_id]
+        for _depth in range(max_depth):
+            next_frontier = []
+            for parent_id in frontier:
+                for user_partition in (True, False):
+                    children = self._children(parent_id, user_partition)
+                    for child in children:
+                        child_id = child.get('uuid') or child.get('id')
+                        if not child_id or child_id in seen:
+                            continue
+                        seen.add(child_id)
+                        descendants.append(child_id)
+                        next_frontier.append(child_id)
+                        if len(descendants) >= max_ids:
+                            return descendants
+            if not next_frontier:
+                break
+            frontier = next_frontier
+        return descendants
+
+    def _children(self, parent_id, user_partition, pages=100000):
+        params = {
+            'key': f'parent_id:{parent_id}',
+            'label': 'conversation',
+        }
+        if user_partition:
+            params['user'] = 'true'
+
+        children = []
+        for _page in range(pages):
+            results = self.api.get('my', params)
+            offset = results.pop('offset', None)
+            children.extend(flatten_results(results))
+            if not offset:
+                return children
+            params['offset'] = json.dumps(offset)
+
+        raise RuntimeError(
+            'conversation child listing exceeded its page limit; '
+            f'remaining offset: {params.get("offset")}'
+        )
+
     def _shared(self, offset=None, pages=100000) -> tuple:
         # The tenant partition (no user flag) mixes shared conversations in with
         # other tenant records; keep only the public and hunt-owned ones.
@@ -65,6 +236,12 @@ class Conversations:
         results = self.api.my({'key': key, 'convId': conversation_id}, pages=100000)
         results.pop('offset', None)
         return flatten_results(results)
+
+
+def _required_string(value, name, strip=True):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f'{name} is required')
+    return value.strip() if strip else value
 
 
 def _transcript(uuid, meta, records) -> dict:
@@ -80,6 +257,9 @@ def _transcript(uuid, meta, records) -> dict:
         message = dict(role=role, content=r.get('content', ''), timestamp=r.get('timestamp', ''))
         if role == 'tool call':
             message['tool'] = _tool_call(r, responses)
+        attachments = _attachment_metadata(r)
+        if attachments:
+            message['attachments'] = attachments
         messages.append(message)
 
     return dict(uuid=uuid, topic=meta.get('topic') or '', created=meta.get('created') or '',
@@ -92,9 +272,86 @@ def _tool_call(call, responses) -> dict:
         spec = {}
     tool_use_id = spec.get('ToolUseID') or call.get('toolUseId', '')
     response = responses.get(tool_use_id)
-    return dict(name=spec.get('Name', ''), input=spec.get('Input'),
-                response=_loads(response.get('content')) if response else None,
-                tool_use_id=tool_use_id)
+    tool = dict(
+        name=spec.get('Name', ''),
+        input=spec.get('Input'),
+        response=_loads(response.get('content')) if response else None,
+        tool_use_id=tool_use_id,
+    )
+    attachments = _attachment_metadata(response or {})
+    if attachments:
+        tool['attachments'] = attachments
+    return tool
+
+
+def _attachment_metadata(record, max_items=12):
+    """Keep only bounded display metadata; never expose attachment URLs/data."""
+    candidates = []
+    for field, kind in (
+        ('attachments', 'attachment'),
+        ('attachment', 'attachment'),
+        ('screenshots', 'screenshot'),
+        ('screenshot', 'screenshot'),
+    ):
+        value = _loads(record.get(field))
+        if isinstance(value, list):
+            candidates.extend((item, kind) for item in value)
+        elif value is not None:
+            candidates.append((value, kind))
+
+    metadata = []
+    for value, default_kind in candidates[:max_items]:
+        if isinstance(value, str):
+            name = _safe_attachment_text(value, 160).replace('\\', '/').rsplit('/', 1)[-1]
+            if name:
+                metadata.append({'kind': default_kind, 'name': name})
+            continue
+        if not isinstance(value, dict):
+            continue
+        media_type = _safe_attachment_text(
+            value.get('mediaType')
+            or value.get('contentType')
+            or value.get('mimeType')
+            or value.get('type'),
+            80,
+        )
+        name = _safe_attachment_text(
+            value.get('displayName')
+            or value.get('filename')
+            or value.get('name')
+            or value.get('title'),
+            160,
+        ).replace('\\', '/').rsplit('/', 1)[-1]
+        item = {
+            'kind': (
+                'screenshot'
+                if default_kind == 'screenshot' or media_type.lower().startswith('image/')
+                else default_kind
+            ),
+        }
+        if name:
+            item['name'] = name
+        if media_type:
+            item['mediaType'] = media_type
+        size = value.get('bytes') if value.get('bytes') is not None else value.get('size')
+        if isinstance(size, int) and 0 <= size <= 10 ** 12:
+            item['bytes'] = size
+        for dimension in ('width', 'height'):
+            number = value.get(dimension)
+            if isinstance(number, int) and 0 < number <= 100000:
+                item[dimension] = number
+        metadata.append(item)
+    return metadata
+
+
+def _safe_attachment_text(value, limit):
+    if value is None:
+        return ''
+    printable = ''.join(
+        character if character.isprintable() else ' '
+        for character in str(value)
+    )
+    return ' '.join(printable.split())[:limit]
 
 
 def _loads(raw):

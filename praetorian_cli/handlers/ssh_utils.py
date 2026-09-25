@@ -3,7 +3,7 @@ Shared SSH utilities for Aegis CLI and TUI commands
 """
 
 from typing import List, Dict, Optional
-from praetorian_cli.sdk.model.aegis import Agent
+from praetorian_cli.sdk.model.aegis import validate_agent_for_ssh
 
 
 class SSHArgumentParser:
@@ -31,13 +31,29 @@ class SSHArgumentParser:
         while i < len(args):
             arg = args[i]
             
-            if arg in ['-L', '-l', '--local-forward']:
+            if arg in ['-L', '--local-forward']:
                 if i + 1 >= len(args):
                     self._print_error("Error: -L requires a port forwarding specification")
                     self._print_error("Example: ssh -L 8080:localhost:80", dim=True)
                     return None
                 options['local_forward'].append(args[i + 1])
                 i += 2
+
+            elif arg.startswith('--local-forward='):
+                options['local_forward'].append(arg.split('=', 1)[1])
+                i += 1
+
+            elif arg in ['-l', '--login-name']:
+                if i + 1 >= len(args):
+                    self._print_error("Error: -l requires a username")
+                    self._print_error("Example: ssh -l root", dim=True)
+                    return None
+                options['user'] = args[i + 1]
+                i += 2
+
+            elif arg.startswith('-l') and len(arg) > 2:
+                options['user'] = arg[2:]
+                i += 1
                 
             elif arg in ['-R', '-r', '--remote-forward']:
                 if i + 1 >= len(args):
@@ -78,6 +94,10 @@ class SSHArgumentParser:
                     return None
                 options['user'] = args[i + 1]
                 i += 2
+
+            elif arg.startswith('--user='):
+                options['user'] = arg.split('=', 1)[1]
+                i += 1
                 
             elif arg.startswith('-'):
                 # Collect unknown options and their arguments if any
@@ -125,30 +145,3 @@ class SSHArgumentParser:
         else:
             # Fallback for CLI usage
             print(f"Error: {message}" if not dim else message)
-
-
-def validate_agent_for_ssh(agent: Agent) -> tuple[bool, str]:
-    """
-    Validate if an agent is ready for SSH connections
-    Returns (is_valid, error_message)
-    """
-    if not agent:
-        return False, "No agent specified"
-    
-    client_id = agent.client_id
-    hostname = agent.hostname or 'Unknown'
-    has_tunnel = agent.has_tunnel
-    
-    if not client_id:
-        return False, "Agent missing client_id"
-    
-    # Check if Cloudflare tunnel is available
-    if not has_tunnel:
-        return False, f"SSH not available for {hostname} - no active tunnel"
-    
-    # Check if tunnel has a public hostname
-    public_hostname = agent.health_check.cloudflared_status.hostname if has_tunnel else None
-    if not public_hostname:
-        return False, f"No public hostname found in tunnel configuration for {hostname}"
-    
-    return True, ""

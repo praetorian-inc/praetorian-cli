@@ -1,11 +1,15 @@
-import os
 import time
+from os import environ
 from random import randint
 
 from praetorian_cli.sdk.chariot import Chariot
 from praetorian_cli.sdk.keychain import Keychain
 from praetorian_cli.sdk.model.globals import Risk, Preseed
 from praetorian_cli.sdk.model.utils import risk_key, asset_key, ad_domain_key, attribute_key, seed_asset_key, preseed_key, setting_key, configuration_key
+
+
+TEST_PROFILE_ENV = 'CHARIOT_TEST_PROFILE'
+TEST_ACCOUNT_ENV = 'CHARIOT_TEST_ACCOUNT'
 
 
 def epoch_micro():
@@ -84,8 +88,34 @@ def clean_test_entities(sdk, o):
     sdk.settings.delete(o.setting_key)
     sdk.configurations.delete(o.configuration_key)
 
-def setup_chariot():
-    return Chariot(Keychain(os.environ.get('CHARIOT_TEST_PROFILE')))
+def setup_chariot(profile, account):
+    if (
+        not isinstance(profile, str)
+        or not profile
+        or profile != profile.strip()
+        or not isinstance(account, str)
+        or not account
+        or account != account.strip()
+    ):
+        raise ValueError('An explicit profile and account are required for live tests.')
+
+    keychain = Keychain(profile=profile, account=account)
+    if keychain.profile != profile or keychain.account != account:
+        raise ValueError('Constructed test target does not match the selected profile and account.')
+    return Chariot(keychain)
+
+
+def selected_test_target():
+    profile = environ.get(TEST_PROFILE_ENV)
+    account = environ.get(TEST_ACCOUNT_ENV)
+    if (
+        not profile
+        or profile != profile.strip()
+        or not account
+        or account != account.strip()
+    ):
+        raise ValueError('An explicit profile and account are required for live tests.')
+    return profile, account
 
 
 def email_address():

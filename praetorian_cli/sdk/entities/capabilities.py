@@ -1,3 +1,57 @@
+CAPABILITY_ITEM_KEYS = ('capabilities', 'data', 'items')
+
+
+def normalize_capabilities_response(result, item_keys=None):
+    """Return capability dictionaries from Guard/list-compatible responses."""
+    keys = item_keys or CAPABILITY_ITEM_KEYS
+    if result is None:
+        return []
+    if isinstance(result, tuple):
+        result = result[0] if result else []
+    if isinstance(result, dict):
+        for key in keys:
+            value = result.get(key)
+            if isinstance(value, list):
+                result = value
+                break
+            if isinstance(value, dict):
+                result = list(value.values())
+                break
+        else:
+            return []
+    if not isinstance(result, list):
+        return []
+    return [capability for capability in result if isinstance(capability, dict)]
+
+
+def capability_name(capability):
+    if not isinstance(capability, dict):
+        return ''
+    return str(capability.get('name') or capability.get('Name') or '').strip()
+
+
+def capability_description(capability):
+    if not isinstance(capability, dict):
+        return ''
+    return str(capability.get('description') or capability.get('Description') or '')
+
+
+def capability_target_type(capability, default='asset'):
+    if not isinstance(capability, dict):
+        return default
+    target = capability.get('target')
+    if target is None:
+        target = capability.get('Target')
+    if target is None:
+        target = default
+    if isinstance(target, str):
+        return target.lower()
+    if isinstance(target, list):
+        normalized = [str(item).lower() for item in target]
+        return normalized[0] if normalized else default
+    return str(target).lower()
+
+
 class Capabilities:
     """ The methods in this class are to be assessed from sdk.capabilities, where sdk is an instance
     of Chariot. """
@@ -7,8 +61,7 @@ class Capabilities:
 
     def list(self, name='', target='', executor='', endpoint_kind='') -> tuple:
         """
-        List available capabilities, optionally filtered by name, target, executor and/or
-        endpoint kind.
+        List available capabilities, optionally filtered by name, target, executor, and/or endpoint kind.
 
         Capabilities are security scanning tools and integrations available in Chariot.
         Each capability can target specific entity types (assets, attributes, preseeds, etc.)
@@ -20,10 +73,7 @@ class Capabilities:
         :type target: str
         :param executor: Filter capabilities by executor (partial match: chariot, aegis, janus)
         :type executor: str
-        :param endpoint_kind: Filter to capabilities dispatchable to an enrolled endpoint of
-            this kind (exact match: aegis). This is a different axis from executor: an
-            endpoint-dispatchable capability is registered against Guard's own executor and
-            opts into endpoint dispatch separately, so filtering by executor will not find it.
+        :param endpoint_kind: Filter capabilities to those carried by an endpoint kind (e.g. aegis)
         :type endpoint_kind: str
         :return: A tuple containing (list of matching capabilities, next page offset)
         :rtype: tuple
@@ -44,9 +94,6 @@ class Capabilities:
             >>> # Combine filters
             >>> capabilities, offset = sdk.capabilities.list(name='nuclei', target='attribute', executor='chariot')
 
-            >>> # Capabilities that can be dispatched to an enrolled Aegis endpoint
-            >>> capabilities, offset = sdk.capabilities.list(endpoint_kind='aegis')
-
         **Capability Object Structure:**
             Each capability in the returned list contains:
             - Name: Capability identifier (e.g., 'nuclei', 'subdomain')
@@ -60,11 +107,12 @@ class Capabilities:
             - Executor: Execution environment (chariot, aegis, janus)
 
         **Valid Filter Values:**
-            - target: 'asset', 'attribute', 'preseed', 'webpage', 'repository', 'integration', 'apk'
+            - target: 'asset', 'attribute', 'preseed', 'webpage', 'repository', 'integration'
             - executor: 'chariot', 'aegis', 'janus'
             - endpoint_kind: 'aegis'
             - name: Any string (partial matching)
         """
-        return self.api.get('capabilities', {
-            'name': name, 'target': target, 'executor': executor, 'endpoint_kind': endpoint_kind,
-        })
+        params = {'name': name, 'target': target, 'executor': executor}
+        if endpoint_kind:
+            params['endpoint_kind'] = endpoint_kind
+        return self.api.get('capabilities', params)

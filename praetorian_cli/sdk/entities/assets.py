@@ -1,6 +1,12 @@
-from praetorian_cli.handlers.utils import error
 from praetorian_cli.sdk.model.globals import Asset, Kind
 from praetorian_cli.sdk.model.query import Relationship, Node, Query, Filter, KIND_TO_LABEL, asset_of_key, RISK_NODE, ATTRIBUTE_NODE
+
+
+HUNT_SCOPE_CLASSES = {
+    'hannibal': ['domain', 'tld', 'ipv4', 'ipv6', 'cidr'],
+    'hannibal-cloud': ['amazon', 'azure', 'gcp'],
+}
+HUNT_WEB_AGENTS = {'hannibal-webapp', 'hannibal-llm'}
 
 
 class Assets:
@@ -125,6 +131,81 @@ class Assets:
         query = Query(node=node)
 
         return self.api.search.by_query(query, pages)
+
+    def list_hunt_scope(
+        self,
+        agent='hannibal',
+        internal=False,
+        search='',
+        page=0,
+        pages=1,
+    ):
+        """List active targets selectable by the Hunt launch UI."""
+        if internal and agent != 'hannibal':
+            raise ValueError('Internal Hunts require the Hannibal agent')
+        if agent not in HUNT_SCOPE_CLASSES and agent not in HUNT_WEB_AGENTS:
+            raise ValueError(f'Unsupported Hunt agent: {agent}')
+
+        is_web_application = agent in HUNT_WEB_AGENTS
+        filters = [
+            Filter(
+                Filter.Field.STATUS,
+                Filter.Operator.STARTS_WITH,
+                Asset.ACTIVE.value,
+            )
+        ]
+        if not is_web_application:
+            classes = ['ipv4', 'cidr'] if internal else HUNT_SCOPE_CLASSES[agent]
+            filters.append(Filter(
+                Filter.Field.CLASS,
+                Filter.Operator.IN,
+                [classes],
+            ))
+        if internal:
+            filters.append(Filter(
+                Filter.Field.IS_INTERNAL,
+                Filter.Operator.EQUAL,
+                True,
+            ))
+        if agent == 'hannibal-llm':
+            filters.append(Filter(
+                Filter.Field.IS_LLM,
+                Filter.Operator.EQUAL,
+                True,
+            ))
+
+        label = (
+            Node.Label.WEBAPPLICATION
+            if is_web_application
+            else Node.Label.ASSET
+        )
+        node = Node(labels=[label], filters=filters)
+        query_filters = None
+        if search and not is_web_application:
+            node.search = search
+        elif search:
+            search_conditions = [
+                Filter(field, Filter.Operator.CONTAINS, search).to_dict()
+                for field in (
+                    Filter.Field.KEY,
+                    Filter.Field.NAME,
+                    Filter.Field.PRIMARY_URL,
+                    Filter.Field.IDENTIFIER,
+                    Filter.Field.DOMAIN,
+                )
+            ]
+            query_filters = [
+                Filter('', Filter.Operator.OR, search_conditions)
+            ]
+        return self.api.search.by_query(
+            Query(
+                node=node,
+                page=page,
+                limit=200,
+                filters=query_filters,
+            ),
+            pages,
+        )
 
     def attributes(self, key):
         """

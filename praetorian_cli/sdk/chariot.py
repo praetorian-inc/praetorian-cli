@@ -12,7 +12,8 @@ from praetorian_cli.sdk.entities.configurations import Configurations
 from praetorian_cli.sdk.entities.conversations import Conversations
 from praetorian_cli.sdk.entities.credentials import Credentials
 from praetorian_cli.sdk.entities.definitions import Definitions
-from praetorian_cli.sdk.entities.endpoints import Endpoints
+from praetorian_cli.sdk.entities.endpoint_executions import EndpointExecutions
+from praetorian_cli.sdk.entities.engineer_vm import EngineerVms
 from praetorian_cli.sdk.entities.files import Files
 from praetorian_cli.sdk.entities.hunts import Hunts
 from praetorian_cli.sdk.entities.integrations import Integrations
@@ -39,6 +40,7 @@ class Chariot:
 
     def __init__(self, keychain: Keychain, proxy: str=''):
         self.keychain = keychain
+        self.session = requests.Session()
         self.assets = Assets(self)
         self.seeds = Seeds(self)
         self.preseeds = Preseeds(self)
@@ -59,6 +61,7 @@ class Chariot:
         self.aegis = Aegis(self)
         self.agents = Agents(self)
         self.conversations = Conversations(self)
+        self.endpoint_executions = EndpointExecutions(self)
         self.settings = Settings(self)
         self.configurations = Configurations(self)
         self.keys = Keys(self)
@@ -67,8 +70,8 @@ class Chariot:
         self.webpage = Webpage(self)
         self.schema = Schema(self)
         self.schedules = Schedules(self)
+        self.vms = EngineerVms(self)
         self.apks = Apks(self)
-        self.endpoints = Endpoints(self)
         self.proxy = proxy
 
         if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):
@@ -80,8 +83,8 @@ class Chariot:
 
     def chariot_request(self, method: str, url: str, headers: dict | None = None, **kwargs) -> requests.Response:
         """
-        Centralized wrapper around requests.request. Takes care of proxy and
-        supplies the authentication headers
+        Centralized HTTP wrapper. Takes care of proxy and supplies the
+        authentication headers.
         """
         if self.proxy:
             kwargs['proxies'] = {'http': self.proxy, 'https': self.proxy}
@@ -90,7 +93,7 @@ class Chariot:
         # Bound stalled connections; callers may override by passing timeout=.
         kwargs.setdefault('timeout', DEFAULT_HTTP_TIMEOUT)
 
-        return requests.request(method, url, headers=((headers or {}) | self.keychain.headers()), **kwargs)
+        return self.session.request(method, url, headers=((headers or {}) | self.keychain.headers()), **kwargs)
 
 
     def my(self, params: dict, pages=1) -> dict:
@@ -301,9 +304,12 @@ class Chariot:
         """ Start MCP server exposing SDK methods as tools
         
         Arguments:
-        allowable_tools: list
-            Optional list of tool names to expose. If None, all tools are exposed.
-            Tool names should be in format 'entity.method' (e.g., 'assets.add', 'risks.list')
+        allowable_tools: list or tuple of str
+            Optional list of tool names to expose. Tool names are in format
+            'entity_method' (e.g., 'assets_add', 'risks_list'). If None, all
+            non-sensitive tools are exposed; sensitive tools (see
+            praetorian_cli.sdk.mcp_server.SENSITIVE_TOOL_PATTERNS) require an
+            exact-name allow entry and never match wildcard patterns.
         """
         from praetorian_cli.sdk.mcp_server import MCPServer
         import anyio

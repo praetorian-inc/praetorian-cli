@@ -5,6 +5,7 @@ import json
 from rich.prompt import Prompt, Confirm
 from prompt_toolkit import prompt as pt_prompt
 from prompt_toolkit.completion import Completer, Completion, FuzzyCompleter
+from praetorian_cli.sdk.entities.capabilities import capability_target_type
 from ..constants import DEFAULT_COLORS
 
 
@@ -14,16 +15,12 @@ from ..constants import DEFAULT_COLORS
 
 def extract_target_type(capability_info: dict) -> str:
     """Extract the target type from capability info, handling list or string values."""
-    target_raw = capability_info.get('target', 'asset')
+    return capability_target_type(capability_info)
 
-    if isinstance(target_raw, str):
-        return target_raw.lower()
 
-    if isinstance(target_raw, list):
-        normalized = [str(item).lower() for item in target_raw]
-        return normalized[0] if normalized else 'asset'
-
-    return str(target_raw).lower()
+def is_network_share_target(target_key: str) -> bool:
+    """Return whether a Repository key identifies an SMB network share."""
+    return isinstance(target_key, str) and target_key.lower().startswith('#repository#smb://')
 
 
 # ---------------------------------------------------------------------------
@@ -129,11 +126,6 @@ def interactive_capability_picker(menu, suggested=None):
         if not caps:
             # Fallback to all capabilities
             caps = menu.sdk.aegis.get_capabilities(surface_filter='internal')
-
-        # Capabilities dispatched to an enrolled endpoint, mobile ones included. They carry
-        # Guard's own executor rather than the agent executor, so the lists above never hold
-        # them and they would be unreachable from the picker.
-        caps = _merge_by_name(caps, _endpoint_capabilities(menu))
 
         if not caps:
             menu.console.print("  No capabilities available.")
@@ -361,115 +353,3 @@ def resolve_addomain_target_key(menu, domain):
         menu.console.print(f"  [{colors['error']}]Error querying domain asset: {e}[/{colors['error']}]")
 
     return None
-
-
-# ---------------------------------------------------------------------------
-# Endpoint and APK helpers
-# ---------------------------------------------------------------------------
-
-def _endpoint_capabilities(menu):
-    """Capabilities dispatchable to an enrolled endpoint, or [] if that cannot be read."""
-    try:
-        return menu.sdk.aegis.get_capabilities(endpoint_kind='aegis', executor='')
-    except Exception:
-        return []
-
-
-def _merge_by_name(capabilities, extra):
-    """Append the capabilities of extra that capabilities does not already name."""
-    known = {c.get('name') for c in capabilities if isinstance(c, dict)}
-    merged = list(capabilities)
-    merged.extend(c for c in extra if isinstance(c, dict) and c.get('name') not in known)
-    return merged
-
-
-def is_endpoint_dispatched(menu, capability_name):
-    """Whether a capability runs on an enrolled endpoint rather than on compute.
-
-    Not every APK capability needs a device: jadx targets an APK too and decompiles it on
-    compute. Asking which endpoint should run that one would block a job that needs no
-    endpoint at all.
-    """
-    return any(c.get('name') == capability_name for c in _endpoint_capabilities(menu))
-
-
-def select_apk(menu):
-    """Interactive APK selection with a numbered list.
-
-    Returns:
-        str: The APK asset key ('#apk#<package>'), or None if cancelled or none exist.
-    """
-    colors = getattr(menu, 'colors', DEFAULT_COLORS)
-
-    try:
-        apks, _ = menu.sdk.assets.list(key_prefix='#apk#')
-    except Exception as e:
-        menu.console.print(f"  [{colors['error']}]Error listing APKs: {e}[/{colors['error']}]")
-        return None
-
-    if not apks:
-        menu.console.print(f"  [{colors['error']}]No APKs found.[/{colors['error']}]")
-        menu.console.print(f"  [{colors['dim']}]Upload one first with: guard add apk --file ./app.apk[/{colors['dim']}]")
-        return None
-
-    menu.console.print("\n  Available APKs:")
-    for i, apk in enumerate(apks[:10], 1):
-        package = apk.get('package') or apk.get('key', '').split('#')[-1]
-        version = apk.get('versionName', '')
-        menu.console.print(f"    {i:2d}. {package}" + (f" ({version})" if version else ""))
-
-    if len(apks) > 10:
-        menu.console.print(f"    [{colors['dim']}]... and {len(apks) - 10} more[/{colors['dim']}]")
-
-    while True:
-        try:
-            choice = int(Prompt.ask("  Choose APK", default="1").strip())
-            if 1 <= choice <= min(len(apks), 10):
-                return apks[choice - 1].get('key')
-            menu.console.print(f"  [{colors['error']}]Choose a number from the list.[/{colors['error']}]")
-        except ValueError:
-            menu.console.print(f"  [{colors['error']}]Enter a number.[/{colors['error']}]")
-        except (KeyboardInterrupt, EOFError):
-            menu.console.print("\n  Cancelled")
-            return None
-
-
-def select_endpoint(menu):
-    """Interactive endpoint selection, restricted to endpoints that can accept work.
-
-    Returns:
-        str: The endpoint ID, or None if cancelled or none are connected.
-    """
-    colors = getattr(menu, 'colors', DEFAULT_COLORS)
-
-    try:
-        endpoints, _ = menu.sdk.endpoints.list(online_only=True)
-    except Exception as e:
-        menu.console.print(f"  [{colors['error']}]Error listing endpoints: {e}[/{colors['error']}]")
-        return None
-
-    if not endpoints:
-        menu.console.print(f"  [{colors['error']}]No endpoints are online.[/{colors['error']}]")
-        menu.console.print(f"  [{colors['dim']}]Check enrolled endpoints with: guard aegis endpoints[/{colors['dim']}]")
-        return None
-
-    menu.console.print("\n  Online endpoints:")
-    for i, endpoint in enumerate(endpoints[:10], 1):
-        profile = endpoint.get('profile') or {}
-        system = ' '.join(d for d in (profile.get('hostname'), profile.get('os'), profile.get('arch')) if d)
-        menu.console.print(f"    {i:2d}. {endpoint.get('endpointId', 'unknown')}" + (f"  {system}" if system else ""))
-
-    if len(endpoints) > 10:
-        menu.console.print(f"    [{colors['dim']}]... and {len(endpoints) - 10} more[/{colors['dim']}]")
-
-    while True:
-        try:
-            choice = int(Prompt.ask("  Choose endpoint", default="1").strip())
-            if 1 <= choice <= min(len(endpoints), 10):
-                return endpoints[choice - 1].get('endpointId')
-            menu.console.print(f"  [{colors['error']}]Choose a number from the list.[/{colors['error']}]")
-        except ValueError:
-            menu.console.print(f"  [{colors['error']}]Enter a number.[/{colors['error']}]")
-        except (KeyboardInterrupt, EOFError):
-            menu.console.print("\n  Cancelled")
-            return None

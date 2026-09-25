@@ -1,8 +1,11 @@
+import json
+
 import click
 
 from praetorian_cli.handlers.chariot import chariot
-from praetorian_cli.handlers.cli_decorators import cli_handler, praetorian_only
+from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.sdk.model.globals import Risk, Seed, Asset
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
 
 
 @chariot.group()
@@ -23,7 +26,7 @@ def asset(chariot, key, status, surface, secret):
 
     \b
     Argument:
-        - KEY: the key of an existing asset
+        - KEY: an asset key, hostname, IP, or friendly name
 
     \b
     Example usages:
@@ -31,7 +34,32 @@ def asset(chariot, key, status, surface, secret):
         - guard update asset "#asset#www.example.com#1.2.3.4" -f internal
         - guard update asset "#webapplication#https://app.example.com" --secret abc-123
     """
+    key = resolve_entity_reference(chariot, key, 'asset')
     chariot.assets.update(key, status, surface, secret=secret)
+
+
+@update.group()
+def credential():
+    """Update endpoint authorization for existing credentials."""
+    pass
+
+
+@credential.command('active-directory')
+@cli_handler
+@click.argument('credential_id')
+@click.option('-e', '--endpoint', 'endpoint_ids', multiple=True, required=True,
+              help='Aegis v2 endpoint ID to authorize (repeatable)')
+def credential_active_directory(sdk, credential_id, endpoint_ids):
+    """Authorize an existing AD credential for additional Aegis endpoints.
+
+    Existing endpoint authorizations are preserved. Authentication material is
+    not read or rotated.
+    """
+    result = sdk.credentials.authorize_active_directory(
+        credential_id,
+        endpoint_ids,
+    )
+    click.echo(json.dumps(result, indent=2))
 
 
 @update.command()
@@ -47,7 +75,7 @@ def risk(chariot, key, status, comment, remove_comment, title, tags):
 
     \b
     Argument:
-        - KEY: the key of an existing risk
+        - KEY: a risk key or friendly name
 
     \b
     Example usages:
@@ -60,6 +88,7 @@ def risk(chariot, key, status, comment, remove_comment, title, tags):
     if comment and remove_comment is not None:
         raise click.UsageError("Cannot use --comment and --remove-comment together")
 
+    key = resolve_entity_reference(chariot, key, 'risk')
     chariot.risks.update(key, status, comment, remove_comment, title, tags)
 
 

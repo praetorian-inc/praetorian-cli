@@ -1,4 +1,4 @@
-from praetorian_cli.handlers.utils import error
+from praetorian_cli.sdk.exceptions import NotFoundError
 from praetorian_cli.sdk.model.globals import Seed, Kind
 from praetorian_cli.sdk.model.query import Query, Node, Filter, KIND_TO_LABEL
 
@@ -80,8 +80,9 @@ class Seeds:
         :param comment: Optional comment to include with the update (stored in History field)
         :type comment: str or None
         :param kwargs: Fields to update
-        :return: The updated seed, or None if the seed was not found
-        :rtype: dict or None
+        :return: The updated seed
+        :rtype: dict
+        :raises NotFoundError: if no seed with the specified key exists
 
         **Example Usage:**
 
@@ -111,7 +112,7 @@ class Seeds:
 
             return self.api.upsert('seed', update_payload)
         else:
-            error(f'Seed {key} not found.')
+            raise NotFoundError(f'Seed {key} not found.')
 
     def delete(self, key):
         """
@@ -119,8 +120,9 @@ class Seeds:
         
         :param key: Seed/Asset key (e.g., '#asset#domain#example.com')
         :type key: str
-        :return: The seed that was marked as deleted, or None if the seed was not found
-        :rtype: dict or None
+        :return: The seed that was marked as deleted
+        :rtype: dict
+        :raises NotFoundError: if no seed with the specified key exists
         """
         seed = self.get(key)  # This already handles old key format conversion
         
@@ -132,7 +134,7 @@ class Seeds:
             
             return self.api.upsert('seed', delete_payload)
         else:
-            error(f'Seed {key} not found.')
+            raise NotFoundError(f'Seed {key} not found.')
 
     def list(self, seed_type=Kind.SEED.value, key_prefix='', pages=100000) -> tuple:
         """

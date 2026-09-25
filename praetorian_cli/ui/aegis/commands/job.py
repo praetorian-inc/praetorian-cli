@@ -2,20 +2,21 @@ import json
 from rich.table import Table
 from rich.box import MINIMAL
 from rich.prompt import Prompt, Confirm
-from praetorian_cli.sdk.entities.aegis import ENDPOINT_AGENT_ID
-from ..utils import format_timestamp, format_job_status
+
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
+
+from ..utils import ensure_v1_agent, is_v2_agent
 from ..constants import DEFAULT_COLORS
+from . import job_v2
 from .job_helpers import (
     interactive_capability_picker as _interactive_capability_picker,
-    select_apk as _select_apk,
     select_domain as _select_domain,
-    select_endpoint as _select_endpoint,
-    is_endpoint_dispatched as _is_endpoint_dispatched,
     select_credentials as _select_credentials,
     configure_parameters as _configure_parameters,
     capability_needs_credentials as _capability_needs_credentials,
     resolve_addomain_target_key,
     extract_target_type,
+    is_network_share_target,
 )
 
 
@@ -38,20 +39,24 @@ def handle_job(menu, args):
 
 
 def show_job_help(menu):
-    help_text = f"""
+    if is_v2_agent(getattr(menu, 'selected_agent', None)):
+        job_v2.show_job_help(menu)
+        return
+
+    help_text = """
   Job Commands
 
   job list                  List recent jobs for selected agent
-  job run [capability]      Run a capability on selected agent (interactive picker)
-  job capabilities          List available capabilities (alias: caps)
+  job run [capability]      Run a capability on selected v1 agent (interactive picker)
+  job capabilities          List available v1 capabilities (alias: caps)
                            [--details] Show full descriptions
   
   Examples:
     job list                 # List recent jobs
-    job capabilities         # List capabilities with brief descriptions
-    job caps --details       # List capabilities with full descriptions  
+    job capabilities         # List v1 capabilities with brief descriptions
+    job caps --details       # List v1 capabilities with full descriptions
     job run                  # Interactive capability picker
-    job run windows-enum     # Run specific capability with confirmation
+    job run windows-enum     # Run v1 capability with confirmation
 """
     menu.console.print(help_text)
     menu.pause()
@@ -63,6 +68,14 @@ def list_jobs(menu):
         menu.pause()
         return
 
+    if is_v2_agent(menu.selected_agent):
+        job_v2.list_jobs(menu)
+        return
+
+    if not ensure_v1_agent(menu, 'job list'):
+        return
+
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
     hostname = menu.selected_agent.hostname
 
     try:
@@ -73,41 +86,7 @@ def list_jobs(menu):
             menu.pause()
             return
 
-        jobs.sort(key=lambda j: j.get('created', 0), reverse=True)
-
-        colors = getattr(menu, 'colors', DEFAULT_COLORS)
-        jobs_table = Table(
-            show_header=True,
-            header_style=f"bold {colors['primary']}",
-            border_style=colors['dim'],
-            box=MINIMAL,
-            show_lines=False,
-            padding=(0, 2),
-            pad_edge=False
-        )
-
-        jobs_table.add_column("JOB ID", style=f"bold {colors['accent']}", width=12, no_wrap=True)
-        jobs_table.add_column("CAPABILITY", style="white", min_width=20, no_wrap=True)
-        jobs_table.add_column("STATUS", width=10, justify="center", no_wrap=True)
-        jobs_table.add_column("CREATED", style=f"{colors['dim']}", width=12, justify="right", no_wrap=True)
-
-        menu.console.print()
-        menu.console.print(f"  Recent Jobs for {hostname}")
-        menu.console.print()
-
-        for job in jobs[:10]:
-            capability = job.get('capabilities', ['unknown'])[0] if job.get('capabilities') else 'unknown'
-            status = job.get('status', 'unknown')
-            job_id = job.get('key', '').split('#')[-1][:10]
-            created = job.get('created', 0)
-
-            created_str = format_timestamp(created)
-            status_display = format_job_status(status, colors)
-
-            jobs_table.add_row(job_id, capability, status_display, created_str)
-
-        menu.console.print(jobs_table)
-        menu.console.print()
+        job_v2.show_jobs_table(menu, jobs, f"  Recent Jobs for {hostname}")
         menu.pause()
 
     except Exception as e:
@@ -121,6 +100,13 @@ def run_job(menu, args):
     if not menu.selected_agent:
         menu.console.print("\n  No agent selected. Use 'set <id>' to select one.\n")
         menu.pause()
+        return
+
+    if is_v2_agent(menu.selected_agent):
+        job_v2.run_job(menu, args)
+        return
+
+    if not ensure_v1_agent(menu, 'job run'):
         return
 
     hostname = menu.selected_agent.hostname or 'Unknown'
@@ -140,28 +126,9 @@ def run_job(menu, args):
         return
 
     target_type = extract_target_type(capability_info)
-    endpoint_id = None
 
     # Create appropriate target key
-    if target_type == 'apk':
-        # A mobile capability targets the application, not the device: its findings are
-        # filed on the APK asset. The device is named separately, because which phone
-        # holds the app is not derivable from the app.
-        target_key = _select_apk(menu)
-        if not target_key:
-            menu.pause()
-            return
-
-        # Only a capability that runs on the device needs one named. A static APK
-        # capability runs on compute, and demanding an endpoint would block it.
-        if _is_endpoint_dispatched(menu, capability):
-            endpoint_id = _select_endpoint(menu)
-            if not endpoint_id:
-                menu.pause()
-                return
-
-        target_display = f"APK {target_key.split('#')[-1]}"
-    elif target_type == 'addomain':
+    if target_type == 'addomain':
         # For AD capabilities, use interactive domain selection
         domain = _select_domain(menu)
         if not domain:
@@ -177,32 +144,49 @@ def run_job(menu, args):
             return
 
         target_display = f"domain {domain}"
+    elif target_type == 'repository':
+        repository = (
+            args[1].strip()
+            if len(args) > 1
+            else Prompt.ask('  Repository URL or name').strip()
+        )
+        try:
+            target_key = resolve_entity_reference(
+                menu.sdk,
+                repository,
+                'repository',
+                interactive=True,
+                console=menu.console,
+            )
+        except (RuntimeError, ValueError) as exc:
+            menu.console.print(
+                f"  [{colors['error']}]{exc}[/{colors['error']}]"
+            )
+            menu.pause()
+            return
+        target_display = target_key
     else:
         target_key = f"#asset#{hostname}#{hostname}"
         target_display = f"asset {hostname}"
-    
-    # Handle credentials for capabilities that need them
+
+    # Handle credentials for capabilities that need them.
     credentials = []
     credential_display_name = None
-    if _capability_needs_credentials(capability_info):
-        if Confirm.ask("  This capability may require credentials. Add them?"):
-            credential_key, credential_display_name = _select_credentials(menu)
-            if credential_key:
-                # Parse credential key to extract UUID
-                # Format: #credential#<category>#<type>#<credential_id>
-                parts = credential_key.split('#')
-                if len(parts) >= 5:
-                    credential_id = parts[-1]  # Last part is the UUID
-                    # Pass UUID to jobs.add() - API will retrieve values server-side
-                    credentials.append(credential_id)
+    network_share = is_network_share_target(target_key)
+    needs_optional_credentials = _capability_needs_credentials(capability_info)
+    if network_share or (needs_optional_credentials and Confirm.ask("  This capability may require credentials. Add them?")):
+        credential_key, credential_display_name = _select_credentials(menu)
+        if credential_key:
+            credential_id = credential_key.rsplit('#', 1)[-1].strip()
+            if credential_id:
+                credentials.append(credential_id)
+        if network_share and not credentials:
+            menu.console.print(f"  [{colors['error']}]SMB network shares require one Active Directory credential.[/{colors['error']}]")
+            menu.pause()
+            return
 
-    # Create job configuration using SDK. An endpoint-dispatched job carries the endpoint
-    # pin instead of the selected agent's identity: the two are different inventories, and
-    # the agent the menu has selected is not the device this job runs on.
-    if endpoint_id:
-        config = {ENDPOINT_AGENT_ID: endpoint_id}
-    else:
-        config = menu.sdk.aegis.create_job_config(menu.selected_agent, None)
+    # Create job configuration using SDK
+    config = menu.sdk.aegis.create_job_config(menu.selected_agent, None)
 
     # Handle large artifact storage - always offer the option
     # Default to True if capability metadata says it supports it, or if capability name suggests large output
@@ -242,8 +226,6 @@ def run_job(menu, args):
             menu.console.print(f"  Job Key: {job_key}")
             menu.console.print(f"  Capability: {capability}")
             menu.console.print(f"  Target: {target_display}")
-            if endpoint_id:
-                menu.console.print(f"  Endpoint: {endpoint_id}")
             menu.console.print(f"  Status: {status}")
             if credentials and credential_display_name:
                 menu.console.print(f"  Credential: {credential_display_name}")
@@ -263,15 +245,23 @@ def list_capabilities(menu, args):
         menu.pause()
         return
 
+    if is_v2_agent(menu.selected_agent):
+        job_v2.list_capabilities(menu, args)
+        return
+
+    if not ensure_v1_agent(menu, 'job capabilities'):
+        return
+
     show_details = '--details' in args or '-d' in args
+    colors = getattr(menu, 'colors', DEFAULT_COLORS)
 
     try:
         result = menu.sdk.aegis.run_job(
+            agent=menu.selected_agent,
             capabilities=None,
-            hostname=menu.selected_agent.hostname,
+            config=None
         )
 
-        colors = getattr(menu, 'colors', DEFAULT_COLORS)
         if 'capabilities' in result:
             capabilities_table = Table(
                 show_header=True,
@@ -312,8 +302,17 @@ def list_capabilities(menu, args):
 
 
 def complete(menu, text, tokens):
+    if is_v2_agent(getattr(menu, 'selected_agent', None)) and len(tokens) >= 2 and tokens[1] == 'run':
+        v2_suggestions = job_v2.complete(menu, text, tokens)
+        if v2_suggestions:
+            return v2_suggestions
+
     sub = ['list', 'run', 'capabilities', 'caps']
     if len(tokens) <= 2:
         return [s for s in sub if s.startswith(text)]
-    # Could extend to capability names later
+
+    v2_suggestions = job_v2.complete(menu, text, tokens)
+    if v2_suggestions:
+        return v2_suggestions
+
     return []

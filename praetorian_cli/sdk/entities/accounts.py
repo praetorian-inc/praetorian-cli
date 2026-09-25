@@ -16,7 +16,7 @@ class Accounts:
         """
         return self.api.search.by_exact_key(key)
 
-    def list(self, username_filter='', offset=None, pages=100000):
+    def list(self, username_filter='', offset=None, pages=100000, enrich=False):
         """
         List accounts of collaborators and master accounts that the current principal can access.
 
@@ -29,6 +29,8 @@ class Accounts:
         :type offset: str or None
         :param pages: The number of pages of results to retrieve. <mcp>Start with one page of results unless specifically requested.</mcp>
         :type pages: int
+        :param enrich: When True, fetch and attach metadata (display_name, customer_type, account_status, frozen)
+        :type enrich: bool
         :return: A tuple containing (list of matching account entities, next page offset)
         :rtype: tuple
         """
@@ -40,6 +42,22 @@ class Accounts:
         # filter for user emails
         if username_filter:
             results = [i for i in results if username_filter == i['name'] or username_filter == i['member']]
+
+        if enrich:
+            from praetorian_cli.sdk.entities.account_discovery import _fetch_all_metadata, _calculate_status
+
+            base_url = self.api.keychain.base_url()
+            headers = dict(self.api.keychain.headers())
+            headers.pop('account', None)
+
+            metadata = _fetch_all_metadata(base_url, headers)
+
+            for a in results:
+                email = a['name']
+                a['display_name'] = metadata['display_names'].get(email, '')
+                a['customer_type'] = metadata['types'].get(email, '')
+                a['account_status'] = _calculate_status(email, metadata)
+                a['frozen'] = metadata['frozen'].get(email, False)
 
         return results, next_offset
 

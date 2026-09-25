@@ -1,8 +1,67 @@
+import sys
+import time
+
 import click
+from rich.console import Console
 
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import print_json, render_list_results, pagination_size
+from praetorian_cli.sdk.model.aegis import is_v2_agent
+from praetorian_cli.ui.conversation.endpoint_status import (
+    format_endpoint_execution_status,
+)
+from praetorian_cli.ui.entity_resolver import resolve_entity_reference
+from praetorian_cli.ui.entity_selector import select_entity_keys
+from praetorian_cli.ui.hunt_chat import (
+    build_hunt_chat,
+    build_hunt_interactions,
+    review_pending_hunt_interactions,
+    select_hunt_conversation,
+    watch_pending_hunt_interactions,
+)
+from praetorian_cli.ui.hunt_chat_live import (
+    run_live_hunt_chat,
+    supports_live_hunt_chat,
+)
+from praetorian_cli.ui.hunt_data import (
+    build_hunt_findings,
+    build_hunt_log,
+    build_hunt_memory_item,
+    filter_hunt_findings,
+)
+from praetorian_cli.ui.hunt_defaults import (
+    DEFAULT_FINISH_CRITERIA,
+    DEFAULT_HUNT_DURATION_HOURS,
+    DEFAULT_HUNT_MANDATES,
+)
+from praetorian_cli.ui.hunt_launch import (
+    configure_hunt_launch,
+    hunt_surface_label,
+    supported_hunt_credentials,
+    supports_fullscreen_wizard,
+)
+from praetorian_cli.ui.hunt_memory import browse_hunt_memory
+from praetorian_cli.ui.hunt_open import (
+    run_hunt_open,
+    supports_fullscreen_hunt_open,
+)
+from praetorian_cli.ui.hunt_overview import build_hunt_overview
+from praetorian_cli.ui.hunt_workflows import browse_hunt_workflows
+
+
+SURFACE_TO_AGENT = {
+    'external': 'hannibal',
+    'internal': 'hannibal',
+    'cloud': 'hannibal-cloud',
+    'webapp': 'hannibal-webapp',
+    'llm': 'hannibal-llm',
+}
+AGENT_TO_SURFACE = {
+    agent: surface
+    for surface, agent in SURFACE_TO_AGENT.items()
+    if surface != 'internal'
+}
 
 
 @chariot.group()
@@ -11,34 +70,764 @@ def hunt():
     pass
 
 
+def _require_hunt(sdk, hunt_id):
+    hunt_record = sdk.hunts.get(hunt_id)
+    if not hunt_record:
+        raise click.ClickException(f'Hunt {hunt_id} not found')
+    return hunt_record
+
+
+def _hunt_surface(agent, internal_hunt):
+    if internal_hunt:
+        return 'internal'
+    return AGENT_TO_SURFACE[agent]
+
+
+def _hunt_scope_type(surface):
+    return 'webapplication' if surface in ('webapp', 'llm') else 'asset'
+
+
+def _select_hunt_scope(sdk, surface, console):
+    agent = SURFACE_TO_AGENT[surface]
+    internal_hunt = surface == 'internal'
+    with console.status('Loading Hunt targets…', spinner='dots'):
+        candidates, next_scope_page = sdk.assets.list_hunt_scope(
+            agent=agent,
+            internal=internal_hunt,
+            pages=1,
+        )
+    return select_entity_keys(
+        console,
+        candidates,
+        title=f'Select {hunt_surface_label(surface)} Hunt targets',
+        search_entities=lambda query, page: sdk.assets.list_hunt_scope(
+            agent=agent,
+            internal=internal_hunt,
+            search=query,
+            page=int(page or 0),
+            pages=1,
+        ),
+        next_offset=next_scope_page,
+    )
+
+
+def _hunt_credentials(sdk):
+    credentials_api = getattr(sdk, 'credentials', None)
+    if credentials_api is None:
+        return []
+    credentials, _ = credentials_api.list()
+    return supported_hunt_credentials(credentials)
+
+
+def _internal_hunt_endpoint(
+    sdk,
+    endpoint_id,
+    internal_hunt,
+    agent,
+    scope,
+    confirm_endpoint,
+    allow_prompt=True,
+):
+    if not internal_hunt:
+        if endpoint_id or confirm_endpoint:
+            raise click.UsageError(
+                '--endpoint and --confirm-endpoint require --internal'
+            )
+        return None
+    if agent != 'hannibal':
+        raise click.UsageError(
+            '--internal requires the hannibal infrastructure agent'
+        )
+    if not scope:
+        raise click.UsageError('--internal requires at least one --scope')
+
+    endpoints = [
+        candidate for candidate in sdk.aegis.list_hunt_endpoints()
+        if is_v2_agent(candidate)
+        and str(getattr(candidate, 'kind', '')).lower() == 'aegis'
+    ]
+    if not endpoints:
+        raise click.ClickException(
+            'No authorized Aegis v2 endpoints are available for this account.'
+        )
+
+    requested = (endpoint_id or '').strip().lower()
+    if requested:
+        id_match = next(
+            (
+                endpoint for endpoint in endpoints
+                if endpoint.display_id.lower() == requested
+            ),
+            None,
+        )
+        if id_match:
+            return id_match
+
+        matches = [
+            endpoint for endpoint in endpoints
+            if (endpoint.hostname or '').lower() == requested
+        ]
+        if not matches:
+            raise click.ClickException(
+                f'Aegis v2 endpoint {endpoint_id!r} was not found.'
+            )
+        if len(matches) > 1:
+            raise click.ClickException(
+                f'Aegis v2 endpoint hostname {endpoint_id!r} is ambiguous; '
+                'use its endpoint ID.'
+            )
+        return matches[0]
+
+    if not allow_prompt:
+        raise click.UsageError(
+            '--endpoint is required for an Internal Hunt in non-interactive mode'
+        )
+
+    click.echo('Authorized Aegis v2 endpoints:')
+    for index, endpoint in enumerate(endpoints, 1):
+        state = 'online' if endpoint.is_online else 'offline'
+        click.echo(
+            f'  {index}. {endpoint.hostname or "Unknown"} '
+            f'({endpoint.display_id}, {state})'
+        )
+    selection = click.prompt(
+        'Select endpoint',
+        type=click.IntRange(1, len(endpoints)),
+    )
+    return endpoints[selection - 1]
+
+
+def _selected_scope_mode(
+    scope_mode,
+    scope,
+    select_scope,
+    internal_hunt,
+    agent,
+):
+    has_specific_scope = bool(
+        scope or select_scope or internal_hunt or agent != 'hannibal'
+    )
+    if scope_mode == 'all' and has_specific_scope:
+        raise click.UsageError(
+            '--scope-mode all is only valid for an unscoped External Hunt'
+        )
+    return scope_mode or ('specific' if has_specific_scope else 'all')
+
+
+def _resolve_launch_scope(
+    sdk,
+    values,
+    surface,
+    *,
+    interactive_terminal,
+    noninteractive,
+    console,
+):
+    return [
+        resolve_entity_reference(
+            sdk,
+            value,
+            _hunt_scope_type(surface),
+            interactive=interactive_terminal and not noninteractive,
+            console=console,
+        )
+        for value in values
+    ]
+
+
+def _select_scope_if_needed(
+    sdk,
+    surface,
+    scopes,
+    *,
+    should_select,
+    console,
+):
+    if not should_select:
+        return scopes
+    selected = _select_hunt_scope(sdk, surface, console)
+    if not selected:
+        raise click.Abort()
+    return list(dict.fromkeys([*scopes, *selected]))
+
+
+def _load_launch_credentials(sdk, console):
+    try:
+        with console.status('Loading credentials…', spinner='dots'):
+            return _hunt_credentials(sdk)
+    except Exception as exc:
+        console.print(
+            f'Credential options unavailable: {exc}',
+            style='yellow',
+            markup=False,
+        )
+        return []
+
+
+def _endpoint_description(endpoint, surface):
+    if surface != 'internal':
+        return 'Not required'
+    if endpoint is None:
+        return 'Select after target review'
+    endpoint_name = endpoint.hostname or endpoint.display_id
+    endpoint_state = 'online' if endpoint.is_online else 'offline'
+    return f'{endpoint_name} ({endpoint.display_id}, {endpoint_state})'
+
+
+def _normalized_launch_config(
+    launch_config,
+    *,
+    initial_surface,
+    default_scope_mode,
+):
+    resources_changed = bool(
+        launch_config.pop('_resources_changed', False)
+    )
+    surface = launch_config.get('surface', initial_surface)
+    scope_mode = launch_config.get('scope_mode', default_scope_mode)
+    scope = (
+        []
+        if scope_mode == 'all'
+        else list(launch_config.get('scope') or [])
+    )
+    if scope_mode == 'all':
+        surface = 'external'
+    return {
+        'surface': surface,
+        'scope_mode': scope_mode,
+        'scope': scope,
+        'agent': SURFACE_TO_AGENT[surface],
+        'internal': surface == 'internal',
+        'prompt': (
+            str(launch_config.get('prompt') or '').strip()
+            or DEFAULT_HUNT_MANDATES[surface]
+        ),
+        'expires': launch_config.get('expires'),
+        'scope_level': launch_config.get('scope_level'),
+        'aggressiveness': launch_config.get('aggressiveness'),
+        'finish_criteria': (
+            str(launch_config.get('finish_criteria') or '').strip()
+            or DEFAULT_FINISH_CRITERIA
+        ),
+        'guardrails': str(launch_config.get('guardrails') or '').strip(),
+        'custom_tag': str(launch_config.get('custom_tag') or '').strip(),
+        'model_tier': launch_config.get('model_tier'),
+        'credential_ids': list(
+            launch_config.get('credential_ids') or []
+        ),
+        'resources_changed': resources_changed,
+    }
+
+
+def _confirm_internal_endpoint(endpoint, scopes, *, can_prompt):
+    if endpoint is None:
+        return
+    if not can_prompt:
+        raise click.UsageError(
+            '--confirm-endpoint or --yes is required for an Internal Hunt '
+            'in non-interactive mode'
+        )
+    endpoint_name = endpoint.hostname or endpoint.display_id
+    online = 'online' if endpoint.is_online else 'offline'
+    confirmed = click.confirm(
+        f'Run all target-network work for {len(scopes)} internal scope '
+        f'item(s) through {endpoint_name} ({endpoint.display_id}, {online})? '
+        'If unavailable, the hunt waits without Guard compute fallback',
+        default=False,
+    )
+    if not confirmed:
+        raise click.Abort()
+
+
 @hunt.command()
 @cli_handler
-@click.option('-p', '--prompt', required=True, help='The hunt objective / central mandate')
-@click.option('-e', '--expires', type=click.IntRange(1, 72), default=72, show_default=True,
+@click.option('-p', '--prompt', default=None,
+              help='The hunt objective / central mandate (surface default when omitted)')
+@click.option('-e', '--expires', type=click.IntRange(1, 72),
+              default=DEFAULT_HUNT_DURATION_HOURS, show_default=True,
               help='Hours until the hunt expires (1-72)')
 @click.option('-a', '--agent', type=click.Choice(['hannibal', 'hannibal-cloud', 'hannibal-webapp', 'hannibal-llm']),
               default='hannibal', show_default=True, help='Agent type')
-@click.option('-s', '--scope', multiple=True, help='Target asset keys to restrict the hunt (repeatable)')
+@click.option('-s', '--scope', multiple=True,
+              help='Target key, hostname, IP, URL, or friendly name (repeatable)')
+@click.option('--scope-mode', type=click.Choice(['all', 'specific']), default=None,
+              help='Hunt all infrastructure or require specific targets')
+@click.option('--select-scope', is_flag=True,
+              help='Search and select Hunt targets interactively')
 @click.option('--scope-level', type=click.Choice(['normal', 'strict']), default='normal', show_default=True)
 @click.option('--aggressiveness', type=click.Choice(['cautious', 'balanced', 'aggressive']),
               default='balanced', show_default=True)
-def launch(sdk, prompt, expires, agent, scope, scope_level, aggressiveness):
-    """Launch a new hunt against the current account.
+@click.option('--finish-criteria', default=DEFAULT_FINISH_CRITERIA,
+              help='Conditions that allow the Hunt to finish early')
+@click.option('--guardrails', default='',
+              help='Additional tighten-only safety restrictions')
+@click.option('--custom-tag', default='',
+              help='Tag assigned to findings created by this Hunt')
+@click.option('--model-tier', type=click.Choice(['experimental']), default=None,
+              help='Privileged model tier override')
+@click.option('--credential', 'credential_ids', multiple=True,
+              help='Run-scoped credential ID or key (repeatable, one per type)')
+@click.option('--internal', 'internal_hunt', is_flag=True, default=False,
+              help='Require all target-network work to use one Aegis v2 endpoint')
+@click.option('--endpoint', 'endpoint_id', default=None,
+              help='Aegis v2 endpoint ID or unique hostname for an Internal Hunt')
+@click.option('--confirm-endpoint', is_flag=True, default=False,
+              help='Confirm endpoint-only execution without an interactive prompt')
+@click.option('-y', '--yes', is_flag=True, default=False,
+              help='Use flag/default values without prompts or fullscreen UI')
+def launch(sdk, prompt, expires, agent, scope, scope_mode, select_scope,
+           scope_level, aggressiveness, finish_criteria, guardrails,
+           custom_tag, model_tier, credential_ids, internal_hunt, endpoint_id,
+           confirm_endpoint, yes):
+    """Launch a new Hunt, using the all-surface wizard in an interactive TTY.
 
     Example usages:
-        guard hunt launch --prompt "Find XSS vulnerabilities in web applications"
-        guard hunt launch --prompt "Test API endpoints" --agent hannibal-webapp --expires 24
-        guard hunt launch --prompt "Cloud misconfigs" --agent hannibal-cloud --scope "#asset#example.com#1.2.3.4"
+        guard hunt launch
+        guard hunt launch --yes --prompt "Find exploitable external paths"
+        guard hunt launch --agent hannibal-webapp --select-scope
+        guard hunt launch --agent hannibal-cloud --scope "#asset#aws#123456789012"
+        guard hunt launch --internal --endpoint <endpoint-id> --scope "#asset#internal#10.0.0.5"
     """
+    if internal_hunt and agent != 'hannibal':
+        raise click.UsageError(
+            '--internal requires the hannibal infrastructure agent'
+        )
+    if yes and select_scope:
+        raise click.UsageError('--select-scope cannot be combined with --yes')
+
+    initial_surface = _hunt_surface(agent, internal_hunt)
+    selected_scope_mode = _selected_scope_mode(
+        scope_mode,
+        scope,
+        select_scope,
+        internal_hunt,
+        agent,
+    )
+    interactive_terminal = supports_fullscreen_wizard()
+    if select_scope and not interactive_terminal:
+        raise click.UsageError('--select-scope requires an interactive TTY')
+    console = Console()
+    scopes = _resolve_launch_scope(
+        sdk,
+        scope,
+        initial_surface,
+        interactive_terminal=interactive_terminal,
+        noninteractive=yes,
+        console=console,
+    )
+    scopes = _select_scope_if_needed(
+        sdk,
+        initial_surface,
+        scopes,
+        should_select=(
+            selected_scope_mode == 'specific'
+            and (
+                select_scope
+                or (not scopes and interactive_terminal and not yes)
+            )
+        ),
+        console=console,
+    )
+
+    endpoint = None
+    credential_options = (
+        _load_launch_credentials(sdk, console)
+        if interactive_terminal and not yes
+        else []
+    )
+    if initial_surface == 'internal' and scopes:
+        endpoint = _internal_hunt_endpoint(
+            sdk,
+            endpoint_id,
+            True,
+            'hannibal',
+            scopes,
+            confirm_endpoint or yes,
+            allow_prompt=interactive_terminal and not yes,
+        )
+
+    launch_config = {
+        'surface': initial_surface,
+        'scope_mode': selected_scope_mode,
+        'scope': list(scopes),
+        'prompt': prompt or DEFAULT_HUNT_MANDATES[initial_surface],
+        'scope_level': scope_level,
+        'aggressiveness': aggressiveness,
+        'guardrails': guardrails,
+        'finish_criteria': finish_criteria,
+        'expires': expires,
+        'custom_tag': custom_tag,
+        'model_tier': model_tier,
+        'credential_ids': list(credential_ids),
+    }
+    used_wizard = False
+    if not yes:
+        launch_config, used_wizard = configure_hunt_launch(
+            console,
+            launch_config,
+            scopes,
+            _endpoint_description(endpoint, initial_surface),
+            credential_options,
+        )
+        if used_wizard and launch_config is None:
+            raise click.Abort()
+
+    config = _normalized_launch_config(
+        launch_config,
+        initial_surface=initial_surface,
+        default_scope_mode=selected_scope_mode,
+    )
+    surface = config['surface']
+    selected_scope_mode = config['scope_mode']
+    scopes = config['scope']
+    agent = config['agent']
+    internal_hunt = config['internal']
+    prompt = config['prompt']
+    expires = config['expires']
+    scope_level = config['scope_level']
+    aggressiveness = config['aggressiveness']
+    finish_criteria = config['finish_criteria']
+    guardrails = config['guardrails']
+    custom_tag = config['custom_tag']
+    model_tier = config['model_tier']
+    credential_ids = config['credential_ids']
+
+    can_prompt = (interactive_terminal or used_wizard) and not yes
+    if selected_scope_mode == 'specific' and not scopes:
+        if not can_prompt:
+            raise click.UsageError(
+                'Specific Hunts require at least one --scope or --select-scope'
+            )
+        selected_scopes = _select_hunt_scope(sdk, surface, console)
+        if not selected_scopes:
+            raise click.Abort()
+        scopes = selected_scopes
+
+    if credential_ids and not internal_hunt:
+        raise click.UsageError('--credential requires --internal')
+
+    if used_wizard and initial_surface == 'internal' and not internal_hunt:
+        endpoint_id = None
+        confirm_endpoint = False
+    if surface != initial_surface or config['resources_changed']:
+        endpoint = None
+    if endpoint is None or not internal_hunt:
+        endpoint = _internal_hunt_endpoint(
+            sdk,
+            endpoint_id,
+            internal_hunt,
+            agent,
+            scopes,
+            (confirm_endpoint or yes) if internal_hunt else confirm_endpoint,
+            allow_prompt=can_prompt,
+        )
+
+    if endpoint and not (confirm_endpoint or yes):
+        _confirm_internal_endpoint(
+            endpoint,
+            scopes,
+            can_prompt=can_prompt,
+        )
+
     result = sdk.hunts.create(
         prompt=prompt,
         expires_hours=expires,
         agent=agent,
-        scope=list(scope) if scope else None,
+        scope=scopes or None,
         scope_level=scope_level,
         aggressiveness=aggressiveness,
+        finish_criteria=finish_criteria,
+        user_guardrails=guardrails,
+        custom_tag=custom_tag,
+        model_tier_override=model_tier,
+        credential_ids=credential_ids or None,
+        endpoint_required=internal_hunt,
+        endpoint_id=endpoint.display_id if endpoint else None,
+        endpoint_confirmed=bool(endpoint),
     )
     print_json(result)
+
+
+@hunt.command('open')
+@cli_handler
+@click.argument('hunt_id')
+def open_hunt(sdk, hunt_id):
+    """Open the unified fullscreen Hunt operator interface."""
+    hunt_record = _require_hunt(sdk, hunt_id)
+    if not supports_fullscreen_hunt_open():
+        raise click.UsageError('hunt open requires an interactive terminal')
+    console = Console()
+
+    def review_interactions(interactions):
+        _review_hunt_interactions_cli(sdk, interactions, console)
+
+    try:
+        run_hunt_open(
+            sdk,
+            hunt_id,
+            console=console,
+            initial_hunt=hunt_record,
+            confirm_stop=lambda message: click.confirm(
+                message,
+                default=False,
+                err=True,
+            ),
+            review_interactions=review_interactions,
+        )
+    except Exception as exc:
+        raise click.ClickException(
+            f'Unable to open Hunt: {exc}'
+        ) from exc
+
+
+@hunt.command()
+@cli_handler
+@click.argument('uuid')
+@click.option('--status', default=None, help='Risk status code or label')
+@click.option(
+    '--severity',
+    type=click.Choice(['critical', 'high', 'medium', 'low', 'info', 'exposure']),
+    default=None,
+)
+@click.option('--details', is_flag=True, help='Show finding details')
+@click.option(
+    '--evidence',
+    type=click.Choice(['off', 'basic', 'full']),
+    default='off',
+    show_default=True,
+)
+@click.option('--page', type=click.Choice(['first', 'all']), default='first', show_default=True)
+def findings(sdk, uuid, status, severity, details, evidence, page):
+    """List vulnerabilities reported by a Hunt."""
+    _require_hunt(sdk, uuid)
+    records, _ = sdk.hunts.list_findings(
+        uuid,
+        pages=pagination_size(page),
+    )
+    records = filter_hunt_findings(records, status=status, severity=severity)
+    if details or evidence != 'off':
+        records = [
+            sdk.risks.get(
+                record.get('key'),
+                details=True,
+                evidence=evidence,
+            )
+            for record in records
+            if record.get('key')
+        ]
+    Console().print(
+        build_hunt_findings(
+            records,
+            show_details=details or evidence != 'off',
+        )
+    )
+
+
+@hunt.command()
+@cli_handler
+@click.argument('uuid')
+@click.option('--item', help='Memory item title to read or modify')
+@click.option('--content', default=None, help='Replacement memory content')
+@click.option('--delete', 'delete_item', is_flag=True, help='Delete the selected item')
+@click.option('-y', '--yes', is_flag=True, help='Skip delete confirmation')
+def memory(sdk, uuid, item, content, delete_item, yes):
+    """Browse Hunt memory, or use explicit options for static CRUD."""
+    _require_hunt(sdk, uuid)
+    if content is not None and delete_item:
+        raise click.UsageError('--content and --delete cannot be combined')
+    if (content is not None or delete_item) and not item:
+        raise click.UsageError('--item is required when modifying memory')
+
+    if delete_item:
+        if not yes and not click.confirm(f'Delete Hunt memory item {item!r}?'):
+            raise click.Abort()
+        sdk.hunts.delete_memory(uuid, item)
+        click.secho(f'Deleted Hunt memory item {item}.', fg='green')
+        return
+    if content is not None:
+        sdk.hunts.save_memory(uuid, item, content)
+        click.secho(f'Saved Hunt memory item {item}.', fg='green')
+        return
+    if item:
+        Console().print(
+            build_hunt_memory_item(item, sdk.hunts.get_memory(uuid, item))
+        )
+        return
+
+    browse_hunt_memory(Console(), sdk.hunts, uuid)
+
+
+@hunt.command()
+@cli_handler
+@click.argument('uuid')
+@click.option('--follow', is_flag=True, help='Continue printing log updates')
+@click.option('--interval', type=click.FloatRange(min=1), default=5.0, show_default=True)
+def log(sdk, uuid, follow, interval):
+    """Show the finalized-iteration Hunt log."""
+    _require_hunt(sdk, uuid)
+    console = Console()
+    content = sdk.hunts.get_log(uuid)
+    console.print(build_hunt_log(content))
+    if not follow:
+        return
+
+    try:
+        while True:
+            time.sleep(interval)
+            latest = sdk.hunts.get_log(uuid)
+            if latest == content:
+                continue
+            update = latest[len(content):] if latest.startswith(content) else latest
+            content = latest
+            console.print(build_hunt_log(update))
+    except KeyboardInterrupt:
+        click.echo('\nStopped following Hunt log.')
+
+
+@hunt.command()
+@cli_handler
+@click.argument('uuid')
+@click.option('--conversation', 'conversation_id', help='Conversation ID or unique prefix to view')
+@click.option('-m', '--message', help='Queue guidance for the active Hunt iteration')
+def chat(sdk, uuid, conversation_id, message):
+    """Open live Hunt chat or send non-interactive guidance."""
+    _require_hunt(sdk, uuid)
+    if message is None and supports_live_hunt_chat():
+        console = Console()
+
+        def review_interactions(interactions):
+            _review_hunt_interactions_cli(sdk, interactions, console)
+
+        try:
+            run_live_hunt_chat(
+                sdk,
+                uuid,
+                requested_id=conversation_id,
+                review_interactions=review_interactions,
+                console=console,
+            )
+        except Exception as exc:
+            raise click.ClickException(
+                f'Unable to open Hunt chat: {exc}'
+            ) from exc
+        return
+
+    try:
+        if message is not None and not message.strip():
+            raise ValueError('guidance message is required')
+        conversations, _ = sdk.hunts.list_conversations(uuid)
+        selected = select_hunt_conversation(
+            conversations,
+            requested_id=conversation_id,
+            require_active=message is not None,
+        )
+        selected_id = selected.get('uuid') or selected.get('id')
+        if message is not None:
+            sdk.conversations.send_message(selected_id, message)
+        transcript = sdk.conversations.get(selected_id)
+    except Exception as exc:
+        raise click.ClickException(f'Unable to open Hunt chat: {exc}') from exc
+
+    try:
+        pending_interactions = sdk.hunts.list_interactions(
+            uuid,
+            status='pending',
+        )
+    except Exception:
+        pending_interactions = []
+    Console().print(build_hunt_chat(
+        conversations,
+        selected,
+        transcript,
+        pending_interactions=pending_interactions,
+    ))
+    if message is not None:
+        click.secho('Guidance queued for the running Hunt iteration.', fg='green')
+
+
+def _review_hunt_interactions_cli(sdk, interactions, console):
+    """Run the shared secure interaction prompts for CLI Hunt surfaces."""
+    return review_pending_hunt_interactions(
+        sdk,
+        interactions,
+        console,
+        confirm=lambda prompt, default: click.confirm(
+            prompt,
+            default=default,
+            err=True,
+        ),
+        credential_prompt=lambda field: click.prompt(
+            field,
+            hide_input=True,
+            err=True,
+        ),
+        interactive=True,
+    )
+
+
+@hunt.command()
+@cli_handler
+@click.argument('uuid')
+@click.option('--watch', is_flag=True, help='Watch and securely answer new interactions')
+@click.option(
+    '--interval',
+    type=click.FloatRange(min=1),
+    default=5.0,
+    show_default=True,
+    help='Polling interval while watching',
+)
+def interactions(sdk, uuid, watch, interval):
+    """List pending interactions across every Hunt iteration and subagent."""
+    _require_hunt(sdk, uuid)
+    console = Console()
+    try:
+        pending = sdk.hunts.list_interactions(uuid, status='pending')
+    except Exception:
+        raise click.ClickException(
+            'Unable to load pending Hunt interactions.'
+        ) from None
+
+    console.print(build_hunt_interactions(pending))
+    if not watch:
+        return
+
+    interactive = sys.stdin.isatty() and sys.stderr.isatty()
+    if not interactive:
+        click.echo(
+            'Watching read-only; secure responses require an interactive terminal.',
+            err=True,
+        )
+    def review(rows, handled):
+        return review_pending_hunt_interactions(
+            sdk,
+            rows,
+            console,
+            confirm=lambda message, default: click.confirm(
+                message,
+                default=default,
+                err=True,
+            ),
+            credential_prompt=lambda field: click.prompt(
+                field,
+                hide_input=True,
+                err=True,
+            ),
+            handled=handled,
+            interactive=interactive,
+        )
+
+    watch_pending_hunt_interactions(
+        sdk,
+        uuid,
+        pending,
+        console,
+        interval=interval,
+        review=review,
+        notify=lambda message, _level: click.echo(
+            f'\n{message}' if message.startswith('Stopped') else message,
+            err=not message.startswith('Stopped'),
+        ),
+    )
 
 
 @hunt.command('list')
@@ -61,7 +850,8 @@ def list_hunts(sdk, status, details, page):
 @hunt.command()
 @cli_handler
 @click.argument('uuid')
-def status(sdk, uuid):
+@click.option('--workflows', is_flag=True, help='Show workflow iterations and steps')
+def status(sdk, uuid, workflows):
     """Show detailed status of a hunt.
 
     Argument:
@@ -74,18 +864,85 @@ def status(sdk, uuid):
     if not result:
         click.secho(f'Hunt {uuid} not found.', fg='red', err=True)
         return
+    overview = build_hunt_overview(sdk, result)
     fields = {
         'uuid': result.get('uuid', result.get('key', '').replace('#hunt#', '')),
         'status': result.get('status'),
-        'agent': result.get('agent'),
+        'agent': overview['root_agent'],
+        'rootAgents': overview['root_agent_count'],
+        'agentActivity': overview['agent_summary'],
         'prompt': result.get('prompt', '')[:120],
-        'iterations': result.get('iterationCount', 0),
+        'iterations': overview['iterations'],
         'findings': result.get('findingsCount', 0),
+        'highestSeverity': overview['highest_severity'],
+        'remaining': overview['remaining'],
+        'projectedCost': overview['projected_cost'],
+        'scope': overview['scope_summary'],
+        'credentialIds': result.get('credentialIds', []),
         'created': result.get('created'),
         'expires': result.get('expiresAt'),
         'lastError': result.get('lastError', ''),
     }
+    if result.get('endpointRequired'):
+        fields.update({
+            'endpointRequired': True,
+            'endpointId': result.get('endpointId'),
+            'currentWorkflowRunId': result.get('currentWorkflowRunId'),
+        })
+        try:
+            endpoint_status = sdk.hunts.endpoint_execution_status(result)
+        except Exception:
+            fields['endpointExecution'] = [
+                'Endpoint execution status is temporarily unavailable.'
+            ]
+        else:
+            rendered_status = format_endpoint_execution_status(endpoint_status)
+            if rendered_status:
+                fields['endpointExecution'] = rendered_status.splitlines()
     print_json(fields)
+    if workflows:
+        try:
+            runs, _ = sdk.hunts.list_workflow_runs(uuid)
+        except Exception as exc:
+            raise click.ClickException(
+                f'Unable to load Hunt workflows: {exc}'
+            ) from exc
+        click.echo()
+        workflow_console = Console()
+
+        def open_workflow_conversation(conversation_id):
+            def review_interactions(pending):
+                review_pending_hunt_interactions(
+                    sdk,
+                    pending,
+                    workflow_console,
+                    confirm=lambda prompt, default: click.confirm(
+                        prompt,
+                        default=default,
+                        err=True,
+                    ),
+                    credential_prompt=lambda field: click.prompt(
+                        field,
+                        hide_input=True,
+                        err=True,
+                    ),
+                    interactive=True,
+                )
+
+            return run_live_hunt_chat(
+                sdk,
+                uuid,
+                requested_id=conversation_id,
+                exact_requested_id=True,
+                review_interactions=review_interactions,
+                console=workflow_console,
+            )
+
+        browse_hunt_workflows(
+            workflow_console,
+            runs,
+            open_conversation=open_workflow_conversation,
+        )
 
 
 @hunt.command()
@@ -100,7 +957,8 @@ def stop(sdk, uuid):
     Example usage:
         guard hunt stop a1b2c3d4-e5f6-7890-abcd-ef1234567890
     """
-    result = sdk.hunts.stop(uuid)
+    with Console().status('Stopping Hunt…', spinner='dots'):
+        result = sdk.hunts.stop(uuid)
     click.echo(f'Hunt {uuid} stopped.')
     print_json(result)
 
@@ -117,7 +975,8 @@ def pause(sdk, uuid):
     Example usage:
         guard hunt pause a1b2c3d4-e5f6-7890-abcd-ef1234567890
     """
-    result = sdk.hunts.pause(uuid)
+    with Console().status('Pausing Hunt…', spinner='dots'):
+        result = sdk.hunts.pause(uuid)
     click.echo(f'Hunt {uuid} paused.')
     print_json(result)
 
@@ -134,7 +993,8 @@ def resume(sdk, uuid):
     Example usage:
         guard hunt resume a1b2c3d4-e5f6-7890-abcd-ef1234567890
     """
-    result = sdk.hunts.resume(uuid)
+    with Console().status('Resuming Hunt…', spinner='dots'):
+        result = sdk.hunts.resume(uuid)
     click.echo(f'Hunt {uuid} resumed.')
     print_json(result)
 
@@ -152,5 +1012,6 @@ def delete_hunt(sdk, uuid):
     Example usage:
         guard hunt delete a1b2c3d4-e5f6-7890-abcd-ef1234567890
     """
-    sdk.hunts.delete(uuid)
+    with Console().status('Deleting Hunt…', spinner='dots'):
+        sdk.hunts.delete(uuid)
     click.echo(f'Hunt {uuid} deleted.')

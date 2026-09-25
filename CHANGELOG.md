@@ -1,5 +1,27 @@
 # Changelog
 
+# 2.6.0
+- [New Feature] Added Aegis v2 endpoint inventory, enrollment approval, capability execution, lifecycle status and cancellation, Linux user management, Cloudflare tunnel management and runtime diagnostics, and verified artifact downloads
+- [New Feature] Added External, Internal, Cloud, Web Application, and LLM Application Hunts with interactive target selection, run-scoped credentials, safety controls, and endpoint-only execution for Internal Hunts
+- [New Feature] Added the unified `guard hunt open <hunt-id>` interface for overview metrics, vulnerabilities, workflow iterations, finalized logs, memory, chat, and HITL approvals
+- [New Feature] Added Hunt findings/evidence, memory CRUD, workflow visualization, live chat and steering, interaction watching, projected cost, lifecycle controls, and exact workflow-to-conversation navigation
+- [New Feature] Added operator-controlled Marcus Agent mode with delegated-agent navigation, targeted guidance, branch cancellation, endpoint approvals, and ephemeral credential or MFA responses
+- [New Feature] Added Aegis v2 host egress policy management, including built-in protections and custom IPv4/IPv6/CIDR deny rules with optional TCP-port scopes
+- [New Feature] Added secret-safe Active Directory credential creation and endpoint authorization for Internal Hunts
+- [Update] Expanded the public SDK for Hunts, conversations, interactions, Aegis v2 endpoint execution, verified files, entity resolution, and endpoint network policy
+- [Performance] Added cached Hunt views and a shared cancellable HTTP transport so fullscreen Hunt operations remain responsive without periodic polling
+- [Bug fix] Added `add file --praetorian` so explicitly named and automatically placed uploads can target the Praetorian-only partition
+- [Bug fix] Isolated legacy and Aegis v2 inventory failures so healthy agents remain visible, with partial-load warnings and distinct failed/empty states in single- and multi-account views
+- [Bug fix] Routed `guard list aegis` through the current agent formatter and removed unsupported pagination options
+
+# 2.5.0
+- [New Feature] Added the `vm` command group for ad-hoc Engineer VM cloud workspaces (Praetorian engineers only): `launch`, `list`, `status`, `pause`, `resume`, `extend`, `archive`, `revive`, plus `ssh` and `code-server` access
+
+# 2.4.9
+- [New Feature] Added retest command
+- [New Feature] Added additional metadata to the `list accounts --details` result
+- [Performance] Reuse HTTP Request Sessions for paginated queries and cache auth tokens between commands
+
 # 2.4.8
 - [Update] Improved support for file uploads
 

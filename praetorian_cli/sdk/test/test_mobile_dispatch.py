@@ -12,11 +12,13 @@ import pytest
 
 from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.entities.apks import Apks
+from praetorian_cli.sdk.model.aegis import Agent
 
 SURVEY = 'android-device-survey'
 ONLINE_ENDPOINT = {
     'endpointId': 'endpoint-1',
     'kind': 'aegis',
+    'lifecycleState': 'active',
     'connectionState': 'online',
     'profile': {'hostname': 'pixel', 'os': 'linux', 'arch': 'arm64'},
 }
@@ -30,17 +32,6 @@ class FakeJobs:
     def add(self, target_key, capabilities, config=None, credentials=None):
         self.calls.append({'target_key': target_key, 'capabilities': capabilities, 'config': config})
         return [self._job] if self._job else []
-
-
-class FakeEndpoints:
-    def __init__(self, endpoints=None):
-        self._endpoints = endpoints if endpoints is not None else [ONLINE_ENDPOINT]
-
-    def get(self, endpoint_id):
-        for endpoint in self._endpoints:
-            if endpoint.get('endpointId') == endpoint_id:
-                return endpoint
-        return None
 
 
 class FakeCapabilities:
@@ -59,10 +50,15 @@ class FakeApi:
 
     def __init__(self, jobs=None, endpoints=None, capabilities=None):
         self.jobs = jobs or FakeJobs()
-        self.endpoints = endpoints or FakeEndpoints()
         self.capabilities = capabilities or FakeCapabilities()
+        self._endpoints = [ONLINE_ENDPOINT] if endpoints is None else endpoints
         self.uploads = []
         self.posts = []
+
+    def get(self, path, params=None):
+        if path == 'endpoint/list':
+            return {'endpoints': list(self._endpoints)}
+        raise AssertionError(f'unexpected GET {path}')
 
     def upload(self, local_filepath, chariot_filepath=None, praetorian=False):
         self.uploads.append((local_filepath, chariot_filepath))
@@ -96,15 +92,37 @@ class TestRunJobTarget:
             Aegis(FakeApi()).run_job(capabilities=[SURVEY])
         assert 'No target' in str(e.value)
 
-    def test_an_agent_passed_positionally_is_reported_as_a_call_error(self):
-        # The old signature took an Agent first. A caller who has not migrated should be
-        # told about the call, not about the target.
-        class Agentish:
-            hostname = 'agent01'
+    def test_a_v1_agent_still_targets_its_own_host(self):
+        # agent stayed the first parameter, so existing positional callers still work.
+        api = FakeApi()
+
+        Aegis(api).run_job(Agent(client_id='C.1', hostname='agent01'), ['linux-enum'])
+
+        assert api.jobs.calls[0]['target_key'] == '#asset#agent01#agent01'
+
+    def test_a_v2_endpoint_is_refused_without_a_pin(self):
+        # The legacy path cannot route to a device, so it refuses rather than running
+        # the job somewhere the caller did not ask for.
+        agent = Agent.from_endpoint_dict({'endpointId': 'endpoint-1', 'kind': 'aegis',
+                                          'hostname': 'pixel'})
+        api = FakeApi()
 
         with pytest.raises(Exception) as e:
-            Aegis(FakeApi()).run_job(Agentish())
-        assert 'capabilities must be a list' in str(e.value)
+            Aegis(api).run_job(agent, ['portscan'], '{}')
+
+        assert 'endpoint_agent_id' in str(e.value)
+        assert api.jobs.calls == []
+
+    def test_a_v2_endpoint_runs_once_it_is_pinned(self):
+        agent = Agent.from_endpoint_dict({'endpointId': 'endpoint-1', 'kind': 'aegis',
+                                          'hostname': 'pixel'})
+        api = FakeApi()
+
+        Aegis(api).run_job(agent, ['android-device-survey'], package='com.bank.app',
+                           endpoint_id='endpoint-1')
+
+        assert api.jobs.calls[0]['target_key'] == '#apk#com.bank.app'
+        assert json.loads(api.jobs.calls[0]['config'])['endpoint_agent_id'] == 'endpoint-1'
 
     def test_two_targets_are_refused(self):
         with pytest.raises(Exception) as e:
@@ -136,7 +154,7 @@ class TestEndpointPin:
         assert api.jobs.calls[0]['config'] is None
 
     def test_unenrolled_endpoint_fails_before_the_job_is_created(self):
-        api = FakeApi(endpoints=FakeEndpoints([]))
+        api = FakeApi(endpoints=[])
         with pytest.raises(Exception) as e:
             Aegis(api).run_job(capabilities=[SURVEY], package='com.bank.app', endpoint_id='endpoint-1')
 
@@ -145,7 +163,7 @@ class TestEndpointPin:
 
     def test_offline_endpoint_fails_before_the_job_is_created(self):
         offline = dict(ONLINE_ENDPOINT, connectionState='not_connected')
-        api = FakeApi(endpoints=FakeEndpoints([offline]))
+        api = FakeApi(endpoints=[offline])
         with pytest.raises(Exception) as e:
             Aegis(api).run_job(capabilities=[SURVEY], package='com.bank.app', endpoint_id='endpoint-1')
 
@@ -154,7 +172,7 @@ class TestEndpointPin:
 
     def test_paused_endpoint_fails_before_the_job_is_created(self):
         paused = dict(ONLINE_ENDPOINT, taskDispatchPaused=True)
-        api = FakeApi(endpoints=FakeEndpoints([paused]))
+        api = FakeApi(endpoints=[paused])
         with pytest.raises(Exception) as e:
             Aegis(api).run_job(capabilities=[SURVEY], package='com.bank.app', endpoint_id='endpoint-1')
 

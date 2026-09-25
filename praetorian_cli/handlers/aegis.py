@@ -1,6 +1,21 @@
 import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.ui.aegis.commands.enrollment import (
+    enrollment_error_message,
+    pending_enrollment_lines,
+)
+from praetorian_cli.ui.aegis.commands.network_policy import (
+    DEFAULT_RULE_IDS,
+    apply_policy_operation,
+    network_policy_error_message,
+    network_policy_lines,
+)
+
+
+def _enrollment_debug_enabled():
+    ctx = click.get_current_context()
+    return bool(ctx.find_root().params.get('debug', False))
 
 
 @chariot.group(invoke_without_command=True)
@@ -121,39 +136,205 @@ def cp(ctx, sdk, client_id, paths, user, key, no_rsync):
         click.echo(f"Error: {e}", err=True)
 
 
-@aegis.command('endpoints')
+@aegis.group('enrollment')
+def enrollment():
+    """Inspect and approve Aegis v2 endpoint enrollment user codes."""
+    pass
+
+
+@enrollment.command('inspect')
 @cli_handler
-@click.option('-f', '--filter', 'filter_text', default='',
-              help='Filter by endpoint ID, kind, hostname, OS or architecture')
-@click.option('--online', 'online_only', is_flag=True,
-              help='Show only endpoints currently connected to Guard')
-@click.pass_context
-def endpoints(ctx, sdk, filter_text, online_only):
-    """List enrolled Aegis endpoints
+@click.argument('user_code', required=True)
+def inspect_enrollment(sdk, user_code):
+    """Inspect a pending Aegis v2 endpoint enrollment user code."""
+    try:
+        pending = sdk.aegis.inspect_enrollment(user_code)
+    except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
+        raise click.ClickException(enrollment_error_message(exc)) from exc
 
-    Endpoints are a different inventory from the agents in "guard aegis list". An
-    endpoint receives tasks dispatched by Guard rather than being reached over SSH,
-    and a mobile device running the Aegis agent appears only here.
+    click.echo('Pending Aegis v2 enrollment:')
+    for line in pending_enrollment_lines(pending):
+        click.echo(f'  {line}')
 
-    \b
-    Example usages:
-        - guard aegis endpoints
-        - guard aegis endpoints --online
-        - guard aegis endpoints --filter arm64
-    """
-    enrolled, _ = sdk.endpoints.list(filter_text=filter_text, online_only=online_only)
 
-    if not enrolled:
-        click.echo('No endpoints found.')
+@enrollment.command('approve')
+@cli_handler
+@click.argument('user_code', required=True)
+@click.option('-y', '--yes', is_flag=True, default=False, help='Approve without interactive confirmation')
+def approve_enrollment(sdk, user_code, yes):
+    """Inspect, confirm, and approve an Aegis v2 endpoint enrollment user code."""
+    try:
+        pending = sdk.aegis.inspect_enrollment(user_code)
+    except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
+        raise click.ClickException(enrollment_error_message(exc)) from exc
+
+    click.echo('Pending Aegis v2 enrollment:')
+    for line in pending_enrollment_lines(pending):
+        click.echo(f'  {line}')
+
+    if not yes and not click.confirm('Approve this enrollment?', default=False):
+        click.echo('Cancelled')
         return
 
-    click.echo(f"{'ENDPOINT ID':<38} {'STATE':<14} {'KIND':<8} SYSTEM")
-    for endpoint in enrolled:
-        profile = endpoint.get('profile') or {}
-        system = ' '.join(d for d in (profile.get('hostname'), profile.get('os'), profile.get('arch')) if d)
-        click.echo(f"{endpoint.get('endpointId', 'unknown'):<38} "
-                   f"{endpoint.get('connectionState', 'unknown'):<14} "
-                   f"{endpoint.get('kind', ''):<8} {system}")
+    try:
+        result = sdk.aegis.approve_enrollment(user_code)
+    except Exception as exc:
+        if _enrollment_debug_enabled():
+            raise
+        raise click.ClickException(enrollment_error_message(exc)) from exc
+    status = result.get('status', 'approved') if isinstance(result, dict) else 'approved'
+    click.echo(f'Enrollment {status}')
+
+
+@aegis.group('network-policy')
+def network_policy():
+    """View and customize Aegis v2 host-enforced egress policy."""
+    pass
+
+
+@network_policy.command('show')
+@cli_handler
+@click.argument('endpoint_id', required=True)
+def show_network_policy(sdk, endpoint_id):
+    """Show policy status, protected connectivity, and every deny rule."""
+    policy = _get_network_policy(sdk, endpoint_id)
+    _echo_network_policy(policy)
+
+
+@network_policy.group('default')
+def network_policy_default():
+    """Remove or restore Guard's built-in deny rules."""
+    pass
+
+
+@network_policy_default.command('remove')
+@cli_handler
+@click.argument('endpoint_id', required=True)
+@click.argument('rule_id', type=click.Choice(DEFAULT_RULE_IDS))
+@click.option('-y', '--yes', is_flag=True, help='Save without interactive confirmation')
+def remove_default_network_policy_rule(sdk, endpoint_id, rule_id, yes):
+    """Remove a built-in deny rule from an endpoint policy."""
+    _change_network_policy(sdk, endpoint_id, {
+        'kind': 'default',
+        'action': 'remove',
+        'rule_id': rule_id,
+        'yes': yes,
+    })
+
+
+@network_policy_default.command('restore')
+@cli_handler
+@click.argument('endpoint_id', required=True)
+@click.argument('rule_id', type=click.Choice(DEFAULT_RULE_IDS))
+@click.option('-y', '--yes', is_flag=True, help='Save without interactive confirmation')
+def restore_default_network_policy_rule(sdk, endpoint_id, rule_id, yes):
+    """Restore a built-in deny rule to an endpoint policy."""
+    _change_network_policy(sdk, endpoint_id, {
+        'kind': 'default',
+        'action': 'restore',
+        'rule_id': rule_id,
+        'yes': yes,
+    })
+
+
+@network_policy.group('deny')
+def network_policy_deny():
+    """Add or remove custom IP/CIDR deny rules."""
+    pass
+
+
+@network_policy_deny.command('add')
+@cli_handler
+@click.argument('endpoint_id', required=True)
+@click.argument('destination', required=True)
+@click.option(
+    '--tcp-ports',
+    help='Comma-separated TCP ports; omit to deny all traffic',
+)
+@click.option('-y', '--yes', is_flag=True, help='Save without interactive confirmation')
+def add_network_policy_deny(sdk, endpoint_id, destination, tcp_ports, yes):
+    """Add a custom deny rule for a canonical IP address or CIDR."""
+    _change_network_policy(sdk, endpoint_id, {
+        'kind': 'deny-add',
+        'selector': destination,
+        'tcp_ports': tcp_ports,
+        'ports_supplied': tcp_ports is not None,
+        'yes': yes,
+    })
+
+
+@network_policy_deny.command('remove')
+@cli_handler
+@click.argument('endpoint_id', required=True)
+@click.argument('rule', required=True)
+@click.option(
+    '--tcp-ports',
+    help='Comma-separated TCP ports when selecting an exact rule',
+)
+@click.option('-y', '--yes', is_flag=True, help='Save without interactive confirmation')
+def remove_network_policy_deny(sdk, endpoint_id, rule, tcp_ports, yes):
+    """Remove a custom deny rule by displayed number or exact destination."""
+    _change_network_policy(sdk, endpoint_id, {
+        'kind': 'deny-remove',
+        'selector': rule,
+        'tcp_ports': tcp_ports,
+        'ports_supplied': tcp_ports is not None,
+        'yes': yes,
+    })
+
+
+def _change_network_policy(sdk, endpoint_id, operation):
+    policy = _get_network_policy(sdk, endpoint_id)
+    try:
+        updated_fields, change = apply_policy_operation(policy, operation)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if updated_fields is None:
+        click.echo(change)
+        return
+    if not operation['yes'] and not click.confirm(
+        f'{change} Save this endpoint network policy?',
+        default=False,
+    ):
+        click.echo('Cancelled')
+        return
+    try:
+        updated = sdk.aegis.update_endpoint_network_policy(
+            endpoint_id,
+            policy['revision'],
+            updated_fields['disabledDefaultRuleIds'],
+            updated_fields['customDenyRules'],
+        )
+    except Exception as exc:
+        _raise_network_policy_error(exc)
+    click.echo('Endpoint network policy saved')
+    _echo_network_policy(updated)
+
+
+def _get_network_policy(sdk, endpoint_id):
+    try:
+        return sdk.aegis.get_endpoint_network_policy(endpoint_id)
+    except Exception as exc:
+        _raise_network_policy_error(exc)
+
+
+def _echo_network_policy(policy):
+    try:
+        lines = network_policy_lines(policy)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    for line in lines:
+        click.echo(line)
+
+
+def _raise_network_policy_error(exc):
+    if _enrollment_debug_enabled():
+        raise exc
+    raise click.ClickException(network_policy_error_message(exc)) from exc
 
 
 @aegis.command('job')
@@ -164,7 +345,7 @@ def endpoints(ctx, sdk, filter_text, online_only):
 @click.option('-p', '--package',
               help='Android application ID to target, e.g. com.bank.app. Upload the APK first with "guard add apk".')
 @click.option('-e', '--endpoint', 'endpoint_id',
-              help='Enrolled endpoint to run the job on, as listed by "guard aegis endpoints"')
+              help='Enrolled Aegis v2 endpoint to run the job on, as shown by "guard aegis list --details"')
 @click.argument('client_id', required=False)
 @click.pass_context
 def job(ctx, sdk, capabilities, config, package, endpoint_id, client_id):

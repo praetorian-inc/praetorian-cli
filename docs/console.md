@@ -82,10 +82,40 @@ Any of the 141+ backend capabilities can be used via `use <name>`.
 | `marcus ingest <path>` | Read file & auto-create seeds/risks |
 | `marcus do "<instruction>"` | Direct instruction (full agent access) |
 
-In marcus conversation mode, prefix commands with `/`:
-- `/back` — return to console
-- `/new` — start new conversation
-- `/query` / `/agent` — switch mode
+Start the dedicated conversation interface directly in either mode:
+
+```zsh
+guard agent conversation --mode query
+guard agent conversation --mode agent
+```
+
+Conversation commands:
+
+| Command | Description |
+|---------|-------------|
+| `query` / `agent` | Switch between read-oriented Query mode and operational Agent mode |
+| `new` / `resume` | Start a new conversation or resume an existing one |
+| `jobs` | Show running jobs |
+| `/agents` | Show Marcus and all delegated agents |
+| `/focus <id-prefix\|root>` | Follow and talk directly to one agent |
+| `/guide <id-prefix> <message>` | Steer an active agent without switching focus |
+| `/stop <id-prefix>` | Stop one delegated-agent branch |
+| `stop` or Ctrl+X | Stop Marcus and all correlated child work |
+| `quit` | Exit the conversation |
+
+### Supervised Agent mode
+
+Agent mode displays named tools and delegated-agent progress while work runs.
+Operators can send guidance at any time, focus a descendant conversation, and
+stop one branch or the complete tree.
+
+When endpoint execution requires approval, the terminal displays the bounded
+action context and asks the operator to allow or deny it. Credential and MFA
+requests use masked entry and an ephemeral broker reference; secret values are
+not written into durable conversation messages.
+
+For deterministic endpoint status and cancellation outside the conversation
+UI, see [Aegis endpoints](aegis.md#endpoint-capabilities).
 
 ### Evidence & Reports
 

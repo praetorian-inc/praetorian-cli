@@ -1,0 +1,643 @@
+import base64
+import json
+import os
+import time
+from datetime import datetime, timezone
+
+import pytest
+
+from praetorian_cli.sdk.chariot import Chariot
+from praetorian_cli.sdk.entities.aegis import Aegis, merge_aegis_endpoint_rows
+from praetorian_cli.sdk.keychain import DEFAULT_API, DEFAULT_CLIENT_ID, Keychain
+from praetorian_cli.sdk.model.aegis import (
+    AEGIS_V2_ONLINE_WINDOW_SECONDS,
+    Agent,
+    validate_agent_for_ssh,
+)
+from praetorian_cli.sdk.test.utils import selected_test_target, setup_chariot
+
+
+LIVE_AEGIS_V2_ACCOUNT = os.environ.get('CHARIOT_TEST_AEGIS_ACCOUNT', '')
+LIVE_AEGIS_V2_ENDPOINT_ID = os.environ.get('CHARIOT_TEST_AEGIS_V2_ENDPOINT_ID', '')
+LIVE_AEGIS_PORTSCAN_START_TIMEOUT_SECONDS = int(os.environ.get(
+    'CHARIOT_TEST_AEGIS_PORTSCAN_START_TIMEOUT_SECONDS',
+    '120',
+))
+LIVE_AEGIS_PORTSCAN_POLL_INTERVAL_SECONDS = int(os.environ.get(
+    'CHARIOT_TEST_AEGIS_PORTSCAN_POLL_INTERVAL_SECONDS',
+    '5',
+))
+LIVE_AEGIS_PORTSCAN_TARGET = os.environ.get('CHARIOT_TEST_AEGIS_PORTSCAN_TARGET', '')
+
+
+class FakeSearch:
+    def __init__(self, endpoints, error=None, tunnel_states=None,
+                 status_rows=None):
+        self.endpoints = endpoints
+        self.error = error
+        self.tunnel_states = tunnel_states or []
+        self.status_rows = status_rows or []
+        self.calls = []
+
+    def by_key_prefix(self, key_prefix):
+        self.calls.append(key_prefix)
+        if self.error:
+            raise self.error
+        if key_prefix == '#endpoint#':
+            return self.endpoints, None
+        if key_prefix == '#endpointaegistunnelstate#':
+            return self.tunnel_states, None
+        if key_prefix == '#endpointaegisstatus#':
+            return self.status_rows, None
+        raise AssertionError(f'unexpected key prefix: {key_prefix}')
+
+
+class FakeAPI:
+    def __init__(self, agents=None, endpoints=None, endpoint_error=None,
+                 identities=None, identity_error=None, inventory=None,
+                 inventory_error=None, tunnel_states=None, status_rows=None,
+                 legacy_error=None):
+        self.agents = agents or []
+        self.legacy_error = legacy_error
+        self.identities = identities or []
+        self.identity_error = identity_error
+        self.inventory = inventory or []
+        self.inventory_error = inventory_error
+        self.search = FakeSearch(
+            endpoints or [],
+            endpoint_error,
+            tunnel_states,
+            status_rows,
+        )
+
+    def get(self, path, params=None):
+        if path == '/agent/enhanced':
+            if self.legacy_error:
+                raise self.legacy_error
+            return self.agents
+        if path == 'endpoint/list':
+            if self.inventory_error:
+                raise self.inventory_error
+            return {'endpoints': self.inventory}
+        if path == 'endpoint':
+            if self.identity_error:
+                raise self.identity_error
+            return self.identities
+        raise AssertionError(f'unexpected path: {path}')
+
+
+def test_agent_from_endpoint_dict_maps_aegis_v2_fields():
+    last_heartbeat = datetime.now(timezone.utc).isoformat()
+
+    agent = Agent.from_endpoint_dict({
+        'key': '#endpoint#endpoint-1',
+        'endpointId': 'endpoint-1',
+        'kind': 'aegis',
+        'version': '1.2.3',
+        'hostname': 'sensor-1',
+        'os': 'linux',
+        'arch': 'amd64',
+        'runtime': {'name': 'docker'},
+        'cloudflaredStatus': {
+            'status': 'running',
+            'hostname': 'sensor.example.com',
+            'tunnelName': 'sensor-tunnel',
+        },
+        'runningContainerCount': 2,
+        'lastHeartbeat': last_heartbeat,
+    })
+
+    assert agent.version == 'v2'
+    assert agent.agent_version == '1.2.3'
+    assert agent.endpoint_id == 'endpoint-1'
+    assert agent.display_id == 'endpoint-1'
+    assert agent.client_id == 'N/A'
+    assert agent.hostname == 'sensor-1'
+    assert agent.os == 'linux'
+    assert agent.architecture == 'amd64'
+    assert agent.runtime == {'name': 'docker'}
+    assert agent.has_tunnel is True
+    assert agent.health_check.cloudflared_status.hostname == 'sensor.example.com'
+    assert agent.health_check.cloudflared_status.tunnel_name == 'sensor-tunnel'
+    assert agent.running_container_count == 2
+    assert agent.is_online is True
+
+
+def test_agent_from_endpoint_dict_maps_inventory_contract():
+    agent = Agent.from_endpoint_dict({
+        'endpointId': 'endpoint-1',
+        'kind': 'aegis',
+        'lastSeenAt': time.time() - (AEGIS_V2_ONLINE_WINDOW_SECONDS - 10),
+        'profile': {
+            'hostname': 'sensor-1',
+            'os': 'linux',
+            'arch': 'amd64',
+            'softwareVersion': '1.2.3',
+        },
+    })
+
+    assert agent.endpoint_id == 'endpoint-1'
+    assert agent.kind == 'aegis'
+    assert agent.hostname == 'sensor-1'
+    assert agent.os == 'linux'
+    assert agent.architecture == 'amd64'
+    assert agent.agent_version == '1.2.3'
+    assert agent.is_online is True
+
+
+def test_v2_endpoint_is_offline_after_extended_liveness_window():
+    agent = Agent.from_endpoint_dict({
+        'endpointId': 'endpoint-1',
+        'kind': 'aegis',
+        'lastHeartbeat': time.time() - (AEGIS_V2_ONLINE_WINDOW_SECONDS + 10),
+    })
+
+    assert agent.is_online is False
+
+
+def test_legacy_agent_keeps_short_liveness_window():
+    agent = Agent.from_dict({
+        'client_id': 'C.legacy',
+        'hostname': 'legacy',
+        'last_seen_at': time.time() - 61,
+    })
+
+    assert agent.is_online is False
+
+
+def test_aegis_list_combines_v1_agents_and_aegis_v2_endpoints():
+    api = FakeAPI(
+        agents=[{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
+        endpoints=[
+            {'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'},
+            {'endpointId': 'domitian-1', 'kind': 'domitian', 'hostname': 'other-kind'},
+        ],
+    )
+
+    agents, offset = Aegis(api).list()
+
+    assert offset is None
+    assert api.search.calls == [
+        '#endpoint#',
+        '#endpointaegistunnelstate#',
+        '#endpointaegisstatus#',
+    ]
+    assert [(agent.version, agent.hostname, agent.display_id) for agent in agents] == [
+        ('v1', 'legacy-host', 'C.legacy'),
+        ('v2', 'sensor-1', 'endpoint-1'),
+    ]
+
+
+@pytest.mark.parametrize('failed_source', ['legacy', 'v2'])
+def test_aegis_list_keeps_healthy_inventory_when_other_source_fails(failed_source):
+    failure = RuntimeError('tls: expired certificate')
+    api = FakeAPI(
+        agents=[{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'profile': {'hostname': 'sensor-1'},
+        }],
+        legacy_error=failure if failed_source == 'legacy' else None,
+        inventory_error=failure if failed_source == 'v2' else None,
+        identity_error=failure if failed_source == 'v2' else None,
+        endpoint_error=failure if failed_source == 'v2' else None,
+    )
+    warnings = []
+
+    agents, _ = Aegis(api).list(on_warning=warnings.append)
+
+    expected = ['endpoint-1'] if failed_source == 'legacy' else ['C.legacy']
+    assert [agent.display_id for agent in agents] == expected
+    assert len(warnings) == 1
+    assert str(failure) in warnings[0]
+    assert failed_source.lower() in warnings[0].lower()
+
+
+def test_aegis_list_raises_when_no_inventory_can_be_loaded():
+    api = FakeAPI(
+        legacy_error=RuntimeError('legacy unavailable'),
+        inventory_error=RuntimeError('durable unavailable'),
+        identity_error=RuntimeError('active unavailable'),
+        endpoint_error=RuntimeError('live unavailable'),
+    )
+
+    with pytest.raises(RuntimeError) as error:
+        Aegis(api).list()
+
+    for source in ('legacy', 'durable', 'active', 'live'):
+        assert f'{source} unavailable' in str(error.value)
+
+
+@pytest.mark.parametrize('failed_source', ['legacy', 'v2'])
+def test_aegis_list_distinguishes_partial_empty_from_confirmed_empty(failed_source):
+    failure = RuntimeError('inventory unavailable')
+    api = FakeAPI(
+        legacy_error=failure if failed_source == 'legacy' else None,
+        inventory_error=failure if failed_source == 'v2' else None,
+        identity_error=failure if failed_source == 'v2' else None,
+        endpoint_error=failure if failed_source == 'v2' else None,
+    )
+    warnings = []
+    sdk = Aegis(api)
+
+    agents, _ = sdk.list(on_warning=warnings.append)
+
+    assert agents == []
+    assert any(str(failure) in message for message in warnings)
+    api.legacy_error = api.inventory_error = api.identity_error = None
+    api.search.error = None
+    warnings.clear()
+    agents, _ = sdk.list(on_warning=warnings.append)
+    assert agents == []
+    assert warnings == []
+
+
+def test_aegis_list_reports_incomplete_offline_inventory_with_live_fallback():
+    api = FakeAPI(
+        inventory_error=RuntimeError('durable unavailable'),
+        identity_error=RuntimeError('active unavailable'),
+        endpoints=[{'endpointId': 'live-1', 'kind': 'aegis'}],
+    )
+    warnings = []
+
+    agents, _ = Aegis(api).list(on_warning=warnings.append)
+
+    assert [agent.display_id for agent in agents] == ['live-1']
+    assert 'durable unavailable' in warnings[0]
+    assert 'active unavailable' in warnings[0]
+
+
+def test_aegis_formatted_list_exposes_partial_failure_and_healthy_v2():
+    api = FakeAPI(
+        legacy_error=RuntimeError('legacy unavailable'),
+        inventory=[{'endpointId': 'endpoint-1', 'kind': 'aegis'}],
+    )
+
+    output = Aegis(api).format_agents_list()
+
+    assert 'legacy unavailable' in output
+    assert 'endpoint-1' in output
+    assert 'v2' in output
+
+
+def test_aegis_list_includes_offline_v2_endpoint_identity_without_live_row():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-offline',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'connectionState': 'not_connected',
+            'profile': {
+                'hostname': 'offline-sensor',
+                'os': 'linux',
+                'arch': 'amd64',
+                'softwareVersion': '2.0.0',
+            },
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert [(
+        agent.version,
+        agent.hostname,
+        agent.display_id,
+        agent.os,
+        agent.architecture,
+        agent.agent_version,
+        agent.is_online,
+    ) for agent in agents] == [
+        (
+            'v2',
+            'offline-sensor',
+            'endpoint-offline',
+            'linux',
+            'amd64',
+            '2.0.0',
+            False,
+        ),
+    ]
+
+
+def test_aegis_list_preserves_endpoint_network_policy_support():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'networkPolicySupported': True,
+            'profile': {'hostname': 'sensor-1'},
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert agents[0].network_policy_supported is True
+
+
+def test_aegis_list_enriches_durable_identity_with_live_endpoint_data():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'profile': {'hostname': 'sensor-1', 'os': 'unknown'},
+        }],
+        endpoints=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'hostname': 'sensor-1',
+            'os': 'linux',
+            'runtime': {'name': 'docker'},
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert len(agents) == 1
+    assert agents[0].os == 'linux'
+    assert agents[0].runtime == {'name': 'docker'}
+
+
+def test_aegis_list_adds_persisted_cloudflare_tunnel_state():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'lastSeenAt': datetime.now(timezone.utc).isoformat(),
+            'profile': {'hostname': 'sensor-1', 'os': 'linux'},
+        }],
+        tunnel_states=[{
+            'endpointId': 'endpoint-1',
+            'cloudflaredStatus': {
+                'status': 'configured',
+                'hostname': 'sensor.example.com',
+                'tunnel_name': 'sensor-tunnel',
+            },
+        }],
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert len(agents) == 1
+    assert agents[0].has_tunnel is True
+    assert agents[0].health_check.cloudflared_status.hostname == (
+        'sensor.example.com'
+    )
+    assert agents[0].health_check.cloudflared_status.tunnel_name == (
+        'sensor-tunnel'
+    )
+    assert agents[0].health_check.cloudflared_status.status == 'configured'
+    assert validate_agent_for_ssh(agents[0]) == (True, '')
+
+
+def test_endpoint_health_does_not_hide_persisted_tunnel_configuration():
+    rows = merge_aegis_endpoint_rows(
+        [{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'profile': {'hostname': 'sensor-1'},
+        }],
+        [],
+        [{
+            'endpointId': 'endpoint-1',
+            'cloudflaredStatus': {
+                'status': 'configured',
+                'hostname': 'sensor.example.com',
+            },
+        }],
+        [{
+            'endpointId': 'endpoint-1',
+            'cloudflared': {'state': 'stopped'},
+        }],
+    )
+
+    assert Agent.from_endpoint_dict(rows[0]).has_tunnel is True
+
+
+def test_aegis_list_uses_durable_identities_when_live_listing_fails():
+    api = FakeAPI(
+        inventory=[{
+            'endpointId': 'endpoint-offline',
+            'kind': 'aegis',
+            'lifecycleState': 'Active',
+            'profile': {'hostname': 'offline-sensor'},
+        }],
+        endpoint_error=RuntimeError('live endpoint unavailable'),
+    )
+
+    agents, _ = Aegis(api).list()
+
+    assert [agent.display_id for agent in agents] == ['endpoint-offline']
+
+
+def test_aegis_list_retains_v1_agents_when_endpoint_listing_fails():
+    api = FakeAPI(
+        agents=[{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
+        endpoint_error=RuntimeError('endpoint unavailable'),
+    )
+
+    agents, offset = Aegis(api).list()
+
+    assert offset is None
+    assert [(agent.version, agent.hostname, agent.display_id) for agent in agents] == [
+        ('v1', 'legacy-host', 'C.legacy'),
+    ]
+
+
+def test_get_by_client_id_accepts_v2_display_id():
+    api = FakeAPI(endpoints=[{'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'}])
+
+    agent = Aegis(api).get_by_client_id('endpoint-1')
+
+    assert agent is not None
+    assert agent.version == 'v2'
+    assert agent.display_id == 'endpoint-1'
+
+
+def test_format_agents_list_includes_version_column():
+    api = FakeAPI(
+        agents=[{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
+        endpoints=[{'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'}],
+    )
+
+    output = Aegis(api).format_agents_list()
+
+    assert 'VERSION' in output
+    assert 'v1' in output
+    assert 'v2' in output
+    assert 'C.legacy' in output
+    assert 'endpoint-1' in output
+
+
+def test_format_agents_list_filter_matches_v2_endpoint_id():
+    api = FakeAPI(endpoints=[{'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'}])
+
+    output = Aegis(api).format_agents_list(filter_text='endpoint-1')
+
+    assert 'endpoint-1' in output
+    assert 'No agents found' not in output
+
+
+def test_create_job_config_rejects_v2_endpoint_legacy_config():
+    agent = Agent.from_endpoint_dict({'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'})
+
+    with pytest.raises(Exception, match='legacy Aegis job path'):
+        Aegis(FakeAPI()).create_job_config(agent)
+
+
+def test_run_job_rejects_v2_endpoint_without_endpoint_agent_id():
+    agent = Agent.from_endpoint_dict({'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'sensor-1'})
+
+    with pytest.raises(Exception, match='endpoint_agent_id'):
+        Aegis(FakeAPI()).run_job(agent, ['portscan'], '{}')
+
+
+def _selected_live_target_or_skip():
+    try:
+        return selected_test_target()
+    except ValueError as exc:
+        pytest.skip(str(exc))
+
+
+def _setup_live_chariot(profile: str, account: str) -> Chariot:
+    api_key_id = os.environ.get('PRAETORIAN_CLI_API_KEY_ID')
+    api_key_secret = os.environ.get('PRAETORIAN_CLI_API_KEY_SECRET')
+    if api_key_id and api_key_secret:
+        keychain_data = (
+            f'[{profile}]\n'
+            f'api = {os.environ.get("PRAETORIAN_CLI_API", DEFAULT_API)}\n'
+            f'client_id = {os.environ.get("PRAETORIAN_CLI_CLIENT_ID", DEFAULT_CLIENT_ID)}\n'
+            f'api_key_id = {api_key_id}\n'
+            f'api_key_secret = {api_key_secret}\n'
+        )
+        return Chariot(Keychain(profile=profile, account=account, data=keychain_data))
+    return setup_chariot(profile, account)
+
+
+def _setup_endpoint_fixture_chariot_or_skip() -> Chariot:
+    if not LIVE_AEGIS_V2_ACCOUNT:
+        pytest.skip('set CHARIOT_TEST_AEGIS_ACCOUNT to the account that owns the live endpoint fixture')
+    profile, account = _selected_live_target_or_skip()
+    if account.lower() != LIVE_AEGIS_V2_ACCOUNT.lower():
+        pytest.skip('selected account does not own the live Aegis v2 endpoint fixture')
+    return _setup_live_chariot(profile, account)
+
+
+def _find_known_live_v2_endpoint(sdk: Chariot):
+    agents, offset = sdk.aegis.list()
+    endpoint = next(
+        (agent for agent in agents if getattr(agent, 'endpoint_id', None) == LIVE_AEGIS_V2_ENDPOINT_ID),
+        None,
+    )
+    return endpoint, agents, offset
+
+
+def _endpoint_task_key(endpoint_id: str, task_id: str) -> str:
+    encoded_endpoint_id = base64.urlsafe_b64encode(endpoint_id.encode()).decode().rstrip('=')
+    return f'#endpointtask#{encoded_endpoint_id}#{task_id}'
+
+
+def _existing_portscan_asset_key_or_skip(sdk: Chariot) -> str:
+    if not LIVE_AEGIS_PORTSCAN_TARGET:
+        pytest.skip('set CHARIOT_TEST_AEGIS_PORTSCAN_TARGET to an existing asset key or IP/CIDR asset')
+    asset_key = LIVE_AEGIS_PORTSCAN_TARGET
+    if not asset_key.startswith('#'):
+        asset_key = f'#asset#{LIVE_AEGIS_PORTSCAN_TARGET}#{LIVE_AEGIS_PORTSCAN_TARGET}'
+    asset = sdk.assets.get(asset_key)
+    if not asset:
+        pytest.skip(f'live Aegis v2 portscan target asset is missing: {asset_key}')
+    return asset.get('key') or asset_key
+
+
+def _job_state(job: dict) -> str:
+    return (job.get('status') or '').split('#', 1)[0]
+
+
+def _wait_for_endpoint_bound_job(sdk: Chariot, job_key: str) -> dict:
+    deadline = time.time() + LIVE_AEGIS_PORTSCAN_START_TIMEOUT_SECONDS
+    last_job = None
+    while time.time() < deadline:
+        last_job = sdk.jobs.get(job_key)
+        if last_job and last_job.get('endpoint_task_id'):
+            return last_job
+        time.sleep(LIVE_AEGIS_PORTSCAN_POLL_INTERVAL_SECONDS)
+    pytest.fail(f'expected endpoint-bound portscan job {job_key}; last job: {last_job!r}')
+
+
+def _wait_for_endpoint_task(sdk: Chariot, endpoint_id: str, task_id: str) -> dict:
+    task_key = _endpoint_task_key(endpoint_id, task_id)
+    deadline = time.time() + LIVE_AEGIS_PORTSCAN_START_TIMEOUT_SECONDS
+    last_task = None
+    while time.time() < deadline:
+        last_task = sdk.search.by_exact_key(task_key)
+        if last_task:
+            return last_task
+        time.sleep(LIVE_AEGIS_PORTSCAN_POLL_INTERVAL_SECONDS)
+    pytest.fail(f'expected endpoint task {task_key}; last task: {last_task!r}')
+
+
+def _wait_for_endpoint_job_to_start(sdk: Chariot, job_key: str) -> dict:
+    deadline = time.time() + LIVE_AEGIS_PORTSCAN_START_TIMEOUT_SECONDS
+    last_job = None
+    while time.time() < deadline:
+        last_job = sdk.jobs.get(job_key)
+        if last_job and _job_state(last_job) in {'JR', 'JP', 'JF'}:
+            return last_job
+        time.sleep(LIVE_AEGIS_PORTSCAN_POLL_INTERVAL_SECONDS)
+    pytest.fail(f'expected endpoint portscan job {job_key} to start; last job: {last_job!r}')
+
+
+@pytest.mark.coherence
+def test_live_aegis_list_includes_known_v2_endpoint():
+    sdk = _setup_endpoint_fixture_chariot_or_skip()
+
+    endpoint, agents, offset = _find_known_live_v2_endpoint(sdk)
+
+    assert offset is None
+    assert endpoint is not None, f'expected Aegis v2 endpoint {LIVE_AEGIS_V2_ENDPOINT_ID} in live list'
+    assert endpoint.version == 'v2'
+    assert endpoint.display_id == LIVE_AEGIS_V2_ENDPOINT_ID
+    assert endpoint.client_id == 'N/A'
+    assert endpoint.is_online is True
+    assert any(agent.version == 'v1' for agent in agents)
+
+    output = sdk.aegis.format_agents_list()
+    assert 'VERSION' in output
+    assert 'v2' in output
+    assert LIVE_AEGIS_V2_ENDPOINT_ID in output
+
+
+@pytest.mark.coherence
+def test_live_aegis_v2_portscan_runs_existing_asset_on_known_endpoint():
+    sdk = _setup_endpoint_fixture_chariot_or_skip()
+
+    endpoint, _, _ = _find_known_live_v2_endpoint(sdk)
+    assert endpoint is not None, f'expected Aegis v2 endpoint {LIVE_AEGIS_V2_ENDPOINT_ID} in live list'
+    assert endpoint.is_online is True
+
+    asset_key = _existing_portscan_asset_key_or_skip(sdk)
+    jobs = sdk.jobs.add(
+        asset_key,
+        ['portscan'],
+        json.dumps({'endpoint_agent_id': endpoint.endpoint_id}),
+    )
+    assert len(jobs) == 1
+    created_job = jobs[0]
+    assert created_job['key'].startswith('#job#')
+    assert created_job.get('config', {}).get('endpoint_agent_id') == endpoint.endpoint_id
+
+    bound_job = _wait_for_endpoint_bound_job(sdk, created_job['key'])
+    task_id = bound_job.get('endpoint_task_id')
+    assert task_id
+    assert bound_job.get('config', {}).get('endpoint_agent_id') == endpoint.endpoint_id
+
+    task = _wait_for_endpoint_task(sdk, endpoint.endpoint_id, task_id)
+    assert task['endpointId'] == endpoint.endpoint_id
+    assert task['taskId'] == task_id
+    assert task['jobKey'] == created_job['key']
+
+    started_job = _wait_for_endpoint_job_to_start(sdk, created_job['key'])
+    assert _job_state(started_job) in {'JR', 'JP', 'JF'}
