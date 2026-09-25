@@ -1,12 +1,12 @@
 from typing import List, Optional
-from urllib.parse import quote
+import json
 import logging
+from urllib.parse import quote
 import shlex
 import shutil
 import subprocess
 import time
 from praetorian_cli.sdk.model.aegis import Agent, is_v2_agent, validate_agent_for_ssh
-
 
 def normalize_to_list(value, item_keys: List[str] = None) -> List:
     keys = item_keys or ["items", "data", "capabilities", "assets"]
@@ -115,6 +115,10 @@ CLOUDFLARE_TUNNEL_STATUS_PATH = 'aegis/management/cloudflare/tunnel/status/{endp
 CLOUDFLARE_TUNNEL_CREATE_PATH = 'aegis/management/cloudflare/tunnel/create'
 CLOUDFLARE_TUNNEL_REMOVE_PATH = 'aegis/management/cloudflare/tunnel/remove'
 ENDPOINT_PIN_CONFIG_KEY = 'endpoint_agent_id'
+# The endpoint kind that runs Aegis capabilities, mobile ones included.
+ENDPOINT_KIND_AEGIS = 'aegis'
+# Connection state in which an endpoint can pick up work.
+ENDPOINT_STATE_ONLINE = 'online'
 LINUX_SYSTEM_ADDUSER = 'linux-system-adduser'
 LINUX_SYSTEM_DELUSER = 'linux-system-deluser'
 
@@ -412,17 +416,29 @@ class Aegis:
             ),
         )
 
-    def get_capabilities(self, surface_filter: str = None, agent_os: str = None) -> List[dict]:
+    def get_capabilities(self, surface_filter: str = None, agent_os: str = None,
+                         target: str = None, endpoint_kind: str = None,
+                         executor: str = 'aegis') -> List[dict]:
         """
         Get Aegis capabilities with optional filtering.
 
         Retrieves available capabilities that can be executed by Aegis agents,
         with optional filtering by attack surface and operating system.
 
-        :param surface_filter: Filter by attack surface type (e.g., 'internal', 'external')
+        :param surface_filter: Filter by attack surface type (e.g., 'internal', 'external', 'mobile')
         :type surface_filter: str or None
         :param agent_os: Filter by agent operating system (e.g., 'windows', 'linux')
         :type agent_os: str or None
+        :param target: Filter by target type (e.g., 'asset', 'addomain', 'apk')
+        :type target: str or None
+        :param endpoint_kind: Filter to capabilities dispatchable to an enrolled endpoint of
+            this kind (e.g., 'aegis')
+        :type endpoint_kind: str or None
+        :param executor: Filter by executor. Defaults to 'aegis', which is the executor for
+            capabilities that run on an SSH-reachable Aegis agent. Endpoint-dispatched
+            capabilities -- including every mobile one -- are registered against Guard's own
+            executor instead, so pass '' to include them.
+        :type executor: str
         :return: List of capability dictionaries
         :rtype: list
 
@@ -436,6 +452,9 @@ class Aegis:
             >>> # Get Windows capabilities for internal surface
             >>> win_caps = sdk.aegis.get_capabilities(surface_filter='internal', agent_os='windows')
 
+            >>> # Get the mobile capabilities dispatchable to an enrolled Android endpoint
+            >>> mobile_caps = sdk.aegis.get_capabilities(target='apk', endpoint_kind='aegis', executor='')
+
         **Capability Object Properties:**
             Each capability contains:
             - name: Capability name (e.g., 'windows-smb-snaffler')
@@ -445,7 +464,8 @@ class Aegis:
             - parameters: List of configurable parameters
         """
         try:
-            capabilities_response = self.api.capabilities.list(executor='aegis')
+            capabilities_response = self.api.capabilities.list(
+                target=target or '', executor=executor or '', endpoint_kind=endpoint_kind or '')
             
             # Handle different response formats
             if isinstance(capabilities_response, tuple):
@@ -499,11 +519,14 @@ class Aegis:
             >>>     print(f"Target type: {cap_info['target']}")
         """
         try:
-            caps = self.get_capabilities()
-            for cap in caps:
-                if isinstance(cap, dict) and cap.get('name', '').lower() == capability_name.lower():
-                    return cap
-            return None
+            match = _by_name(self.get_capabilities(), capability_name)
+            if match:
+                return match
+            # Endpoint-dispatched capabilities -- every mobile one among them -- are
+            # registered against Guard's own executor, so the agent-executor list above
+            # never holds them and a valid name would look invalid.
+            return _by_name(self.get_capabilities(endpoint_kind=ENDPOINT_KIND_AEGIS, executor=''),
+                            capability_name)
         except Exception:
             return None
     
@@ -829,30 +852,88 @@ class Aegis:
         else:
             print(f"\033[31m✗ Transfer failed (exit code {returncode})\033[0m")
 
-    def run_job(self, agent: Agent, capabilities: list = None, config: str = None):
+    def run_job(self, agent: Agent = None, capabilities: list = None, config: str = None,
+                hostname: str = None, package: str = None, endpoint_id: str = None) -> dict:
         """
-        Run a job on an Aegis agent.
+        Run a job on an Aegis agent or on an enrolled endpoint.
 
-        If no capabilities are provided, returns available capability dicts under
-        the 'capabilities' key. When capabilities are provided, returns a dict
-        with keys: 'success', 'job_id', 'job_key', 'status'. Errors raise.
+        Name the target with a hostname, for an agent's own host asset, or with a package,
+        for an Android application already registered by sdk.apks.add(). A package targets
+        '#apk#<package>' -- what every mobile capability matches against, and the asset its
+        findings are filed on.
+
+        An Aegis v2 endpoint runs the job only when endpoint_id names it. The endpoint is
+        not taken from a v2 agent automatically: dispatching to a device is a decision the
+        caller makes rather than a consequence of which row they had selected.
+
+        Apart from the legacy agent argument, every parameter is a string or a list, so
+        this method is callable over the MCP server as well as from Python. There is no
+        second code path for MCP.
+
+        :param agent: Agent object from sdk.aegis.list(), naming a v1 agent's host as the
+            target. Prefer hostname; this exists so existing positional callers keep working.
+        :type agent: Agent or None
+        :param capabilities: Capability names to run. When omitted, no job is created and
+            the capabilities available for the named target are returned instead.
+        :type capabilities: list or None
+        :param config: JSON object string of capability parameters, e.g.
+            '{"command": "getprop ro.build.fingerprint"}'
+        :type config: str or None
+        :param hostname: Hostname of an Aegis agent, to target that agent's host asset
+        :type hostname: str or None
+        :param package: Android application ID, e.g. 'com.bank.app', to target '#apk#<package>'
+        :type package: str or None
+        :param endpoint_id: Enrolled Aegis v2 endpoint to run the job on, as shown by
+            "guard aegis list --details". Passed to Guard as the job's endpoint_agent_id.
+            Guard reserves that key for Praetorian users and silently drops it for everyone
+            else, in which case the job falls back to automatic endpoint selection.
+        :type endpoint_id: str or None
+        :return: When capabilities are given, a dict with 'success', 'job_id', 'job_key',
+            'status', 'target_key' and 'endpoint_id'. Otherwise a dict with 'capabilities'.
+        :rtype: dict
+        :raises Exception: If no target is named, if two are, if a v2 agent is named without
+            an endpoint_id, or if the named endpoint is not enrolled, connected and accepting work
+
+        **Example Usage:**
+            >>> # What can run against an APK on an enrolled endpoint
+            >>> sdk.aegis.run_job(package='com.bank.app')
+
+            >>> # Dispatch a mobile capability to a named device
+            >>> sdk.aegis.run_job(capabilities=['android-device-survey'],
+            >>>                   package='com.bank.app',
+            >>>                   endpoint_id='16169bc5-7943-4783-af81-c4735616f7e9')
+
+            >>> # Dispatch a host capability to an Aegis agent, as before
+            >>> sdk.aegis.run_job(capabilities=['linux-enum'], hostname='agent01')
         """
-        if is_v2_agent(agent):
+        # A v2 endpoint is reached only through the pin. Without one this is the legacy
+        # path, which has no way to route to a device, so it refuses rather than quietly
+        # running the job somewhere else.
+        if is_v2_agent(agent) and not endpoint_id:
             raise Exception(
                 "Aegis v2 endpoint job execution is not supported by the legacy "
                 "Aegis job path; refusing to run without endpoint_agent_id"
             )
 
+        if agent is not None and not hostname and not package and not is_v2_agent(agent):
+            hostname = agent.hostname or 'unknown'
+
+        if hostname and package:
+            raise Exception('A job has one target: pass either hostname or package, not both.')
+
         if not capabilities:
-            caps = self.get_capabilities(surface_filter='internal')
-            return {
-                'capabilities': sorted(caps, key=lambda x: x.get('name', '')),
-            }
+            return {'capabilities': sorted(self._offerable_capabilities(package, endpoint_id),
+                                           key=lambda capability: capability.get('name', ''))}
 
-        hostname = agent.hostname or 'unknown'
-        target_key = f"#asset#{hostname}#{hostname}"
+        target_key = self._target_key(hostname, package)
 
-        jobs = self.api.jobs.add(target_key, list(capabilities), config)
+        # Checked before the job is created, not after. Guard queues a job for an endpoint
+        # that cannot run it just as readily as for one that can, and the job then sits at
+        # its initial status with nothing saying why -- which reads as a silent success.
+        if endpoint_id:
+            self._verify_endpoint_can_accept_work(endpoint_id)
+
+        jobs = self.api.jobs.add(target_key, list(capabilities), self._job_config(config, endpoint_id))
         if not jobs:
             raise Exception("No job returned from API")
 
@@ -865,8 +946,75 @@ class Aegis:
             'job_id': job_key.split('#')[-1][:12] if job_key else 'unknown',
             'job_key': job_key,
             'status': status,
+            'target_key': target_key,
+            'endpoint_id': endpoint_id or '',
         }
-    
+
+    def _offerable_capabilities(self, package: str = None, endpoint_id: str = None) -> List[dict]:
+        """Capabilities worth offering for the target the caller has named.
+
+        An APK target gets the capabilities registered against APKs and dispatchable to an
+        enrolled endpoint, so a host capability is never offered for an application. With
+        no target named, the host capabilities are listed as before.
+        """
+        if package:
+            return self.get_capabilities(target='apk', endpoint_kind=ENDPOINT_KIND_AEGIS, executor='')
+        if endpoint_id:
+            return self.get_capabilities(endpoint_kind=ENDPOINT_KIND_AEGIS, executor='')
+        return self.get_capabilities(surface_filter='internal')
+
+    @staticmethod
+    def _target_key(hostname: str = None, package: str = None) -> str:
+        if package:
+            return f"#apk#{package}"
+        if hostname:
+            return f"#asset#{hostname}#{hostname}"
+        raise Exception('No target for the job. Pass hostname to target an Aegis agent, or '
+                        'package to target an APK, e.g. package="com.bank.app".')
+
+    def _endpoint_row(self, endpoint_id: str) -> Optional[dict]:
+        """The durable inventory row for one endpoint, or None if it is not enrolled."""
+        for row in self._list_endpoint_inventory_rows():
+            if _endpoint_row_id(row) == endpoint_id:
+                return row
+        return None
+
+    def _verify_endpoint_can_accept_work(self, endpoint_id: str) -> dict:
+        endpoint = self._endpoint_row(endpoint_id)
+        if endpoint is None:
+            raise Exception(f'Endpoint "{endpoint_id}" is not enrolled. '
+                            f'Run "guard aegis list --details" to see the enrolled endpoints.')
+
+        state = endpoint.get('connectionState') or 'unknown'
+        if state != ENDPOINT_STATE_ONLINE:
+            raise Exception(f'Endpoint "{endpoint_id}" is {state}, so it cannot pick up this job. '
+                            f'Bring the device back online and try again.')
+
+        if endpoint.get('taskDispatchPaused'):
+            raise Exception(f'Endpoint "{endpoint_id}" is online but has task dispatch paused, '
+                            f'so it would not pick up this job.')
+
+        return endpoint
+
+    @staticmethod
+    def _job_config(config: str = None, endpoint_id: str = None) -> Optional[str]:
+        """Merge the endpoint pin into the caller's config, without losing what they set."""
+        merged = {}
+        if isinstance(config, dict):
+            merged = dict(config)
+        elif config and config.strip():
+            try:
+                merged = json.loads(config)
+            except json.JSONDecodeError as e:
+                raise Exception(f'config is not valid JSON: {e}')
+            if not isinstance(merged, dict):
+                raise Exception('config must be a JSON object, e.g. \'{"command": "id"}\'')
+
+        if endpoint_id:
+            merged[ENDPOINT_PIN_CONFIG_KEY] = endpoint_id
+
+        return json.dumps(merged) if merged else None
+
     def format_agents_list(self, details: bool = False, filter_text: str = None):
         """
         Format agents list for display with optional filtering and details.
@@ -928,3 +1076,10 @@ class Aegis:
             for i, agent in enumerate(agents_data, 1):
                 lines.append(f"{i:>4}  {agent.version:<7}  {(agent.hostname or 'Unknown')[:30]:<30}  {agent.display_id}")
             return warning_text + '\n'.join(lines)
+
+
+def _by_name(capabilities: List[dict], name: str) -> Optional[dict]:
+    for capability in capabilities:
+        if isinstance(capability, dict) and capability.get('name', '').lower() == name.lower():
+            return capability
+    return None
