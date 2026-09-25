@@ -97,7 +97,7 @@ def discover_aegis_accounts(sdk, on_progress=None) -> List[dict]:
                 metadata,
             )
         except Exception as e:
-            logger.debug('Agent check failed for %s: %s', account_email, e)
+            logger.warning('Agent inventory failed for %s: %s', account_email, e)
             return _PROBE_FAILED
         finally:
             with lock:
@@ -184,18 +184,29 @@ def _fetch_account_agents(base_url: str, headers: dict) -> Optional[List[dict]]:
         timeout=30,
     )
     if resp.status_code != 200:
-        logger.debug('Agent fetch returned status %d', resp.status_code)
-        return None
+        raise RuntimeError(f'HTTP {resp.status_code} from /agent/enhanced: {resp.text}')
     return resp.json() or []
 
 
-def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict]]:
-    identity_rows = _fetch_account_endpoint_identities(base_url, headers)
-    live_rows = _fetch_account_live_endpoints(base_url, headers)
+def _fetch_account_endpoints(base_url: str, headers: dict, on_warning=None) -> Optional[List[dict]]:
+    identity_rows = _fetch_account_source(
+        lambda: _fetch_account_endpoint_identities(base_url, headers, on_warning),
+        headers, 'v2 endpoint identities', on_warning,
+    )
+    live_rows = _fetch_account_source(
+        lambda: _fetch_account_live_endpoints(base_url, headers),
+        headers, 'v2 live endpoints', on_warning,
+    )
     if identity_rows is None and live_rows is None:
         return None
-    tunnel_rows = _fetch_account_tunnel_states(base_url, headers)
-    status_rows = _fetch_account_aegis_statuses(base_url, headers)
+    tunnel_rows = _fetch_account_source(
+        lambda: _fetch_account_tunnel_states(base_url, headers),
+        headers, 'v2 tunnel states', on_warning,
+    )
+    status_rows = _fetch_account_source(
+        lambda: _fetch_account_aegis_statuses(base_url, headers),
+        headers, 'v2 endpoint statuses', on_warning,
+    )
     return merge_aegis_endpoint_rows(
         identity_rows or [],
         live_rows or [],
@@ -204,8 +215,11 @@ def _fetch_account_endpoints(base_url: str, headers: dict) -> Optional[List[dict
     )
 
 
-def _fetch_account_endpoint_identities(base_url: str, headers: dict) -> Optional[List[dict]]:
-    inventory_rows = _fetch_account_endpoint_inventory(base_url, headers)
+def _fetch_account_endpoint_identities(base_url: str, headers: dict, on_warning=None) -> Optional[List[dict]]:
+    inventory_rows = _fetch_account_source(
+        lambda: _fetch_account_endpoint_inventory(base_url, headers),
+        headers, 'v2 durable endpoints', on_warning,
+    )
     if inventory_rows is not None:
         return inventory_rows
 
@@ -215,8 +229,7 @@ def _fetch_account_endpoint_identities(base_url: str, headers: dict) -> Optional
         timeout=30,
     )
     if resp.status_code != 200:
-        logger.debug('Endpoint identity fetch returned status %d', resp.status_code)
-        return None
+        raise RuntimeError(f'HTTP {resp.status_code} from /endpoint: {resp.text}')
     return [
         normalize_active_endpoint_summary(endpoint)
         for endpoint in _flatten_response(resp.json())
@@ -237,8 +250,7 @@ def _fetch_account_endpoint_inventory(base_url: str, headers: dict) -> Optional[
             timeout=30,
         )
         if resp.status_code != 200:
-            logger.debug('Endpoint inventory fetch returned status %d', resp.status_code)
-            return None
+            raise RuntimeError(f'HTTP {resp.status_code} from /endpoint/list: {resp.text}')
 
         body = resp.json()
         rows = normalize_to_list(body, ['endpoints', 'data', 'items'])
@@ -289,8 +301,7 @@ def _fetch_account_my_rows(base_url: str, headers: dict, key: str) -> Optional[L
             timeout=30,
         )
         if resp.status_code != 200:
-            logger.debug('%s fetch returned status %d', key, resp.status_code)
-            return None
+            raise RuntimeError(f'HTTP {resp.status_code} from /my ({key}): {resp.text}')
 
         body = resp.json()
         rows.extend(_flatten_response(body))
@@ -305,12 +316,36 @@ def _fetch_account_my_rows(base_url: str, headers: dict, key: str) -> Optional[L
         params = {'key': key, 'offset': serialized_offset}
 
 
-def _fetch_account_records(base_url: str, headers: dict) -> Optional[tuple[List[dict], List[dict]]]:
-    agents_data = _fetch_account_agents(base_url, headers)
-    endpoints_data = _fetch_account_endpoints(base_url, headers)
-    if agents_data is None or endpoints_data is None:
-        return None
-    return agents_data, endpoints_data
+def _fetch_account_source(fetch, headers: dict, source: str, on_warning=None):
+    try:
+        rows = fetch()
+        if rows is not None:
+            return rows
+        error = 'inventory unavailable or pagination incomplete'
+    except Exception as exc:
+        error = str(exc)
+    warn = on_warning if on_warning is not None else logger.warning
+    warn(f"Account {headers.get('account', '(current)')}: {source} failed: {error}. "
+         "Agent inventory may be incomplete.")
+    return None
+
+
+def _fetch_account_records(
+    base_url: str, headers: dict, on_warning=None,
+) -> Optional[tuple[List[dict], List[dict]]]:
+    """Keep available rows; return None if empty results cannot be confirmed."""
+    agents_data = _fetch_account_source(
+        lambda: _fetch_account_agents(base_url, headers),
+        headers, 'legacy agents', on_warning,
+    )
+    endpoints_data = _fetch_account_source(
+        lambda: _fetch_account_endpoints(base_url, headers, on_warning),
+        headers, 'v2 endpoints', on_warning,
+    )
+    if not agents_data and not endpoints_data:
+        if agents_data is None or endpoints_data is None:
+            return None
+    return agents_data or [], endpoints_data or []
 
 
 def _aegis_endpoint_rows(rows: List[dict]) -> List[dict]:
@@ -444,18 +479,22 @@ def _friendly_name_from_email(email: str) -> str:
     return name.title() if name else email
 
 
-def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=None) -> List[tuple]:
+def load_agents_for_accounts(
+    sdk, selected_accounts: List[dict], on_progress=None, on_warning=None,
+) -> tuple[List[tuple], List[str]]:
     """Load agents from multiple accounts concurrently with retry.
 
     Args:
         sdk: Chariot SDK instance
         selected_accounts: List of account info dicts from discover_aegis_accounts
         on_progress: Optional callback(checked: int, total: int, display_name: str)
+        on_warning: Optional callback(message: str) for incomplete or failed loads.
+            Defaults to logger.warning.
 
     Returns:
         Tuple of (agent_tuples, failed_account_names) where agent_tuples is
         a list of (Agent, account_info) tuples and failed_account_names is
-        a list of display names for accounts that failed after retry.
+        a list of display names for failed or incomplete empty accounts after retry.
     """
     base_url = sdk.keychain.base_url()
     auth_headers = dict(sdk.keychain.headers())
@@ -463,60 +502,62 @@ def load_agents_for_accounts(sdk, selected_accounts: List[dict], on_progress=Non
     checked = 0
     failed_accounts = []
     lock = threading.Lock()
+    warn = on_warning if on_warning is not None else logger.warning
 
-    def _load_one(acct, attempt=1, track_progress=True):
+    def _load_one(acct, attempt):
         nonlocal checked
         email = acct['account_email']
+        warnings = []
         try:
             headers = dict(auth_headers)
             headers['account'] = email
-            records = _fetch_account_records(base_url, headers)
+            records = _fetch_account_records(base_url, headers, on_warning=warnings.append)
             if records is None:
                 logger.debug('Agent load for %s failed (attempt %d)', email, attempt)
-                return None  # Signal failure (distinct from empty account)
+                return None, warnings
             agents_data, endpoints_data = records
             agents = [(Agent.from_dict(d), acct) for d in agents_data]
             agents.extend(
                 (Agent.from_endpoint_dict(d), acct) for d in endpoints_data
             )
-            return agents
+            return agents, warnings
         except Exception as e:
-            logger.debug('Agent load failed for %s: %s (attempt %d)', email, e, attempt)
-            return None
+            warnings.append(f'Account {email}: agent inventory failed (attempt {attempt}): {e}')
+            return None, warnings
         finally:
-            if track_progress:
+            if attempt == 1:
                 with lock:
                     checked += 1
                     if on_progress:
                         on_progress(checked, total, acct.get('display_name', email))
 
     results = []
-    retry_accounts = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(_load_one, acct): acct for acct in selected_accounts}
-        for future in as_completed(futures):
-            result = future.result()
-            if result is None:
-                retry_accounts.append(futures[future])
-            else:
-                results.extend(result)
-
-    # Retry failed accounts once (don't double-count progress)
-    if retry_accounts:
-        logger.debug('Retrying %d failed account(s)', len(retry_accounts))
+    pending = selected_accounts
+    for attempt in (1, 2):
+        if attempt == 2:
+            logger.debug('Retrying %d failed account(s)', len(pending))
+        retry_accounts = []
         with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(_load_one, acct, 2, False): acct for acct in retry_accounts}
+            futures = {executor.submit(_load_one, acct, attempt): acct for acct in pending}
             for future in as_completed(futures):
-                result = future.result()
+                acct = futures[future]
+                result, warnings = future.result()
                 if result is None:
-                    acct = futures[future]
-                    with lock:
-                        failed_accounts.append(acct.get('display_name', acct['account_email']))
+                    if attempt == 1:
+                        retry_accounts.append(acct)
+                        # A successful retry must not leave a partial-load warning.
+                        continue
+                    failed_accounts.append(acct.get('display_name', acct['account_email']))
                 else:
                     results.extend(result)
+                for message in warnings:
+                    warn(message)
+        if not retry_accounts:
+            break
+        pending = retry_accounts
 
     if failed_accounts:
-        logger.warning('Failed to load agents for: %s', ', '.join(failed_accounts))
+        warn(f"Failed to load agents for: {', '.join(failed_accounts)}")
 
     # Sort deterministically by account name then hostname to avoid
     # non-deterministic ordering from concurrent thread completion.

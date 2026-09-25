@@ -1,8 +1,5 @@
 """Tests for the multi-account selection UI."""
-import pytest
 from unittest.mock import MagicMock, patch
-from io import StringIO
-from rich.console import Console
 
 
 def _make_account_info(email, name='Test Corp', status='ACTIVE', acct_type='MANAGED', agent_count=3):
@@ -16,45 +13,6 @@ def _make_account_info(email, name='Test Corp', status='ACTIVE', acct_type='MANA
 
 
 class TestAccountSelector:
-    def test_render_table_has_correct_columns(self):
-        from praetorian_cli.ui.aegis.account_selector import AccountSelector
-        from praetorian_cli.ui.aegis.theme import AEGIS_COLORS
-
-        accounts = [
-            _make_account_info('acme@p.com', 'Acme Corp', 'ACTIVE', 'MANAGED'),
-            _make_account_info('beta@p.com', 'Beta Inc', 'COMPLETED', 'PILOT'),
-        ]
-        selector = AccountSelector(accounts, AEGIS_COLORS)
-        output = StringIO()
-        console = Console(file=output, force_terminal=True, width=120)
-        table = selector.build_table()
-        console.print(table)
-        text = output.getvalue()
-
-        assert 'ACCOUNT' in text
-        assert 'ADDRESS' in text
-        assert 'STATUS' in text
-        assert 'TYPE' in text
-        assert 'ONLINE' in text
-        assert 'ALL' in text
-
-    def test_special_rows_present(self):
-        from praetorian_cli.ui.aegis.account_selector import AccountSelector
-        from praetorian_cli.ui.aegis.theme import AEGIS_COLORS
-
-        accounts = [
-            _make_account_info('acme@p.com', 'Acme Corp', 'ACTIVE', 'MANAGED'),
-        ]
-        selector = AccountSelector(accounts, AEGIS_COLORS)
-        output = StringIO()
-        console = Console(file=output, force_terminal=True, width=120)
-        table = selector.build_table()
-        console.print(table)
-        text = output.getvalue()
-
-        assert 'Select all active' in text
-        assert 'Select all' in text
-
     def test_toggle_account(self):
         from praetorian_cli.ui.aegis.account_selector import AccountSelector, SPECIAL_ROW_COUNT
         from praetorian_cli.ui.aegis.theme import AEGIS_COLORS

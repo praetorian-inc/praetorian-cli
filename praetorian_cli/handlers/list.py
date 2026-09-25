@@ -69,8 +69,9 @@ def accounts(chariot, filter, details, offset, page):
 
 
 @list.command()
-@list_params('Aegis ID', has_filter=False)
-def aegis(chariot, details, offset, page):
+@cli_handler
+@click.option('-d', '--details', is_flag=True, help='Show detailed agent information')
+def aegis(chariot, details):
     """ List Aegis
 
     Retrieve and display a list of Aegis instances.
@@ -79,9 +80,8 @@ def aegis(chariot, details, offset, page):
     Example usages:
         - guard list aegis
         - guard list aegis --details
-        - guard list aegis --page all
     """
-    render_list_results(chariot.aegis.list(offset, pagination_size(page)), details)
+    click.echo(chariot.aegis.format_agents_list(details=details))
 
 
 @list.command()

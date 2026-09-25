@@ -406,6 +406,8 @@ class AegisMenu:
         self.console = Console(theme=AEGIS_RICH_THEME)
         self.verbose = VERBOSE
         self.agents: List[Agent] = []
+        self.load_warnings: List[str] = []
+        self.load_error: Optional[str] = None
         self.selected_agent: Optional[Agent] = None
         self._first_render = True
         self.agent_computed_data = {}
@@ -580,7 +582,7 @@ class AegisMenu:
         """Load agents with 60-second caching and compute status properties"""
         self.load_agents()
         
-        if self.verbose and self.agents:
+        if self.verbose and self.agents and self.load_complete:
             self.console.print(f"[{self.colors['success']}]Loaded {len(self.agents)} agents successfully[/{self.colors['success']}]")
 
     def refresh_selected_agent(self) -> Optional[Agent]:
@@ -598,8 +600,17 @@ class AegisMenu:
     
     def show_agents_list(self, show_offline: bool = False) -> None:
         """Compose and display the agents table using pre-computed properties"""
+        if not self.load_complete:
+            message = (
+                "Agent inventory unavailable; reload to retry."
+                if self.load_error is not None
+                else "Agent inventory incomplete; showing only available results. Reload to retry."
+            )
+            self.console.print(message, style=self.colors['warning'], markup=False)
         if not self.agents:
-            self.console.print(f"  [{self.colors['warning']}]No agents available[/{self.colors['warning']}]")
+            self.displayed_agents = []
+            if self.load_complete:
+                self.console.print(f"  [{self.colors['warning']}]No agents available[/{self.colors['warning']}]")
             self.console.print(f"  [{self.colors['dim']}]Press 'r <Enter>' to reload[/{self.colors['dim']}]")
             return
         
@@ -622,7 +633,7 @@ class AegisMenu:
                 self.console.print(f"  No agents online\n")
                 self.console.print(f"  [{self.colors['dim']}]• {len(offline_agents)} agents are offline[/{self.colors['dim']}]")
                 self.console.print(f"  [{self.colors['dim']}]• Use 'list --all' to see them[/{self.colors['dim']}]")
-            else:
+            elif self.load_complete:
                 self.console.print(f"  No agents found\n")
                 self.console.print(f"  [{self.colors['dim']}]• Check your network connection[/{self.colors['dim']}]")
                 self.console.print(f"  [{self.colors['dim']}]• Verify agents are running[/{self.colors['dim']}]")
@@ -783,12 +794,20 @@ class AegisMenu:
             # Ctrl-D: exit program
             return "quit"
 
-    def load_agents(self) -> None:
-        """Load agents from SDK and build lookup cache.
+    @property
+    def load_complete(self) -> bool:
+        return self.load_error is None and not self.load_warnings
 
-        In multi-account mode, aggregates agents from all selected accounts
-        and maintains agent_account_map for account context display.
-        """
+    def _on_load_warning(self, message: str) -> None:
+        self.load_warnings.append(message)
+        self.console.print(message, style=self.colors['warning'], markup=False)
+
+    def load_agents(self) -> None:
+        """Load available agents and rebuild lookup maps for the selected accounts."""
+        self.load_warnings = []
+        self.load_error = None
+        self.displayed_agents = []
+        self.agent_computed_data = {}
         try:
             if self.multi_account_mode and self.selected_accounts:
                 status = self.console.status(
@@ -804,48 +823,51 @@ class AegisMenu:
                     )
 
                 try:
-                    agent_tuples, failed = load_agents_for_accounts(self.sdk, self.selected_accounts, on_progress=_on_progress)
+                    agent_tuples, failed = load_agents_for_accounts(
+                        self.sdk,
+                        self.selected_accounts,
+                        on_progress=_on_progress,
+                        on_warning=self._on_load_warning,
+                    )
                     self.agents = []
                     self.agent_account_map = {}
-                    self.agent_lookup = {}
-                    self.agent_os_lookup = {}
                     for agent, acct_info in agent_tuples:
                         self.agents.append(agent)
                         agent._account_info = acct_info
                         identifier = agent_display_id(agent)
                         if identifier and identifier != 'N/A':
                             self.agent_account_map[identifier] = acct_info
-                        if identifier:
-                            self.agent_os_lookup[identifier] = agent.os
-                            if agent.hostname:
-                                self.agent_lookup[identifier] = agent.hostname
                 finally:
                     status.stop()
 
                 if failed:
-                    self.console.print(f"[{self.colors['warning']}]Failed to load agents for: {', '.join(failed)}[/{self.colors['warning']}]")
+                    message = f"Failed to load agents for: {', '.join(failed)}"
+                    if not self.load_warnings:
+                        self._on_load_warning(message)
+                    if len(failed) == len(self.selected_accounts):
+                        raise RuntimeError(message)
             else:
                 with self.console.status(
                     f"[{self.colors['dim']}]Loading agents...[/{self.colors['dim']}]",
                     spinner="dots",
                     spinner_style=f"{self.colors['primary']}"
                 ):
-                    agents, _ = self.sdk.aegis.list()
+                    agents, _ = self.sdk.aegis.list(on_warning=self._on_load_warning)
                     self.agents = agents or []
                     self.agent_account_map = {}
 
-                self.agent_lookup = {}
-                self.agent_os_lookup = {}
-                for agent in self.agents:
-                    identifier = agent_display_id(agent)
-                    if identifier:
-                        self.agent_os_lookup[identifier] = agent.os
-                        if agent.hostname:
-                            self.agent_lookup[identifier] = agent.hostname
+            self.agent_lookup = {}
+            self.agent_os_lookup = {}
+            for agent in self.agents:
+                identifier = agent_display_id(agent)
+                if identifier:
+                    self.agent_os_lookup[identifier] = agent.os
+                    if agent.hostname:
+                        self.agent_lookup[identifier] = agent.hostname
 
             self._rebind_selected_agent()
 
-            if self.verbose or not self.agents:
+            if self.load_complete and (self.verbose or not self.agents):
                 agent_count = len(self.agents)
                 if agent_count > 0:
                     self.console.print(f"[{self.colors['success']}]✓ Loaded {agent_count} agents[/{self.colors['success']}]")
@@ -853,11 +875,20 @@ class AegisMenu:
                     self.console.print(f"[{self.colors['warning']}]⚠ No agents found[/{self.colors['warning']}]")
 
         except Exception as e:
-            self.console.print(f"[{self.colors['error']}]✗ Error loading agents: {e}[/{self.colors['error']}]")
+            self.load_error = str(e)
+            self.console.print(
+                f"Error loading agents: {e}",
+                style=self.colors['error'],
+                markup=False,
+            )
             self.agents = []
             self.agent_lookup = {}
             self.agent_os_lookup = {}
             self.agent_account_map = {}
+            self.selected_agent = None
+            self._schedule_cache = {'ts': 0, 'items': []}
+            with self._remote_ls_lock:
+                self._remote_ls_cache.clear()
 
     def _rebind_selected_agent(self) -> None:
         """Replace selected_agent with the matching object from the latest load."""

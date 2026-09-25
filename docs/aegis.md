@@ -15,6 +15,18 @@ The endpoint inventory includes connected and disconnected Aegis v2 endpoints.
 In the interactive console, use `list --all` to include offline endpoints and
 `set <number|endpoint-id|hostname>` to select one.
 
+Legacy and v2 inventories load independently. If one fails, available agents
+remain usable and a warning identifies the missing inventory. A failed or
+incomplete lookup does not mean the account has no agents. The interactive
+console distinguishes that state from an empty inventory; use `reload` to
+refresh after the backend recovers.
+
+`guard list aegis [--details]` uses the same inventory and warning output as
+`guard aegis list`. It loads all agents; pagination flags are not supported.
+SDK callers can pass `on_warning(message)` to `sdk.aegis.list()` to capture
+partial failures; otherwise warnings go to the logger. The return value remains
+`(agents, None)`, and failure of both inventories raises `RuntimeError`.
+
 ## Enrollment
 
 Aegis v2 enrollment uses the short user code shown by the endpoint. Inspection returns only safe enrollment metadata; certificate and key material are never printed.

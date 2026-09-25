@@ -748,3 +748,259 @@ class TestExtractEmail:
     def test_none_when_missing(self):
         from praetorian_cli.sdk.entities.account_discovery import _extract_email
         assert _extract_email({'key': '#configuration#customer_type'}) is None
+
+
+class TestIncompleteAccountInventory:
+    @pytest.fixture
+    def inventory(self, monkeypatch):
+        from praetorian_cli.sdk.entities import account_discovery
+        from requests.exceptions import ConnectionError
+
+        state = {
+            'legacy': [{'client_id': 'C.legacy', 'hostname': 'legacy-host'}],
+            'v2': [{'endpointId': 'endpoint-1', 'kind': 'aegis', 'hostname': 'v2-host'}],
+            'failures': set(),
+            'transport': False,
+            'headers': [],
+        }
+
+        def get(url, headers=None, params=None, timeout=None):
+            params = params or {}
+            state['headers'].append(headers)
+            response = MagicMock()
+            response.status_code = 200
+            response.json.return_value = {}
+            if params.get('allTenants') == 'true':
+                return response
+            if url.endswith('/agent/enhanced'):
+                source = 'legacy'
+                response.json.return_value = state['legacy']
+            elif url.endswith('/endpoint/list'):
+                source = 'v2 durable'
+                response.json.return_value = {'endpoints': state['v2']}
+            elif url.endswith('/endpoint'):
+                source = 'v2 identities'
+                response.json.return_value = [
+                    {'endpoint_id': row['endpointId'], 'hostname': row['hostname']}
+                    for row in state['v2']
+                ]
+            elif params.get('key') == '#endpoint#':
+                source = 'v2 live'
+                response.json.return_value = {'endpoints': state['v2']}
+            else:
+                source = params.get('key')
+            if source in state['failures'] or source.split()[0] in state['failures']:
+                if state['transport']:
+                    raise ConnectionError('upstream connection refused')
+                response.status_code = 503
+                response.text = 'backend unavailable'
+            return response
+
+        monkeypatch.setattr(account_discovery.requests, 'get', get)
+        monkeypatch.setattr(account_discovery.time, 'sleep', lambda _seconds: None)
+        return state
+
+    @pytest.mark.parametrize('failed_source', ['legacy', 'v2'])
+    @pytest.mark.parametrize('transport', [False, True])
+    def test_load_keeps_opposite_inventory_and_warns(
+        self, inventory, failed_source, transport,
+    ):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        inventory['failures'] = {failed_source}
+        inventory['transport'] = transport
+        account = {'account_email': 'tenant@example.com', 'display_name': 'Tenant'}
+        warnings = []
+
+        rows, failed = load_agents_for_accounts(_make_sdk([]), [account], on_warning=warnings.append)
+
+        expected = 'v2-host' if failed_source == 'legacy' else 'legacy-host'
+        assert [(agent.hostname, acct) for agent, acct in rows] == [(expected, account)]
+        assert failed == []
+        error = 'upstream connection refused' if transport else '503 from'
+        assert any(
+            'tenant@example.com' in warning and failed_source in warning and error in warning
+            and (transport or 'backend unavailable' in warning)
+            for warning in warnings
+        )
+
+    @pytest.mark.parametrize('failed_source', ['legacy', 'v2'])
+    @pytest.mark.parametrize('transport', [False, True])
+    def test_discovery_keeps_opposite_inventory_and_logs_warning(
+        self, inventory, caplog, failed_source, transport,
+    ):
+        from praetorian_cli.sdk.entities.account_discovery import discover_aegis_accounts
+
+        inventory['failures'] = {failed_source}
+        inventory['transport'] = transport
+        sdk = _make_sdk([_account('tenant@example.com')])
+
+        accounts = discover_aegis_accounts(sdk)
+
+        assert [(acct['account_email'], acct['agent_count']) for acct in accounts] == [
+            ('tenant@example.com', 1),
+        ]
+        error = 'upstream connection refused' if transport else '503'
+        assert any(
+            'tenant@example.com' in record.message
+            and failed_source in record.message and error in record.message
+            for record in caplog.records
+        )
+
+    @pytest.mark.parametrize('transport', [False, True])
+    def test_total_failure_is_reported_as_failed_not_empty(self, inventory, transport):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        inventory['failures'] = {'legacy', 'v2'}
+        inventory['transport'] = transport
+        account = {'account_email': 'tenant@example.com', 'display_name': 'Tenant'}
+        warnings = []
+
+        rows, failed = load_agents_for_accounts(_make_sdk([]), [account], on_warning=warnings.append)
+
+        assert rows == []
+        assert failed == ['Tenant']
+        for source in ('legacy', 'v2'):
+            assert any('tenant@example.com' in warning and source in warning for warning in warnings)
+
+    @pytest.mark.parametrize('failed_source', ['legacy', 'v2'])
+    def test_partial_empty_is_reported_as_incomplete(self, inventory, failed_source):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        inventory['legacy'] = []
+        inventory['v2'] = []
+        inventory['failures'] = {failed_source}
+        account = {'account_email': 'tenant@example.com', 'display_name': 'Tenant'}
+        warnings = []
+
+        rows, failed = load_agents_for_accounts(_make_sdk([]), [account], on_warning=warnings.append)
+
+        assert rows == []
+        assert failed == ['Tenant']
+        assert any(
+            'tenant@example.com' in warning and failed_source in warning
+            for warning in warnings
+        )
+
+    def test_genuine_empty_has_no_warning_or_failed_account(self, inventory):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        inventory['legacy'] = []
+        inventory['v2'] = []
+        warnings = []
+        account = {'account_email': 'tenant@example.com', 'display_name': 'Tenant'}
+
+        assert load_agents_for_accounts(_make_sdk([]), [account], on_warning=warnings.append) == ([], [])
+        assert warnings == []
+
+    def test_successful_retry_does_not_leave_inventory_marked_incomplete(self, inventory, monkeypatch):
+        from praetorian_cli.sdk.entities import account_discovery
+
+        inventory['legacy'] = []
+        inventory['v2'] = []
+        inventory['failures'] = {'legacy'}
+        get = account_discovery.requests.get
+
+        def recover_after_first_request(url, **kwargs):
+            response = get(url, **kwargs)
+            if url.endswith('/agent/enhanced'):
+                inventory['failures'].clear()
+            return response
+
+        monkeypatch.setattr(account_discovery.requests, 'get', recover_after_first_request)
+        warnings = []
+        account = {'account_email': 'tenant@example.com', 'display_name': 'Tenant'}
+
+        rows, failed = account_discovery.load_agents_for_accounts(
+            _make_sdk([]), [account], on_warning=warnings.append,
+        )
+
+        assert rows == []
+        assert failed == []
+        assert warnings == []
+
+    def test_default_warning_uses_logger(self, inventory, caplog):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        inventory['failures'] = {'legacy'}
+        account = {'account_email': 'tenant@example.com', 'display_name': 'Tenant'}
+
+        rows, failed = load_agents_for_accounts(_make_sdk([]), [account])
+
+        assert [agent.endpoint_id for agent, _acct in rows] == ['endpoint-1']
+        assert failed == []
+        assert any(
+            'tenant@example.com' in record.message and 'legacy' in record.message
+            for record in caplog.records
+        )
+
+    @pytest.mark.parametrize('source', [
+        'v2 live', '#endpointaegistunnelstate#', '#endpointaegisstatus#',
+    ])
+    @pytest.mark.parametrize('transport', [False, True])
+    def test_optional_enrichment_failure_preserves_durable_endpoint(
+        self, inventory, source, transport,
+    ):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        inventory['legacy'] = []
+        inventory['failures'] = {source}
+        inventory['transport'] = transport
+        warnings = []
+        account = {'account_email': 'tenant@example.com', 'display_name': 'Tenant'}
+
+        rows, failed = load_agents_for_accounts(_make_sdk([]), [account], on_warning=warnings.append)
+
+        assert [(agent.endpoint_id, agent.hostname) for agent, _acct in rows] == [
+            ('endpoint-1', 'v2-host'),
+        ]
+        assert failed == []
+        error = 'upstream connection refused' if transport else '503'
+        assert any('tenant@example.com' in warning and error in warning for warning in warnings)
+
+    @pytest.mark.parametrize('transport', [False, True])
+    def test_durable_inventory_failure_falls_back_to_endpoint_identities(
+        self, inventory, transport,
+    ):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        inventory['legacy'] = []
+        inventory['failures'] = {'v2 durable', 'v2 live'}
+        inventory['transport'] = transport
+        warnings = []
+        account = {'account_email': 'tenant@example.com', 'display_name': 'Tenant'}
+
+        rows, failed = load_agents_for_accounts(_make_sdk([]), [account], on_warning=warnings.append)
+
+        assert [agent.endpoint_id for agent, _acct in rows] == ['endpoint-1']
+        assert failed == []
+        error = 'upstream connection refused' if transport else '503'
+        assert any('tenant@example.com' in warning and error in warning for warning in warnings)
+
+    def test_tenant_headers_are_isolated(self, inventory):
+        from praetorian_cli.sdk.entities.account_discovery import load_agents_for_accounts
+
+        sdk = _make_sdk([])
+        shared_headers = {'Authorization': 'Bearer test-token', 'account': 'original@example.com'}
+        sdk.keychain.headers.return_value = shared_headers
+        accounts = [
+            {'account_email': 'first@example.com', 'display_name': 'First'},
+            {'account_email': 'second@example.com', 'display_name': 'Second'},
+        ]
+
+        rows, failed = load_agents_for_accounts(sdk, accounts)
+
+        assert {(agent.hostname, acct['account_email']) for agent, acct in rows} == {
+            ('legacy-host', 'first@example.com'),
+            ('v2-host', 'first@example.com'),
+            ('legacy-host', 'second@example.com'),
+            ('v2-host', 'second@example.com'),
+        }
+        assert failed == []
+        assert shared_headers == {
+            'Authorization': 'Bearer test-token', 'account': 'original@example.com',
+        }
+        assert {headers['account'] for headers in inventory['headers']} == {
+            'first@example.com', 'second@example.com',
+        }
+        assert all(headers is not shared_headers for headers in inventory['headers'])
