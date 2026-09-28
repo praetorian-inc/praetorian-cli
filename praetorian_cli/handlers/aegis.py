@@ -339,25 +339,58 @@ def _raise_network_policy_error(exc):
 
 @aegis.command('job')
 @cli_handler
-@click.option('-c', '--capability', 'capabilities', multiple=True, help='Capability to run (e.g., windows-smb-snaffler)')
+@click.option('-c', '--capability', 'capabilities', multiple=True,
+              help='Capability to run (e.g., windows-smb-snaffler, android-device-survey)')
 @click.option('--config', help='JSON configuration string for the job')
-@click.argument('client_id', required=True)
+@click.option('-p', '--package',
+              help='Android application ID to target, e.g. com.bank.app. Upload the APK first with "guard add apk".')
+@click.option('-e', '--endpoint', 'endpoint_id',
+              help='Enrolled Aegis v2 endpoint to run the job on, as shown by "guard aegis list --details"')
+@click.argument('client_id', required=False)
 @click.pass_context
-def job(ctx, sdk, capabilities, config, client_id):
-    """Run a job on an Aegis agent"""
-    agent = sdk.aegis.get_by_client_id(client_id)
-    if not agent:
-        click.echo(f"Agent not found: {client_id}", err=True)
+def job(ctx, sdk, capabilities, config, package, endpoint_id, client_id):
+    """Run a job on an Aegis agent or an enrolled endpoint
+
+    Name the target with either CLIENT_ID, for an agent's own host, or --package, for
+    an Android application already registered with "guard add apk". Without -c, the
+    capabilities available for that target are listed instead of a job being run.
+
+    \b
+    Example usages:
+        - guard aegis job C.6e012b467f9faf82-OG9F0 -c linux-enum
+        - guard aegis job --package com.bank.app
+        - guard aegis job --package com.bank.app -c android-device-survey -e 16169bc5-7943-4783-af81-c4735616f7e9
+        - guard aegis job --package com.bank.app -c android-device-command -e 16169bc5-7943-4783-af81-c4735616f7e9 --config '{"command": "getprop ro.build.fingerprint"}'
+    """
+    if client_id and package:
+        click.echo('A job has one target: pass either CLIENT_ID or --package, not both.', err=True)
         return
-    
+
+    if not client_id and not package:
+        click.echo('No target. Pass an agent CLIENT_ID, or --package to target an APK.', err=True)
+        return
+
+    hostname = None
+    if client_id:
+        agent = sdk.aegis.get_by_client_id(client_id)
+        if not agent:
+            click.echo(f"Agent not found: {client_id}", err=True)
+            return
+        hostname = agent.hostname
+
     try:
         result = sdk.aegis.run_job(
-            agent,
-            list(capabilities) if capabilities else None,
-            config
+            capabilities=list(capabilities) if capabilities else None,
+            hostname=hostname,
+            package=package,
+            endpoint_id=endpoint_id,
+            config=config,
         )
 
         if 'capabilities' in result:
+            if not result['capabilities']:
+                click.echo('No capabilities available for this target.')
+                return
             click.echo("Available capabilities:")
             for cap in result['capabilities']:
                 name = cap.get('name', 'unknown')
@@ -366,6 +399,9 @@ def job(ctx, sdk, capabilities, config, client_id):
         elif result.get('success'):
             click.echo("✓ Job queued successfully")
             click.echo(f"  Job ID: {result.get('job_id', 'unknown')}")
+            click.echo(f"  Target: {result.get('target_key', 'unknown')}")
+            if result.get('endpoint_id'):
+                click.echo(f"  Endpoint: {result['endpoint_id']}")
             click.echo(f"  Status: {result.get('status', 'unknown')}")
         else:
             click.echo("Error: Unknown error", err=True)
