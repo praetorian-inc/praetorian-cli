@@ -83,6 +83,37 @@ def test_full_entity_key_must_match_expected_type():
         )
 
 
+def test_internal_scope_accepts_ad_domain_key():
+    key = '#addomain#corp.example#S-1-5-21-111'
+
+    assert resolve_entity_reference(_sdk([]), key, 'internal') == key
+
+
+def test_internal_scope_resolves_friendly_ad_domain():
+    domain = {
+        'key': '#addomain#corp.example#S-1-5-21-111',
+        'domain': 'corp.example',
+        'objectid': 'S-1-5-21-111',
+    }
+
+    class InternalSearch(Search):
+        def fulltext(self, value, kind=None, limit=25):
+            self.calls.append(('fulltext', value, kind, limit))
+            return ([domain] if kind == 'addomain' else []), None
+
+    sdk = SimpleNamespace(search=InternalSearch([]))
+
+    key = resolve_entity_reference(
+        sdk,
+        'corp.example',
+        'internal',
+        interactive=False,
+    )
+
+    assert key == domain['key']
+    assert ('fulltext', 'corp.example', 'addomain', 25) in sdk.search.calls
+
+
 def test_unique_friendly_value_resolves_to_canonical_key():
     sdk = _sdk([{
         'key': '#asset#internal.example#10.0.0.5',

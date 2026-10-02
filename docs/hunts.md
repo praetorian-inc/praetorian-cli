@@ -14,7 +14,7 @@ guard hunt open <HUNT_ID>
 | Surface | Launch selection | Typical scope | Execution |
 |---------|------------------|---------------|-----------|
 | External | `--agent hannibal` | Domains, public IP addresses, and CIDRs | Guard-managed infrastructure |
-| Internal | `--internal` | Private IPv4 addresses and CIDRs | One explicitly selected Aegis v2 endpoint |
+| Internal | `--internal` | Private IPv4 addresses, CIDRs, and AD domains | One explicitly selected Aegis v2 endpoint |
 | Cloud | `--agent hannibal-cloud` | Amazon, Azure, or GCP account roots | Guard-managed infrastructure |
 | Web Application | `--agent hannibal-webapp` | Active WebApplication records | Guard-managed infrastructure |
 | LLM Application | `--agent hannibal-llm` | Active LLM-backed WebApplication records | Guard-managed infrastructure |
@@ -72,8 +72,9 @@ and therefore requires an interactive terminal.
 
 ## Internal Hunts and Aegis
 
-An Internal Hunt requires at least one scope item and exactly one authorized
-Aegis v2 endpoint. The CLI shows whether the endpoint is online before
+An Internal Hunt requires at least one private IPv4/CIDR or Active Directory
+domain scope item and exactly one authorized Aegis v2 endpoint. The CLI shows
+whether the endpoint is online before
 confirmation. Every target-network operation is pinned to that endpoint; if it
 is unavailable, the Hunt waits rather than falling back to Guard-managed
 compute.
