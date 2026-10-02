@@ -112,18 +112,18 @@ def revive(sdk, vm_id):
                f" It re-enters provisioning; track with: praetorian vm status {vm_id}")
 
 
-@vm.command('ssh')
+@vm.command('ssh', epilog='Examples:\n\n  guard vm ssh VM_ID              # interactive shell\n\n  guard vm ssh VM_ID -- whoami    # run a command\n\n  guard vm ssh VM_ID -- ls -la    # flags after -- are part of the command')
 @cli_handler
 @click.argument('vm_id', required=True)
 @click.option('-u', '--user', default='engineer', show_default=True,
               help='Login user on the VM.')
-@click.argument('args', nargs=-1)
-def ssh(sdk, vm_id, user, args):
+@click.argument('command', nargs=-1)
+def ssh(sdk, vm_id, user, command):
     """ SSH into an Engineer VM over a 15-min vm-bound CA cert.
 
-    Generates an ephemeral keypair, mints a certificate scoped to this VM, and
-    execs ssh through the gateway ProxyCommand. Extra ssh flags after VM_ID are
-    forwarded to ssh. No AWS credentials are used.
+    Generates an ephemeral keypair, mints a certificate scoped to this VM,
+    and execs ssh through the gateway ProxyCommand. Pass a remote command
+    after -- to run it instead of an interactive shell.
     """
     ssh_bin = shutil.which('ssh')
     keygen_bin = shutil.which('ssh-keygen')
@@ -160,8 +160,8 @@ def ssh(sdk, vm_id, user, args):
             '-o', 'StrictHostKeyChecking=accept-new',
             '-o', f'UserKnownHostsFile={known_hosts}',
         ]
-        ssh_argv.extend(args)
         ssh_argv.append(f'{user}@{vm_id}')
+        ssh_argv.extend(command)
 
         click.echo(f'→ Connecting to engineer VM {vm_id} (cert valid ~15 min)…', err=True)
         result = subprocess.run(ssh_argv)
