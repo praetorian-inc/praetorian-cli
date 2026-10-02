@@ -193,6 +193,8 @@ guard hunt launch
 guard hunt launch --scope-mode specific --scope example.com --yes
 guard hunt launch --internal --endpoint <ENDPOINT_ID> \
   --scope 10.20.30.0/24 --confirm-endpoint --yes
+guard hunt launch --internal --endpoint <ENDPOINT_ID> \
+  --scope "#addomain#corp.example#<DOMAIN_SID>" --confirm-endpoint --yes
 ```
 
 Use `guard hunt open <HUNT_ID>` for the unified Overview, Vulnerabilities,

@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.6.1
+- [Bug fix] Added Active Directory domains to Internal Hunt target discovery and friendly/canonical scope resolution
+
 # 2.6.0
 - [New Feature] Added Aegis v2 endpoint inventory, enrollment approval, capability execution, lifecycle status and cancellation, Linux user management, Cloudflare tunnel management and runtime diagnostics, and verified artifact downloads
 - [New Feature] Added External, Internal, Cloud, Web Application, and LLM Application Hunts with interactive target selection, run-scoped credentials, safety controls, and endpoint-only execution for Internal Hunts

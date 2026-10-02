@@ -84,7 +84,9 @@ def _hunt_surface(agent, internal_hunt):
 
 
 def _hunt_scope_type(surface):
-    return 'webapplication' if surface in ('webapp', 'llm') else 'asset'
+    if surface in ('webapp', 'llm'):
+        return 'webapplication'
+    return 'internal' if surface == 'internal' else 'asset'
 
 
 def _select_hunt_scope(sdk, surface, console):
