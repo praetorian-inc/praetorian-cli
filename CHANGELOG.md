@@ -1,7 +1,9 @@
 # Changelog
 
 # 2.6.1
+- [New Feature] Added explicit Aegis v2 endpoint placement for new Marcus Agent conversations, with operator confirmation and no Guard-compute fallback
 - [Bug fix] Added Active Directory domains to Internal Hunt target discovery and friendly/canonical scope resolution
+- [Bug fix] Treat missing legacy Aegis configuration as an empty inventory so Aegis v2 endpoints remain available without a warning
 
 # 2.6.0
 - [New Feature] Added Aegis v2 endpoint inventory, enrollment approval, capability execution, lifecycle status and cancellation, Linux user management, Cloudflare tunnel management and runtime diagnostics, and verified artifact downloads

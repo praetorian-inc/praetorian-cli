@@ -87,6 +87,7 @@ Start the dedicated conversation interface directly in either mode:
 ```zsh
 guard agent conversation --mode query
 guard agent conversation --mode agent
+guard agent conversation --mode agent --endpoint <ENDPOINT_ID>
 ```
 
 Conversation commands:
@@ -108,6 +109,12 @@ Conversation commands:
 Agent mode displays named tools and delegated-agent progress while work runs.
 Operators can send guidance at any time, focus a descendant conversation, and
 stop one branch or the complete tree.
+
+Use `--endpoint <endpoint-id-or-hostname>` when starting a new Agent
+conversation to bind all endpoint capabilities and HITL agents to one Aegis v2
+endpoint. The CLI displays the endpoint's online/offline state and requires
+confirmation unless `--confirm-endpoint` is supplied. Placement is immutable
+for that conversation and work never falls back to Guard-managed compute.
 
 When endpoint execution requires approval, the terminal displays the bounded
 action context and asks the operator to allow or deny it. Credential and MFA

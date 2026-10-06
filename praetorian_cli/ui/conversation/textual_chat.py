@@ -122,10 +122,19 @@ class ConversationApp(App):
     last_message_key: reactive[str] = reactive("")
     mode: reactive[str] = reactive("query")
     
-    def __init__(self, sdk: Chariot, mode: str = "query"):
+    def __init__(self, sdk: Chariot, mode: str = "query",
+                 endpoint_id: str = None, endpoint_confirmed: bool = False):
         super().__init__()
+        if endpoint_id and (mode != 'agent' or not endpoint_confirmed):
+            raise ValueError(
+                'endpoint-bound conversations require agent mode and explicit confirmation'
+            )
+        if endpoint_confirmed and not endpoint_id:
+            raise ValueError('endpoint confirmation requires an endpoint ID')
         self.sdk = sdk
         self.mode = mode
+        self.endpoint_id = endpoint_id
+        self.endpoint_confirmed = endpoint_confirmed
         self.root_conversation_id = None
         self.user_email, self.username = self.sdk.get_current_user()
         self.polling_task: Optional[asyncio.Task] = None
@@ -171,6 +180,12 @@ class ConversationApp(App):
         
         # Show welcome message
         self.add_system_message("Welcome to Guard AI Assistant! Type 'help' for commands or ask about your security data.")
+        if self.endpoint_id:
+            self.add_system_message(
+                f'Endpoint-bound conversation: {self.endpoint_id}. All endpoint '
+                'capabilities and HITL agents are pinned to this endpoint with no '
+                'Guard compute fallback.'
+            )
 
     def on_unmount(self) -> None:
         if self.polling_task:
@@ -837,7 +852,8 @@ class ConversationApp(App):
         """Update status bar"""
         status_bar = self.query_one("#status-bar")
         conv_info = f"Conversation: {self.conversation_id[:8]}..." if self.conversation_id else "No conversation"
-        status_bar.update(f"User: {self.username} | Mode: {self.mode} | {conv_info} | {status}")
+        endpoint_info = f" | Endpoint: {self.endpoint_id[:8]}..." if self.endpoint_id else ""
+        status_bar.update(f"User: {self.username} | Mode: {self.mode}{endpoint_info} | {conv_info} | {status}")
     
     def call_conversation_api(self, message: str) -> Dict:
         """Call the Chariot conversation API"""
@@ -846,6 +862,12 @@ class ConversationApp(App):
         
         if self.conversation_id:
             payload["conversationId"] = self.conversation_id
+        elif self.endpoint_id:
+            payload.update({
+                'endpointRequired': True,
+                'endpointId': self.endpoint_id,
+                'endpointConfirmed': self.endpoint_confirmed,
+            })
         
         response = self.sdk.chariot_request("POST", url, json=payload)
         
@@ -889,6 +911,8 @@ class ConversationApp(App):
 
 # Agent Mode:
 - Full security operations with live tool progress
+- Ask Marcus to list active Aegis v2 endpoints
+- Start with `--endpoint` to pin endpoint capabilities and HITL agents
 - Send guidance while Marcus or a subagent is running
 - Review endpoint actions before execution
 - Supply masked, one-time credentials for HITL agents
@@ -904,6 +928,11 @@ class ConversationApp(App):
     
     def set_mode(self, mode: str) -> None:
         """Switch conversation mode"""
+        if self.endpoint_id and mode != 'agent':
+            self.add_system_message(
+                'Endpoint-bound conversations must remain in Agent Mode.'
+            )
+            return
         if mode in ["query", "agent"]:
             self.mode = mode
             self.update_status("Ready")
@@ -939,6 +968,12 @@ class ConversationApp(App):
     
     async def resume_conversation(self) -> None:
         """Resume an existing conversation"""
+        if self.endpoint_id:
+            self.add_system_message(
+                'Endpoint placement is immutable. Start this endpoint-bound '
+                'session with a new conversation.'
+            )
+            return
         try:
             # Get recent conversations without blocking the Textual event loop.
             conversations, _ = await asyncio.to_thread(
@@ -1163,7 +1198,14 @@ class ConversationApp(App):
             self.add_system_message(f"Failed to get job status: {e}")
 
 
-def run_textual_conversation(sdk: Chariot, mode: str = "query") -> None:
+def run_textual_conversation(sdk: Chariot, mode: str = "query",
+                             endpoint_id: str = None,
+                             endpoint_confirmed: bool = False) -> None:
     """Run the Textual-based conversation interface."""
-    app = ConversationApp(sdk, mode=mode)
+    app = ConversationApp(
+        sdk,
+        mode=mode,
+        endpoint_id=endpoint_id,
+        endpoint_confirmed=endpoint_confirmed,
+    )
     app.run()
