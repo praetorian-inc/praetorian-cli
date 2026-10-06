@@ -4,9 +4,17 @@ import anyio
 import re
 import fnmatch
 from typing import Any, Dict, List, Optional, Callable
+from mcp.server import ServerRequestContext
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import (
+    CallToolRequestParams,
+    CallToolResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    TextContent,
+    Tool,
+)
 
 # Tool-name patterns classified as sensitive: their tools return or manage
 # secret material (credential-broker payloads, API-key secrets, the webhook
@@ -33,10 +41,16 @@ class MCPServer:
     def __init__(self, chariot_instance, allowable_tools: Optional[List[str]] = None):
         self.chariot = chariot_instance
         self.allowable_tools = allowable_tools
-        self.server = Server("praetorian-cli")
         self.discovered_tools = {}
         self._discover_tools()
-        self._register_tools()
+        # mcp >= 2 takes request handlers as constructor arguments. The 1.x
+        # @server.list_tools() / @server.call_tool() decorators it replaced no
+        # longer exist, so binding them late raised AttributeError on import.
+        self.server = Server(
+            "praetorian-cli",
+            on_list_tools=self._on_list_tools,
+            on_call_tool=self._on_call_tool,
+        )
 
     def _is_tool_allowed(self, tool_name: str) -> bool:
         """Two-tier allow check: sensitive tools (SENSITIVE_TOOL_PATTERNS) are
@@ -172,51 +186,50 @@ class MCPServer:
         
         return "string"
 
-    def _register_tools(self):
-        @self.server.list_tools()
-        async def list_tools() -> List[Tool]:
-            tools = []
-            for tool_name, tool_info in self.discovered_tools.items():
-                parameters = self._extract_parameters_from_doc(tool_info['doc'], tool_info['signature'])
+    async def _on_list_tools(self, context: ServerRequestContext,
+                             params: Optional[PaginatedRequestParams]) -> ListToolsResult:
+        tools = []
+        for tool_name, tool_info in self.discovered_tools.items():
+            parameters = self._extract_parameters_from_doc(tool_info['doc'], tool_info['signature'])
 
-                properties = {}
-                required = []
-                
-                for param_name, param_info in parameters.items():
-                    if param_name == 'self':
-                        continue
-                        
-                    properties[param_name] = {
-                        "type": param_info.get("type", "string"),
-                        "description": param_info.get("description", f"Parameter {param_name}")
-                    }
+            properties = {}
+            required = []
+            
+            for param_name, param_info in parameters.items():
+                if param_name == 'self':
+                    continue
                     
-                    if param_info.get("required", False):
-                        required.append(param_name)
-                
-                tool_schema = {
-                    "type": "object",
-                    "properties": properties
+                properties[param_name] = {
+                    "type": param_info.get("type", "string"),
+                    "description": param_info.get("description", f"Parameter {param_name}")
                 }
                 
-                if required:
-                    tool_schema["required"] = required
-
-                parts = tool_info["doc"].split("\n")
-                description = parts[0]
-                if len(parts) > 1:
-                    description += "\n"
-                    description += "\t".join(parts[1:])
-
-                tool = Tool(
-                    name=tool_name,
-                    description=description,
-                    inputSchema=tool_schema
-                )
-                
-                tools.append(tool)
+                if param_info.get("required", False):
+                    required.append(param_name)
             
-            return tools
+            tool_schema = {
+                "type": "object",
+                "properties": properties
+            }
+            
+            if required:
+                tool_schema["required"] = required
+
+            parts = tool_info["doc"].split("\n")
+            description = parts[0]
+            if len(parts) > 1:
+                description += "\n"
+                description += "\t".join(parts[1:])
+
+            tool = Tool(
+                name=tool_name,
+                description=description,
+                input_schema=tool_schema
+            )
+            
+            tools.append(tool)
+        
+        return ListToolsResult(tools=tools)
 
     async def _call_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         if name not in self.discovered_tools:
@@ -248,10 +261,11 @@ class MCPServer:
         except Exception as e:
             return [TextContent(type="text", text=f"Error executing {name}: {str(e)}")]
 
+    async def _on_call_tool(self, context: ServerRequestContext,
+                            params: CallToolRequestParams) -> CallToolResult:
+        content = await self._call_tool(params.name, params.arguments or {})
+        return CallToolResult(content=content)
+
     async def start(self):
-        @self.server.call_tool()
-        async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-            return await self._call_tool(name, arguments)
-        
         async with stdio_server() as (read_stream, write_stream):
             await self.server.run(read_stream, write_stream, self.server.create_initialization_options())
