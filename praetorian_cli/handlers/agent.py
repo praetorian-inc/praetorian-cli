@@ -6,6 +6,7 @@ import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
 from praetorian_cli.handlers.utils import error
+from praetorian_cli.sdk.model.aegis import is_v2_agent
 from praetorian_cli.ui.conversation.approvals import (
     prompt_endpoint_approval,
     prompt_ephemeral_credentials,
@@ -140,6 +141,52 @@ def tools(sdk, allowed):
     for  tool in dict.keys(sdk.agents.list_mcp_tools(allowed)):
         click.echo(tool)
 
+def _conversation_endpoint(sdk, endpoint_ref, confirmed):
+    if not endpoint_ref:
+        if confirmed:
+            raise click.UsageError('--confirm-endpoint requires --endpoint')
+        return None
+    endpoints = [
+        endpoint for endpoint in sdk.aegis.list_hunt_endpoints()
+        if is_v2_agent(endpoint)
+        and str(getattr(endpoint, 'kind', '')).lower() == 'aegis'
+    ]
+    requested = endpoint_ref.strip().lower()
+    id_match = next(
+        (
+            endpoint for endpoint in endpoints
+            if endpoint.display_id.lower() == requested
+        ),
+        None,
+    )
+    if id_match is None:
+        matches = [
+            endpoint for endpoint in endpoints
+            if (endpoint.hostname or '').lower() == requested
+        ]
+        if not matches:
+            raise click.ClickException(
+                f'Active Aegis v2 endpoint {endpoint_ref!r} was not found.'
+            )
+        if len(matches) > 1:
+            raise click.ClickException(
+                f'Aegis v2 endpoint hostname {endpoint_ref!r} is ambiguous; '
+                'use its endpoint ID.'
+            )
+        id_match = matches[0]
+    if not confirmed:
+        state = 'online' if id_match.is_online else 'offline'
+        if not click.confirm(
+            f'Bind this conversation and all endpoint work to '
+            f'{id_match.hostname or id_match.display_id} '
+            f'({id_match.display_id}, {state})? Work will not fall back to '
+            'Guard compute',
+            default=False,
+        ):
+            raise click.Abort()
+    return id_match
+
+
 @agent.command()
 @cli_handler
 @click.option(
@@ -149,7 +196,15 @@ def tools(sdk, allowed):
     show_default=True,
     help='Initial conversation mode',
 )
-def conversation(sdk, mode):
+@click.option(
+    '--endpoint', 'endpoint_ref', default=None,
+    help='Bind a new agent conversation to an active Aegis v2 endpoint ID or hostname',
+)
+@click.option(
+    '--confirm-endpoint', is_flag=True, default=False,
+    help='Confirm endpoint-only execution without an interactive prompt',
+)
+def conversation(sdk, mode, endpoint_ref, confirm_endpoint):
     """ Interactive conversation with Guard AI assistant
 
     Start an interactive chat session with the Guard AI assistant.
@@ -172,15 +227,24 @@ def conversation(sdk, mode):
     \b
     HITL agentic usage:
         guard agent conversation --mode agent
-        Ask Marcus to use HITL Romulus against the authorized web application.
+        guard agent conversation --mode agent --endpoint <endpoint-id>
+        Ask Marcus to use HITL Romulus or endpoint capabilities against an authorized target.
         While it runs, send guidance at any time or type "stop" to cancel.
 
     \b
     Usage:
         guard agent conversation
     """
+    if endpoint_ref and mode != 'agent':
+        raise click.UsageError('--endpoint requires --mode agent')
+    endpoint = _conversation_endpoint(sdk, endpoint_ref, confirm_endpoint)
     from praetorian_cli.ui.conversation import run_textual_conversation
-    run_textual_conversation(sdk, mode=mode)
+    run_textual_conversation(
+        sdk,
+        mode=mode,
+        endpoint_id=endpoint.display_id if endpoint else None,
+        endpoint_confirmed=bool(endpoint),
+    )
 
 
 @agent.group('endpoint')

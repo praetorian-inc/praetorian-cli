@@ -188,6 +188,25 @@ def test_aegis_list_combines_v1_agents_and_aegis_v2_endpoints():
     ]
 
 
+def test_aegis_list_treats_missing_legacy_configuration_as_empty_inventory():
+    api = FakeAPI(
+        legacy_error=RuntimeError(
+            '[400] Request failed\nError: {"error":"failed to create Aegis client: aegis configuration not found"}'
+        ),
+        inventory=[{
+            'endpointId': 'endpoint-1',
+            'kind': 'aegis',
+            'profile': {'hostname': 'sensor-1'},
+        }],
+    )
+    warnings = []
+
+    agents, _ = Aegis(api).list(on_warning=warnings.append)
+
+    assert [agent.display_id for agent in agents] == ['endpoint-1']
+    assert warnings == []
+
+
 @pytest.mark.parametrize('failed_source', ['legacy', 'v2'])
 def test_aegis_list_keeps_healthy_inventory_when_other_source_fails(failed_source):
     failure = RuntimeError('tls: expired certificate')

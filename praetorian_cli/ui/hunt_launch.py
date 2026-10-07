@@ -53,7 +53,7 @@ HUNT_SURFACE_OPTIONS = (
     (
         'internal',
         'Internal',
-        'Hunt selected private IPv4 addresses and CIDRs through one Aegis endpoint.',
+        'Hunt selected private IPv4 addresses, CIDRs, and AD domains through one Aegis endpoint.',
     ),
     (
         'cloud',

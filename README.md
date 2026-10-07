@@ -193,6 +193,8 @@ guard hunt launch
 guard hunt launch --scope-mode specific --scope example.com --yes
 guard hunt launch --internal --endpoint <ENDPOINT_ID> \
   --scope 10.20.30.0/24 --confirm-endpoint --yes
+guard hunt launch --internal --endpoint <ENDPOINT_ID> \
+  --scope "#addomain#corp.example#<DOMAIN_SID>" --confirm-endpoint --yes
 ```
 
 Use `guard hunt open <HUNT_ID>` for the unified Overview, Vulnerabilities,
@@ -415,6 +417,7 @@ guard ask "show me all assets with port 22 open" --mode query
 
 # Supervised multi-agent operations
 guard agent conversation --mode agent
+guard agent conversation --mode agent --endpoint <ENDPOINT_ID>
 
 # File analysis and ingestion
 guard marcus read "vault/engagement/sow.pdf"
@@ -426,7 +429,9 @@ Agent mode shows named tool and delegated-agent progress. Use `/agents`,
 `/focus`, and `/guide` to navigate and steer the tree; `/stop <id-prefix>` stops
 one branch, while `stop` or Ctrl+X stops Marcus and all correlated work.
 Endpoint approvals and masked one-time credential/MFA prompts are handled in
-the terminal without persisting secret values in conversation history.
+the terminal without persisting secret values in conversation history. Start a
+new Agent conversation with `--endpoint` to pin all endpoint capabilities and
+HITL agents to one confirmed Aegis v2 endpoint without Guard-compute fallback.
 
 See [Guard Interactive Console](docs/console.md#supervised-agent-mode) for the complete command set.
 

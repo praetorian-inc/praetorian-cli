@@ -1,5 +1,14 @@
 # Changelog
 
+# 2.6.2
+- [New Feature] Added explicit Aegis v2 endpoint placement for new Marcus Agent conversations, with operator confirmation and no Guard-compute fallback
+- [Bug fix] Added Active Directory domains to Internal Hunt target discovery and friendly/canonical scope resolution
+- [Bug fix] Treat missing legacy Aegis configuration as an empty inventory so Aegis v2 endpoints remain available without a warning
+
+# 2.6.1
+- [Bug fix] Isolated legacy and Aegis v2 inventory failures so healthy agents remain visible, with partial-load warnings and distinct failed/empty states in single- and multi-account views
+- [Bug fix] Routed `guard list aegis` through the current agent formatter and removed unsupported pagination options
+
 # 2.6.0
 - [New Feature] Added Aegis v2 endpoint inventory, enrollment approval, capability execution, lifecycle status and cancellation, Linux user management, Cloudflare tunnel management and runtime diagnostics, and verified artifact downloads
 - [New Feature] Added External, Internal, Cloud, Web Application, and LLM Application Hunts with interactive target selection, run-scoped credentials, safety controls, and endpoint-only execution for Internal Hunts
@@ -11,8 +20,6 @@
 - [Update] Expanded the public SDK for Hunts, conversations, interactions, Aegis v2 endpoint execution, verified files, entity resolution, and endpoint network policy
 - [Performance] Added cached Hunt views and a shared cancellable HTTP transport so fullscreen Hunt operations remain responsive without periodic polling
 - [Bug fix] Added `add file --praetorian` so explicitly named and automatically placed uploads can target the Praetorian-only partition
-- [Bug fix] Isolated legacy and Aegis v2 inventory failures so healthy agents remain visible, with partial-load warnings and distinct failed/empty states in single- and multi-account views
-- [Bug fix] Routed `guard list aegis` through the current agent formatter and removed unsupported pagination options
 
 # 2.5.0
 - [New Feature] Added the `vm` command group for ad-hoc Engineer VM cloud workspaces (Praetorian engineers only): `launch`, `list`, `status`, `pause`, `resume`, `extend`, `archive`, `revive`, plus `ssh` and `code-server` access
