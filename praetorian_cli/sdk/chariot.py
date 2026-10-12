@@ -250,7 +250,7 @@ class Chariot:
         process_failure(resp)
         return resp
 
-    def download(self, name: str, global_=False) -> bytes:
+    def download(self, name: str, global_=False, praetorian=False) -> bytes:
         params = dict(name=name)
         # Encrypted files have _encrypted/ prefix in the path. Encrypted files do not use presigned URLs.
         # Instead, they use the /encrypted-file endpoint that directly gets and puts content.
@@ -263,6 +263,8 @@ class Chariot:
         # Regular files, use presigned URLs
         if global_:
             params |= GLOBAL_FLAG
+        if praetorian:
+            params['praetorian'] = 'true'
 
         resp = self.chariot_request('GET', self.url('/file'), params=params)
         process_failure(resp)

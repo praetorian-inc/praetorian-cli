@@ -3,7 +3,7 @@ import time
 
 from praetorian_cli.sdk.model.query import (Filter, Query, Node, Relationship, KIND_TO_LABEL, node_of_key,
                                              ttl_blockers_query)
-from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, USER_FLAG, Kind
+from praetorian_cli.sdk.model.globals import ALL_TENANTS_FLAG, EXACT_FLAG, DESCENDING_FLAG, GLOBAL_FLAG, PRAETORIAN_FLAG, USER_FLAG, Kind
 
 # Common asset/risk/web edges followed when the caller doesn't name any. The
 # backend has no wildcard, so we OR a small core set instead of every label
@@ -35,7 +35,7 @@ class Search:
         """
         return self.api.count(dict(key=search_term))
 
-    def by_key_prefix(self, key_prefix, offset=None, pages=100000, user=False) -> tuple:
+    def by_key_prefix(self, key_prefix, offset=None, pages=100000, user=False, praetorian=False) -> tuple:
         """
         Search for entities by key prefix. <mcp>If the response is too large, make your query more specific.<mcp>
 
@@ -48,9 +48,9 @@ class Search:
         :return: A tuple containing (list of matching entities, next page offset)
         :rtype: tuple
         """
-        return self.by_term(key_prefix, None, offset, pages, user=user)
+        return self.by_term(key_prefix, None, offset, pages, user=user, praetorian=praetorian)
 
-    def by_exact_key(self, key, get_attributes=False) -> {}:
+    def by_exact_key(self, key, get_attributes=False, praetorian=False) -> {}:
         """
         Get an entity by its exact key.
 
@@ -58,10 +58,12 @@ class Search:
         :type key: str
         :param get_attributes: Whether to also retrieve associated attributes
         :type get_attributes: bool
+        :param praetorian: Whether to search the praetorian partition
+        :type praetorian: bool
         :return: The matching entity or None if not found
         :rtype: dict or None
         """
-        hits, _ = self.by_term(key, exact=True)
+        hits, _ = self.by_term(key, exact=True, praetorian=praetorian)
         hit = hits[0] if hits else None
         if get_attributes and hit:
             attributes, _ = self.by_source(key, Kind.ATTRIBUTE.value)
@@ -137,7 +139,7 @@ class Search:
         return self.by_term(f'dns:{dns_prefix}', kind, offset, pages)
 
     def by_term(self, search_term, kind=None, offset=None, pages=100000, exact=False, descending=False,
-                global_=False, user=False, all_tenants=False) -> tuple:
+                global_=False, user=False, all_tenants=False, praetorian=False) -> tuple:
         """
         Search for a given kind by term.
 
@@ -169,6 +171,8 @@ class Search:
             params |= DESCENDING_FLAG
         if global_:
             params |= GLOBAL_FLAG
+        if praetorian:
+            params |= PRAETORIAN_FLAG
         if user:
             params |= USER_FLAG
         if all_tenants:

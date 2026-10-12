@@ -131,7 +131,8 @@ def job(chariot, key):
 @cli_handler
 @click.argument('name')
 @click.option('-p', '--path', default=os.getcwd(), help='Download path. Default: save to current directory')
-def file(chariot, name, path):
+@click.option('--praetorian', is_flag=True, default=False, help='Download from the praetorian partition')
+def file(chariot, name, path, praetorian):
     """ Download a file using key or name
 
     \b
@@ -143,11 +144,11 @@ def file(chariot, name, path):
         - guard get file "#file#proofs/example.azurewebsites.net/jira-unauthenticated-user-picker"
         - guard get file "proofs/example.azurewebsites.net/jira-unauthenticated-user-picker"
         - guard get file "proofs/example.azurewebsites.net/jira-unauthenticated-user-picker" --path ~/Downloads
+        - guard get file "home/internal/repo.zip" --praetorian
     """
     if name.startswith('#'):
-        downloaded_filepath = chariot.files.save(name.split('#')[-1], path)
-    else:
-        downloaded_filepath = chariot.files.save(name, path)
+        name = name.split('#')[-1]
+    downloaded_filepath = chariot.files.save(name, path, praetorian=praetorian)
     click.echo(f'Saved file at {downloaded_filepath}')
 
 
