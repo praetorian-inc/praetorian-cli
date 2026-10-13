@@ -1,0 +1,1427 @@
+{
+  "_meta": {
+    "description": "Guard CLI Parity Registry — maps every backend route to its CLI/SDK/GUI disposition",
+    "source": "guard backend pkg/handler/handlers/handlers.go (MustRegisterDefaultHandlers)",
+    "audit_date": "2026-08-17",
+    "route_count": 206,
+    "dispositions": {
+      "covered": "CLI command and/or SDK entity exists",
+      "planned": "Tracked by a parity subticket (ST-N)",
+      "excluded": "Deliberately not exposed as a CLI command",
+      "internal": "Backend-only, webhook, auth, or infrastructure route"
+    }
+  },
+  "routes": {
+    "/account/alert": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "GUI-only alert/notification preferences"
+    },
+    "/cloud/initialize": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-16"
+    },
+    "/account/deletion": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-22"
+    },
+    "/account/deletion/denylist": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "SuperAdmin-only Layer-2 denylist — not a client-facing operation"
+    },
+    "/account/deletion/{id}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-22"
+    },
+    "/account/cost": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Finance viewer UI surface — not CLI-appropriate"
+    },
+    "/account/cost/estimate": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Finance viewer UI surface — not CLI-appropriate"
+    },
+    "/account/{member}": {
+      "cli_command": "list accounts / add account / delete account / update account / link account / unlink account",
+      "sdk_entity": "accounts",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/auth/sso-provider": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "Browser SSO auth flow"
+    },
+    "/hook/{username}/{pin}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "Inbound webhook receiver"
+    },
+    "/aegis/installer/{flavor}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-9"
+    },
+    "/aegis/reachability/agent": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-9"
+    },
+    "/aegis/reachability/asset": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-9"
+    },
+    "/capability/schedule": {
+      "cli_command": "list schedules / get schedule / schedule create",
+      "sdk_entity": "schedules",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/capability/schedule/{scheduleId}": {
+      "cli_command": "schedule update / schedule delete",
+      "sdk_entity": "schedules",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/capability/schedule/{scheduleId}/{action}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Schedule pause/resume actions — tracked under existing schedule commands"
+    },
+    "/aegis/management/capabilities": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-9"
+    },
+    "/aegis/management/tasks": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-9"
+    },
+    "/aegis/management/cloudflare/tunnel/create": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-9"
+    },
+    "/aegis/management/cloudflare/tunnel/remove": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-9"
+    },
+    "/aegis/provision": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-9"
+    },
+    "/endpoint/enroll": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Endpoint mTLS enrollment — not a CLI client operation"
+    },
+    "/burp/parse": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Burp file upload/parse — covered by imports handler pattern"
+    },
+    "/agent": {
+      "cli_command": "agent",
+      "sdk_entity": "agents",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/agent/list": {
+      "cli_command": "agent",
+      "sdk_entity": "agents",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/agent/enhanced": {
+      "cli_command": "aegis info / aegis list",
+      "sdk_entity": "aegis",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/capabilities": {
+      "cli_command": "list capabilities",
+      "sdk_entity": "capabilities",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/asset": {
+      "cli_command": "add asset / get asset / update asset / delete asset",
+      "sdk_entity": "assets",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/asset/metrics": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Constantine pipeline editor UI panel — read-only metrics not CLI-appropriate"
+    },
+    "/attribute": {
+      "cli_command": "add attribute / get attribute / delete attribute",
+      "sdk_entity": "attributes",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/repository": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "File-type repository creation via zip upload — seed-based repos use /seed"
+    },
+    "/risk": {
+      "cli_command": "add risk / get risk / update risk / delete risk",
+      "sdk_entity": "risks",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/risk/visited": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "UI-only visit tracking for risk detail page"
+    },
+    "/seed": {
+      "cli_command": "add seed / get seed / update seed / delete seed",
+      "sdk_entity": "seeds",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/technology": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-20"
+    },
+    "/ticket": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-20"
+    },
+    "/webpage": {
+      "cli_command": "add webpage / get webpage / list webpages / delete webpage",
+      "sdk_entity": "webpage",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/broker": {
+      "cli_command": "get integration / list integrations",
+      "sdk_entity": "integrations",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/integration/validate": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Integration setup wizard validation — GUI-only flow"
+    },
+    "/integration/github/start": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "GitHub OAuth start — browser-only flow"
+    },
+    "/integration/jira/transitions": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Jira integration config UI"
+    },
+    "/integration/jira/custom-fields": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Jira integration config UI"
+    },
+    "/integration/jira/optional-custom-fields": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Jira integration config UI"
+    },
+    "/integration/jira/priorities": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Jira integration config UI"
+    },
+    "/integration/linear/teams": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Linear integration config UI"
+    },
+    "/integration/linear/workflow-states": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Linear integration config UI"
+    },
+    "/integration/linear/projects": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Linear integration config UI"
+    },
+    "/setting/host-overrides/verify": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Host override verification — settings wizard UI flow"
+    },
+    "/setting": {
+      "cli_command": "add setting / get setting / delete setting / list settings",
+      "sdk_entity": "settings",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/sso-id": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "SSO setup verification — browser-only flow"
+    },
+    "/key": {
+      "cli_command": "add key / get key / delete key / list keys",
+      "sdk_entity": "keys",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/asset/purge": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-23"
+    },
+    "/risk/purge": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-23"
+    },
+    "/seed/purge": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-23"
+    },
+    "/association": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Praetorian-internal entity association management"
+    },
+    "/bifrost/provision": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-11"
+    },
+    "/bifrost/budget": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-11"
+    },
+    "/bifrost/budget/categories": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-11"
+    },
+    "/bifrost/budget/category/{category}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-11"
+    },
+    "/configuration": {
+      "cli_command": "add configuration / get configuration / delete configuration / list configurations",
+      "sdk_entity": "configurations",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/csf-assessment": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-15"
+    },
+    "/csf-assessment/score": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-15"
+    },
+    "/csf-assessment/target": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-15"
+    },
+    "/customer/domains": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-16"
+    },
+    "/customer/onboard": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-16"
+    },
+    "/engineer-vm": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-14"
+    },
+    "/engineer-vm/{vm_id}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-14"
+    },
+    "/engineer-vm/{vm_id}/{action}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-14"
+    },
+    "/flag": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Praetorian-internal feature flags"
+    },
+    "/hunt": {
+      "cli_command": "hunt launch",
+      "sdk_entity": "hunts.create",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/hunt/{uuid}": {
+      "cli_command": "hunt list / hunt status / hunt delete / hunt stop / hunt pause / hunt resume",
+      "sdk_entity": "hunts",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/hunt/{uuid}/memory/{title}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Hunt memory management — conversational AI internal"
+    },
+    "/hunt/{uuid}/cost": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Hunt cost display — GUI billing panel"
+    },
+    "/functions/{name}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Praetorian-internal generic function dispatcher"
+    },
+    "/model": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Internal model configuration"
+    },
+    "/monitor": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Internal monitoring endpoint"
+    },
+    "/nuclei-templates": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-10"
+    },
+    "/nuclei-templates/branches": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-10"
+    },
+    "/nuclei-template": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-10"
+    },
+    "/templates/commit": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-10"
+    },
+    "/vulnerability/notify": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Internal vulnerability notification dispatch"
+    },
+    "/leaderboard": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-19"
+    },
+    "/leaderboard/weights": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-19"
+    },
+    "/plextrac/reporting": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-13"
+    },
+    "/plextrac/export": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-13"
+    },
+    "/plextrac/reports/connect": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-13"
+    },
+    "/plextrac/definition": {
+      "cli_command": "add definition / get definition / list definitions",
+      "sdk_entity": "definitions",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/bounty-catalog": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-12"
+    },
+    "/hackerone/sync-scope": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-12"
+    },
+    "/hackerone/programs": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-12"
+    },
+    "/hackerone/programs/{handle}/{sub}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-12"
+    },
+    "/hackerone/comment": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-12"
+    },
+    "/hackerone/activities": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-12"
+    },
+    "/hackerone/severity": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-12"
+    },
+    "/osint/guess-repo": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/osint/submit": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/osint/create-technology": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/constantine/exploit": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/constantine/patch": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/constantine/patch-and-pr": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/constantine/validate": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/remediation/pr": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/remediation": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/constantine/manifest": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-6"
+    },
+    "/findings/sealed": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-20"
+    },
+    "/enrichment": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-8"
+    },
+    "/enrichment/enabled": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-8"
+    },
+    "/enrichment/global/enabled": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-8"
+    },
+    "/enrichment/credits": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-8"
+    },
+    "/enrichment/{plugin}/credits": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-8"
+    },
+    "/enrichment/{plugin}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-8"
+    },
+    "/enrichment/{plugin}/enabled": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-8"
+    },
+    "/enrichment/{plugin}/key": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-8"
+    },
+    "/file": {
+      "cli_command": "add file / get file / list files / delete file",
+      "sdk_entity": "files",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/file/multipart/create": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-21"
+    },
+    "/file/multipart/part": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-21"
+    },
+    "/file/multipart/complete": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-21"
+    },
+    "/file/multipart/abort": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-21"
+    },
+    "/encrypted-file": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-21"
+    },
+    "/share": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-18"
+    },
+    "/share/{token}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-18"
+    },
+    "/job": {
+      "cli_command": "add job / get job / list jobs",
+      "sdk_entity": "jobs",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/agents": {
+      "cli_command": "agent conversation / agent mcp / agent affiliation",
+      "sdk_entity": "agents",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/planner": {
+      "cli_command": "hunt launch",
+      "sdk_entity": "conversations",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/planner/compact": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Conversation compaction — internal AI pipeline step"
+    },
+    "/planner/stop": {
+      "cli_command": "hunt stop",
+      "sdk_entity": "conversations",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/planner/interaction": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Conversation interaction — internal AI pipeline step"
+    },
+    "/planner/{uuid}/cost": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Conversation cost display — GUI billing panel"
+    },
+    "/token": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "API key exchange — auth infrastructure"
+    },
+    "/validate-report": {
+      "cli_command": "report validate",
+      "sdk_entity": "reports",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/export/report": {
+      "cli_command": "report generate / export report",
+      "sdk_entity": "reports",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/export/loa": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-17"
+    },
+    "/report/health": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-17"
+    },
+    "/export/{type}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-17"
+    },
+    "/export/{type}/{id}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-17"
+    },
+    "/my": {
+      "cli_command": "list assets / list risks / list seeds / query",
+      "sdk_entity": "search",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/my/{count}": {
+      "cli_command": "list (with pagination)",
+      "sdk_entity": "search",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/whoami": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "Auth identity check — infrastructure"
+    },
+    "/preseed": {
+      "cli_command": "add preseed / get preseed / update preseed / delete preseed / list preseeds",
+      "sdk_entity": "preseeds",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/bulk/{entity}": {
+      "cli_command": "bulk add asset / bulk add risk / bulk add attribute",
+      "sdk_entity": "assets.bulk_add / risks.bulk_add / attributes.bulk_add",
+      "gui": true,
+      "disposition": "covered"
+    },
+    "/recovery-codes": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "internal",
+      "reason": "MFA recovery codes — browser-only auth flow"
+    },
+    "/recovery-codes/validate-mfa": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "MFA validation — browser-only auth flow"
+    },
+    "/auth/step-up": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "internal",
+      "reason": "Step-up auth — browser session flow"
+    },
+    "/auth/step-up-intent": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "internal",
+      "reason": "Step-up auth intent — browser session flow"
+    },
+    "/schema": {
+      "cli_command": "get schema",
+      "sdk_entity": "schema",
+      "gui": false,
+      "disposition": "covered"
+    },
+    "/red-team/deployment/launch": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/deployment/delete": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/deployment/node-schema": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/deployment/generate": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Backend-only deployment sub-step"
+    },
+    "/red-team/deployment/outputs": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Backend-only deployment sub-step"
+    },
+    "/red-team/deployment/terraform/{action}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/deployment/collaborators": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/deployment/history": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/deployment/details": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/deployment/last-inputs": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/deployment/tag": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Backend-only deployment sub-step"
+    },
+    "/red-team/deployment/tags": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/domain-parking": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/domain-parking/mailgun/domain/{domain}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/domain-parking/mailgun/user": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/domain-parking/dns/{domain}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/domain-parking/dns/{domain}/{recordId}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/campaigns": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/campaigns/{id}/targets": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/campaigns/{id}/authorize": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/campaigns/{id}/funnel": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/campaigns/{id}/activity": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/campaigns/assistant/draft": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Red Team assistant — disabled product feature"
+    },
+    "/red-team/campaigns/assistant/variants": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Red Team assistant — disabled product feature"
+    },
+    "/red-team/campaigns/assistant/recommendations": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Red Team assistant — disabled product feature"
+    },
+    "/red-team/campaigns/assistant/domain-recommendations": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Red Team assistant — disabled product feature"
+    },
+    "/red-team/campaigns/assistant/generate-variant-assignments": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "Red Team assistant — disabled product feature"
+    },
+    "/red-team/payload/generate": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/phishkit-nodes": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/evilginx/phishlets/{name}/params": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/evilginx/phishlets": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/evilginx/lures": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/evilginx/configure": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/red-team/evilginx/status": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-5"
+    },
+    "/knossos/profile": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/profile/infer": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/profile/versions": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environment/generate": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environments": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environment/{id}/emit": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environment/{id}/cost": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environment/{id}/validate": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environment/{id}/deploy": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environment/{id}/status": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environment/{id}/events": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/environment/{id}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "planned",
+      "ticket": "ST-7"
+    },
+    "/knossos/ingest/{envID}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "Knossos telemetry ingestion — endpoint-agent only, not a CLI operation"
+    },
+    "/scim/v2/ServiceProviderConfig": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "SCIM v2 provisioning — out of scope per ENG-6606"
+    },
+    "/scim/v2/ResourceTypes": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "SCIM v2 provisioning — out of scope per ENG-6606"
+    },
+    "/scim/v2/Schemas": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "SCIM v2 provisioning — out of scope per ENG-6606"
+    },
+    "/scim/settings": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": true,
+      "disposition": "excluded",
+      "reason": "SCIM v2 provisioning — out of scope per ENG-6606"
+    },
+    "/scim/v2/Users": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "SCIM v2 provisioning — out of scope per ENG-6606"
+    },
+    "/scim/v2/Users/{id}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "SCIM v2 provisioning — out of scope per ENG-6606"
+    },
+    "/scim/v2/Groups": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "SCIM v2 provisioning — out of scope per ENG-6606"
+    },
+    "/scim/v2/Groups/{id}": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "excluded",
+      "reason": "SCIM v2 provisioning — out of scope per ENG-6606"
+    },
+    "/hooks/scm": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "Inbound SCM webhook receiver"
+    },
+    "/github": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "GitHub App webhook receiver"
+    },
+    "/marketplace": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "Marketplace webhook"
+    },
+    "/marketplace/azure": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "Azure marketplace webhook"
+    },
+    "/marketplace/azure/webhook": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "Azure marketplace webhook"
+    },
+    "/webhooks/linear": {
+      "cli_command": null,
+      "sdk_entity": null,
+      "gui": false,
+      "disposition": "internal",
+      "reason": "Linear webhook receiver"
+    }
+  }
+}
