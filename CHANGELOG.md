@@ -8,6 +8,7 @@
 # 2.6.1
 - [Bug fix] Isolated legacy and Aegis v2 inventory failures so healthy agents remain visible, with partial-load warnings and distinct failed/empty states in single- and multi-account views
 - [Bug fix] Routed `guard list aegis` through the current agent formatter and removed unsupported pagination options
+- [Update] Added `--praetorian` to `get file`, `list files`, and `delete file` so those commands can target the Praetorian-only partition
 
 # 2.6.0
 - [New Feature] Added Aegis v2 endpoint inventory, enrollment approval, capability execution, lifecycle status and cancellation, Linux user management, Cloudflare tunnel management and runtime diagnostics, and verified artifact downloads

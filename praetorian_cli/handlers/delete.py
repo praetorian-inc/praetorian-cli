@@ -103,8 +103,9 @@ def seed(chariot, key):
 
 @delete.command()
 @click.argument('filepath', required=True)
+@click.option('--praetorian', is_flag=True, default=False, help='Delete from the praetorian partition')
 @cli_handler
-def file(chariot, filepath):
+def file(chariot, filepath, praetorian):
     """ Delete a file
 
     \b
@@ -114,8 +115,9 @@ def file(chariot, filepath):
     \b
     Example usage:
         - guard delete file "home/report-dec-2024.pdf"
+        - guard delete file "home/internal/repo.zip" --praetorian
     """
-    chariot.files.delete(filepath)
+    chariot.files.delete(filepath, praetorian=praetorian)
 
 
 @delete.command()
