@@ -142,16 +142,18 @@ def tools(sdk, allowed):
         click.echo(tool)
 
 def _conversation_endpoint(sdk, endpoint_ref, confirmed):
-    if not endpoint_ref:
+    if endpoint_ref is None:
         if confirmed:
             raise click.UsageError('--confirm-endpoint requires --endpoint')
         return None
+    requested = endpoint_ref.strip().lower()
+    if not requested:
+        raise click.UsageError('Endpoint reference cannot be empty')
     endpoints = [
         endpoint for endpoint in sdk.aegis.list_hunt_endpoints()
         if is_v2_agent(endpoint)
         and str(getattr(endpoint, 'kind', '')).lower() == 'aegis'
     ]
-    requested = endpoint_ref.strip().lower()
     id_match = next(
         (
             endpoint for endpoint in endpoints
@@ -235,7 +237,7 @@ def conversation(sdk, mode, endpoint_ref, confirm_endpoint):
     Usage:
         guard agent conversation
     """
-    if endpoint_ref and mode != 'agent':
+    if endpoint_ref is not None and mode != 'agent':
         raise click.UsageError('--endpoint requires --mode agent')
     endpoint = _conversation_endpoint(sdk, endpoint_ref, confirm_endpoint)
     from praetorian_cli.ui.conversation import run_textual_conversation

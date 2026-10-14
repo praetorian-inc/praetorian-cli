@@ -135,6 +135,7 @@ class ConversationApp(App):
         self.mode = mode
         self.endpoint_id = endpoint_id
         self.endpoint_confirmed = endpoint_confirmed
+        self._initial_endpoint_id = endpoint_id
         self.root_conversation_id = None
         self.user_email, self.username = self.sdk.get_current_user()
         self.polling_task: Optional[asyncio.Task] = None
@@ -958,6 +959,8 @@ class ConversationApp(App):
         """Start a new conversation"""
         self.conversation_id = None
         self.root_conversation_id = None
+        self.endpoint_id = self._initial_endpoint_id
+        self.endpoint_confirmed = bool(self._initial_endpoint_id)
         self.last_message_key = ""
         self._reset_interaction_state()
         self._next_endpoint_status_poll = 0
@@ -968,7 +971,7 @@ class ConversationApp(App):
     
     async def resume_conversation(self) -> None:
         """Resume an existing conversation"""
-        if self.endpoint_id:
+        if self._initial_endpoint_id:
             self.add_system_message(
                 'Endpoint placement is immutable. Start this endpoint-bound '
                 'session with a new conversation.'
@@ -1051,14 +1054,37 @@ class ConversationApp(App):
             conv_index = int(selection) - 1
             if 0 <= conv_index < len(self._available_conversations):
                 selected_conv = self._available_conversations[conv_index]
-                self.conversation_id = selected_conv['uuid']
+                selected_id = selected_conv['uuid']
                 try:
-                    self.root_conversation_id = await asyncio.to_thread(
+                    root_id = await asyncio.to_thread(
                         self.sdk.conversations.root_id,
-                        self.conversation_id,
+                        selected_id,
                     )
+                    root_conversation = selected_conv
+                    if root_id != selected_id:
+                        root_conversation = await asyncio.to_thread(
+                            self.sdk.conversations.get_metadata,
+                            root_id,
+                        )
+                    endpoint_id = (
+                        root_conversation.get('endpointId')
+                        if root_conversation.get('endpointRequired')
+                        else None
+                    )
+                    if root_conversation.get('endpointRequired') and not endpoint_id:
+                        raise ValueError('Missing endpoint placement')
                 except Exception:
-                    self.root_conversation_id = self.conversation_id
+                    self.add_system_message(
+                        'Unable to restore conversation placement. Retry resume '
+                        'when conversation metadata is available.'
+                    )
+                    return
+                self.conversation_id = selected_id
+                self.root_conversation_id = root_id
+                self.endpoint_id = endpoint_id
+                self.endpoint_confirmed = False
+                if endpoint_id:
+                    self.mode = 'agent'
                 self.last_message_key = ""
                 self._reset_interaction_state()
                 self._next_endpoint_status_poll = 0
