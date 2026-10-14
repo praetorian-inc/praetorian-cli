@@ -1,11 +1,11 @@
 # Changelog
 
-# 2.6.2
+# 2.6.3
 - [New Feature] Added explicit Aegis v2 endpoint placement for new Marcus Agent conversations, with operator confirmation and no Guard-compute fallback
 - [Bug fix] Added Active Directory domains to Internal Hunt target discovery and friendly/canonical scope resolution
 - [Bug fix] Treat missing legacy Aegis configuration as an empty inventory so Aegis v2 endpoints remain available without a warning
 
-# 2.6.1
+# 2.6.2
 - [Bug fix] Isolated legacy and Aegis v2 inventory failures so healthy agents remain visible, with partial-load warnings and distinct failed/empty states in single- and multi-account views
 - [Bug fix] Routed `guard list aegis` through the current agent formatter and removed unsupported pagination options
 - [Update] Added `--praetorian` to `get file`, `list files`, and `delete file` so those commands can target the Praetorian-only partition
