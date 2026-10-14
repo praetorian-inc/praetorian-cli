@@ -1,4 +1,5 @@
 import pytest
+from rich.console import Console
 
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.ui import entity_selector
@@ -19,7 +20,7 @@ class Search:
         return [], None
 
 
-def test_internal_hunt_scope_query_matches_ui_fences():
+def test_internal_hunt_scope_query_includes_networks_and_ad_domains():
     search = Search()
 
     Assets(type('API', (), {'search': search})()).list_hunt_scope(
@@ -31,10 +32,35 @@ def test_internal_hunt_scope_query_matches_ui_fences():
     query, pages = search.calls[0]
     assert pages == 1
     assert query['node']['labels'] == ['Asset']
-    filters = query['node']['filters']
-    assert {'field': 'status', 'operator': 'STARTS WITH', 'value': 'A', 'not': False} in filters
-    assert {'field': 'class', 'operator': 'IN', 'value': [['ipv4', 'cidr']], 'not': False} in filters
-    assert {'field': 'isInternal', 'operator': '=', 'value': True, 'not': False} in filters
+    assert query['node'].get('filters') is None
+    scope_filter = query['filters'][0]
+    assert scope_filter['operator'] == 'OR'
+    network_filters = scope_filter['value'][0]['value']
+    assert {
+        'field': 'status', 'operator': 'STARTS WITH',
+        'value': 'A', 'not': False,
+    } in network_filters
+    assert {
+        'field': 'class', 'operator': 'IN',
+        'value': [['ipv4', 'cidr']], 'not': False,
+    } in network_filters
+    assert {
+        'field': 'isInternal', 'operator': '=',
+        'value': True, 'not': False,
+    } in network_filters
+    ad_domain_filters = scope_filter['value'][1]['value']
+    assert {
+        'field': 'key', 'operator': 'STARTS WITH',
+        'value': '#addomain#', 'not': False,
+    } in ad_domain_filters
+    assert {
+        'field': 'status', 'operator': 'STARTS WITH',
+        'value': 'D', 'not': True,
+    } in ad_domain_filters
+    assert {
+        'field': 'status', 'operator': 'STARTS WITH',
+        'value': 'F', 'not': True,
+    } in ad_domain_filters
 
 
 def test_hunt_scope_search_uses_asset_fulltext_index():
@@ -142,6 +168,26 @@ def test_webapplication_hunt_scope_searches_display_fields():
         condition['value'] == 'portal.example'
         for condition in search_filter['value']
     )
+
+
+def test_entity_selector_displays_and_searches_ad_domain_name():
+    domain = {
+        'key': '#addomain#corp.example#S-1-5-21-111',
+        'domain': 'corp.example',
+        'identifier': 'S-1-5-21-111',
+        'label': 'ADDomain',
+        'class': 'domain',
+        'status': 'P',
+    }
+
+    assert filter_entities([domain], 'corp.example') == [domain]
+    table = entity_selector._selection_table([domain], 'Targets', set())
+    rendered = Console(record=True, force_terminal=False, width=120)
+    rendered.print(table)
+    output = rendered.export_text()
+    assert 'corp.example' in output
+    assert 'S-1-5-21-111' in output
+    assert 'ADDomain' in output
 
 
 def test_interactive_selector_moves_filters_and_preserves_selection():

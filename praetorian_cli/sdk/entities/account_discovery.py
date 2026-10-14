@@ -183,6 +183,11 @@ def _fetch_account_agents(base_url: str, headers: dict) -> Optional[List[dict]]:
         headers=headers,
         timeout=30,
     )
+    if (
+        resp.status_code == 400
+        and 'aegis configuration not found' in resp.text.lower()
+    ):
+        return []
     if resp.status_code != 200:
         raise RuntimeError(f'HTTP {resp.status_code} from /agent/enhanced: {resp.text}')
     return resp.json() or []

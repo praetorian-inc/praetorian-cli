@@ -28,6 +28,11 @@ def _is_aegis_endpoint(value) -> bool:
     return isinstance(value, dict) and str(value.get('kind', '')).lower() == 'aegis'
 
 
+def _legacy_inventory_is_not_configured(error) -> bool:
+    message = str(error).lower()
+    return '[400]' in message and 'aegis configuration not found' in message
+
+
 def merge_aegis_endpoint_rows(
     identity_rows,
     live_rows,
@@ -202,7 +207,10 @@ class Aegis:
             agents.extend(self._list_legacy_agents())
             loaded = True
         except Exception as exc:
-            errors.append(f'Legacy Aegis inventory: {exc}')
+            if _legacy_inventory_is_not_configured(exc):
+                loaded = True
+            else:
+                errors.append(f'Legacy Aegis inventory: {exc}')
         try:
             endpoints, endpoint_errors = self._list_endpoint_agents()
             agents.extend(endpoints)

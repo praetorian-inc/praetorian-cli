@@ -541,7 +541,12 @@ def _selection_table(
             Text(_display(_entity_label(entity))),
             Text(_display(_entity_identifier(entity))),
             Text(_display(key), style='dim'),
-            Text(_display(entity.get('class') or entity.get('type') or '—')),
+            Text(_display(
+                entity.get('label')
+                or entity.get('class')
+                or entity.get('type')
+                or '—'
+            )),
             Text(_display(entity.get('status') or '—')),
         )
     if not entities:
@@ -570,6 +575,7 @@ def _entity_label(entity):
         or entity.get('name')
         or entity.get('dns')
         or entity.get('primary_url')
+        or entity.get('domain')
         or entity.get('identifier')
         or _entity_key(entity)
     )
@@ -580,6 +586,7 @@ def _entity_identifier(entity):
         entity.get('dns'),
         entity.get('identifier'),
         entity.get('primary_url'),
+        entity.get('domain'),
     ]
     label = _entity_label(entity)
     return str(next((value for value in values if value and value != label), '—'))
@@ -602,6 +609,8 @@ def _search_text(entity):
             'dns',
             'identifier',
             'primary_url',
+            'domain',
+            'label',
             'class',
             'type',
         )

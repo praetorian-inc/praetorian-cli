@@ -5,6 +5,19 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 
+def test_missing_legacy_aegis_configuration_is_an_empty_inventory(monkeypatch):
+    from praetorian_cli.sdk.entities import account_discovery
+
+    response = MagicMock()
+    response.status_code = 400
+    response.text = '{"error":"failed to create Aegis client: aegis configuration not found"}'
+    monkeypatch.setattr(account_discovery.requests, 'get', lambda *_args, **_kwargs: response)
+
+    assert account_discovery._fetch_account_agents(
+        'https://api.example', {'account': 'tenant@example.com'}
+    ) == []
+
+
 def _active_subscription():
     """Build a subscription window that is always active relative to now."""
     today = datetime.now().date()
