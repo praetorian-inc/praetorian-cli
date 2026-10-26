@@ -141,7 +141,8 @@ def jobs(chariot, capability, status, target, summary, filter, details, offset, 
 
 @list.command()
 @list_params('file path')
-def files(chariot, filter, details, offset, page):
+@click.option('--praetorian', is_flag=True, default=False, help='List the praetorian partition')
+def files(chariot, praetorian, filter, details, offset, page):
     """ List files
 
     Retrieve and display a list of files in the Guard file system.
@@ -152,8 +153,9 @@ def files(chariot, filter, details, offset, page):
         - guard list files --filter "home/reports/cloud-assessment-2024-"
         - guard list files --details
         - guard list files --page all
+        - guard list files --praetorian --filter "home/internal/"
      """
-    render_list_results(chariot.files.list(filter, offset, pagination_size(page)), details)
+    render_list_results(chariot.files.list(filter, offset, pagination_size(page), praetorian=praetorian), details)
 
 
 @list.command()
