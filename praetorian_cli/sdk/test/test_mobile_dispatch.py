@@ -263,3 +263,26 @@ class TestApkUpload:
 
         assert 'must end in .apk' in str(e.value)
         assert api.uploads == []
+
+
+class TestValidateCapabilityScope:
+    """validate_capability() backs the legacy TUI job and schedule commands, whose target
+    handling knows hosts and AD domains but not APKs. It must keep answering for the
+    agent executor only, so a mobile capability can never pass into a legacy job."""
+
+    def test_an_endpoint_only_capability_is_not_valid_for_legacy_callers(self):
+        class EndpointOnlyCapabilities(FakeCapabilities):
+            def list(self, name='', target='', executor='', endpoint_kind=''):
+                super().list(name, target, executor, endpoint_kind)
+                return [{'name': SURVEY, 'target': 'apk'}] if endpoint_kind == 'aegis' else []
+
+        capabilities = EndpointOnlyCapabilities()
+        aegis = Aegis(FakeApi(capabilities=capabilities))
+
+        assert aegis.validate_capability(SURVEY) is None
+        assert [call['executor'] for call in capabilities.calls] == ['aegis']
+
+    def test_a_host_capability_is_still_valid(self):
+        aegis = Aegis(FakeApi(capabilities=FakeCapabilities([{'name': 'linux-enum', 'target': 'asset'}])))
+
+        assert aegis.validate_capability('LINUX-ENUM')['name'] == 'linux-enum'

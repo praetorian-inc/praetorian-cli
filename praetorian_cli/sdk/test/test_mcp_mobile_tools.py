@@ -7,6 +7,8 @@ first attribute access with the failure swallowed into a text response. These te
 pin the properties that keep the mobile tools callable.
 """
 
+import pytest
+
 from praetorian_cli.sdk.entities.aegis import Aegis
 from praetorian_cli.sdk.entities.apks import Apks
 from praetorian_cli.sdk.mcp_server import MCPServer, is_sensitive_tool
@@ -23,18 +25,8 @@ class FakeChariot:
 
 
 def discovery_only_server():
-    """An MCPServer with tool discovery run but no transport registered.
-
-    MCPServer.__init__ also binds handlers onto the mcp library's Server, whose API
-    differs across major versions of that library. These tests are about the SDK surface
-    the tools are generated from, so they skip that binding rather than track it.
-    """
-    server = MCPServer.__new__(MCPServer)
-    server.chariot = FakeChariot()
-    server.allowable_tools = None
-    server.discovered_tools = {}
-    server._discover_tools()
-    return server
+    """An MCPServer with tool discovery run but no transport started."""
+    return MCPServer(FakeChariot())
 
 
 def tool_parameters(server, tool_name):
@@ -64,8 +56,11 @@ class TestMobileToolsAreExposed:
 
         # Everything needed to dispatch is a scalar or a list. `agent` is the legacy
         # Agent argument, kept for positional callers; an MCP client never sends it.
-        for name in ('capabilities', 'hostname', 'package', 'endpoint_id', 'config'):
-            assert parameters[name]['type'] in JSON_SCALARS, f'{name} is not expressible as JSON'
+        for name in ('hostname', 'package', 'endpoint_id', 'config'):
+            assert parameters[name]['type'] == 'string', f'{name} is not expressible as JSON'
+        # Advertised as an array, so a client sends ["android-device-survey"] rather than a
+        # bare string whose characters would each be read as a capability name.
+        assert parameters['capabilities']['type'] == 'array'
 
     def test_run_job_needs_no_required_argument_to_list_capabilities(self):
         parameters = tool_parameters(self.server, 'aegis_run_job')
@@ -86,3 +81,25 @@ class TestMobileToolsAreExposed:
         assert parameters['local_filepath']['type'] == 'string'
         assert parameters['local_filepath']['required'] is True
         assert parameters['chariot_filepath']['required'] is False
+
+
+class TestOptionalTypeSpellings:
+
+    def setup_method(self):
+        self.server = discovery_only_server()
+
+    def test_optional_spellings_keep_the_inner_json_type(self):
+        for spelling in ('list or None', 'Optional[list]', 'list | None', 'List or None'):
+            assert self.server._sphinx_type_to_json_type(spelling) == 'array', spelling
+        assert self.server._sphinx_type_to_json_type('dict or None') == 'object'
+        assert self.server._sphinx_type_to_json_type('str or None') == 'string'
+
+    def test_run_job_schema_accepts_a_capability_list(self):
+        import jsonschema
+
+        schema = self.server._input_schema_for(self.server.discovered_tools['aegis_run_job'])
+
+        jsonschema.validate({'capabilities': ['android-device-survey'],
+                             'package': 'com.bank.app'}, schema)
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({'capabilities': 'android-device-survey'}, schema)

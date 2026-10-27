@@ -519,14 +519,11 @@ class Aegis:
             >>>     print(f"Target type: {cap_info['target']}")
         """
         try:
-            match = _by_name(self.get_capabilities(), capability_name)
-            if match:
-                return match
-            # Endpoint-dispatched capabilities -- every mobile one among them -- are
-            # registered against Guard's own executor, so the agent-executor list above
-            # never holds them and a valid name would look invalid.
-            return _by_name(self.get_capabilities(endpoint_kind=ENDPOINT_KIND_AEGIS, executor=''),
-                            capability_name)
+            caps = self.get_capabilities()
+            for cap in caps:
+                if isinstance(cap, dict) and cap.get('name', '').lower() == capability_name.lower():
+                    return cap
+            return None
         except Exception:
             return None
     
@@ -1077,9 +1074,3 @@ class Aegis:
                 lines.append(f"{i:>4}  {agent.version:<7}  {(agent.hostname or 'Unknown')[:30]:<30}  {agent.display_id}")
             return warning_text + '\n'.join(lines)
 
-
-def _by_name(capabilities: List[dict], name: str) -> Optional[dict]:
-    for capability in capabilities:
-        if isinstance(capability, dict) and capability.get('name', '').lower() == name.lower():
-            return capability
-    return None

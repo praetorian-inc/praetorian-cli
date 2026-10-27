@@ -1,6 +1,7 @@
 import click
 from praetorian_cli.handlers.chariot import chariot
 from praetorian_cli.handlers.cli_decorators import cli_handler
+from praetorian_cli.sdk.model.aegis import is_v2_agent
 from praetorian_cli.ui.aegis.commands.enrollment import (
     enrollment_error_message,
     pending_enrollment_lines,
@@ -363,25 +364,29 @@ def job(ctx, sdk, capabilities, config, package, endpoint_id, client_id):
         - guard aegis job --package com.bank.app -c android-device-command -e 16169bc5-7943-4783-af81-c4735616f7e9 --config '{"command": "getprop ro.build.fingerprint"}'
     """
     if client_id and package:
-        click.echo('A job has one target: pass either CLIENT_ID or --package, not both.', err=True)
-        return
+        raise click.UsageError('A job has one target: pass either CLIENT_ID or --package, not both.')
 
     if not client_id and not package:
-        click.echo('No target. Pass an agent CLIENT_ID, or --package to target an APK.', err=True)
-        return
+        raise click.UsageError('No target. Pass an agent CLIENT_ID, or --package to target an APK.')
 
-    hostname = None
+    agent = None
     if client_id:
         agent = sdk.aegis.get_by_client_id(client_id)
         if not agent:
-            click.echo(f"Agent not found: {client_id}", err=True)
-            return
-        hostname = agent.hostname
+            raise click.ClickException(f"Agent not found: {client_id}")
+        # CLIENT_ID names a legacy agent's host. A v2 endpoint has no host target on this
+        # path and is only ever reached through the --endpoint pin, so refuse here rather
+        # than hand the SDK a bare hostname that would lose the agent's v2 identity.
+        if is_v2_agent(agent):
+            endpoint = getattr(agent, 'endpoint_id', None) or '<endpoint id>'
+            raise click.UsageError(
+                f'{client_id} is an Aegis v2 endpoint, which the legacy job path cannot target. '
+                f'To run a mobile capability on it, pass --package <application id> -e {endpoint}.')
 
     try:
         result = sdk.aegis.run_job(
+            agent,
             capabilities=list(capabilities) if capabilities else None,
-            hostname=hostname,
             package=package,
             endpoint_id=endpoint_id,
             config=config,
