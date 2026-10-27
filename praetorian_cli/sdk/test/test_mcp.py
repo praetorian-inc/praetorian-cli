@@ -1,4 +1,6 @@
+import anyio
 import pytest
+from mcp.types import CallToolRequestParams
 
 from praetorian_cli.handlers.agent import DEFAULT_MCP_TOOLS
 from praetorian_cli.sdk.mcp_server import MCPServer
@@ -241,3 +243,66 @@ class TestMCP:
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
+
+
+class _ExplodingAssets(_FakeAssets):
+    """Fails the test if a tool is dispatched with invalid arguments."""
+
+    def get(self, key):
+        """Get an asset."""
+        raise AssertionError(f'assets_get must not be dispatched with {key!r}')
+
+
+class TestMCPInputValidation:
+    """Arguments are validated against the advertised inputSchema before dispatch.
+
+    mcp 1.x did this in the library: Server.call_tool() defaulted to
+    validate_input=True and returned an isError result. The 2.x low-level
+    server does not, so the server does it — otherwise a wrong-typed argument
+    reaches the SDK method and becomes a live API call against the account.
+    """
+
+    @staticmethod
+    def _call(chariot, name, arguments):
+        server = MCPServer(chariot, ['assets_*'])
+        params = CallToolRequestParams(name=name, arguments=arguments)
+        return anyio.run(server._on_call_tool, None, params)
+
+    def test_valid_arguments_are_dispatched(self):
+        result = self._call(_FakeChariot(), 'assets_get', {'key': '#asset#example.com'})
+        assert result.is_error is False
+
+    def test_wrong_typed_argument_is_rejected_before_dispatch(self):
+        chariot = _FakeChariot()
+        chariot.assets = _ExplodingAssets()
+
+        # _ExplodingAssets.get raises if reached, so this passing at all is the
+        # assertion that validation runs before dispatch rather than after.
+        result = self._call(chariot, 'assets_get', {'key': 123})
+
+        assert result.is_error is True
+        assert 'Input validation error' in result.content[0].text
+
+    def test_missing_required_argument_is_rejected(self):
+        chariot = _FakeChariot()
+        chariot.assets = _ExplodingAssets()
+
+        result = self._call(chariot, 'assets_get', {})
+
+        assert result.is_error is True
+        assert 'Input validation error' in result.content[0].text
+
+    def test_unknown_tool_is_reported_not_validated(self):
+        # No schema exists to check against, so this must still reach the
+        # not-found path rather than becoming a validation error.
+        result = self._call(_FakeChariot(), 'no_such_tool', {})
+
+        assert 'not found' in result.content[0].text
+
+    def test_advertised_schema_is_the_validated_schema(self):
+        server = MCPServer(_FakeChariot(), ['assets_*'])
+        listed = anyio.run(server._on_list_tools, None, None)
+
+        advertised = {tool.name: tool.input_schema for tool in listed.tools}
+        for name, tool_info in server.discovered_tools.items():
+            assert advertised[name] == server._input_schema_for(tool_info)

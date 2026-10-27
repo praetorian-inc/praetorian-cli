@@ -1,12 +1,21 @@
 import inspect
 import json
+import jsonschema
 import anyio
 import re
 import fnmatch
 from typing import Any, Dict, List, Optional, Callable
+from mcp.server import ServerRequestContext
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import (
+    CallToolRequestParams,
+    CallToolResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    TextContent,
+    Tool,
+)
 
 # Tool-name patterns classified as sensitive: their tools return or manage
 # secret material (credential-broker payloads, API-key secrets, the webhook
@@ -33,10 +42,16 @@ class MCPServer:
     def __init__(self, chariot_instance, allowable_tools: Optional[List[str]] = None):
         self.chariot = chariot_instance
         self.allowable_tools = allowable_tools
-        self.server = Server("praetorian-cli")
         self.discovered_tools = {}
         self._discover_tools()
-        self._register_tools()
+        # mcp >= 2 takes request handlers as constructor arguments. The 1.x
+        # @server.list_tools() / @server.call_tool() decorators it replaced no
+        # longer exist, so binding them late raised AttributeError on import.
+        self.server = Server(
+            "praetorian-cli",
+            on_list_tools=self._on_list_tools,
+            on_call_tool=self._on_call_tool,
+        )
 
     def _is_tool_allowed(self, tool_name: str) -> bool:
         """Two-tier allow check: sensitive tools (SENSITIVE_TOOL_PATTERNS) are
@@ -172,51 +187,57 @@ class MCPServer:
         
         return "string"
 
-    def _register_tools(self):
-        @self.server.list_tools()
-        async def list_tools() -> List[Tool]:
-            tools = []
-            for tool_name, tool_info in self.discovered_tools.items():
-                parameters = self._extract_parameters_from_doc(tool_info['doc'], tool_info['signature'])
+    def _input_schema_for(self, tool_info) -> Dict[str, Any]:
+        """The JSON Schema advertised for one tool.
 
-                properties = {}
-                required = []
-                
-                for param_name, param_info in parameters.items():
-                    if param_name == 'self':
-                        continue
-                        
-                    properties[param_name] = {
-                        "type": param_info.get("type", "string"),
-                        "description": param_info.get("description", f"Parameter {param_name}")
-                    }
-                    
-                    if param_info.get("required", False):
-                        required.append(param_name)
-                
-                tool_schema = {
-                    "type": "object",
-                    "properties": properties
-                }
-                
-                if required:
-                    tool_schema["required"] = required
+        Shared with _on_call_tool so the schema arguments are checked against is
+        necessarily the one the client was shown — a second derivation here
+        could drift from what tools/list promised.
+        """
+        parameters = self._extract_parameters_from_doc(tool_info['doc'], tool_info['signature'])
 
-                parts = tool_info["doc"].split("\n")
-                description = parts[0]
-                if len(parts) > 1:
-                    description += "\n"
-                    description += "\t".join(parts[1:])
+        properties = {}
+        required = []
 
-                tool = Tool(
-                    name=tool_name,
-                    description=description,
-                    inputSchema=tool_schema
-                )
-                
-                tools.append(tool)
-            
-            return tools
+        for param_name, param_info in parameters.items():
+            if param_name == 'self':
+                continue
+
+            properties[param_name] = {
+                "type": param_info.get("type", "string"),
+                "description": param_info.get("description", f"Parameter {param_name}")
+            }
+
+            if param_info.get("required", False):
+                required.append(param_name)
+
+        tool_schema = {
+            "type": "object",
+            "properties": properties
+        }
+
+        if required:
+            tool_schema["required"] = required
+
+        return tool_schema
+
+    async def _on_list_tools(self, context: ServerRequestContext,
+                             params: Optional[PaginatedRequestParams] = None) -> ListToolsResult:
+        tools = []
+        for tool_name, tool_info in self.discovered_tools.items():
+            parts = tool_info["doc"].split("\n")
+            description = parts[0]
+            if len(parts) > 1:
+                description += "\n"
+                description += "\t".join(parts[1:])
+
+            tools.append(Tool(
+                name=tool_name,
+                description=description,
+                input_schema=self._input_schema_for(tool_info),
+            ))
+
+        return ListToolsResult(tools=tools)
 
     async def _call_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         if name not in self.discovered_tools:
@@ -248,10 +269,31 @@ class MCPServer:
         except Exception as e:
             return [TextContent(type="text", text=f"Error executing {name}: {str(e)}")]
 
+    async def _on_call_tool(self, context: ServerRequestContext,
+                            params: CallToolRequestParams) -> CallToolResult:
+        arguments = params.arguments or {}
+
+        # mcp 1.x validated arguments against the advertised inputSchema before
+        # dispatch: Server.call_tool() defaulted to validate_input=True and
+        # returned an isError result on failure. The 2.x low-level server does
+        # not — only its high-level MCPServer does, from Python signatures — so
+        # the check lives here. Without it a wrong-typed argument reaches the
+        # SDK method and becomes a live API call against the user's account.
+        #
+        # An unknown name falls through deliberately: _call_tool owns that
+        # error, and there is no schema to check against.
+        tool_info = self.discovered_tools.get(params.name)
+        if tool_info is not None:
+            try:
+                jsonschema.validate(instance=arguments, schema=self._input_schema_for(tool_info))
+            except jsonschema.ValidationError as e:
+                return CallToolResult(
+                    content=[TextContent(type="text", text=f"Input validation error: {e.message}")],
+                    is_error=True,
+                )
+
+        return CallToolResult(content=await self._call_tool(params.name, arguments))
+
     async def start(self):
-        @self.server.call_tool()
-        async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-            return await self._call_tool(name, arguments)
-        
         async with stdio_server() as (read_stream, write_stream):
             await self.server.run(read_stream, write_stream, self.server.create_initialization_options())
