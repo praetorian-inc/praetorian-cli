@@ -502,7 +502,19 @@ guard run installed
 guard engagement list
 guard engagement create-customer --email ops@acme.com --name "ACME Corp"
 guard engagement create-vault --client acme --sow SOW-1234 --sku WAPT --github-user jdoe
+
+# Mobile testing: upload an APK, then run a capability against it on a device
+guard add apk --file ./bank-app.apk
+guard aegis list --details
+guard aegis job --package com.bank.app
+guard aegis job --package com.bank.app -c android-device-survey -e <endpoint-id>
 ```
+
+A mobile capability runs on an enrolled Aegis v2 endpoint, named with `--endpoint` from
+the IDs in `guard aegis list --details`. The target is the application rather than the
+device, so the findings are filed on the `#apk#<package>` asset. Pinning a job to a
+specific endpoint is reserved for Praetorian users: for everyone else Guard drops the pin
+and selects an endpoint automatically.
 
 # Developers
 

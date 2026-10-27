@@ -146,7 +146,14 @@ class MCPServer:
     def _sphinx_type_to_json_type(self, sphinx_type: str) -> str:
         """Convert Sphinx type annotations to JSON schema types"""
         sphinx_type = sphinx_type.lower().strip()
-        
+        # Optional spellings -- "list or None", "Optional[list]", "list | None" -- name
+        # the same JSON type as the bare one. Only the inner type decides the schema.
+        sphinx_type = re.sub(r'\s+or\s+none$', '', sphinx_type)
+        sphinx_type = re.sub(r'\s*\|\s*none$', '', sphinx_type)
+        optional = re.match(r'optional\[(.+)\]$', sphinx_type)
+        if optional:
+            sphinx_type = optional.group(1).strip()
+
         if sphinx_type in ['str', 'string']:
             return "string"
         elif sphinx_type in ['int', 'integer']:
