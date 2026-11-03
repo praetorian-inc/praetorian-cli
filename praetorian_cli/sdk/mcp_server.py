@@ -30,6 +30,7 @@ SENSITIVE_TOOL_PATTERNS = (
     'credentials_*',
     'integrations_*',
     'keys_*',
+    'red_team_deployment_*',
     'webhook_*',
 )
 

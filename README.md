@@ -24,6 +24,7 @@
     - [AI Hunts](#ai-hunts)
     - [Aegis endpoint network policy](#aegis-endpoint-network-policy)
     - [Engineer VMs](#engineer-vms)
+    - [Red-team deployments](#red-team-deployments)
     - [File upload partitions](#file-upload-partitions)
     - [Update checks](#update-checks)
 - [Operators](#operators)
@@ -261,6 +262,57 @@ guard vm revive <VM_ID>
 SSH uses an ephemeral keypair and short-lived VM-bound certificate through
 Guard's authenticated gateway. See [Engineer VMs](docs/engineer-vms.md) for
 lifecycle, access, and security details.
+
+## Red-team deployments
+
+Use `red-team deployment` to inspect and manage the selected engagement's
+Guard-managed infrastructure without a Marcus conversation. Existing
+`--profile` and `--account` selection applies; Guard freshly checks the same
+effective red-team permissions and tenant access for every request.
+
+```zsh
+guard --profile PROFILE --account ENGAGEMENT red-team deployment inventory
+guard --profile PROFILE --account ENGAGEMENT red-team deployment launch --desired-id engagement-rt
+guard --profile PROFILE --account ENGAGEMENT red-team deployment plan --config-file configuration.json --tag v1.2.3
+guard --profile PROFILE --account ENGAGEMENT red-team deployment apply --config-file configuration.json --tag v1.2.3
+guard --profile PROFILE --account ENGAGEMENT red-team deployment collaborators \
+  --collaborator first@praetorian.com --collaborator second@praetorian.com
+guard --profile PROFILE --account ENGAGEMENT red-team deployment tag --tag v1.2.3
+guard --profile PROFILE --account ENGAGEMENT red-team deployment delete
+guard --profile PROFILE --account ENGAGEMENT red-team deployment result \
+  --job-id 'RETURNED_JOB_ID' --enqueued 'RETURNED_ENQUEUED_TIMESTAMP'
+```
+
+The same commands are available under
+`praetorian --profile PROFILE --account ENGAGEMENT chariot red-team deployment`.
+Configuration is a BuilderState JSON object, not Terraform state or tfvars.
+Supply exactly one of `--config-file` or `--config-json`; prefer a file to keep
+sensitive inputs out of shell history. The CLI reads configuration once and
+does not print its raw contents.
+
+Each lifecycle command obtains a fresh redacted preview. Launch, apply, collaborator
+replacement, tag changes and deletion require default-no interactive
+confirmation. Noninteractive use requires explicit `--yes`; piping `y` or
+setting `--force` does not approve a change. `--yes` still displays the preview.
+Collaborator arguments replace the complete list rather than appending to it.
+
+Plan queues a plan only and requires no approval. Apply approves the requested
+configuration, pinned release and recorded deployment context; Terraform
+computes a new execution plan during apply, not a saved reviewed plan.
+Changed inputs, versions or deployment context require a new preview and
+confirmation; conflicts are not retried automatically.
+
+Inventory exposes safe recorded nodes/endpoints, version, collaborators,
+outputs and history, not live health or secret-bearing artifacts. Missing,
+stale and unavailable information remains explicit. An `enqueued` response is
+acceptance, not successful completion: retain both returned `job_id` and exact
+`enqueued` value when checking `result`. Failed, superseded and unavailable
+results exit nonzero.
+
+The SDK resource is `sdk.red_team_deployment`. Its methods are transport APIs;
+the direct CLI supplies the human-confirmation flow. Deployment methods are
+excluded from default and wildcard MCP discovery by the existing sensitive-tool
+policy; direct CLI use does not require MCP.
 
 ## File upload partitions
 

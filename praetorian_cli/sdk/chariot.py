@@ -20,6 +20,7 @@ from praetorian_cli.sdk.entities.integrations import Integrations
 from praetorian_cli.sdk.entities.jobs import Jobs
 from praetorian_cli.sdk.entities.keys import Keys
 from praetorian_cli.sdk.entities.preseeds import Preseeds
+from praetorian_cli.sdk.entities.red_team_deployment import RedTeamDeployment
 from praetorian_cli.sdk.entities.reports import Reports
 from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.entities.scanners import Scanners
@@ -72,6 +73,7 @@ class Chariot:
         self.schedules = Schedules(self)
         self.vms = EngineerVms(self)
         self.apks = Apks(self)
+        self.red_team_deployment = RedTeamDeployment(self)
         self.proxy = proxy
 
         if self.proxy == '' and os.environ.get('CHARIOT_PROXY'):

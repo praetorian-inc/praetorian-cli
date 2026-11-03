@@ -24,6 +24,7 @@ import praetorian_cli.handlers.link
 import praetorian_cli.handlers.list
 import praetorian_cli.handlers.query
 import praetorian_cli.handlers.report
+import praetorian_cli.handlers.red_team
 import praetorian_cli.handlers.script
 import praetorian_cli.handlers.search
 import praetorian_cli.handlers.test
