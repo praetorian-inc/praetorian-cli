@@ -1,5 +1,8 @@
 # Changelog
 
+# Unreleased
+- [New Feature] Added direct `red-team deployment` inventory, launch, plan/apply, collaborator and release updates, deletion and exact-run results to `guard` and `praetorian chariot`, with redacted previews and explicit confirmation before mutations.
+
 # 2.6.2
 - [Update] Added `--praetorian` to `get file`, `list files`, and `delete file` so those commands can target the Praetorian-only partition
 
