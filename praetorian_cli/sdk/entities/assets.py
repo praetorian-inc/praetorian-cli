@@ -9,6 +9,30 @@ HUNT_SCOPE_CLASSES = {
 HUNT_WEB_AGENTS = {'hannibal-webapp', 'hannibal-llm'}
 
 
+def _filter_group(operator, *filters):
+    return Filter(
+        '',
+        operator,
+        [filter_.to_dict() for filter_ in filters],
+    ).to_dict()
+
+
+def _internal_hunt_scope_filter():
+    internal_networks = _filter_group(
+        Filter.Operator.AND,
+        Filter(Filter.Field.STATUS, Filter.Operator.STARTS_WITH, Asset.ACTIVE.value),
+        Filter(Filter.Field.CLASS, Filter.Operator.IN, [['ipv4', 'cidr']]),
+        Filter(Filter.Field.IS_INTERNAL, Filter.Operator.EQUAL, True),
+    )
+    ad_domains = _filter_group(
+        Filter.Operator.AND,
+        Filter(Filter.Field.KEY, Filter.Operator.STARTS_WITH, '#addomain#'),
+        Filter(Filter.Field.STATUS, Filter.Operator.STARTS_WITH, 'D', not_=True),
+        Filter(Filter.Field.STATUS, Filter.Operator.STARTS_WITH, 'F', not_=True),
+    )
+    return Filter('', Filter.Operator.OR, [internal_networks, ad_domains])
+
+
 class Assets:
     """ The methods in this class are to be assessed from sdk.assets, where sdk is an instance
     of Chariot. """
@@ -147,25 +171,19 @@ class Assets:
             raise ValueError(f'Unsupported Hunt agent: {agent}')
 
         is_web_application = agent in HUNT_WEB_AGENTS
-        filters = [
+        filters = [] if internal else [
             Filter(
                 Filter.Field.STATUS,
                 Filter.Operator.STARTS_WITH,
                 Asset.ACTIVE.value,
             )
         ]
-        if not is_web_application:
-            classes = ['ipv4', 'cidr'] if internal else HUNT_SCOPE_CLASSES[agent]
+        query_filters = [_internal_hunt_scope_filter()] if internal else None
+        if not is_web_application and not internal:
             filters.append(Filter(
                 Filter.Field.CLASS,
                 Filter.Operator.IN,
-                [classes],
-            ))
-        if internal:
-            filters.append(Filter(
-                Filter.Field.IS_INTERNAL,
-                Filter.Operator.EQUAL,
-                True,
+                [HUNT_SCOPE_CLASSES[agent]],
             ))
         if agent == 'hannibal-llm':
             filters.append(Filter(
@@ -180,7 +198,6 @@ class Assets:
             else Node.Label.ASSET
         )
         node = Node(labels=[label], filters=filters)
-        query_filters = None
         if search and not is_web_application:
             node.search = search
         elif search:

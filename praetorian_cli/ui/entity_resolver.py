@@ -7,6 +7,7 @@ from praetorian_cli.ui.entity_selector import select_entity_keys
 
 SEARCH_FIELDS = {
     'asset': ('key', 'identifier', 'group', 'name', 'dns'),
+    'addomain': ('key', 'domain', 'objectid', 'identifier', 'name'),
     'risk': ('key', 'dns', 'name', 'title'),
     'repository': ('key', 'name', 'identifier', 'url'),
     'webapplication': ('key', 'name', 'primary_url', 'identifier', 'domain'),
@@ -20,6 +21,8 @@ MATCH_FIELDS = (
     'group',
     'primary_url',
     'url',
+    'domain',
+    'objectid',
 )
 
 
@@ -166,6 +169,8 @@ def _find_candidates_for_kind(sdk, value, search_kind, limit):
 def _search_kinds(entity_type):
     if entity_type == 'asset':
         return ('asset', 'webapplication')
+    if entity_type == 'internal':
+        return ('asset', 'addomain')
     return (entity_type,)
 
 
@@ -174,6 +179,8 @@ def _key_matches_type(key, entity_type):
         return key.startswith('#')
     if entity_type == 'asset':
         return key.startswith(('#asset#', '#webapplication#'))
+    if entity_type == 'internal':
+        return key.startswith(('#asset#', '#addomain#'))
     return key.startswith(f'#{entity_type}#')
 
 
