@@ -1,5 +1,9 @@
+import json
 import os
 import shlex
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
 
 import click
 
@@ -101,6 +105,116 @@ def write_aws_config(profiles, config_path=None):
         os.makedirs(parent_dir, exist_ok=True)
     with open(config_path, 'w') as f:
         config.write(f)
+
+
+def azure_sp_filename(client, credential_id, timestamp=None):
+    """Return a unique Azure SP filename: {client}-{credentialId}-{timestamp}.json."""
+    for value, label in ((client, 'client'), (credential_id, 'credential id')):
+        if not isinstance(value, str) or '..' in value or '/' in value or '\\' in value:
+            raise ValueError(f'Invalid {label} for Azure SP filename')
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
+    if not isinstance(timestamp, str):
+        timestamp = timestamp.strftime('%Y%m%dT%H%M%SZ')
+    return f'{client}-{credential_id}-{timestamp}.json'
+
+
+def write_azure_sp_file(path, client_id, tenant, client_assertion):
+    """Write a one-entry Azure SP JSON file, created with mode 0o600."""
+    path = Path(path)
+    try:
+        os.mkdir(path.parent, 0o700)
+    except FileExistsError:
+        pass
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        json.dump([{'client_id': client_id, 'tenant': tenant,
+                    'client_assertion': client_assertion}], f)
+    return path
+
+
+def azure_credential_tenant(cred):
+    """Resolve a tenant id from an Azure credential dict."""
+    for key in ('tenantId', 'tenant', 'tenant_id'):
+        value = cred.get(key)
+        if value:
+            return value
+    account_key = cred.get('accountKey') or ''
+    segments = account_key.rstrip('#').split('#')
+    if len(segments) >= 2 and segments[-2] == 'azure':
+        return segments[-1]
+    return ''
+
+
+def _azure_credential_list(credentials):
+    return '\n'.join(
+        f'  {c.get("credentialId", "")}  {azure_credential_tenant(c)}'
+        for c in credentials
+    )
+
+
+def select_azure_credential(credentials, tenant=None, credential=None):
+    """Pick one Azure credential; --tenant/--credential disambiguate, never guess."""
+    if credential:
+        matches = [c for c in credentials if c.get('credentialId') == credential]
+        if not matches:
+            error(
+                f'No Azure credential matching --credential {credential!r}. Available:\n'
+                + _azure_credential_list(credentials)
+            )
+        return matches[0]
+
+    if tenant:
+        matches = [c for c in credentials if azure_credential_tenant(c) == tenant]
+        if not matches:
+            error(
+                f'No Azure credential matching --tenant {tenant!r}. Available:\n'
+                + _azure_credential_list(credentials)
+            )
+        if len(matches) > 1:
+            error(
+                f'--tenant {tenant!r} matches more than one Azure credential. '
+                'Pass --credential:\n' + _azure_credential_list(matches)
+            )
+        return matches[0]
+
+    if len(credentials) > 1:
+        error(
+            'This account has more than one Azure credential. '
+            'Select one with --tenant (and --credential if still ambiguous):\n'
+            + _azure_credential_list(credentials)
+        )
+
+    return credentials[0]
+
+
+def _azure_token_fields(cv):
+    client_id = cv.get('clientId') or cv.get('client_id')
+    tenant_id = cv.get('tenantId') or cv.get('tenant')
+    assertion = cv.get('assertion') or cv.get('client_assertion')
+    if not client_id or not tenant_id or not assertion:
+        raise click.ClickException(
+            'Azure credential is missing client id, tenant, or assertion.')
+    return client_id, tenant_id, assertion
+
+
+def run_az_login(client_id, tenant, assertion):
+    """Run `az login --service-principal` with a federated token."""
+    cmd = [
+        'az', 'login', '--service-principal',
+        '-u', client_id, '-t', tenant, '--federated-token', assertion,
+    ]
+    try:
+        completed = subprocess.run(cmd, capture_output=True, text=True)
+    except FileNotFoundError:
+        raise click.ClickException(
+            'Azure CLI (az) is not installed. Install az and retry.')
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or '').strip()
+        if assertion:
+            detail = detail.replace(assertion, '[redacted]')
+        raise click.ClickException(detail or 'az login failed')
+    return completed
 
 
 @chariot.group()
@@ -249,6 +363,71 @@ def github(sdk, org, output_format):
         error(f'No GitHub App installation token was retrieved for {target}.')
 
     _print_github_token(token, output_format)
+
+
+@access.command()
+@cli_handler
+@click.option('--account', default=None,
+              help='Guard account email to discover Azure credentials for (also inherited from guard --account)')
+@click.option('--tenant', default=None,
+              help='Azure tenant ID. Required when the account has more than one Azure credential.')
+@click.option('--credential', default=None,
+              help='Azure credential UUID. Required when --tenant is still ambiguous.')
+def azure(sdk, account, tenant, credential):
+    """Log in to Azure CLI using a Guard Azure credential.
+
+    Discovers Azure credentials, writes ~/.azure/{client}-{id}-{ts}.json, and
+    runs `az login --service-principal`. --account is here or guard --account.
+
+    \b
+    Example usages:
+        - guard --account chariot+client@praetorian.com access azure
+        - guard access azure --tenant 11111111-1111-1111-1111-111111111111
+        - guard access azure --credential caa85634-383f-4293-a995-b1427014408e
+    """
+    if account is None:
+        account = sdk.keychain.account
+    if account is None:
+        raise click.ClickException('--account is required. Provide it here or as guard --account.')
+
+    sdk.keychain.assume_role(account)
+    prefix = extract_prefix(account)
+    creds_response = sdk.credentials.list()
+    credentials_list = creds_response[0] if isinstance(creds_response, tuple) else []
+    azure_credentials = [c for c in credentials_list if c.get('type', '') == 'azure']
+
+    if not azure_credentials:
+        click.echo(f'No Azure credentials found for account {account}')
+        return
+
+    cred = select_azure_credential(azure_credentials, tenant=tenant, credential=credential)
+
+    credential_id = cred.get('credentialId', '')
+    category = cred.get('category', 'env-integration')
+    result = sdk.credentials.get(credential_id, category, 'azure', 'token')
+    client_id, tenant_id, assertion = _azure_token_fields(
+        (result or {}).get('credentialValue') or {}
+    )
+    try:
+        dest = Path.home() / '.azure' / azure_sp_filename(prefix, credential_id)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    try:
+        write_azure_sp_file(dest, client_id, tenant_id, assertion)
+    except FileExistsError:
+        raise click.ClickException(
+            f'Azure SP file already exists at {dest}. Retry the command.'
+        ) from None
+    try:
+        run_az_login(client_id, tenant_id, assertion)
+    except Exception:
+        try:
+            dest.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    click.echo(f'Wrote Azure service principal to {dest}')
+    click.echo('Logged in with az login --service-principal')
 
 
 def _select_github_integration(integrations, org):
