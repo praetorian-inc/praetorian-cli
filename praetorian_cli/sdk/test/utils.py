@@ -53,7 +53,6 @@ def make_test_values(o):
     o.seed_asset_key = seed_asset_key(o.seed_asset_dns)
     o.risk_name = f'test-risk-name-{epoch_micro()}'
     o.risk_key = risk_key(o.asset_dns, o.risk_name)
-    o.comment = f'Test comment {epoch_micro()}'
     o.attribute_name = f'test-attribute-name-{epoch_micro()}'
     o.attribute_value = f'test-attribute-value-{epoch_micro()}'
     o.asset_attribute_key = attribute_key(o.attribute_name, o.attribute_value, o.asset_key)
