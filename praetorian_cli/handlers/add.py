@@ -195,11 +195,10 @@ def webhook(sdk):
               help='Existing asset key, hostname, IP, or friendly name')
 @click.option('-s', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
               help=f'Status of the risk')
-@click.option('-c', '--comment', default='', help='Comment for the risk')
 @click.option('-cap', '--capability', default='', help='Capability that discoverd the risk')
 @click.option('--title', '-t', default=None, help='Human-readable title for the risk')
 @click.option('-g', '--tag', 'tags', multiple=True, help='Tag for the risk (can be specified multiple times)')
-def risk(sdk, name, asset, status, comment, capability, title, tags):
+def risk(sdk, name, asset, status, capability, title, tags):
     """ Add a risk
 
     This command adds a risk to Guard. A risk must have an associated asset.
@@ -218,7 +217,7 @@ def risk(sdk, name, asset, status, comment, capability, title, tags):
         - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI --tag critical --tag needs-review
     """
     asset_key = resolve_entity_reference(sdk, asset, 'asset')
-    sdk.risks.add(asset_key, name, status, comment, capability, title, tags)
+    sdk.risks.add(asset_key, name, status, capability, title, tags)
 
 
 @add.command()

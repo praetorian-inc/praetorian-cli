@@ -12,7 +12,7 @@ class TestSearch:
         self.sdk = setup_chariot(profile, account)
         make_test_values(self)
         self.sdk.assets.add(self.asset_dns, self.asset_name)
-        self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value, self.comment)
+        self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value)
         self.sdk.attributes.add(self.asset_key, self.attribute_name, self.attribute_value)
 
 

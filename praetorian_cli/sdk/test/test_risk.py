@@ -1,7 +1,9 @@
+from unittest.mock import MagicMock
+
 import pytest
 
 from praetorian_cli.sdk.model.globals import Risk, Kind
-from praetorian_cli.sdk.entities.risks import get_note_entries
+from praetorian_cli.sdk.entities.risks import Risks
 from praetorian_cli.sdk.test.utils import selected_test_target, make_test_values, clean_test_entities, setup_chariot
 
 
@@ -16,7 +18,7 @@ class TestRisk:
     def test_add_risk(self):
         result = self.sdk.assets.add(self.asset_dns, self.asset_name)
         asset_key = result['key']
-        r = self.sdk.risks.add(asset_key, self.risk_name, Risk.TRIAGE_HIGH.value, self.comment)
+        r = self.sdk.risks.add(asset_key, self.risk_name, Risk.TRIAGE_HIGH.value)
         assert r['key'] == self.risk_key
 
     def test_get_risk(self):
@@ -40,33 +42,6 @@ class TestRisk:
     def test_update_risk(self):
         self.sdk.risks.update(self.risk_key, Risk.OPEN_CRITICAL.value)
         assert self.get_risk()['status'] == Risk.OPEN_CRITICAL.value
-
-    def test_remove_comment(self):
-        self.sdk.risks.update(self.risk_key, comment='First comment')
-        self.sdk.risks.update(self.risk_key, comment='Second comment')
-        self.sdk.risks.update(self.risk_key, comment='Third comment')
-
-        risk = self.get_risk()
-        initial_history_len = len(get_note_entries(risk))
-        assert initial_history_len == 3
-
-        self.sdk.risks.update(self.risk_key, remove_comment=-2)
-
-        risk = self.get_risk()
-        new_history_len = len(get_note_entries(risk))
-        assert new_history_len == 2
-
-        self.sdk.risks.update(self.risk_key, remove_comment=-1)
-
-        risk = self.get_risk()
-        final_history_len = len(get_note_entries(risk))
-        assert final_history_len == 1
-
-        self.sdk.risks.update(self.risk_key, remove_comment=0)
-
-        risk = self.get_risk()
-        final_history_len = len(get_note_entries(risk))
-        assert final_history_len == 0
 
     def test_delete_risk(self):
         self.sdk.risks.delete(self.risk_key, Risk.DELETED_DUPLICATE_CRITICAL.value)
@@ -107,3 +82,30 @@ class TestRisk:
 
     def teardown_class(self):
         clean_test_entities(self.sdk, self)
+
+
+class TestRiskRequests:
+
+    def setup_method(self):
+        self.api = MagicMock()
+        self.risks = Risks(self.api)
+
+    def test_add_posts_asset_key(self):
+        self.api.post.return_value = {'risks': [{'key': '#risk#example.com#vuln-1'}]}
+
+        result = self.risks.add('#asset#example.com#1.1.1.1', 'vuln-1', 'TH', capability='nuclei')
+
+        self.api.post.assert_called_once_with('risk', dict(
+            assetKey='#asset#example.com#1.1.1.1', name='vuln-1', status='TH', source='nuclei'))
+        assert result == {'key': '#risk#example.com#vuln-1'}
+
+    def test_update_puts_only_provided_fields(self):
+        self.risks.update('#risk#example.com#vuln-1', status='OH', tags=('a', 'b'))
+
+        self.api.put.assert_called_once_with('risk', dict(key='#risk#example.com#vuln-1', status='OH', tags=['a', 'b']))
+
+    def test_delete_sends_key_and_deleted_status(self):
+        self.risks.delete('#risk#example.com#vuln-1', 'DHF', comment='false positive')
+
+        self.api.delete_by_key.assert_called_once_with(
+            'risk', '#risk#example.com#vuln-1', dict(status='DHF', comment='false positive'))
