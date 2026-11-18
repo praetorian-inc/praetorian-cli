@@ -1,6 +1,7 @@
 # Changelog
 
 # 2.6.3
+- [New Feature] Added `guard bounty programs` and `guard bounty findings`: a cross-tenant, CLI-queryable feed of bug bounty findings ranked by severity and proof level, with HackerOne submission state and filters by program, state, proof, and submission status (Praetorian engineers only)
 - [Update] `add risk` now creates through `POST /risk`; `update risk` and `delete risk` address one risk by its exact key
 
 # 2.6.2

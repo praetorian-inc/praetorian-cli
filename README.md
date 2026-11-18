@@ -24,6 +24,7 @@
     - [AI Hunts](#ai-hunts)
     - [Aegis endpoint network policy](#aegis-endpoint-network-policy)
     - [Engineer VMs](#engineer-vms)
+    - [Bug bounty findings feed](#bug-bounty-findings-feed)
     - [File upload partitions](#file-upload-partitions)
     - [Update checks](#update-checks)
 - [Operators](#operators)
@@ -261,6 +262,21 @@ guard vm revive <VM_ID>
 SSH uses an ephemeral keypair and short-lived VM-bound certificate through
 Guard's authenticated gateway. See [Engineer VMs](docs/engineer-vms.md) for
 lifecycle, access, and security details.
+
+## Bug bounty findings feed
+
+Praetorian engineers can query findings across every bug bounty tenant they
+can access, ranked for HackerOne submission, with the `bounty` command group:
+
+```zsh
+guard bounty programs
+guard bounty findings --proof verified --h1 unsubmitted
+guard bounty findings -P bookingcom -P lowes --sort proof
+guard bounty findings --details | jq '.data[] | select(.proof == "verified") | .key'
+```
+
+See [Bug bounty findings feed](docs/bug-bounty.md) for proof levels, filters,
+and output formats.
 
 ## File upload partitions
 
@@ -547,8 +563,9 @@ with the SDK. The 2.6.0 release adds structured APIs under `sdk.aegis`,
 `sdk.credentials`.
 
 For higher-level examples and safety requirements, see
-[Aegis endpoints](docs/aegis.md), [AI Hunts](docs/hunts.md), and
-[Engineer VMs](docs/engineer-vms.md).
+[Aegis endpoints](docs/aegis.md), [AI Hunts](docs/hunts.md),
+[Engineer VMs](docs/engineer-vms.md), and the
+[Bug bounty findings feed](docs/bug-bounty.md).
 
 ## Developing external scripts
 
