@@ -10,6 +10,7 @@ import praetorian_cli.handlers.access
 import praetorian_cli.handlers.add
 import praetorian_cli.handlers.aegis
 import praetorian_cli.handlers.agent
+import praetorian_cli.handlers.bounty
 import praetorian_cli.handlers.critfinder
 import praetorian_cli.handlers.delete
 import praetorian_cli.handlers.enrich
