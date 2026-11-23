@@ -7,6 +7,7 @@ from praetorian_cli.sdk.entities.agents import Agents
 from praetorian_cli.sdk.entities.assets import Assets
 from praetorian_cli.sdk.entities.apks import Apks
 from praetorian_cli.sdk.entities.attributes import Attributes
+from praetorian_cli.sdk.entities.bounty import Bounty
 from praetorian_cli.sdk.entities.capabilities import Capabilities
 from praetorian_cli.sdk.entities.configurations import Configurations
 from praetorian_cli.sdk.entities.conversations import Conversations
@@ -71,6 +72,7 @@ class Chariot:
         self.schema = Schema(self)
         self.schedules = Schedules(self)
         self.vms = EngineerVms(self)
+        self.bounty = Bounty(self)
         self.apks = Apks(self)
         self.proxy = proxy
 
