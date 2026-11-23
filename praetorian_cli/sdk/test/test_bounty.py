@@ -10,8 +10,10 @@ from praetorian_cli.sdk.entities.bounty import (
     normalize_finding,
     normalize_severities,
     proof_level,
+    risk_query,
     select_tenants,
     sort_findings,
+    status_prefixes,
     tenant_program,
 )
 
@@ -50,7 +52,9 @@ def test_proof_level_prefers_verification_over_demonstration():
     assert proof_level({'proposedBy': 'cato-agent'}) == PROOF_VERIFIED
     assert proof_level({'publishedEvidence': '**Verified by Praetorian Guard — 2026-08-14**\n...'}) == PROOF_VERIFIED
     assert proof_level({'proposedEvidence': '  **Verified by Praetorian Guard'}) == PROOF_VERIFIED
-    assert proof_level({'tags': ['cato-reviewed']}) == PROOF_VERIFIED
+    assert proof_level({'tags': ['cato-proposed']}) == PROOF_VERIFIED
+    # cato-reviewed is also stamped on rejections, so it is not proof on its own
+    assert proof_level({'tags': ['cato-reviewed']}) == PROOF_DETECTED
     assert proof_level({'demonstrated': '2026-08-14T10:07:51Z'}) == PROOF_DEMONSTRATED
     assert proof_level({'proposedBy': 'romulus-agent', 'proposedEvidence': 'curl ...'}) == PROOF_DEMONSTRATED
     assert proof_level({'source': 'nuclei'}) == PROOF_DETECTED
@@ -217,8 +221,11 @@ def test_findings_aggregates_tenants_and_reports_errors(monkeypatch):
     ]
     bounty = Bounty(FakeApi(accounts))
 
-    class FakeRisks:
-        def list(self):
+    class FakeSearch:
+        queries = []
+
+        def by_query(self, query, pages=100000):
+            self.queries.append(query.to_dict())
             return [
                 risk('#risk#https://x.att.com#ato', 'OC', proposedBy='cato-agent'),
                 risk('#risk#https://y.att.com#nuclei-thing', 'TH'),
@@ -231,7 +238,7 @@ def test_findings_aggregates_tenants_and_reports_errors(monkeypatch):
             return [{'name': 'hackerone-intent-id', 'value': '7', 'source': '#risk#https://x.att.com#ato'}], None
 
     class FakeTenantSdk:
-        risks = FakeRisks()
+        search = FakeSearch()
         attributes = FakeAttributes()
 
     def fake_tenant_sdk(account):
@@ -243,6 +250,9 @@ def test_findings_aggregates_tenants_and_reports_errors(monkeypatch):
 
     findings, errors = bounty.findings(workers=2)
     assert [f['name'] for f in findings] == ['ato', 'nuclei-thing']
+    sent = FakeSearch.queries[-1]['node']['filters'][0]
+    assert sent['operator'] == 'OR'
+    assert sorted(c['value'] for c in sent['value']) == ['OC', 'OH', 'TC', 'TH']
     assert findings[0]['hackerone']['submitted'] is True
     assert findings[1]['hackerone']['submitted'] is False
     assert errors == [{'account': 'guard+broken-xyz@praetorian.com', 'program': 'broken', 'error': 'boom'}]
@@ -252,6 +262,19 @@ def test_findings_aggregates_tenants_and_reports_errors(monkeypatch):
 
     all_states, _ = bounty.findings(severities=None, states=None, programs=['att'])
     assert len(all_states) == 3
+    assert 'filters' not in FakeSearch.queries[-1]['node']
+
+
+def test_status_prefixes_and_risk_query_push_filters_to_the_api():
+    assert status_prefixes(None, None) is None
+    assert status_prefixes('all', None) is None
+    assert status_prefixes(('C', 'H'), ('T', 'O')) == ['OC', 'OH', 'TC', 'TH']
+    assert status_prefixes(None, ('D',)) == ['D']
+    assert status_prefixes('critical', None) == ['DC', 'IC', 'OC', 'RC', 'TC']
+
+    single = risk_query(['D']).to_dict()['node']['filters']
+    assert single == [{'field': 'status', 'operator': 'STARTS WITH', 'value': 'D', 'not': False}]
+    assert 'filters' not in risk_query(None).to_dict()['node']
 
 
 def test_handler_rows_render_as_tsv_and_table():

@@ -9,6 +9,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 
 from praetorian_cli.sdk.keychain import Keychain
+from praetorian_cli.sdk.model.query import Filter, Node, Query
 
 # Bug bounty tenants are provisioned as guard+<program>-<3 char suffix>@praetorian.com
 TENANT_PATTERN = re.compile(r'^guard\+(?P<slug>.+)-[a-z0-9]{3}@praetorian\.com$')
@@ -27,7 +28,9 @@ PROOF_ORDER = {PROOF_VERIFIED: 0, PROOF_DEMONSTRATED: 1, PROOF_DETECTED: 2}
 
 VERIFIED_EVIDENCE_PREFIX = '**Verified by Praetorian Guard'
 VERIFIER_AGENTS = ('cato-agent',)
-VERIFIED_TAGS = ('cato-reviewed', 'cato-proposed')
+# cato-reviewed is stamped whenever the verification agent touches a risk, including
+# rejections (reject_risk.go), so only cato-proposed means the agent confirmed the finding.
+VERIFIED_TAGS = ('cato-proposed',)
 
 H1_ATTRIBUTE_PREFIX = 'hackerone-'
 H1_FIELDS = ('intent-id', 'status', 'program', 'source')
@@ -89,11 +92,12 @@ class Bounty:
         :rtype: tuple
         """
         tenants = self.tenants(programs)
+        prefixes = status_prefixes(severities, states)
         findings = []
         errors = []
 
         with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-            for tenant, tenant_findings, error in pool.map(self._tenant_findings, tenants):
+            for tenant, tenant_findings, error in pool.map(lambda t: self._tenant_findings(t, prefixes), tenants):
                 if error:
                     errors.append({'account': tenant['account'], 'program': tenant['program'], 'error': error})
                 findings.extend(tenant_findings)
@@ -101,10 +105,10 @@ class Bounty:
         findings = filter_findings(findings, severities=severities, states=states, proof=proof, submitted=submitted)
         return sort_findings(findings, sort_by, descending), errors
 
-    def _tenant_findings(self, tenant):
+    def _tenant_findings(self, tenant, prefixes=None):
         try:
             sdk = self._tenant_sdk(tenant['account'])
-            risks, _ = sdk.risks.list()
+            risks, _ = sdk.search.by_query(risk_query(prefixes))
             attributes, _ = sdk.attributes.list(prefix_filter=H1_ATTRIBUTE_PREFIX)
         except Exception as e:
             return tenant, [], str(e) or type(e).__name__
@@ -126,6 +130,31 @@ class Bounty:
         keychain.token_cache = base.token_cache
         keychain.token_expiry = base.token_expiry
         return Chariot(keychain=keychain, proxy=self.api.proxy)
+
+
+def status_prefixes(severities=None, states=None):
+    """ Risk status prefixes (state + severity, e.g. TC, OH) that match the requested
+    severities and states, so the backend filters instead of the client. None means no filter. """
+    severities = normalize_severities(severities)
+    states = list(states) if states else None
+    if severities is None and states is None:
+        return None
+    if severities is None:
+        return sorted(states)
+    if states is None:
+        states = list(STATE_NAMES)
+    return sorted(state + severity for state in states for severity in severities)
+
+
+def risk_query(prefixes=None):
+    """ Graph query for every risk in the assumed tenant, narrowed server-side to the
+    given status prefixes. """
+    filters = None
+    if prefixes:
+        conditions = [Filter(Filter.Field.STATUS, Filter.Operator.STARTS_WITH, p) for p in prefixes]
+        filters = [conditions[0]] if len(conditions) == 1 else \
+            [Filter('', Filter.Operator.OR, [c.to_dict() for c in conditions])]
+    return Query(Node(labels=[Node.Label.RISK], filters=filters))
 
 
 def tenant_program(email):

@@ -21,7 +21,7 @@ Every risk is tagged with a proof level, derived from the record itself:
 
 | Proof | Meaning |
 |-------|---------|
-| `verified` | Independently confirmed by the verification agent (`proposedBy: cato-agent`, a `**Verified by Praetorian Guard` evidence block, or a `cato-reviewed` tag) |
+| `verified` | Independently confirmed by the verification agent (`proposedBy: cato-agent`, a `**Verified by Praetorian Guard` evidence block, or a `cato-proposed` tag; `cato-reviewed` alone only means the agent looked at it) |
 | `demonstrated` | Working proof attached (`demonstrated` timestamp or proposed/published evidence) but not independently verified |
 | `detected` | Scanner or fingerprint signal only |
 
