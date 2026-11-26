@@ -12,7 +12,7 @@ class Risks:
     def __init__(self, api):
         self.api = api
 
-    def add(self, asset_key, name, status, comment=None, capability='', title=None, tags=None):
+    def add(self, asset_key, name, status, capability='', title=None, tags=None):
         """
         Add a risk to an existing asset.
 
@@ -22,8 +22,6 @@ class Risks:
         :type name: str
         :param status: Risk status from Risk enum (e.g., Risk.TRIAGE_HIGH.value, Risk.OPEN_CRITICAL.value). See globals.py for complete list of valid statuses
         :type status: str
-        :param comment: Optional comment for the risk
-        :type comment: str or None
         :param capability: Optional capability that discovered this risk
         :type capability: str
         :param title: Optional human-readable title for the risk
@@ -33,12 +31,13 @@ class Risks:
         :return: The created risk object
         :rtype: dict
         """
-        body = dict(key=asset_key, name=name, status=status, comment=comment, source=capability)
+        # TODO: restore the comment parameter once POST /risk records a comment on create.
+        body = dict(assetKey=asset_key, name=name, status=status, source=capability)
         if title is not None:
             body['title'] = title
         if tags:
             body['tags'] = list(tags)
-        return self.api.upsert('risk', body)['risks'][0]
+        return self.api.post('risk', body)['risks'][0]
 
     def get(self, key, details=False, evidence='off'):
         """
@@ -57,25 +56,24 @@ class Risks:
             risk['affected_assets'] = self.affected_assets(key)
         return risk
 
-    def update(self, key, status=None, comment=None, remove_comment=None, title=None, tags=None):
+    def update(self, key, status=None, comment=None, title=None, tags=None):
         """
-        Update a risk's status and/or comment, or remove a comment.
+        Update a risk's status, comment, title and/or tags.
 
-        :param key: The key of the risk. If you supply a prefix that matches multiple risks, all of them will be updated
+        :param key: The exact key of the risk
         :type key: str
         :param status: New risk status from Risk enum (e.g., Risk.OPEN_HIGH.value, Risk.REMEDIATED_CRITICAL.value). See globals.py for complete list of valid statuses
         :type status: str or None
         :param comment: Comment for the risk update
         :type comment: str or None
-        :param remove_comment: Index of comment to remove (0, 1, ... or -1 for most recent)
-        :type remove_comment: int or None
         :param title: Optional human-readable title for the risk
         :type title: str or None
-        :param tags: Optional tags for the risk
+        :param tags: Optional tags; these replace the risk's existing tags
         :type tags: tuple or list or None
         :return: API response containing update results
         :rtype: dict
         """
+        # TODO: restore remove_comment once PUT /risk accepts a history index to remove.
         params = dict(key=key)
         if status:
             params = params | dict(status=status)
@@ -85,17 +83,14 @@ class Risks:
             params['title'] = title
         if tags:
             params['tags'] = list(tags)
-        if remove_comment is not None:
-            index = self.resolve_comment_entry_index(key, remove_comment)
-            params = params | dict(remove=index)
 
-        return self.api.upsert('risk', params)
+        return self.api.put('risk', params)
 
     def delete(self, key, status, comment=None):
         """
         Delete a risk by setting it to a deleted status.
 
-        :param key: The key of the risk. If you supply a prefix that matches multiple risks, all of them will be deleted
+        :param key: The exact key of the risk
         :type key: str
         :param status: Deletion status from Risk enum (e.g., Risk.DELETED_DUPLICATE_CRITICAL.value, Risk.DELETED_FALSE_POSITIVE_HIGH.value)
         :type status: str
@@ -159,7 +154,7 @@ class Risks:
 
         Args:
             items: List of dicts with keys: asset_key, name, status,
-                   and optionally: comment, capability, title, tags
+                   and optionally: capability, title, tags
 
         Returns:
             Job dict for tracking progress.
@@ -167,8 +162,6 @@ class Risks:
         payload_items = []
         for item in items:
             p = dict(key=item['asset_key'], name=item['name'], status=item['status'])
-            if item.get('comment'):
-                p['comment'] = item['comment']
             if item.get('capability'):
                 p['source'] = item['capability']
             if item.get('title'):
@@ -210,30 +203,6 @@ class Risks:
         assets.extend(indirect_assets)
         assets.extend(web_assets)
         return assets
-
-    def resolve_comment_entry_index(self, key, note_index):
-        """
-        Translate a note index to the actual history array index.
-
-        :param key: The key of the risk
-        :param note_index: Index into note entries (0, 1, ... or -1 for most recent note)
-        :return: The actual index in the history array
-        """
-        risk = self.get(key)
-        history = risk.get('history', [])
-        note_indices = get_note_entry_indices(history)
-
-        if len(note_indices) == 0:
-            raise Exception(f"Risk {key} has no notes to remove")
-
-        # Handle negative indexing (e.g., -1 for last note)
-        if note_index < 0:
-            note_index = len(note_indices) + note_index
-
-        if note_index < 0 or note_index >= len(note_indices):
-            raise Exception(f"Note index {note_index} is out of range (0 to {len(note_indices) - 1})")
-
-        return note_indices[note_index]
 
     def _hydrate_evidence(self, key, mode='basic'):
         """
@@ -416,17 +385,3 @@ class Risks:
             'references': references,
             'raw': raw_markdown,
         }
-
-
-def get_note_entries(risk):
-    history = risk.get('history', [])
-    return [entry for entry in history if is_note_entry(entry)]
-
-
-def get_note_entry_indices(history):
-    """Return the indices in the history array that are note entries."""
-    return [i for i, entry in enumerate(history) if is_note_entry(entry)]
-
-
-def is_note_entry(entry):
-    return entry.get('comment') is not None

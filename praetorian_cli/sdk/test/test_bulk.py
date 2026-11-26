@@ -105,12 +105,11 @@ class TestRisksBulkAdd:
         assert result == {'job': 'j1'}
 
     def test_bulk_add_with_all_optional_fields(self):
-        """bulk_add passes through comment, capability, title, tags."""
+        """bulk_add passes through capability, title, tags."""
         items = [dict(
             asset_key='#asset#a.com#1.1.1.1',
             name='vuln-1',
             status='TH',
-            comment='found during scan',
             capability='nuclei',
             title='SQL Injection',
             tags=['critical', 'web'],
@@ -121,7 +120,6 @@ class TestRisksBulkAdd:
 
         call_args = self.api.post.call_args
         item = call_args[0][1]['items'][0]
-        assert item['comment'] == 'found during scan'
         assert item['source'] == 'nuclei'
         assert item['title'] == 'SQL Injection'
         assert item['tags'] == ['critical', 'web']
@@ -135,7 +133,6 @@ class TestRisksBulkAdd:
 
         call_args = self.api.post.call_args
         item = call_args[0][1]['items'][0]
-        assert 'comment' not in item
         assert 'source' not in item
         assert 'title' not in item
         assert 'tags' not in item

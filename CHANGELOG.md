@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.6.3
+- [Update] `add risk` now creates through `POST /risk`; `update risk` and `delete risk` address one risk by its exact key
+
 # 2.6.2
 - [Update] Added `--praetorian` to `get file`, `list files`, and `delete file` so those commands can target the Praetorian-only partition
 

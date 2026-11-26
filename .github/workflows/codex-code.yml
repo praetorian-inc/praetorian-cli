@@ -12,16 +12,13 @@ on:
   pull_request_review_comment:
     types: [created]
 
-concurrency:
-  group: codex-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}  # stray review comments must not cancel an in-progress review
-
 jobs:
   codex-review:
-    uses: praetorian-inc/public-workflows/.github/workflows/codex-code.yml@3fb9ffbace86c9e93a7b92170241dd54b5031608  # v2.11.3
+    uses: praetorian-inc/public-workflows/.github/workflows/codex-code.yml@bea437fe87b9c4f67a891d7c6539e7bcdbe988e9  # v2.21.21
     permissions:
       contents: read
       pull-requests: write
+      actions: read
     with:
       model: "gpt-5.6-sol"
     secrets:

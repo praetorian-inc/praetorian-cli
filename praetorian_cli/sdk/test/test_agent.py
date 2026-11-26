@@ -15,7 +15,7 @@ class TestRisk:
     def test_affiliation(self):
         result = self.sdk.assets.add(self.asset_dns, self.asset_name)
         assert result['key'] == self.asset_key
-        result = self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value, self.comment)
+        result = self.sdk.risks.add(self.asset_key, self.risk_name, Risk.TRIAGE_HIGH.value)
         assert result['key'] == self.risk_key
 
         # the following at least tests the affiliation code compiles

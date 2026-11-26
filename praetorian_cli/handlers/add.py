@@ -195,11 +195,10 @@ def webhook(sdk):
               help='Existing asset key, hostname, IP, or friendly name')
 @click.option('-s', '--status', type=click.Choice([s.value for s in AddRisk]), required=True,
               help=f'Status of the risk')
-@click.option('-c', '--comment', default='', help='Comment for the risk')
 @click.option('-cap', '--capability', default='', help='Capability that discoverd the risk')
 @click.option('--title', '-t', default=None, help='Human-readable title for the risk')
 @click.option('-g', '--tag', 'tags', multiple=True, help='Tag for the risk (can be specified multiple times)')
-def risk(sdk, name, asset, status, comment, capability, title, tags):
+def risk(sdk, name, asset, status, capability, title, tags):
     """ Add a risk
 
     This command adds a risk to Guard. A risk must have an associated asset.
@@ -218,7 +217,33 @@ def risk(sdk, name, asset, status, comment, capability, title, tags):
         - guard add risk CVE-2024-23049 --asset "#asset#example.com#1.2.3.4" --status TI --tag critical --tag needs-review
     """
     asset_key = resolve_entity_reference(sdk, asset, 'asset')
-    sdk.risks.add(asset_key, name, status, comment, capability, title, tags)
+    sdk.risks.add(asset_key, name, status, capability, title, tags)
+
+
+@add.command()
+@cli_handler
+@click.option('-f', '--file', 'local_filepath', required=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help='Path to the local .apk file')
+@click.option('-n', '--name', 'chariot_filepath',
+              help='Destination path in Guard storage. Defaults to the file name.')
+def apk(sdk, local_filepath, chariot_filepath):
+    """ Upload an Android APK and register it as an asset
+
+    Uploads the APK and registers it, creating an asset keyed '#apk#<package>'. The
+    package name is read from the APK's own manifest rather than supplied, so
+    re-uploading a newer build of the same application updates that asset instead of
+    creating a second one.
+
+    \b
+    Example usages:
+        - guard add apk --file ./bank-app.apk
+        - guard add apk --file ./bank-app.apk --name engagements/acme/bank-app.apk
+    """
+    result = sdk.apks.add(local_filepath, chariot_filepath)
+    key = result.get('key', '')
+    version = result.get('versionName', '')
+    click.echo(f"Registered {key}" + (f" (version {version})" if version else ""))
 
 
 @add.command()

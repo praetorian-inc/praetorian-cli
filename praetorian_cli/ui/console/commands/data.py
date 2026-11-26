@@ -151,7 +151,6 @@ class DataCommands:
         status = row.get('status', '')
         if not asset_key or not name or not status:
             raise ValueError('Missing required field(s): asset, name, status')
-        comment = row.get('comment') or None
         title = row.get('title') or None
         tags = row.get('tags')
         # CSV tags come as comma-separated string; JSON as list
@@ -159,4 +158,4 @@ class DataCommands:
             tags = [t.strip() for t in tags.split(',')]
         elif not tags:
             tags = None
-        self.sdk.risks.add(asset_key, name, status, comment=comment, title=title, tags=tags)
+        self.sdk.risks.add(asset_key, name, status, title=title, tags=tags)
