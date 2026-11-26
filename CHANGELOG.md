@@ -1,5 +1,8 @@
 # Changelog
 
+# 2.7.0
+- [New Feature] Added `guard agent mcp headers` so Claude Code can connect to Guard's hosted MCP server with a Guard API key. See `docs/mcp.md`
+
 # 2.6.3
 - [Update] `add risk` now creates through `POST /risk`; `update risk` and `delete risk` address one risk by its exact key
 
