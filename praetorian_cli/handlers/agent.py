@@ -91,6 +91,23 @@ def mcp():
 
 @mcp.command()
 @cli_handler
+def headers(sdk):
+    """Emit sensitive JSON headers for a hosted-MCP client's headersHelper."""
+    try:
+        keychain = sdk.keychain.load()
+        if not keychain.has_api_key() or not keychain.account:
+            raise click.ClickException('MCP headers require an API-key profile and an explicit account.')
+        result = keychain.headers()
+    except click.ClickException:
+        raise
+    except Exception:
+        # Authentication errors can contain response bodies or credential headers.
+        raise click.ClickException('Unable to obtain Guard MCP headers; check your API-key profile.') from None
+    click.echo(json.dumps(result))
+
+
+@mcp.command()
+@cli_handler
 @click.option('--allowed', '-a', type=str, multiple=True, default=DEFAULT_MCP_TOOLS)
 def start(sdk, allowed):
     """ Starts the Guard MCP server

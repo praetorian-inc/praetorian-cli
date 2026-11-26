@@ -20,6 +20,7 @@
     - [Signing up](#signing-up)
     - [Authentication](#authentication)
 - [Using the CLI](#using-the-cli)
+    - [Hosted MCP in Claude Code](#hosted-mcp-in-claude-code)
     - [Aegis v2 endpoints](#aegis-v2-endpoints)
     - [AI Hunts](#ai-hunts)
     - [Aegis endpoint network policy](#aegis-endpoint-network-policy)
@@ -160,6 +161,23 @@ To get detailed information about a specific asset, run:
 ```zsh
 guard --account guard+example@praetorian.com get asset <ASSET_KEY>
 ```
+
+## Hosted MCP in Claude Code
+
+Connect [Claude Code](https://code.claude.com) to Guard's hosted MCP server so Claude can read and
+change your Guard data with a Guard API key. The CLI supplies the authentication headers:
+
+```zsh
+guard configure      # save a dedicated API key in a profile, e.g. MCP
+claude mcp add-json --scope user guard '{
+  "type": "http",
+  "url": "https://api.app.guard.praetorian.com/api/v1/mcp",
+  "headersHelper": "/Users/you/.local/bin/guard --profile MCP --account company@example.com agent mcp headers"
+}'
+```
+
+See [Hosted MCP](docs/mcp.md) for prerequisites, confirmations, revoking access, and
+troubleshooting.
 
 ## Aegis v2 endpoints
 
